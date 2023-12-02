@@ -1,0 +1,74 @@
+<?xml version="1.0"?>           
+<!-- created by rjw 180202 from BOMB-MarinCountyB-17BombersWithZeroCover -->
+<PropertyList>
+	<scenario>
+		<description>This scenario puts one squadron of B-17 bombers over the Marin Ranch Airport, CA35.
+		
+Your mission is to down the bombers 
+
+The bombers are headed in a northerly direction first squadron at 5100 feet and near the B-17's optimal crusing speed of 182 knots.
+
+The B-17s are air-to-air targets. You can damage them with heavy guns, machine guns, or other armament.
+  
+To damage the aircraft takes one or more direct hits from a machine gun or heavy gun, or a close strike by a heavy bomb.   
+
+Install this scenario in the FlightGear/data/AI directory.
+
+Suggestion: Turn multiplayer mode off.  Marin Ranch is close to KSFO and you'll pick up all the multiplayer action there, greatly slowing your framerate.
+
+Any aircraft that shoots guns or drops bombs can damage the B-17.  A great choice is to use the A6M2 aircraft included in this distribution. 
+
+(And OK - Zeros covering B-17s isn't exactly historically accurate - but this scenario illustrates what the Bombable package can do now.)
+		</description>
+		
+<!-- first B-17 squadron -->
+    <entry>
+      <type>aircraft</type>
+      <callsign>B17-2</callsign>
+      <name>B17_2</name>
+      <model type="string">AI/Aircraft/B-17-Bombable/Models/b17.xml</model>
+      <latitude type="double">37.9102</latitude>
+      <longitude type="double">-122.4672</longitude>
+      <altitude type="double">5100</altitude>
+      <speed>182</speed>
+      <bank type="double">0</bank>
+      <heading type="double">10</heading>
+    </entry>
+    <entry>
+      <type>aircraft</type>
+      <callsign>B17-1</callsign>
+      <name>B17_1</name>
+      <model type="string">AI/Aircraft/B-17-Bombable/Models/b17.xml</model>
+      <latitude type="double">37.91200</latitude>
+      <longitude type="double">-122.46810</longitude>
+      <altitude type="double">5000</altitude>
+      <speed>182</speed>
+      <bank type="double">0</bank>
+      <heading type="double">10</heading>
+    </entry>
+    <entry>
+      <type>aircraft</type>
+      <callsign>B17-3</callsign>
+      <name>B17_3</name>
+      <model type="string">AI/Aircraft/B-17-Bombable/Models/b17.xml</model>
+      <latitude type="double">37.91380</latitude>
+      <longitude type="double">-122.46900</longitude>
+      <altitude type="double">4900</altitude>
+      <speed>182</speed>
+      <bank type="double">0</bank>
+      <heading type="double">10</heading>
+    </entry>
+    <entry>
+      <type>aircraft</type>
+      <callsign>B17-4</callsign>
+      <name>B17_4</name>
+      <model type="string">AI/Aircraft/B-17-Bombable/Models/b17.xml</model>
+      <latitude type="double">37.9104</latitude>
+      <longitude type="double">-122.46810</longitude>
+      <altitude type="double">5200</altitude>
+      <speed>182</speed>
+      <bank type="double">0</bank>
+      <heading type="double">10</heading>
+    </entry>       
+	</scenario>
+</PropertyList>
