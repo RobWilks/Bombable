@@ -156,10 +156,12 @@
                 name : "Front Machine Gun", # name presented to users, ie in on-screen messages
                 maxDamage_percent : 8, # maximum percentage damage one hit from the aircraft's main weapon/machine guns will do to an opponent
                 maxDamageDistance_m : 250, # maximum distance at which the aircrafts main weapon/maching guns will be able to damage an opponent
-                weaponAngle_deg  :  { heading: 0, elevation: 0 }, # direction the aircraft's main weapon is aimed.   
-                                                                  # 0,0 = straight ahead, 90,0=directly right, 0,90=directly up, 0,180=directly back, etc.
-                weaponOffset_m : {x:0, y:6, z:0}, # Offset of the weapon from the main aircraft center
-                weaponSize_m : {start:.15, end:.15}, # Visual size of the weapon's projectile, in meters, at start & end of its path
+                weaponAngle_deg  :  { heading: 0, elevation: 0, headingMin: -60, headingMax: 60, elevationMin: -45, elevationMax: 45  }, 
+						# direction the aircraft's main weapon is aimed.   Weapon tracks target within min and max range defined here
+						# 0,0 = straight ahead, 90,0=directly right, 0,90=directly up, 0,180=directly back, etc.
+						# headingMax is the limit of traverse in a clockwise direction
+                weaponOffset_m : {x:-10, y:0, z:-1.5}, # Offset of the weapon from the main aircraft center
+                weaponSize_m : {start:0.15, end:0.3}, # Visual size of the weapon's projectile, in meters, at start & end of its path
 
               },
             rear_gun :  #internal name - this can be any name you want; must be a valid nasal variable name
@@ -167,10 +169,9 @@
                 name : "Rear Machine Gun", # name presented to users, ie in on-screen messages
                 maxDamage_percent : 8, # maximum percentage damage one hit from the aircraft's main weapon/machine guns will do to an opponent
                 maxDamageDistance_m : 250, # maximum distance at which the aircrafts main weapon/maching guns will be able to damage an opponent
-                weaponAngle_deg  :  { heading: 180, elevation: 0 }, # direction the aircraft's main weapon is aimed.   
-                                                                  # 0,0 = straight ahead, 90,0=directly right, 0,90=directly up, 0,180=directly back, etc.
-                weaponOffset_m : {x:-8, y:0, z:0}, # Offset of the weapon from the main aircraft center
-                weaponSize_m : {start:.15, end:.15}, # Visual size of the weapon's projectile, in meters, at start & end of its path
+                weaponAngle_deg  :  { heading: -180, elevation: 0, headingMin: 150, headingMax: -150, elevationMin: -50, elevationMax: 50 },
+                weaponOffset_m : {x:11.5, y:0, z:-0.1}, # Offset of the weapon from the main aircraft center
+                weaponSize_m : {start:0.15, end:0.3}, # Visual size of the weapon's projectile, in meters, at start & end of its path
                 
               },
           },                      
@@ -260,7 +261,8 @@
         # trail for the object.
         # Smoke types available: flare, jetcontrail, pistonexhaust, smoketrail,
         # damagedengine                        
-        bombable.startSmoke("pistonexhaust", thisNodeName );
+        # bombable.startSmoke("pistonexhaust", thisNodeName );
+        bombable.startSmoke("jetcontrail", thisNodeName );
         #
         # END INITIALIZE BOMBABLE
         ########################################################################
