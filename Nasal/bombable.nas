@@ -561,7 +561,7 @@ var damageCheck = func () {
 # the strongest aircraft of WWII were the Italian monoplane fighters. They were built to withstand 8g normal load with 12g failure load. The same spec for German aircraft was 6g - 8.33g. For the late war P51s it was 5.33g
 # Spitfire VIII can pull about 9 and dive to about 570 mph before ripping apart while the F4U will only dive to about 560 mph and pull a similar load.
 # at normal weight the designed limit load was 7.5 g positive and 3.5 g negative for the Corsair.
-#  FIAT G.50 had an ultimate factor of 14 g. According to Dottore Eng. Gianni CattaneoÂ´s Profile booklet on the Macchi C.202, it had an ultimate factor of no less than 15.8 g! That would make it virtually indestructible. Also the Hawker Tempest was strong with its 14+ G strength.
+#  FIAT G.50 had an ultimate factor of 14 g. According to Dottore Eng. Gianni Cattaneo´s Profile booklet on the Macchi C.202, it had an ultimate factor of no less than 15.8 g! That would make it virtually indestructible. Also the Hawker Tempest was strong with its 14+ G strength.
 # http://www.aviastar.org/air/japan/mitsubishi_a6m.php :
 # Most Japanese fighters were designed to withstand a force of 7g. From 1932 all Japanese warplanes were required to meet a safety load factor of 1.8 so the limit for the A6M had to be 12.6g (1.8x7g).
 #
@@ -2076,10 +2076,10 @@ var init_bombable_dialog_listeners = func {
 			} elsif (val == "More effective") {
 			setprop (bomb_menu_pp~"ai-weapon-power", .8);
 			setprop (bomb_menu_pp~"ai-aircraft-weapons-enabled", 1);
-			} elsif (val == "Less effective") {
+			} elsif (val == "Normal") {
 			setprop (bomb_menu_pp~"ai-weapon-power", .6);
 			setprop (bomb_menu_pp~"ai-aircraft-weapons-enabled", 1);
-			} elsif (val == "Normal") {
+			} elsif (val == "Less effective") {
 			setprop (bomb_menu_pp~"ai-weapon-power", .4);
 			setprop (bomb_menu_pp~"ai-aircraft-weapons-enabled", 1);
 			} elsif (val == "Disabled (they can't shoot at you)") {
@@ -9202,10 +9202,10 @@ var bombableInit = func {
 #we do the setlistener to wait until various things in FG are initialized
 # which the functions etc in bombableInit depend on.  Then we wait an additional 15 seconds
 
-_setlistener("/sim/signals/nasal-dir-initialized", func {
-
-	#settimer (func {bombableInit()} , 5);
+var fdm_init_listener = _setlistener("/sim/signals/fdm-initialized", func {
+	removelistener(fdm_init_listener);
 	bombableInit();
+	print("Bombable initalized");
 
 });
 
