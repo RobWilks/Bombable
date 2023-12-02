@@ -23,10 +23,11 @@ Any aircraft that shoots guns or drops bombs can damage the B-17.  A great choic
 		
 <!-- first B-17 squadron -->
     <entry>
+	<search-order>PREFER_AI</search-order>
       <type>aircraft</type>
       <callsign>B17-2</callsign>
       <name>B17_2</name>
-      <model type="string">AI/Aircraft/B-17-Bombable/Models/b17.xml</model>
+      <model type="string">Aircraft/B-17-Bombable/Models/b17.xml</model>
       <latitude type="double">37.9102</latitude>
       <longitude type="double">-122.4672</longitude>
       <altitude type="double">5100</altitude>
@@ -35,10 +36,11 @@ Any aircraft that shoots guns or drops bombs can damage the B-17.  A great choic
       <heading type="double">10</heading>
     </entry>
     <entry>
+	<search-order>PREFER_AI</search-order>
       <type>aircraft</type>
       <callsign>B17-1</callsign>
       <name>B17_1</name>
-      <model type="string">AI/Aircraft/B-17-Bombable/Models/b17.xml</model>
+      <model type="string">Aircraft/B-17-Bombable/Models/b17.xml</model>
       <latitude type="double">37.91200</latitude>
       <longitude type="double">-122.46810</longitude>
       <altitude type="double">5000</altitude>
@@ -47,10 +49,11 @@ Any aircraft that shoots guns or drops bombs can damage the B-17.  A great choic
       <heading type="double">10</heading>
     </entry>
     <entry>
+	<search-order>PREFER_AI</search-order>
       <type>aircraft</type>
       <callsign>B17-3</callsign>
       <name>B17_3</name>
-      <model type="string">AI/Aircraft/B-17-Bombable/Models/b17.xml</model>
+      <model type="string">Aircraft/B-17-Bombable/Models/b17.xml</model>
       <latitude type="double">37.91380</latitude>
       <longitude type="double">-122.46900</longitude>
       <altitude type="double">4900</altitude>
@@ -59,10 +62,11 @@ Any aircraft that shoots guns or drops bombs can damage the B-17.  A great choic
       <heading type="double">10</heading>
     </entry>
     <entry>
+	<search-order>PREFER_AI</search-order>
       <type>aircraft</type>
       <callsign>B17-4</callsign>
       <name>B17_4</name>
-      <model type="string">AI/Aircraft/B-17-Bombable/Models/b17.xml</model>
+      <model type="string">Aircraft/B-17-Bombable/Models/b17.xml</model>
       <latitude type="double">37.9104</latitude>
       <longitude type="double">-122.46810</longitude>
       <altitude type="double">5200</altitude>
