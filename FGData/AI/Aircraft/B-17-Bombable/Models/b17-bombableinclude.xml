@@ -161,7 +161,7 @@
 						# 0,0 = straight ahead, 90,0=directly right, 0,90=directly up, 0,180=directly back, etc.
 						# headingMax is the limit of traverse in a clockwise direction
                 weaponOffset_m : {x:-10, y:0, z:-1.5}, # Offset of the weapon from the main aircraft center
-                weaponSize_m : {start:0.15, end:0.3}, # Visual size of the weapon's projectile, in meters, at start & end of its path
+                weaponSize_m : {start:0.3, end:0.6}, # Visual size of the weapon's projectile, in meters, at start & end of its path
 
               },
             rear_gun :  #internal name - this can be any name you want; must be a valid nasal variable name
@@ -171,7 +171,7 @@
                 maxDamageDistance_m : 250, # maximum distance at which the aircrafts main weapon/maching guns will be able to damage an opponent
                 weaponAngle_deg  :  { heading: -180, elevation: 0, headingMin: 150, headingMax: -150, elevationMin: -50, elevationMax: 50 },
                 weaponOffset_m : {x:11.5, y:0, z:-0.1}, # Offset of the weapon from the main aircraft center
-                weaponSize_m : {start:0.15, end:0.3}, # Visual size of the weapon's projectile, in meters, at start & end of its path
+                weaponSize_m : {start:0.3, end:0.6}, # Visual size of the weapon's projectile, in meters, at start & end of its path
                 
               },
           },                      
