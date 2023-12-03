@@ -2693,7 +2693,8 @@ var setVerticalSpeed = func (myNodeName, targetVertSpeed_fps = 70, maxChange_fps
 # TODO: This is one of the biggest framerate sucks in Bombable.  It can probably
 # be optimized in many ways.
 
-# rjw: the ground_loop affects the descent of aircraft. It initialises slowly, e.g. possible for aircraft to enter a crash sequence before ground_loop is first called
+# rjw: the ground_loop affects the descent of aircraft. It initialises slowly, 
+# e.g. possible for aircraft to enter a crash sequence before ground_loop is first called
 # the ground_loop attempts to control descent of aircraft for high damage values, so does aircraftCrashControl
 var ground_loop = func( id, myNodeName ) {
 	var loopid = getprop(""~myNodeName~"/bombable/loopids/ground-loopid");
@@ -2866,7 +2867,7 @@ var ground_loop = func( id, myNodeName ) {
 	}
 
 	var objectsLowestAllowedAlt_ft = alt_ft + alts.wheelsOnGroundAGL_ft + alts.crashedAGL_ft;
-	#debprint (" objectsLowestAllowedAlt_ft = ", objectsLowestAllowedAlt_ft);
+	if (thorough) debprint (" objectsLowestAllowedAlt_ft = ", objectsLowestAllowedAlt_ft);
 			
 	# If the object is as low as allowed by crashedAGL_m
 	# we consider it "on the ground" (for an airplane) or
@@ -3091,10 +3092,14 @@ var ground_loop = func( id, myNodeName ) {
 	# we are an aircraft diving to the ground because of damage) we
 	# make the pitch match that angle, even if it more acute than the
 	# regular slope of the underlying ground
+	
 	# rjw we do not sink ships simply crash them a few metres below ground level
 
 	
-	if (type == "aircraft" and damageValue > 0.8) {
+	if (type == "aircraft" and damageValue > 0.8 and 0) { 
+	# rjw removed since not realistic:  Diving aircraft do not match their pitch to the gradient of ground.  
+	# Causes errors since pitchangle1_deg only calculated when reach ground
+		
 				
 		#ground_loop is called every updateTime_s seconds (1.68780986 converts knots to ft per second)
 		pitchangle2_deg = rad2degrees * math.asin(damageAltAddCurrent_ft, distance_til_update_ft );
@@ -3112,7 +3117,7 @@ var ground_loop = func( id, myNodeName ) {
 				
 		if (abs(pitchangle2_deg) > abs(pitchangle1_deg)) pitchangle_deg = pitchangle2_deg;
 		#pitchangle1_deg is the slope of the land at the location of the object
-		#pitchangle1_deg is the slope of the glide path of the object
+		#pitchangle2_deg is the slope of the glide path of the object
 
 
 	}
@@ -5312,7 +5317,8 @@ var mainAC_add_damage = func (damageRise = 0, damageTotal = 0, source = "", mess
 	elsif(damageValue < 0.0)
 	damageValue = 0.0;
 				
-	setprop("/bombable/attributes/damage", damageValue);
+	# setprop("/bombable/attributes/damage", damageValue);
+	# rjw commented for debug to prevent any main aircraft  
 				
 	damageIncrease = damageValue - prevDamageValue;
 				
@@ -8344,6 +8350,7 @@ var ground_init_func = func( myNodeName ) {
 
 
 }
+######################## location_init #############################
 
 var location_init = func (myNodeName = "") {
 
@@ -8555,13 +8562,13 @@ var weaponsOrientationPositionUpdate_loop = func (id, myNodeName) {
 
 		
 		weapCount += 1;
-		debprint("weaponsOrientationPositionUpdate_loop " ~ elem ~ 
-			sprintf(" newElev =%6.1f pitch-deg =%6.1f newHeading =%6.1f true-heading-deg =%6.1f", 
-				newElev, 
-				newElev_ref,
-				newHeading, 
-				newHeading_ref
-			)			
+		# debprint("weaponsOrientationPositionUpdate_loop " ~ elem ~ 
+			# sprintf(" newElev =%6.1f pitch-deg =%6.1f newHeading =%6.1f true-heading-deg =%6.1f", 
+				# newElev, 
+				# newElev_ref,
+				# newHeading, 
+				# newHeading_ref
+			# )			
 		);
 	}
 }
@@ -9212,6 +9219,7 @@ var fdm_init_listener = _setlistener("/sim/signals/fdm-initialized", func {
 ########################## reduceRPM ###########################
 
 var reduceRPM = func(myNodeName) {
+	# Spin down engine.  Preferentially spin down engines already damaged 
 	var engineRevs = [0, 0, 0, 0, 0, 0];
 	var revs = 0;
 	for (var noEngine = 0; noEngine < 6; noEngine  +=  1) {
@@ -9219,7 +9227,7 @@ var reduceRPM = func(myNodeName) {
 		if (engineRevs[noEngine] == nil) break;
 		#debprint("Bombable: revs = ",revs);
 		}
-	debprint("Bombable: noEngines for " ~ myNodeName ~ " = ",noEngine);
+	# debprint("Bombable: noEngines for " ~ myNodeName ~ " = ",noEngine);
 	if (noEngine == 0) return;
 	var offset = int( rand() * noEngine );
 	var chooseEngine = offset; # the engine for which we reduce rpm
@@ -9230,7 +9238,7 @@ var reduceRPM = func(myNodeName) {
 		else {
 			var j = i - noEngine; 
 			}
-		debprint("Bombable: j = ",j,"revs = ",engineRevs[j]);
+		# debprint("Bombable: j = ",j,"revs = ",engineRevs[j]);
 		# 90% of calls will spin down engines that are already damaged
 		if (rand() > .1) {
 			if (engineRevs[j] == 400) chooseEngine = j;
