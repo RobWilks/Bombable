@@ -1502,6 +1502,7 @@ var resetBombableDamageFuelWeapons = func (myNodeName) {
 					
 			setprop(""~myNodeName~"/bombable/attributes/damageAltAddCurrent_ft", 0);
 			setprop(""~myNodeName~"/bombable/attributes/damageAltAddCumulative_ft",0);
+			setprop(""~myNodeName~"/position/addAltitude_elapsed",0); # to reset ground_loop for planes that have been destroyed
 					
 			#take the opportunity to reset the pilot's abilities, giving them
 			# a new personality when they come back alive
@@ -5798,12 +5799,12 @@ targetSize_m = nil,  weaponSkill = 1, maxDistance_m = 100, weaponAngle_deg = nil
 		var targetSize_rad = math.atan2(math.sqrt(targetSize_m.horz * targetSize_m.vert) / 2 , distance_m);	
 		# geometric mean of key dimensions and half angle
 
-		debprint (sprintf("Bombable: CheckAim for %s targetOffset_rad =%6.2f targetSize_rad =%6.2f", 
-			myNodeName1,
-			targetOffset_rad,
-			targetSize_rad));
-		debprint (sprintf("Bombable: newDir[%6.2f,%6.2f,%6.2f] dist=%6.0f", newDir[0], newDir[1], newDir[2], distance_m));
-		debprint (sprintf("Bombable: weapDir[%6.2f,%6.2f,%6.2f]", weapDir[0], weapDir[1], weapDir[2]));
+		# debprint (sprintf("Bombable: CheckAim for %s targetOffset_rad =%6.2f targetSize_rad =%6.2f", 
+			# myNodeName1,
+			# targetOffset_rad,
+			# targetSize_rad));
+		# debprint (sprintf("Bombable: newDir[%6.2f,%6.2f,%6.2f] dist=%6.0f", newDir[0], newDir[1], newDir[2], distance_m));
+		# debprint (sprintf("Bombable: weapDir[%6.2f,%6.2f,%6.2f]", weapDir[0], weapDir[1], weapDir[2]));
 		
 
 		# pHit ranges 0 to 1, 1 being direct hit			
@@ -8569,7 +8570,7 @@ var weaponsOrientationPositionUpdate_loop = func (id, myNodeName) {
 				# newHeading, 
 				# newHeading_ref
 			# )			
-		);
+		# );
 	}
 }
 
