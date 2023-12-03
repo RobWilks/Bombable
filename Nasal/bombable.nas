@@ -1493,6 +1493,7 @@ var resetBombableDamageFuelWeapons = func (myNodeName) {
 		stores.fillWeapons (myNodeName, 1);
 		deleteFire(myNodeName);
 		deleteSmoke("damagedengine", myNodeName);
+		startEngines(myNodeName);
 		if (props.globals.getNode ( ""~myNodeName~"/bombable/attributes/damage" ) != nil) {
 					
 					
@@ -1502,7 +1503,6 @@ var resetBombableDamageFuelWeapons = func (myNodeName) {
 					
 			setprop(""~myNodeName~"/bombable/attributes/damageAltAddCurrent_ft", 0);
 			setprop(""~myNodeName~"/bombable/attributes/damageAltAddCumulative_ft",0);
-			setprop(""~myNodeName~"/position/addAltitude_elapsed",0); # to reset ground_loop for planes that have been destroyed
 					
 			#take the opportunity to reset the pilot's abilities, giving them
 			# a new personality when they come back alive
@@ -2701,14 +2701,14 @@ var ground_loop = func( id, myNodeName ) {
 	var loopid = getprop(""~myNodeName~"/bombable/loopids/ground-loopid");
 	id == loopid or return;
 
-	if (getprop(""~myNodeName~"/bombable/exploded") == 1) return();
-
 	var updateTime_s = attributes[myNodeName].updateTime_s;
 			
 	# reset the timer loop first so we don't lose it entirely in case of a runtime
 	# error or such
 	# add rand() so that all objects don't do this function simultaneously
 	settimer(func { ground_loop(id, myNodeName)}, (0.9 + 0.2 * rand()) * updateTime_s );
+
+	if (getprop(""~myNodeName~"/bombable/exploded") == 1) return();
 
 	# Allow this function to be disabled via menu since it can kill framerate at times
 	if (! getprop ( bomb_menu_pp~"ai-ground-loop-enabled") or ! getprop(bomb_menu_pp~"bombable-enabled") ) return;
@@ -9256,6 +9256,23 @@ var reduceRPM = func(myNodeName) {
 		setprop(""~myNodeName~"/engines/engine["~chooseEngine~"]/rpm" , 0);
 		}
 	}
+
+
+########################## startEngines ###########################
+
+var startEngines = func(myNodeName) {
+	# Call after game reset 
+	var revs = 0;
+	for (var noEngine = 0; noEngine < 6; noEngine  +=  1) {
+		revs = getprop(""~myNodeName~"/engines/engine["~noEngine~"]/rpm");
+		if (revs == nil) break;
+	}
+	if (noEngine == 0) return;
+	for (var i = 0; i < noEngine ; i  +=  1) {
+		setprop(""~myNodeName~"/engines/engine["~i~"]/rpm" , 3000);
+	}
+}
+		
 
 
 ########################## killEngines ###########################
