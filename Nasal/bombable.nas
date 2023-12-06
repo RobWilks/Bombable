@@ -2894,8 +2894,10 @@ var ground_loop = func( id, myNodeName ) {
 			(damageValue == 1 and currAlt_ft <= objectsLowestAllowedAlt_ft)
 		)
 	)
-	hitground_stop_explode(myNodeName, alt_ft); #rjw added onGround check to avoid multiple calls to hitground_stop_explode
-			
+	{
+		onGround = 1;
+		hitground_stop_explode(myNodeName, alt_ft); #rjw added onGround check to avoid multiple calls to hitground_stop_explode
+	}
 	# end of life:  damaged ships and ground vehicles grind to a halt; aircraft explode and flag onGround
 	# speed is adjusted by add_damage
 	if ((type == "groundvehicle") or (type == "ship")) {
@@ -5528,6 +5530,8 @@ var fireAIWeapon = func (time_sec, myNodeName, elem, count, speed) {
 	if (isFiring == 1) return;
 	setprop("bombable/fire-particles/projectile-tracer[" ~ count ~ "]/ai-weapon-firing", 1); 
 	setprop("bombable/fire-particles/projectile-tracer[" ~ count ~ "]/speed", speed); 
+	debprint (	"Bombable: myNodeName " ~ myNodeName ~
+				" count " ~ count);
 	var loopid = inc_loopid(myNodeName, "fireAIWeapon/" ~ elem);
 	settimer ( func { fireAIWeapon_stop(loopid, myNodeName, elem, count)}, time_sec);
 }
