@@ -5525,11 +5525,11 @@ var fireAIWeapon_stop = func (id, myNodeName, elem, count) {
 var fireAIWeapon = func (time_sec, myNodeName, elem, count, speed) {
 
 	#if (myNodeName == "" or myNodeName == "environment") myNodeName = "/environment";
-	var isFiring = getprop("bombable/fire-particles/projectile-tracer[" ~ count ~ "]/ai-weapon-firing");
+	var isFiring = getprop(""~myNodeName~"bombable/fire-particles/projectile-tracer[" ~ count ~ "]/ai-weapon-firing");
 	if (isFiring != nil) isFiring = 0;
 	if (isFiring == 1) return;
-	setprop("bombable/fire-particles/projectile-tracer[" ~ count ~ "]/ai-weapon-firing", 1); 
-	setprop("bombable/fire-particles/projectile-tracer[" ~ count ~ "]/speed", speed); 
+	setprop(""~myNodeName~"bombable/fire-particles/projectile-tracer[" ~ count ~ "]/ai-weapon-firing", 1); 
+	setprop(""~myNodeName~"bombable/fire-particles/projectile-tracer[" ~ count ~ "]/speed", speed); 
 	debprint (	"Bombable: myNodeName " ~ myNodeName ~
 				" count " ~ count);
 	var loopid = inc_loopid(myNodeName, "fireAIWeapon/" ~ elem);
@@ -8678,7 +8678,7 @@ var weapons_init_func = func(myNodeName) {
 	var loopid = inc_loopid (myNodeName, "weaponsOrientation");
 	settimer (func { weaponsOrientationPositionUpdate_loop(loopid, myNodeName)} , 3 + rand());
 	
-	var count = loopid * 10;					
+	var count = 0;					
 	foreach (elem;keys (weaps) ) 
 	{
 		put_tied_weapon
@@ -8686,9 +8686,9 @@ var weapons_init_func = func(myNodeName) {
 				myNodeName, elem,
 				"AI/Aircraft/Fire-Particles/projectile-tracer/projectile-tracer" ~ count ~ ".xml"
 			);
-		setprop ("/bombable/fire-particles/projectile-tracer[" ~ count ~ "]/projectile-startsize", weaps[elem].weaponSize_m.start);
-		setprop ("/bombable/fire-particles/projectile-tracer[" ~ count ~ "]/projectile-endsize", weaps[elem].weaponSize_m.end);
-		setprop("bombable/fire-particles/projectile-tracer[" ~ count ~ "]/ai-weapon-firing", 0); 
+		setprop (""~myNodeName~"/bombable/fire-particles/projectile-tracer[" ~ count ~ "]/projectile-startsize", weaps[elem].weaponSize_m.start);
+		setprop (""~myNodeName~"/bombable/fire-particles/projectile-tracer[" ~ count ~ "]/projectile-endsize", weaps[elem].weaponSize_m.end);
+		setprop(""~myNodeName~"bombable/fire-particles/projectile-tracer[" ~ count ~ "]/ai-weapon-firing", 0); 
 		
 		#form vector for weapon direction, weapDir
 		var weapAngle_deg = attributes[myNodeName].weapons[elem].weaponAngle_deg;
@@ -8703,7 +8703,7 @@ var weapons_init_func = func(myNodeName) {
 		attributes[myNodeName].weapons[elem].aim = {pHit:0, weaponDirModelFrame:weapDir, weaponOffsetRefFrame:[0,0,0], weaponDirRefFrame:[0,0,0]}; 
 		#used to translate weapon position and orientation from frame of reference of model to the frame of reference of the scene
 		
-		debprint ("Weaps: ", myNodeName, " initialized ", count);
+		debprint ("Weaps: ", myNodeName, " initialized ", weapons[elem].name);
 		count += 1;
 	}
 	#append(listenerids, listenerid);
