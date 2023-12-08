@@ -5508,10 +5508,10 @@ var mp_send_damage = func (myNodeName = "", damageRise = 0 ) {
 ###################### fireAIWeapon_stop ######################
 # fireAIWeapon_stop: turns off one of the triggers in AI/Aircraft/Fire-Particles/projectile-tracer.xml
 #
-var fireAIWeapon_stop = func (id, myNodeName, index) {
-	# index of the fire particle tied to the weapon
+var fireAIWeapon_stop = func (id, myNodeName, elem) {
+	# elem provides index of the fire particle tied to the weapon
 
-	var loopid = getprop("bombable/loopids/fireAIWeapon/" ~ elem ~ "-loopid");
+	var loopid = getprop("bombable/loopids/fireAIWeapon" ~ elem.fireParticle ~ "-loopid");
 	if (loopid != id) return;
 	#if (myNodeName == "" or myNodeName == "environment") myNodeName = "/environment";
 	setprop("bombable/fire-particles/projectile-tracer[" ~ index ~ "]/ai-weapon-firing", 0); 
@@ -5523,7 +5523,8 @@ var fireAIWeapon_stop = func (id, myNodeName, index) {
 # Using the loopids ensures that it stays on for one full second after the last time it was
 # turned on.
 #
-var fireAIWeapon = func (time_sec, myNodeName, index, speed) {
+var fireAIWeapon = func (time_sec, myNodeName, elem, speed) {
+	var index = elem.fireParticle;
 	# index of the fire particle tied to the weapon
 	# rjw speed is the calculated intercept speed in a stationary frame
 	#if (myNodeName == "" or myNodeName == "environment") myNodeName = "/environment";
@@ -5534,8 +5535,8 @@ var fireAIWeapon = func (time_sec, myNodeName, index, speed) {
 	setprop("bombable/fire-particles/projectile-tracer[" ~ index ~ "]/ai-weapon-firing", 1); 
 	debprint (	"Bombable: myNodeName " ~ myNodeName ~
 				" index " ~ index);
-	var loopid = inc_loopid(myNodeName, "fireAIWeapon/" ~ elem);
-	settimer ( func { fireAIWeapon_stop(loopid, myNodeName, index)}, time_sec);
+	var loopid = inc_loopid(myNodeName, "fireAIWeapon" ~ index);
+	settimer ( func { fireAIWeapon_stop(loopid, myNodeName, elem)}, time_sec);
 }
 
 ###################### vertAngle_deg #########################
@@ -5975,7 +5976,7 @@ var weapons_loop = func (id, myNodeName1 = "", myNodeName2 = "", targetSize_m = 
 				
 				#fire weapons for visual effect
 				#whenever we're within maxDistance & aimed approximately in the right direction
-				fireAIWeapon(loopTime * 3, myNodeName1, weaps[elem].fireParticle, newAim.interceptSpd);
+				fireAIWeapon(loopTime * 3, myNodeName1, weaps[elem], newAim.interceptSpd);
 
 
 							
