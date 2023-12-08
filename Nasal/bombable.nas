@@ -5508,12 +5508,13 @@ var mp_send_damage = func (myNodeName = "", damageRise = 0 ) {
 ###################### fireAIWeapon_stop ######################
 # fireAIWeapon_stop: turns off one of the triggers in AI/Aircraft/Fire-Particles/projectile-tracer.xml
 #
-var fireAIWeapon_stop = func (id, myNodeName, elem) {
+var fireAIWeapon_stop = func (id, myNodeName, index) {
+	# index of the fire particle tied to the weapon
 
 	var loopid = getprop("bombable/loopids/fireAIWeapon/" ~ elem ~ "-loopid");
 	if (loopid != id) return;
 	#if (myNodeName == "" or myNodeName == "environment") myNodeName = "/environment";
-	setprop("bombable/fire-particles/projectile-tracer[" ~ elem.fireParticle ~ "]/ai-weapon-firing", 0); 
+	setprop("bombable/fire-particles/projectile-tracer[" ~ index ~ "]/ai-weapon-firing", 0); 
 
 }
 
@@ -5522,17 +5523,19 @@ var fireAIWeapon_stop = func (id, myNodeName, elem) {
 # Using the loopids ensures that it stays on for one full second after the last time it was
 # turned on.
 #
-var fireAIWeapon = func (time_sec, myNodeName, elem) {
-	var index = elem.fireParticle; # get the index of the fire particle tied to the weapon
+var fireAIWeapon = func (time_sec, myNodeName, index, speed) {
+	# index of the fire particle tied to the weapon
+	# rjw speed is the calculated intercept speed in a stationary frame
 	#if (myNodeName == "" or myNodeName == "environment") myNodeName = "/environment";
 	var isFiring = getprop("bombable/fire-particles/projectile-tracer[" ~ index ~ "]/ai-weapon-firing");
 	if (isFiring != nil) isFiring = 0;
 	if (isFiring == 1) return;
+	setprop("bombable/fire-particles/projectile-tracer[" ~ index ~ "]/speed", speed);
 	setprop("bombable/fire-particles/projectile-tracer[" ~ index ~ "]/ai-weapon-firing", 1); 
 	debprint (	"Bombable: myNodeName " ~ myNodeName ~
 				" index " ~ index);
 	var loopid = inc_loopid(myNodeName, "fireAIWeapon/" ~ elem);
-	settimer ( func { fireAIWeapon_stop(loopid, myNodeName, elem)}, time_sec);
+	settimer ( func { fireAIWeapon_stop(loopid, myNodeName, index)}, time_sec);
 }
 
 ###################### vertAngle_deg #########################
@@ -5972,7 +5975,7 @@ var weapons_loop = func (id, myNodeName1 = "", myNodeName2 = "", targetSize_m = 
 				
 				#fire weapons for visual effect
 				#whenever we're within maxDistance & aimed approximately in the right direction
-				fireAIWeapon(loopTime * 3, myNodeName1, elem, count, newAim.interceptSpd);
+				fireAIWeapon(loopTime * 3, myNodeName1, weaps[elem].fireParticle, newAim.interceptSpd);
 
 
 							
@@ -8678,7 +8681,7 @@ var weapons_init_func = func(myNodeName) {
 	# set to 1 if initialized and 0 when de-inited. Nil if never before inited.
 	setprop(""~myNodeName~"/bombable/initializers/weapons-initialized", 1);
 						
-	var count = getprop ("/bombable/fire-particles/index" , 1) ;
+	var count = getprop ("/bombable/fire-particles/index") ;
 	if (count == nil) {
 		count = 0; #index of first fire particle for AI aircraft
 		}
@@ -8695,7 +8698,7 @@ var weapons_init_func = func(myNodeName) {
 		put_tied_weapon
 			(
 				myNodeName, elem,
-				"AI/Aircraft/Fire-Particles/projectile-tracer/projectile-tracer" ~ count ~ ".xml"
+				"AI/Aircraft/Fire-Particles/projectile-tracer/projectile-tracer-" ~ count ~ ".xml"
 			);
 		setprop ("/bombable/fire-particles/projectile-tracer[" ~ count ~ "]/projectile-startsize", weaps[elem].weaponSize_m.start);
 		setprop ("/bombable/fire-particles/projectile-tracer[" ~ count ~ "]/projectile-endsize", weaps[elem].weaponSize_m.end);
@@ -8717,7 +8720,7 @@ var weapons_init_func = func(myNodeName) {
 		attributes[myNodeName].weapons[elem]["fireParticle"] = count;
 		#new key to link the weapon to a fire particle
 		
-		debprint ("Weaps: ", myNodeName, " initialized ", weapons[elem].name);
+		debprint ("Weaps: ", myNodeName, " initialized ", attributes[myNodeName].weapons[elem].name);
 		count += 1;
 	}
 	
@@ -8779,7 +8782,6 @@ var weapons_init_func = func(myNodeName) {
 	}
 						
 	debprint ("Bombable: Effect * weapons * loaded for ", myNodeName);
-	debprint ("fireparticle index ", weap_fireparticles[loopInitValue], " to ", weap_fireparticles[loopInitValue + 1]);
 						
 						
 }
