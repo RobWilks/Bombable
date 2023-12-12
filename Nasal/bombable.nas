@@ -5779,12 +5779,12 @@ targetSize_m = nil,  weaponSkill = 1, maxDistance_m = 100, weaponAngle_deg = nil
 	
 	var interceptDirRefFrame = vectorDivide(intercept.vector, result.interceptSpd);
 	
-	debprint (
-		sprintf(
-			"Bombable: Intercept time =%6.1f Intercept vector =[%6.2f, %6.2f, %6.2f]",
-			intercept.time, interceptDirRefFrame[0], interceptDirRefFrame[1], interceptDirRefFrame[2] 
-		)
-	);
+	# debprint (
+		# sprintf(
+			# "Bombable: Intercept time =%6.1f Intercept vector =[%6.2f, %6.2f, %6.2f]",
+			# intercept.time, interceptDirRefFrame[0], interceptDirRefFrame[1], interceptDirRefFrame[2] 
+		# )
+	# );
 
 	#translate to the frame of reference of the weapon
 	var newDir = rotate_yxz(interceptDirRefFrame, pitch_deg, roll_deg, -myHeading_deg);
@@ -5808,7 +5808,7 @@ targetSize_m = nil,  weaponSkill = 1, maxDistance_m = 100, weaponAngle_deg = nil
 		var targetSize_rad = math.atan2(math.sqrt(targetSize_m.horz * targetSize_m.vert) / 2 , distance_m);	
 		# geometric mean of key dimensions and half angle
 
-		# debprint (sprintf("Bombable: CheckAim for %s targetOffset_rad =%6.2f targetSize_rad =%6.2f", 
+		# debprint (sprintf("Bombable: checkAim for %s targetOffset_rad =%6.2f targetSize_rad =%6.2f", 
 			# myNodeName1,
 			# targetOffset_rad,
 			# targetSize_rad));
@@ -8552,23 +8552,24 @@ var weaponsOrientationPositionUpdate_loop = func (id, myNodeName) {
 		var newHeading_ref = math.atan2(aim.weaponDirRefFrame[0], aim.weaponDirRefFrame[1]) * R2D;
 		weaps[elem].weaponAngle_deg.heading = newHeading;
 		weaps[elem].weaponAngle_deg.elevation = newElev;
-		setprop("" ~ myNodeName ~ "/surface-positions[" ~ weapCount ~ "]/cannon-elev-deg" , newElev);
-		setprop("" ~ myNodeName ~ "/surface-positions[" ~ weapCount ~ "]/turret-pos-deg" , -newHeading);
 
+		setprop("" ~ myNodeName ~ "/" ~ elem ~ "/cannon-elev-deg" , newElev);
+		setprop("" ~ myNodeName ~ "/" ~ elem ~ "/turret-pos-deg" , -newHeading);
+		# position relative to model - need a better name!
 		
 		# next, point the projectile
 		# the projectile models follow the aircraft using these orientation and position data from the property tree
-		setprop("" ~ myNodeName ~ "/" ~elem~ "/orientation/pitch-deg", newElev_ref);
-		setprop("" ~ myNodeName ~ "/" ~elem~ "/orientation/true-heading-deg", newHeading_ref);
-		
-		setprop("" ~ myNodeName ~ "/" ~elem~ "/position/altitude-ft",
-		getprop("" ~ myNodeName ~ "/position/altitude-ft") + aim.weaponOffsetRefFrame[2] * FT2M);
+		setprop("" ~ myNodeName ~ "/" ~ elem ~ "/orientation/pitch-deg", newElev_ref);
+		setprop("" ~ myNodeName ~ "/" ~ elem ~ "/orientation/true-heading-deg", newHeading_ref);
+		# note weapon offset in m; altitude is in feet
+		setprop("" ~ myNodeName ~ "/" ~ elem ~ "/position/altitude-ft",
+		getprop("" ~ myNodeName ~ "/position/altitude-ft") + aim.weaponOffsetRefFrame[2] / FT2M);
 
-		setprop("" ~ myNodeName ~ "/" ~elem~ "/position/latitude-deg",
-		getprop("" ~ myNodeName ~ "/position/latitude-deg") + aim.weaponOffsetRefFrame[1] * FT2M / m_per_deg_lat); 
+		setprop("" ~ myNodeName ~ "/" ~ elem ~ "/position/latitude-deg",
+		getprop("" ~ myNodeName ~ "/position/latitude-deg") + aim.weaponOffsetRefFrame[1] / m_per_deg_lat); 
 
-		setprop("" ~ myNodeName ~ "/" ~elem~ "/position/longitude-deg",
-		getprop("" ~ myNodeName ~ "/position/longitude-deg") + aim.weaponOffsetRefFrame[0] * FT2M / m_per_deg_lon);
+		setprop("" ~ myNodeName ~ "/" ~ elem ~ "/position/longitude-deg",
+		getprop("" ~ myNodeName ~ "/position/longitude-deg") + aim.weaponOffsetRefFrame[0] / m_per_deg_lon);
 
 		
 		weapCount += 1;
@@ -8698,6 +8699,8 @@ var weapons_init_func = func(myNodeName) {
 
 	foreach (elem;keys (weaps) ) 
 	{
+		# the weapon long lat and altitude should be set before tie-ing the fire particle to the aircraft
+		# these are calculated in checkAim
 		put_tied_weapon
 			(
 				myNodeName, elem,
@@ -8707,21 +8710,24 @@ var weapons_init_func = func(myNodeName) {
 		setprop ("/bombable/fire-particles/projectile-tracer[" ~ count ~ "]/projectile-endsize", weaps[elem].weaponSize_m.end);
 		setprop ("/bombable/fire-particles/projectile-tracer[" ~ count ~ "]/ai-weapon-firing", 0); 
 		
-		#form vector for weapon direction, weapDir
-		var weapAngle_deg = attributes[myNodeName].weapons[elem].weaponAngle_deg;
-		var cosWeapElev = cos(weapAngle_deg.elevation);
+		# form vector for weapon direction, weapDir
+		var weapAngles = attributes[myNodeName].weapons[elem].weaponAngle_deg;
+		var cosWeapElev = cos(weapAngles.elevation);
 		var weapDir = [
-			cosWeapElev * sin(weapAngle_deg.heading),
-			cosWeapElev * cos(weapAngle_deg.heading),
-			sin(weapAngle_deg.elevation)
-		];
+			cosWeapElev * sin(weapAngles.heading),
+			cosWeapElev * cos(weapAngles.heading),
+			sin(weapAngles.elevation)
+		];		
+		# set turret and gun to their default positions
+		setprop ("" ~ myNodeName ~ "/" ~ elem ~ "/turret-pos-deg", weapAngles.heading);
+		setprop ("" ~ myNodeName ~ "/" ~ elem ~ "/cannon-elev-deg", weapAngles.elevation);
 		
 		
 		attributes[myNodeName].weapons[elem].aim = {pHit:0, weaponDirModelFrame:weapDir, weaponOffsetRefFrame:[0,0,0], weaponDirRefFrame:[0,0,0]}; 
-		#used to translate weapon position and orientation from frame of reference of model to the frame of reference of the scene
+		# used to translate weapon position and orientation from frame of reference of model to the frame of reference of the scene
 		
 		attributes[myNodeName].weapons[elem]["fireParticle"] = count;
-		#new key to link the weapon to a fire particle
+		# new key to link the weapon to a fire particle
 		
 		debprint ("Weaps: ", myNodeName, " initialized ", attributes[myNodeName].weapons[elem].name);
 		count += 1;
