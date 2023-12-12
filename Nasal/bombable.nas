@@ -5608,6 +5608,9 @@ var vertAngle_deg = func (geocoord1, geocoord2) {
 # of a hit determined by how close the aim is to the general area of the main aircraft, rather than
 # actually launching projectiles and seeing if they hit) this is generally a 'good enough' approach.
 # myNodeName1 is the AI aircraft and myNodeName2 is the main aircraft
+
+#rjw modified pHit to return the probability of aircraft hit given the 
+#overlap of the solid angle subtended by the target and a cone of 1/12 radian subtended by the shooter
 			
 
 var checkAim = func (myNodeName1 = "", myNodeName2 = "",
@@ -5738,7 +5741,7 @@ targetSize_m = nil,  weaponSkill = 1, maxDistance_m = 100, weaponAngle_deg = nil
 	# use this angle and the solid angle subtended by the mainAC to determine pHit
 	
 	if (myNodeName1 == "") myHeading_deg = getprop ("/orientation/heading-deg");
-	else myHeading_deg = getprop (""~myNodeName1~"/orientation/true-heading-deg");
+	else myHeading_deg = getprop ("" ~ myNodeName1 ~ "/orientation/true-heading-deg");
 	var pitch_deg = getprop("" ~ myNodeName1 ~ "/orientation/pitch-animation");
 	var roll_deg = getprop("" ~ myNodeName1 ~ "/orientation/roll-animation");
 	if (pitch_deg == nil) {
@@ -5786,7 +5789,7 @@ targetSize_m = nil,  weaponSkill = 1, maxDistance_m = 100, weaponAngle_deg = nil
 		# )
 	# );
 
-	#translate to the frame of reference of the weapon
+	#translate intercept direction to the frame of reference of the model
 	var newDir = rotate_yxz(interceptDirRefFrame, pitch_deg, roll_deg, -myHeading_deg);
 	
 		
@@ -5808,12 +5811,12 @@ targetSize_m = nil,  weaponSkill = 1, maxDistance_m = 100, weaponAngle_deg = nil
 		var targetSize_rad = math.atan2(math.sqrt(targetSize_m.horz * targetSize_m.vert) / 2 , distance_m);	
 		# geometric mean of key dimensions and half angle
 
-		# debprint (sprintf("Bombable: checkAim for %s targetOffset_rad =%6.2f targetSize_rad =%6.2f", 
-			# myNodeName1,
-			# targetOffset_rad,
-			# targetSize_rad));
-		# debprint (sprintf("Bombable: newDir[%6.2f,%6.2f,%6.2f] dist=%6.0f", newDir[0], newDir[1], newDir[2], distance_m));
-		# debprint (sprintf("Bombable: weapDir[%6.2f,%6.2f,%6.2f]", weapDir[0], weapDir[1], weapDir[2]));
+		debprint (sprintf("Bombable: checkAim for %s targetOffset_rad =%6.2f targetSize_rad =%6.2f", 
+			myNodeName1,
+			targetOffset_rad,
+			targetSize_rad));
+		debprint (sprintf("Bombable: newDir[%6.2f,%6.2f,%6.2f] dist=%6.0f", newDir[0], newDir[1], newDir[2], distance_m));
+		debprint (sprintf("Bombable: weapDir[%6.2f,%6.2f,%6.2f]", weapDir[0], weapDir[1], weapDir[2]));
 		
 
 		# pHit ranges 0 to 1, 1 being direct hit			
@@ -5873,7 +5876,7 @@ targetSize_m = nil,  weaponSkill = 1, maxDistance_m = 100, weaponAngle_deg = nil
 	{
 		newDir = weapDir;
 	}
-	# change aim of weapon
+	# change aim of weapon by setting weapon direction to intercept direction
 	result.weaponDirModelFrame = newDir;
 	result.weaponDirRefFrame = rotate_zxy(newDir, -pitch_deg, -roll_deg, myHeading_deg);
 	return (result); 	
@@ -8555,7 +8558,7 @@ var weaponsOrientationPositionUpdate_loop = func (id, myNodeName) {
 
 		setprop("" ~ myNodeName ~ "/" ~ elem ~ "/cannon-elev-deg" , newElev);
 		setprop("" ~ myNodeName ~ "/" ~ elem ~ "/turret-pos-deg" , -newHeading);
-		# position relative to model - need a better name!
+		# position in model frame of reference
 		
 		# next, point the projectile
 		# the projectile models follow the aircraft using these orientation and position data from the property tree
@@ -8573,14 +8576,14 @@ var weaponsOrientationPositionUpdate_loop = func (id, myNodeName) {
 
 		
 		weapCount += 1;
-		# debprint("weaponsOrientationPositionUpdate_loop " ~ elem ~ 
-			# sprintf(" newElev =%6.1f pitch-deg =%6.1f newHeading =%6.1f true-heading-deg =%6.1f", 
-				# newElev, 
-				# newElev_ref,
-				# newHeading, 
-				# newHeading_ref
-			# )			
-		# );
+		debprint("weaponsOrientationPositionUpdate_loop " ~ elem ~ 
+			sprintf(" newElev =%6.1f pitch-deg =%6.1f newHeading =%6.1f true-heading-deg =%6.1f", 
+				newElev, 
+				newElev_ref,
+				newHeading, 
+				newHeading_ref
+			)			
+		);
 	}
 }
 
