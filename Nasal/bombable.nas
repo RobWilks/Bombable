@@ -5811,12 +5811,12 @@ targetSize_m = nil,  weaponSkill = 1, maxDistance_m = 100, weaponAngle_deg = nil
 		var targetSize_rad = math.atan2(math.sqrt(targetSize_m.horz * targetSize_m.vert) / 2 , distance_m);	
 		# geometric mean of key dimensions and half angle
 
-		debprint (sprintf("Bombable: checkAim for %s targetOffset_rad =%6.2f targetSize_rad =%6.2f", 
-			myNodeName1,
-			targetOffset_rad,
-			targetSize_rad));
-		debprint (sprintf("Bombable: newDir[%6.2f,%6.2f,%6.2f] dist=%6.0f", newDir[0], newDir[1], newDir[2], distance_m));
-		debprint (sprintf("Bombable: weapDir[%6.2f,%6.2f,%6.2f]", weapDir[0], weapDir[1], weapDir[2]));
+		# debprint (sprintf("Bombable: checkAim for %s targetOffset_rad =%6.2f targetSize_rad =%6.2f", 
+			# myNodeName1,
+			# targetOffset_rad,
+			# targetSize_rad));
+		# debprint (sprintf("Bombable: newDir[%6.2f,%6.2f,%6.2f] dist=%6.0f", newDir[0], newDir[1], newDir[2], distance_m));
+		# debprint (sprintf("Bombable: weapDir[%6.2f,%6.2f,%6.2f]", weapDir[0], weapDir[1], weapDir[2]));
 		
 
 		# pHit ranges 0 to 1, 1 being direct hit			
@@ -5869,8 +5869,8 @@ targetSize_m = nil,  weaponSkill = 1, maxDistance_m = 100, weaponAngle_deg = nil
 				sin(newElev)
 			];
 		}
-		debprint ("Bombable: Changed aim for ", myNodeName1,
-		sprintf("newElev =%6.1f newHeading =%6.1f", newElev, newHeading));
+		# debprint ("Bombable: checkAim for ", myNodeName1,
+		# sprintf("newElev =%6.1f newHeading =%6.1f changes=%2.0f", newElev, newHeading, changes));
 	}
 	else
 	{
@@ -7766,7 +7766,7 @@ var checkRangeHash = func (b = nil, v = nil, low = nil, high = nil, default = 1)
 }
 
 ######################################################################
-################################ b ######################################
+################################ initialize ######################################
 ######################################################################
 #delaying all the _init functions until FG's initialization sequence
 #has settled down seems to solve a lot of FG crashes on startup when
@@ -7780,7 +7780,7 @@ var initialize = func (b) {
 }
 
 
-######################### b ############################
+######################### initialize_func ############################
 # initialize: Do sanity checking, then
 # slurp the pertinent properties into
 # the object's node tree under sub-node "bombable"
@@ -8151,6 +8151,7 @@ var setMaxLatLon = func (myNodeName, damageDetectDistance_m){
 }
 
 
+######################### bombable_init ############################
 var bombable_init = func (myNodeName = "") {
 	debprint ("Bombable: Delaying bombable_init . . . ", myNodeName);
 	settimer (func {bombable_init_func(myNodeName);}, 35 + rand(),1);
@@ -8576,14 +8577,14 @@ var weaponsOrientationPositionUpdate_loop = func (id, myNodeName) {
 
 		
 		weapCount += 1;
-		debprint("weaponsOrientationPositionUpdate_loop " ~ elem ~ 
-			sprintf(" newElev =%6.1f pitch-deg =%6.1f newHeading =%6.1f true-heading-deg =%6.1f", 
-				newElev, 
-				newElev_ref,
-				newHeading, 
-				newHeading_ref
-			)			
-		);
+		# debprint("weaponsOrientationPositionUpdate_loop " ~ elem ~ 
+			# sprintf(" newElev =%6.1f pitch-deg =%6.1f newHeading =%6.1f true-heading-deg =%6.1f", 
+				# newElev, 
+				# newElev_ref,
+				# newHeading, 
+				# newHeading_ref
+			# )			
+		# );
 	}
 }
 
