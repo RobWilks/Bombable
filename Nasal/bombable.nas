@@ -5614,7 +5614,7 @@ var vertAngle_deg = func (geocoord1, geocoord2) {
 			
 
 var checkAim = func (myNodeName1 = "", myNodeName2 = "",
-targetSize_m = nil,  weaponSkill = 1, maxDistance_m = 100, weaponAngle_deg = nil, weaponOffset_m = nil, damageValue = 0 ) {
+targetSize_m = nil,  weaponSkill = 1, maxDistance_m = 100, weaponAngle_deg = nil, weaponOffset_m = nil, damageValue = 0, elem ) {
 	#Note weaponAngle is a hash with components heading and elevation
 	#Function called only by main weapons_loop
 	#rjw modified to return a hash
@@ -5956,7 +5956,10 @@ var weapons_loop = func (id, myNodeName1 = "", myNodeName2 = "", targetSize_m = 
 				damageValue
 			);
 
-			if (newAim.weaponDirModelFrame[2] != -1) attributes[myNodeName1].weapons[elem].aim = newAim;
+			if (newAim.weaponDirModelFrame[2] != -1) {
+				attributes[myNodeName1].weapons[elem].aim = newAim;
+				weaponsOrientationPositionUpdate(myNodeName1, elem);
+			}
 			# stored for use in weaponsOrientationPositionUpdate_loop
 			# -1 is a flag to indicate whether new aim data are available
 
@@ -8515,7 +8518,7 @@ var weaponsOrientationPositionUpdate_loop = func (id, myNodeName) {
 	var loopid = getprop(""~myNodeName~"/bombable/loopids/weaponsOrientation-loopid");
 	# debprint ("weapsOrientatationPos_loop:  id= ",id," loopid= ",loopid);
 	id == loopid or return;
-	
+	return; # kills function for testing
 	settimer (func {weaponsOrientationPositionUpdate_loop (id, myNodeName)}, 1);
 	
 						
@@ -8581,10 +8584,75 @@ var weaponsOrientationPositionUpdate_loop = func (id, myNodeName) {
 				# newElev_ref,
 				# newHeading, 
 				# newHeading_ref
-			)			
-		);
+			# )			
+		# );
 	}
 }
+
+######################## weaponsOrientationPositionUpdate #########################
+# weaponsOrientationPositionUpdate
+# to update the position/angle of weapons attached
+# to AI aircraft.  Use for visual weapons effects
+
+var weaponsOrientationPositionUpdate = func (myNodeName, elem) {
+	# make weapon and projectile point in the direction of the target
+	# the direction is calculated in the checkAim loop
+	# first point weapon in the direction of the target
+	# and then the projectile in the direction of the weapon
+
+	# no need to do this if any of these are turned off in the bombable menu
+	# though we may update weapons_loop to rely on these numbers as well
+	if (! getprop ( trigger1_pp~"ai-weapon-fire-visual"~trigger2_pp)
+	or ! getprop(bomb_menu_pp~"bombable-enabled")
+	) return;
+	
+	# var damageValue = getprop(""~myNodeName~"/bombable/attributes/damage");
+	# if (rand() < damageValue) return;
+	# this acts to delay model update for damaged AI
+
+	weaps = attributes[myNodeName].weapons; # this variable might already be set in main programme
+	var aim = weaps[elem].aim;
+
+	# first, point the weapon.  The first frame is relative to the model, 
+	# the second is lon-lat-alt (x-y-z), aka 'reference frame'
+	var newElev = math.asin(aim.weaponDirModelFrame[2]) * R2D;
+	var newHeading = math.atan2(aim.weaponDirModelFrame[0], aim.weaponDirModelFrame[1]) * R2D;
+	var newElev_ref = math.asin(aim.weaponDirRefFrame[2]) * R2D;
+	var newHeading_ref = math.atan2(aim.weaponDirRefFrame[0], aim.weaponDirRefFrame[1]) * R2D;
+	weaps[elem].weaponAngle_deg.heading = newHeading;
+	weaps[elem].weaponAngle_deg.elevation = newElev;
+	# need to check how weaps is used.  Assume it is a pointer into attributes not a separate hash
+
+	setprop("" ~ myNodeName ~ "/" ~ elem ~ "/cannon-elev-deg" , newElev);
+	setprop("" ~ myNodeName ~ "/" ~ elem ~ "/turret-pos-deg" , -newHeading);
+	# position in model frame of reference
+	
+	# next, point the projectile
+	# the projectile models follow the aircraft using these orientation and position data from the property tree
+	setprop("" ~ myNodeName ~ "/" ~ elem ~ "/orientation/pitch-deg", newElev_ref);
+	setprop("" ~ myNodeName ~ "/" ~ elem ~ "/orientation/true-heading-deg", newHeading_ref);
+	# note weapon offset in m; altitude is in feet
+	setprop("" ~ myNodeName ~ "/" ~ elem ~ "/position/altitude-ft",
+	getprop("" ~ myNodeName ~ "/position/altitude-ft") + aim.weaponOffsetRefFrame[2] / FT2M);
+
+	setprop("" ~ myNodeName ~ "/" ~ elem ~ "/position/latitude-deg",
+	getprop("" ~ myNodeName ~ "/position/latitude-deg") + aim.weaponOffsetRefFrame[1] / m_per_deg_lat); 
+
+	setprop("" ~ myNodeName ~ "/" ~ elem ~ "/position/longitude-deg",
+	getprop("" ~ myNodeName ~ "/position/longitude-deg") + aim.weaponOffsetRefFrame[0] / m_per_deg_lon);
+
+		
+	# debprint("weaponsOrientationPositionUpdate_loop " ~ elem ~ 
+		# sprintf(" newElev =%6.1f pitch-deg =%6.1f newHeading =%6.1f true-heading-deg =%6.1f", 
+			# newElev, 
+			# newElev_ref,
+			# newHeading, 
+			# newHeading_ref
+		# )			
+	# );
+}
+
+
 
 ################# weaponsTrigger_listener ####################
 # weaponsTrigger_listener
