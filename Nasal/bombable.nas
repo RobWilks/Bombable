@@ -5614,10 +5614,11 @@ var vertAngle_deg = func (geocoord1, geocoord2) {
 			
 
 var checkAim = func (myNodeName1 = "", myNodeName2 = "",
-targetSize_m = nil,  weaponSkill = 1, maxDistance_m = 100, weaponAngle_deg = nil, weaponOffset_m = nil, damageValue = 0, elem ) {
+targetSize_m = nil,  weaponSkill = 1, maxDistance_m = 100, weaponAngle_deg = nil, weaponOffset_m = nil, damageValue = 0, elem) {
 	#Note weaponAngle is a hash with components heading and elevation
 	#Function called only by main weapons_loop
 	#rjw modified to return a hash
+	weaps[elem].maxDistance_m = 1111;
 	var result = {pHit:0, weaponDirModelFrame:[0,0,-1], weaponOffsetRefFrame:[0,0,0], weaponDirRefFrame:[0,0,0], interceptSpd:0};
 				
 	#Weapons malfunction in proportion to the damageValue, to 100% of the time when damage = 100%
@@ -5953,12 +5954,13 @@ var weapons_loop = func (id, myNodeName1 = "", myNodeName2 = "", targetSize_m = 
 				weaps[elem].maxDamageDistance_m, 
 				weaps[elem].weaponAngle_deg,
 				weaps[elem].weaponOffset_m, 
-				damageValue
+				damageValue,
+				elem
 			);
 
 			if (newAim.weaponDirModelFrame[2] != -1) {
 				attributes[myNodeName1].weapons[elem].aim = newAim;
-				weaponsOrientationPositionUpdate(myNodeName1, elem);
+				if (newAim.pHit != 0) weaponsOrientationPositionUpdate(myNodeName1, elem);
 			}
 			# stored for use in weaponsOrientationPositionUpdate_loop
 			# -1 is a flag to indicate whether new aim data are available
