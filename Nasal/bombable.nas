@@ -5687,7 +5687,7 @@ targetSize_m = nil,  weaponSkill = 1, maxDistance_m = 100, weaponAngle_deg = nil
 		result.pHit = 1;
 		return (result);
 		
-		#rjw following code currently not used
+		#rjw with the return above the following code in the block is unused
 		#more complicated way - maybe we'll try it later:
 		#case of within vital damage, it's case closed, both aircraft totalled
 		var retDam = 0;
@@ -5732,11 +5732,11 @@ targetSize_m = nil,  weaponSkill = 1, maxDistance_m = 100, weaponAngle_deg = nil
 		return(result);
 	}
 	
+
 	
-	
-	# calculate the offset of the weapon in the reference frame
 	# correct targetDispRefFrame for weapon offset
-	# find newDir the direction required for a missile travelling at missileSpeed_mps (constant) to intercept the target given the relative velocities of node1 and node2
+	# find newDir the direction required for a missile travelling at missileSpeed_mps (constant) to intercept the target 
+	# given the relative velocities of node1 and node2
 	# calculate the angle between the direction in which the weapon is aimed and newDir
 	# use this angle and the solid angle subtended by the mainAC to determine pHit
 	
@@ -5752,9 +5752,9 @@ targetSize_m = nil,  weaponSkill = 1, maxDistance_m = 100, weaponAngle_deg = nil
 	# roll increases clockwise in the direction of travel
 	# in 3D model co-ords the x-axis points 180 deg from direction of travel i.e. backwards
 	# the y-axis points at 90 deg to the direction of travel i.e. to the right
-	# weaponOffset is given in model co-ords
+	# weaponOffset is given in model co-ords; weaponOffsetRefFrame in the ground frame
 
-	# calculate weapon offset in reference frame
+	# calculate the offset of the weapon in the ground reference frame
 	result.weaponOffsetRefFrame = rotate_zxy([
 		weaponOffset_m.y,
 		-weaponOffset_m.x,
@@ -5765,9 +5765,9 @@ targetSize_m = nil,  weaponSkill = 1, maxDistance_m = 100, weaponAngle_deg = nil
 	targetDispRefFrame = vectorSubtract(targetDispRefFrame, result.weaponOffsetRefFrame);
 	
 	#recalculate distance
-	distance_m = vectorModulus(targetDispRefFrame);	
+	distance_m = vectorModulus(targetDispRefFrame); #correct the distance for weapon displacement relative to AC origin	
 	
-	var missileSpeed_mps = 500;
+	var missileSpeed_mps = 500; #could be passed to function with other weapon attributes
 	
 	var intercept = findIntercept(
 		myNodeName1, myNodeName2, 
@@ -5793,7 +5793,7 @@ targetSize_m = nil,  weaponSkill = 1, maxDistance_m = 100, weaponAngle_deg = nil
 	var newDir = rotate_yxz(interceptDirRefFrame, pitch_deg, roll_deg, -myHeading_deg);
 	
 		
-	#form vector for weapon direction, weapDir
+	#form vector for the current direction of weapon, weapDir, in the reference frame of the model
 	var cosWeapElev = cos(weaponAngle_deg.elevation);
 	weapDir = [
 		cosWeapElev * sin(weaponAngle_deg.heading),
@@ -8541,7 +8541,6 @@ var weaponsOrientationPositionUpdate_loop = func (id, myNodeName) {
 	# and then the projectile in the direction of the weapon
 
 	
-	var weapCount = 0;
 	foreach (elem;keys (weaps) ) {
 	
 		var aim = weaps[elem].aim;
@@ -8576,15 +8575,14 @@ var weaponsOrientationPositionUpdate_loop = func (id, myNodeName) {
 		getprop("" ~ myNodeName ~ "/position/longitude-deg") + aim.weaponOffsetRefFrame[0] / m_per_deg_lon);
 
 		
-		weapCount += 1;
 		# debprint("weaponsOrientationPositionUpdate_loop " ~ elem ~ 
 			# sprintf(" newElev =%6.1f pitch-deg =%6.1f newHeading =%6.1f true-heading-deg =%6.1f", 
 				# newElev, 
 				# newElev_ref,
 				# newHeading, 
 				# newHeading_ref
-			# )			
-		# );
+			)			
+		);
 	}
 }
 
