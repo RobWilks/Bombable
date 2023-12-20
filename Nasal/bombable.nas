@@ -5614,11 +5614,11 @@ var vertAngle_deg = func (geocoord1, geocoord2) {
 			
 
 var checkAim = func (myNodeName1 = "", myNodeName2 = "",
-targetSize_m = nil,  weaponSkill = 1, maxDistance_m = 100, weaponAngle_deg = nil, weaponOffset_m = nil, damageValue = 0, elem) {
+targetSize_m = nil,  weaponSkill = 1, maxDistance_m = 100, weaponAngle_deg = nil, weaponOffset_m = nil, damageValue = 0, elem = "") {
 	#Note weaponAngle is a hash with components heading and elevation
 	#Function called only by main weapons_loop
 	#rjw modified to return a hash
-	weaps[elem].maxDistance_m = 1111;
+	attributes[myNodeName1].weapons[elem].maxDistance_m = 1111; # better way to return result by writing directly to attributes
 	var result = {pHit:0, weaponDirModelFrame:[0,0,-1], weaponOffsetRefFrame:[0,0,0], weaponDirRefFrame:[0,0,0], interceptSpd:0};
 				
 	#Weapons malfunction in proportion to the damageValue, to 100% of the time when damage = 100%
@@ -8533,7 +8533,7 @@ var weaponsOrientationPositionUpdate_loop = func (id, myNodeName) {
 	var damageValue = getprop(""~myNodeName~"/bombable/attributes/damage");
 	if (rand() < damageValue) return;
 	
-	weaps = attributes[myNodeName].weapons;
+	var weaps = attributes[myNodeName].weapons;
 						
 	#debprint ("ist: ", myNodeName, " node: ",listenedNode.getName(), " weap:", weaps[elem].weaponAngle_deg.elevation);
 
@@ -8612,7 +8612,7 @@ var weaponsOrientationPositionUpdate = func (myNodeName, elem) {
 	# if (rand() < damageValue) return;
 	# this acts to delay model update for damaged AI
 
-	weaps = attributes[myNodeName].weapons; # this variable might already be set in main programme
+	var weaps = attributes[myNodeName].weapons;
 	var aim = weaps[elem].aim;
 
 	# first, point the weapon.  The first frame is relative to the model, 
@@ -8621,9 +8621,8 @@ var weaponsOrientationPositionUpdate = func (myNodeName, elem) {
 	var newHeading = math.atan2(aim.weaponDirModelFrame[0], aim.weaponDirModelFrame[1]) * R2D;
 	var newElev_ref = math.asin(aim.weaponDirRefFrame[2]) * R2D;
 	var newHeading_ref = math.atan2(aim.weaponDirRefFrame[0], aim.weaponDirRefFrame[1]) * R2D;
-	weaps[elem].weaponAngle_deg.heading = newHeading;
-	weaps[elem].weaponAngle_deg.elevation = newElev;
-	# need to check how weaps is used.  Assume it is a pointer into attributes not a separate hash
+	# weaps[elem].weaponAngle_deg.heading = newHeading; #weaps is local to this function so these lines have no effect!!!
+	# weaps[elem].weaponAngle_deg.elevation = newElev;
 
 	setprop("" ~ myNodeName ~ "/" ~ elem ~ "/cannon-elev-deg" , newElev);
 	setprop("" ~ myNodeName ~ "/" ~ elem ~ "/turret-pos-deg" , -newHeading);
