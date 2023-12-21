@@ -5962,8 +5962,6 @@ var weapons_loop = func (id, myNodeName1 = "", myNodeName2 = "", targetSize_m = 
 				weaps[elem].aim = newAim;
 				weaponsOrientationPositionUpdate(myNodeName1, elem);
 				}
-			# stored for use in weaponsOrientationPositionUpdate_loop
-			# -1 is a flag to indicate whether new aim data are available
 
 			# debprint ("Bombable: Weapons_loop ", myNodeName1, " weaponSkill = ",weaponSkill, " weaponPower = ", weaponPower, " newAim.pHit = ", newAim.pHit);
 			# debprint (
@@ -8509,87 +8507,7 @@ var attack_init_func = func(myNodeName) {
 
 }
 
-######################## weaponsOrientationPositionUpdate_loop #########################
-# weaponsOrientationPositionUpdate_loop
-# to update the position/angle of weapons attached
-# to AI aircraft.  Use for visual weapons effects
 
-var weaponsOrientationPositionUpdate_loop = func (id, myNodeName) {
-
-						
-	var loopid = getprop(""~myNodeName~"/bombable/loopids/weaponsOrientation-loopid");
-	# debprint ("weapsOrientatationPos_loop:  id= ",id," loopid= ",loopid);
-	id == loopid or return;
-	return; # kills function for testing
-	settimer (func {weaponsOrientationPositionUpdate_loop (id, myNodeName)}, 1);
-	
-						
-	# no need to do this if any of these are turned off in the bombable menu
-	# though we may update weapons_loop to rely on these numbers as well
-	if (! getprop ( trigger1_pp~"ai-weapon-fire-visual"~trigger2_pp)
-	or ! getprop(bomb_menu_pp~"bombable-enabled")
-	) return;
-	
-	var damageValue = getprop(""~myNodeName~"/bombable/attributes/damage");
-	if (rand() < damageValue) return;
-	
-	var weaps = attributes[myNodeName].weapons;
-						
-	#debprint ("ist: ", myNodeName, " node: ",listenedNode.getName(), " weap:", weaps[elem].weaponAngle_deg.elevation);
-
-	
-	# loop to make weapon and projectile point in the direction of the target
-	# the direction is calculated in the checkAim loop
-
-						
-	# first point weapon in the direction of the target
-	# and then the projectile in the direction of the weapon
-
-	
-	foreach (elem;keys (weaps) ) {
-	
-		var aim = weaps[elem].aim;
-		# stored in weapons_loop 
-
-		
-		# first, point the weapon.  The first frame is relative to the model, 
-		# the second is lon-lat-alt (x-y-z), aka 'reference frame'
-		var newElev = math.asin(aim.weaponDirModelFrame[2]) * R2D;
-		var newHeading = math.atan2(aim.weaponDirModelFrame[0], aim.weaponDirModelFrame[1]) * R2D;
-		var newElev_ref = math.asin(aim.weaponDirRefFrame[2]) * R2D;
-		var newHeading_ref = math.atan2(aim.weaponDirRefFrame[0], aim.weaponDirRefFrame[1]) * R2D;
-		weaps[elem].weaponAngle_deg.heading = newHeading;
-		weaps[elem].weaponAngle_deg.elevation = newElev;
-
-		setprop("" ~ myNodeName ~ "/" ~ elem ~ "/cannon-elev-deg" , newElev);
-		setprop("" ~ myNodeName ~ "/" ~ elem ~ "/turret-pos-deg" , -newHeading);
-		# position in model frame of reference
-		
-		# next, point the projectile
-		# the projectile models follow the aircraft using these orientation and position data from the property tree
-		setprop("" ~ myNodeName ~ "/" ~ elem ~ "/orientation/pitch-deg", newElev_ref);
-		setprop("" ~ myNodeName ~ "/" ~ elem ~ "/orientation/true-heading-deg", newHeading_ref);
-		# note weapon offset in m; altitude is in feet
-		setprop("" ~ myNodeName ~ "/" ~ elem ~ "/position/altitude-ft",
-		getprop("" ~ myNodeName ~ "/position/altitude-ft") + aim.weaponOffsetRefFrame[2] / FT2M);
-
-		setprop("" ~ myNodeName ~ "/" ~ elem ~ "/position/latitude-deg",
-		getprop("" ~ myNodeName ~ "/position/latitude-deg") + aim.weaponOffsetRefFrame[1] / m_per_deg_lat); 
-
-		setprop("" ~ myNodeName ~ "/" ~ elem ~ "/position/longitude-deg",
-		getprop("" ~ myNodeName ~ "/position/longitude-deg") + aim.weaponOffsetRefFrame[0] / m_per_deg_lon);
-
-		
-		# debprint("weaponsOrientationPositionUpdate_loop " ~ elem ~ 
-			# sprintf(" newElev =%6.1f pitch-deg =%6.1f newHeading =%6.1f true-heading-deg =%6.1f", 
-				# newElev, 
-				# newElev_ref,
-				# newHeading, 
-				# newHeading_ref
-			# )			
-		# );
-	}
-}
 
 ######################## weaponsOrientationPositionUpdate #########################
 # weaponsOrientationPositionUpdate
@@ -8762,10 +8680,6 @@ var weapons_init_func = func(myNodeName) {
 		count = 0; #index of first fire particle for AI aircraft
 		}
 
-
-
-	var loopid = inc_loopid (myNodeName, "weaponsOrientation"); 
-	settimer (func { weaponsOrientationPositionUpdate_loop(loopid, myNodeName)} , 3 + rand());
 	
 	
 
@@ -9100,7 +9014,7 @@ var attributes = {};
 var newAim = {pHit:0, weaponDirModelFrame:[0,0,0], weaponOffsetRefFrame:[0,0,0], weaponDirRefFrame:[0,0,0], interceptSpeed:0}; 
 
 # List of nodes that listeners will use when checking for impact damage.
-# FcG aircraft use a wide variety of nodes to report impact of armament
+# FG aircraft use a wide variety of nodes to report impact of armament
 # So we try to check them all.  There is no real overhead to this as
 # only the one(s) active with a particular aircraft will ever get any activity.
 # This should make all aircraft in the CVS version of FG (as of Aug 2009),
