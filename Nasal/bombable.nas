@@ -5614,11 +5614,11 @@ var vertAngle_deg = func (geocoord1, geocoord2) {
 			
 
 var checkAim = func (myNodeName1 = "", myNodeName2 = "",
-targetSize_m = nil,  weaponSkill = 1, maxDistance_m = 100, weaponAngle_deg = nil, weaponOffset_m = nil, damageValue = 0, elem = "") {
+targetSize_m = nil,  weaponSkill = 1, maxDistance_m = 100, weaponAngle_deg = nil, weaponOffset_m = nil, damageValue = 0) {
 	#Note weaponAngle is a hash with components heading and elevation
 	#Function called only by main weapons_loop
 	#rjw modified to return a hash
-	attributes[myNodeName1].weapons[elem].maxDistance_m = 1111; # better way to return result by writing directly to attributes
+
 	var result = {pHit:0, weaponDirModelFrame:[0,0,-1], weaponOffsetRefFrame:[0,0,0], weaponDirRefFrame:[0,0,0], interceptSpd:0};
 				
 	#Weapons malfunction in proportion to the damageValue, to 100% of the time when damage = 100%
@@ -5954,13 +5954,12 @@ var weapons_loop = func (id, myNodeName1 = "", myNodeName2 = "", targetSize_m = 
 				weaps[elem].maxDamageDistance_m, 
 				weaps[elem].weaponAngle_deg,
 				weaps[elem].weaponOffset_m, 
-				damageValue,
-				elem
+				damageValue
 			);
 
 			if (newAim.weaponDirModelFrame[2] != -1) {
-				attributes[myNodeName1].weapons[elem].aim = newAim;
-				if (newAim.pHit != 0) weaponsOrientationPositionUpdate(myNodeName1, elem);
+				weaps[elem].aim = newAim;
+				weaponsOrientationPositionUpdate(myNodeName1, elem);
 			}
 			# stored for use in weaponsOrientationPositionUpdate_loop
 			# -1 is a flag to indicate whether new aim data are available
@@ -8621,8 +8620,9 @@ var weaponsOrientationPositionUpdate = func (myNodeName, elem) {
 	var newHeading = math.atan2(aim.weaponDirModelFrame[0], aim.weaponDirModelFrame[1]) * R2D;
 	var newElev_ref = math.asin(aim.weaponDirRefFrame[2]) * R2D;
 	var newHeading_ref = math.atan2(aim.weaponDirRefFrame[0], aim.weaponDirRefFrame[1]) * R2D;
-	# weaps[elem].weaponAngle_deg.heading = newHeading; #weaps is local to this function so these lines have no effect!!!
-	# weaps[elem].weaponAngle_deg.elevation = newElev;
+	weaps[elem].weaponAngle_deg.heading = newHeading; #weaps is local to this function so these lines have no effect!!!
+	weaps[elem].weaponAngle_deg.elevation = newElev;
+	# see https://wiki.flightgear.org/Object_Oriented_Programming_with_Nasal#Hashes
 
 	setprop("" ~ myNodeName ~ "/" ~ elem ~ "/cannon-elev-deg" , newElev);
 	setprop("" ~ myNodeName ~ "/" ~ elem ~ "/turret-pos-deg" , -newHeading);
