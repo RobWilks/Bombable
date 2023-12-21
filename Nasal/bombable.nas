@@ -5611,6 +5611,7 @@ var vertAngle_deg = func (geocoord1, geocoord2) {
 
 #rjw modified pHit to return the probability of aircraft hit given the 
 #overlap of the solid angle subtended by the target and a cone of 1/12 radian subtended by the shooter
+#function updates global hash variable newAim with weapon direction vectors in model and reference frames
 			
 
 var checkAim = func (myNodeName1 = "", myNodeName2 = "",
@@ -5619,11 +5620,12 @@ targetSize_m = nil,  weaponSkill = 1, maxDistance_m = 100, weaponAngle_deg = nil
 	#Function called only by main weapons_loop
 	#rjw modified to return a hash
 
-	var result = {pHit:0, weaponDirModelFrame:[0,0,-1], weaponOffsetRefFrame:[0,0,0], weaponDirRefFrame:[0,0,0], interceptSpd:0};
+	newAim = {pHit:0, weaponDirModelFrame:[0,0,0], weaponOffsetRefFrame:[0,0,0], weaponDirRefFrame:[0,0,0], interceptSpd:0}; #reset global variable
+	var weaponAimed = 0; #flag true if weapon aimed successfully
 				
 	#Weapons malfunction in proportion to the damageValue, to 100% of the time when damage = 100%
 	#debprint ("Bombable: AI weapons, ", myNodeName1, ", ", myNodeName2);
-	if (rand() < damageValue) return (result) ;
+	if (rand() < damageValue) return (weaponAimed) ;
 				
 	#if (myNodeName1 == "/environment" or myNodeName1 == "environment") myNodeName1 = "";
 	#if (myNodeName2 == "/environment" or myNodeName2 == "environment") myNodeName2 = "";
@@ -5641,17 +5643,17 @@ targetSize_m = nil,  weaponSkill = 1, maxDistance_m = 100, weaponAngle_deg = nil
 	deltaLat_deg = mlat_deg - alat_deg;
 	if (abs(deltaLat_deg) > maxDistance_m / m_per_deg_lat ) {
 		#debprint ("Aim: Not close in lat.");
-		return (result);
+		return (weaponAimed);
 	}
 				
 	deltaLon_deg = mlon_deg - alon_deg ;
 	if (abs(deltaLon_deg) > maxDistance_m / m_per_deg_lon )  {
 		#debprint ("Aim: Not close in lon.");
-		return (result);
+		return (weaponAimed);
 	}
 
 				
-	if (targetSize_m == nil or targetSize_m.horz <= 0 or targetSize_m.vert <= 0 or maxDistance_m <= 0) return (result);				
+	if (targetSize_m == nil or targetSize_m.horz <= 0 or targetSize_m.vert <= 0 or maxDistance_m <= 0) return (weaponAimed);				
 	if (weaponAngle_deg == nil ){ weaponAngle_deg = {heading:0, elevation:0, headingMin:-60, headingMax:60, elevationMin:-20, elevationMax:20, track:0}; } #note definition of value for each key of hash
 	if (weaponOffset_m == nil ){ weaponOffset_m = {x:0,y:0,z:0}; }
 				
@@ -5674,7 +5676,7 @@ targetSize_m = nil,  weaponSkill = 1, maxDistance_m = 100, weaponAngle_deg = nil
 				
 	# debprint ("Bombable: AI weapons, distance: ", distance_m, " for ", myNodeName1);
 				
-	if (distance_m > maxDistance_m ) return (result);
+	if (distance_m > maxDistance_m ) return (weaponAimed);
 	
 	
 	
@@ -5685,8 +5687,8 @@ targetSize_m = nil,  weaponSkill = 1, maxDistance_m = 100, weaponAngle_deg = nil
 		add_damage(1, myNodeName1, "collision"); # causes nil error in records class, ballisticMass not defined
 		msg = sprintf("You collided! Damage added %1.0f%%", 100 );
 		selfStatusPopupTip (msg, 10);
-		result.pHit = 1;
-		return (result);
+		newAim.pHit = 1;
+		return (weaponAimed);
 		
 		#rjw with the return above the following code in the block is unused
 		#more complicated way - maybe we'll try it later:
@@ -5715,8 +5717,8 @@ targetSize_m = nil,  weaponSkill = 1, maxDistance_m = 100, weaponAngle_deg = nil
 					
 		msg = sprintf("You collided! Damage added %1.0f%%", retDam * 100 );
 		selfStatusPopupTip (msg, 10);
-		result.pHit = retDam;
-		return (result);
+		newAim.pHit = retDam;
+		return (weaponAimed);
 	}
 
 	# check line of sight by calculating the height above ground of the bullet trajectory at the mid point between AI and main AC
@@ -5729,8 +5731,8 @@ targetSize_m = nil,  weaponSkill = 1, maxDistance_m = 100, weaponAngle_deg = nil
 	if (ground_Alt_m > mid_Alt_m) 
 	{
 		# debprint ("Bombable: checkLoS for ",  myNodeName1, "deltaAlt at mid point = ", ground_Alt_m - mid_Alt_m);
-		result.pHit = -1; #flag for no line of sight
-		return(result);
+		newAim.pHit = -1; #flag for no line of sight
+		return(weaponAimed);
 	}
 	
 
@@ -5756,14 +5758,14 @@ targetSize_m = nil,  weaponSkill = 1, maxDistance_m = 100, weaponAngle_deg = nil
 	# weaponOffset is given in model co-ords; weaponOffsetRefFrame in the ground frame
 
 	# calculate the offset of the weapon in the ground reference frame
-	result.weaponOffsetRefFrame = rotate_zxy([
+	newAim.weaponOffsetRefFrame = rotate_zxy([
 		weaponOffset_m.y,
 		-weaponOffset_m.x,
 		weaponOffset_m.z
 	], -pitch_deg, -roll_deg, myHeading_deg);
 
 	
-	targetDispRefFrame = vectorSubtract(targetDispRefFrame, result.weaponOffsetRefFrame);
+	targetDispRefFrame = vectorSubtract(targetDispRefFrame, newAim.weaponOffsetRefFrame);
 	
 	#recalculate distance
 	distance_m = vectorModulus(targetDispRefFrame); #correct the distance for weapon displacement relative to AC origin	
@@ -5777,11 +5779,11 @@ targetSize_m = nil,  weaponSkill = 1, maxDistance_m = 100, weaponAngle_deg = nil
 		missileSpeed_mps
 	);
 
-	if (intercept.time == -1) return(result);
+	if (intercept.time == -1) return(weaponAimed);
+	weaponAimed = 1;
+	newAim.interceptSpd = vectorModulus(intercept.vector);
 	
-	result.interceptSpd = vectorModulus(intercept.vector);
-	
-	var interceptDirRefFrame = vectorDivide(intercept.vector, result.interceptSpd);
+	var interceptDirRefFrame = vectorDivide(intercept.vector, newAim.interceptSpd);
 	
 	# debprint (
 		# sprintf(
@@ -5830,14 +5832,14 @@ targetSize_m = nil,  weaponSkill = 1, maxDistance_m = 100, weaponAngle_deg = nil
 		var weapSDev = 1/12; # spray vs sharpshooter
 		if ( targetSize_rad > targetOffset_rad ) 
 		{				
-			result.pHit = erf((targetSize_rad + targetOffset_rad) / weapSDev) +  erf((targetSize_rad - targetOffset_rad) / weapSDev);
+			newAim.pHit = erf((targetSize_rad + targetOffset_rad) / weapSDev) +  erf((targetSize_rad - targetOffset_rad) / weapSDev);
 		}
 		else
 		{
-			result.pHit = 0.5 - erf((targetOffset_rad - targetSize_rad) / weapSDev);
+			newAim.pHit = 0.5 - erf((targetOffset_rad - targetSize_rad) / weapSDev);
 		}
 		# debprint ("Bombable: hit ", myNodeName1,
-		# " result.pHit = ", result.pHit);
+		# " newAim.pHit = ", newAim.pHit);
 	}
 
 	if ( rand() < weaponSkill) {
@@ -5878,9 +5880,9 @@ targetSize_m = nil,  weaponSkill = 1, maxDistance_m = 100, weaponAngle_deg = nil
 		newDir = weapDir;
 	}
 	# change aim of weapon by setting weapon direction to intercept direction
-	result.weaponDirModelFrame = newDir;
-	result.weaponDirRefFrame = rotate_zxy(newDir, -pitch_deg, -roll_deg, myHeading_deg);
-	return (result); 	
+	newAim.weaponDirModelFrame = newDir;
+	newAim.weaponDirRefFrame = rotate_zxy(newDir, -pitch_deg, -roll_deg, myHeading_deg);
+	return (weaponAimed); 	
 }
 
 ############################ weapons_loop #############################
@@ -5949,18 +5951,17 @@ var weapons_loop = func (id, myNodeName1 = "", myNodeName2 = "", targetSize_m = 
 		if ( stores.checkWeaponsReadiness ( myNodeName1, elem )) 
 		# Could also check weaponSkill here. However skill of gunner not simply correlated with how frequently they fire
 		{
-			var newAim = checkAim (myNodeName1, myNodeName2, 
+			if (checkAim (myNodeName1, myNodeName2, 
 				targetSize_m, weaponSkill,
 				weaps[elem].maxDamageDistance_m, 
 				weaps[elem].weaponAngle_deg,
 				weaps[elem].weaponOffset_m, 
 				damageValue
-			);
-
-			if (newAim.weaponDirModelFrame[2] != -1) {
+				) == 1) 
+				{
 				weaps[elem].aim = newAim;
 				weaponsOrientationPositionUpdate(myNodeName1, elem);
-			}
+				}
 			# stored for use in weaponsOrientationPositionUpdate_loop
 			# -1 is a flag to indicate whether new aim data are available
 
@@ -8794,7 +8795,7 @@ var weapons_init_func = func(myNodeName) {
 		setprop ("" ~ myNodeName ~ "/" ~ elem ~ "/cannon-elev-deg", weapAngles.elevation);
 		
 		
-		attributes[myNodeName].weapons[elem].aim = {pHit:0, weaponDirModelFrame:weapDir, weaponOffsetRefFrame:[0,0,0], weaponDirRefFrame:[0,0,0]}; 
+		attributes[myNodeName].weapons[elem].aim = newAim; #add hash used to record direction weapon is pointing
 		# used to translate weapon position and orientation from frame of reference of model to the frame of reference of the scene
 		
 		attributes[myNodeName].weapons[elem]["fireParticle"] = count;
@@ -9095,9 +9096,11 @@ var m_per_deg_lon = 111321.5 * math.cos (aLat_rad);
 
 #where we'll save the attributes for each AI object & the main aircraft, too
 var attributes = {};
+#global variable used for sighting weapons
+var newAim = {pHit:0, weaponDirModelFrame:[0,0,0], weaponOffsetRefFrame:[0,0,0], weaponDirRefFrame:[0,0,0], interceptSpeed:0}; 
 
 # List of nodes that listeners will use when checking for impact damage.
-# FG aircraft use a wide variety of nodes to report impact of armament
+# FcG aircraft use a wide variety of nodes to report impact of armament
 # So we try to check them all.  There is no real overhead to this as
 # only the one(s) active with a particular aircraft will ever get any activity.
 # This should make all aircraft in the CVS version of FG (as of Aug 2009),
