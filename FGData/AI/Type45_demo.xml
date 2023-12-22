@@ -1,0 +1,60 @@
+<?xml version="1.0"?>
+<PropertyList>
+<!-- enhansed Type 45 Destroyer AI ship V1.0 -->
+	<scenario>
+		<name>Royal Navy Type 45 destroyer</name>
+		<description>
+			
+			Places 1 destroyer in Sognefjorden, longest fjord in Norway at 240k -
+			nearest airport Sogndal
+			
+
+			Notes:
+			x, y, z-offset-m   The distance in meters of the Fresnel Lens
+			Optical Landing System (FLOLS) from the
+			carrier model origin.
+			max-lat, min-lat   Defines an operating box in terms of the
+			max and min lat excursions from the start
+			position
+			max-lon, min-lon   Defines an operating box in terms of the
+			max and min lon excursions from the start
+			position
+			TACAN-channel-ID   Defines a TACAN channel for display
+			purposes only
+		</description>
+
+		<entry>
+			<search-order>PREFER_AI</search-order>
+			<type>carrier</type>
+			<name>HMS_Duncan</name>
+			<pennant-number>D37</pennant-number>
+			<TACAN-channel-ID>026Y</TACAN-channel-ID>
+			<model>Aircraft/Type45/RN-Type45.xml</model>
+<!-- 			<latitude>52.7685006</latitude>
+			<longitude>-4.2197799</longitude>
+			<speed>10</speed>
+			<heading>200</heading>
+			<rudder>0</rudder> -->
+			<turn-radius-ft>500</turn-radius-ft>
+			
+			<parking-pos>
+				<name>Heli1</name>
+				<heading-offset-deg>-4</heading-offset-deg>
+				<x-offset-m>65.65</x-offset-m>
+				<y-offset-m>0</y-offset-m>
+				<z-offset-m>6</z-offset-m>
+			</parking-pos>
+			
+			<max-lat>0.01</max-lat>
+			<min-lat>0.05</min-lat>
+			<max-long>0.05</max-long>
+			<min-long>0.01</min-long>
+			<mp-control>true</mp-control>
+			<ai-control>true</ai-control>
+			
+			<flightplan>Sognefjorden.xml</flightplan>
+			
+		</entry>
+		
+	</scenario>
+</PropertyList>
