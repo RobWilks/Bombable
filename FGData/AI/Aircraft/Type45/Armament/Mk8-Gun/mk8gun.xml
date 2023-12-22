@@ -1,0 +1,172 @@
+
+<!-- 4.5mm Mk 8 Naval Gun -->
+
+<PropertyList>
+
+	<path>mk8gun_amb_mod.ac</path>
+
+	<params>
+		<n1>XXX/turret-pos-deg</n1>
+		<n2>XXX/cannon-elev-deg</n2>
+		<n3>XXX/cannon-recoil-m</n3>
+	</params>
+ 
+	<animation>
+		<type>rotate</type>
+		<!-- 		<object-name>Gun</object-name>
+ -->
+		<object-name>barrel.inner</object-name>
+		<object-name>barrel.outer</object-name>
+		<object-name>flash</object-name>
+		<object-name>Gun</object-name>
+		<object-name>Plane.055</object-name>
+		<object-name>Plane.056</object-name>
+		<object-name>Sphere</object-name>
+<!-- 		<property>/ai/models/carrier/surface-positions/turret-pos-deg</property>
+ -->		
+		<property alias="../../params/n1"/>
+		<factor>1</factor>
+		<center>
+			<!-- 			<x-m>-48.8727</x-m> -->
+			<x-m>0.0</x-m>
+<!-- 			<y-m>-0.2772</y-m>
+ -->			<y-m>-0.0</y-m>
+			<z-m>0.0</z-m>
+		</center>
+		<axis>
+			<x>0</x>
+			<y>0</y>
+			<z>-1</z>
+		</axis>
+	</animation>
+	
+	<!-- 	<animation>
+	<type>rotate</type>
+	<object-name>barrel.inner</object-name>
+	<object-name>barrel.outer</object-name>
+	<object-name>flash</object-name>
+	<property>/ai/models/carrier/surface-positions/cannon-pos-deg</property>
+	<center>
+			<x-m>0.0</x-m>
+			<y-m>-0.2772</y-m>
+			<z-m>0.0</z-m>
+	</center>
+	<axis>
+		<x>0</x>
+		<y>1</y>
+		<z>0</z>
+	</axis>
+	</animation>
+  -->
+	<model>
+		<path>AI/Aircraft/Type45/Effects/Gun/gunsmoke.xml</path>
+		<name>gunsmoke</name>
+		<offsets>
+			<x-m>-3</x-m>
+			<y-m>0</y-m>
+			<z-m>0</z-m>
+			<pitch-deg>0</pitch-deg>
+		</offsets>
+	</model>
+ 
+	<animation>
+		<type>rotate</type>
+		<object-name>barrel.inner</object-name>
+		<object-name>barrel.outer</object-name>
+		<object-name>flash</object-name>
+		<object-name>gunsmoke</object-name>
+<!-- 		<property>/ai/models/carrier/surface-positions/cannon-pos-deg</property>
+ -->
+		<property alias="../../params/n2"/>
+		<factor>1</factor>
+		<center>
+			<x-m>0</x-m>
+			<y-m>0</y-m>
+			<z-m>0</z-m>
+		</center>
+		<axis>
+			<x>0</x>
+			<y>1</y>
+			<z>0</z>
+		</axis>
+	</animation>
+ 
+	<animation>
+		<type>translate</type>
+		<object-name>barrel.outer</object-name>
+<!-- 		<property>/ai/models/carrier/surface-positions/cannon-recoil-m</property>
+ -->		
+			<property alias="../../params/n3"/>
+			<interpolation>
+			<entry>
+				<ind>1</ind>
+				<dep>1</dep>
+			</entry>
+			<entry>
+				<ind>0</ind>
+				<dep>0</dep>
+			</entry>
+		</interpolation>
+		<axis>
+			<x>1</x>
+			<y>0</y>
+			<z>0</z>
+		</axis>
+	</animation>
+ 
+	<animation>
+		<type>select</type>
+		<object-name>flash</object-name>
+		<condition>
+			<property>/sim/rendering/rembrandt/enabled</property>
+		</condition>
+	</animation>
+ 
+	<animation>
+		<type>light</type>
+		<light-type>point</light-type>
+		<object-name>flash</object-name>
+		<nopreview/>
+		<position>
+			<x>-6.8</x>
+			<y>0</y>
+			<z>0</z>
+		</position>
+		<ambient>
+			<r>1</r>
+			<g>1</g>
+			<b>1</b>
+			<a>1.0</a>
+		</ambient>
+		<diffuse>
+			<r>1</r>
+			<g>1</g>
+			<b>1</b>
+			<a>0.9</a>
+		</diffuse>
+		<specular>
+			<r>1.0</r>
+			<g>1.0</g>
+			<b>0.8</b>
+			<a>1.0</a>
+		</specular>
+		<dim-factor>
+			<property>/ai/models/carrier/armament/mk8-gun/fire-sequence</property>
+			<factor>1</factor>
+			<offset>0</offset>
+			<min>0</min>
+			<max>1.0</max>
+		</dim-factor>
+		<attenuation>
+			<c>0.2</c>
+			<l>0.1</l>
+			<q>0.1</q>
+		</attenuation>
+		<near-m>0.1</near-m>
+		<far-m>60</far-m>
+	</animation>
+
+
+
+
+</PropertyList>
