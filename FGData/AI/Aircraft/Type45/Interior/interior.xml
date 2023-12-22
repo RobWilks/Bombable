@@ -1,0 +1,34 @@
+
+<PropertyList>
+ 
+ <model>
+  <path>AI/Aircraft/Type45/Interior/Bridge/bridge.xml</path>
+ </model>
+ 
+<!--  <model>
+  <name>OperationsRoom</name>
+  <path>AI/Aircraft/Type45/Interior/OperationsRoom/operations-room.xml</path>
+ </model>
+ 
+ <model>
+  <name>COsQuarters</name>
+  <path>AI/Aircraft/Type45/Interior/COsQuarters/cos-quarters.xml</path>
+ </model> -->
+ 
+  <model>
+  <path>AI/Aircraft/Type45/Interior/internal-lights.xml</path>
+ </model>
+ 
+<!--  <animation>
+  <type>select</type>
+  <object-name>OperationsRoom</object-name>
+  <condition>
+   <equals>
+    <property>sim/current-view/name</property>
+	<value>Operations Room</value>
+   </equals>
+  </condition>
+ </animation> -->
+  
+ 
+</PropertyList>

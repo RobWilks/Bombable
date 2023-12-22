@@ -1,0 +1,14 @@
+
+<PropertyList>
+
+ <model>
+  <name>ensign</name>
+  <path>AI/Aircraft/Type45/Flags/ensign.xml</path>
+  <offsets>
+   <x-m>-11.854</x-m>
+   <y-m>-3.135</y-m>
+   <z-m>23.986</z-m>
+  </offsets>
+ </model>
+
+</PropertyList>
