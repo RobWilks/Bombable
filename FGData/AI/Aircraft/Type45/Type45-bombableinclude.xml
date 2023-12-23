@@ -268,10 +268,74 @@
         # END INITIALIZE BOMBABLE
         ########################################################################
         ########################################################################                
-	      
+	    
+		print("Initializing " ~ thisNodeName);
+		# Nasal for Type45		
+		var wind_node =
+		props.globals.getNode("/environment/wind-speed-kt");
+		var time_node =
+		props.globals.getNode("/sim/time/elapsed-sec");
+		var roll_node =
+		props.globals.getNode(thisNodeName ~ "/orientation/roll", 1);
+		var pitch_node =
+		props.globals.getNode(thisNodeName ~ "/orientation/pitch", 1);
+		var heave_node =
+		props.globals.getNode(thisNodeName ~ "/orientation/heave", 1);
+		var loopid_RnR = 1;
+		
+		
+		# Function to calculate ship pitch, roll and heave
+		var RnR_loop = func(id) {
+			if (id != loopid_RnR) return;
+			settimer(func {RnR_loop(id)}, 0.1);
+
+			# rjw optimised since cos (phi + 3/4 period) = sin(phi)
+			
+			# var rollperiod = 11.0;
+			# var pitchperiod = 5.0;
+			# var heaveperiod = pitchperiod;
+			# var heavedelay = pitchperiod  *  0.75; 
+
+			# var rolltimer =
+			# math.mod(time_node.getValue() , rollperiod) / rollperiod;
+			# var roll =
+			# math.sin(2 * math.pi * rolltimer);
+			# roll_node.setValue(roll * (wind_node.getValue() + 1));
+
+			# var pitchtimer =
+			# math.mod(time_node.getValue() , pitchperiod) / pitchperiod;
+			# var pitch =
+			# math.sin(2 * math.pi * pitchtimer);
+			# pitch_node.setValue(pitch * (wind_node.getValue() + 1));
+
+			# var heavetimer =
+			# math.mod((time_node.getValue() + heavedelay) , heaveperiod) / heaveperiod;
+			# var heave =
+			# math.cos(2 * math.pi * heavetimer);
+			# heave_node.setValue(heave * (wind_node.getValue() + 1));
+
+			var rollperiod = 11.0;
+			var pitch_heave_period = 5.0; # pitch and heaves values are set equal
+
+			var rolltimer =
+			math.mod(time_node.getValue() , rollperiod) / rollperiod;
+			var roll =
+			math.sin(2 * math.pi * rolltimer);
+			roll_node.setValue(roll * (wind_node.getValue() + 1));
+
+			var pitch_heave_timer =
+			math.mod(time_node.getValue() , pitch_heave_period) / pitch_heave_period;
+			var pitch_heave_value =
+			math.sin(2 * math.pi * pitch_heave_timer) * (wind_node.getValue() + 1);
+			pitch_node.setValue(pitch_heave_value);
+			heave_node.setValue(pitch_heave_value);
+			
+			}
+
+		settimer(func { RnR_loop(loopid_RnR)}, rand());
 
 				
-			}
+		} #end of init function
 
 			
 			destroyer_init();
@@ -292,12 +356,12 @@
       bombable.location_del (nodeName);
       bombable.weapons_del (nodeName);      
       bombable.bombable_del( nodeName );
+	  loopid_RnR += 1;
       #
 	    ########################################################################
       ########################################################################                
 
 
-#  </unload>
 
 			]]>
 		</unload>
