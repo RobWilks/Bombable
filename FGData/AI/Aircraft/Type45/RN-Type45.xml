@@ -35,7 +35,7 @@
 		<object-name>flags</object-name>
 		<object-name>ships-name</object-name>
 	   
-		<property>/ai/models/Type45/roll</property>
+		<property>orientation/roll</property>
 		<factor>0.216</factor>
 		<axis>
 			<x>1</x>
@@ -56,7 +56,7 @@
 		<object-name>flags</object-name>
 		<object-name>ships-name</object-name>
 		
-		<property>/ai/models/Type45/pitch</property>
+		<property>orientation/pitch</property>
 		<factor>0.039</factor>
 		<axis>
 			<x>0</x>
@@ -77,7 +77,7 @@
 		<object-name>flags</object-name>
 		<object-name>ships-name</object-name>
 		
-		<property>/ai/models/Type45/heave</property>
+		<property>orientation/heave</property>
 		<factor>0.039</factor>
 		<axis>
 			<x>0</x>
@@ -86,7 +86,7 @@
 		</axis>
 	</animation>
 
-<!-- nasal for ship motion removed from here -->
+<!-- nasal removed and added to include file -->
 	
 	<animation>
 		<enable-hot type="bool">true</enable-hot>
