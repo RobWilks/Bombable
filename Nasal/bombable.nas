@@ -5877,6 +5877,7 @@ targetSize_m = nil,  weaponSkill = 1, maxDistance_m = 100, weaponAngle_deg = nil
 	}
 	else
 	{
+		# keep weapon direction unchanged
 		newDir = weapDir;
 	}
 	# change aim of weapon by setting weapon direction to intercept direction
@@ -5940,16 +5941,29 @@ var weapons_loop = func (id, myNodeName1 = "", myNodeName2 = "", targetSize_m = 
 	# currently both are attributes of the AI model, not the weapon
 	
 	
-	var count = loopid * 10;					
 				
 	foreach (elem;keys (weaps) ) 
 	{
+		if (getprop("" ~ myNodeName1 ~ "/" elem ~ "/destroyed") == 1) continue; #skip this weapon if destroyed
+		
 		mDD_m = weaps[elem].maxDamageDistance_m;
 		if (mDD_m == nil or mDD_m == 0) mDD_m = 100;
 
-		#can only shoot if ammo left!
-		if ( stores.checkWeaponsReadiness ( myNodeName1, elem )) 
+		
+		if ( stores.checkWeaponsReadiness ( myNodeName1, elem ) == 0) continue; #can only shoot if ammo left!
+
 		# Could also check weaponSkill here. However skill of gunner not simply correlated with how frequently they fire
+
+		if (weaps[elem].weaponType == 0) 
+		{
+			var callCheckAim = 1;
+		}
+		else
+		{
+			var callCheckAim = (getprop("" ~ myNodeName1 ~ "/" elem ~ "/launched") == 1) ?: 0: 2;
+		}
+
+		if (callCheckAim != 0) 
 		{
 			if (checkAim (myNodeName1, myNodeName2, 
 				targetSize_m, weaponSkill,
@@ -5962,61 +5976,65 @@ var weapons_loop = func (id, myNodeName1 = "", myNodeName2 = "", targetSize_m = 
 				weaps[elem].aim = newAim;
 				weaponsOrientationPositionUpdate(myNodeName1, elem);
 				}
+		}
+		else
+		{
+			# call to guideRocket
+		}
+		if (callCheckAim == 2) continue; # if not launched then assume pHit = 0
 
-			# debprint ("Bombable: Weapons_loop ", myNodeName1, " weaponSkill = ",weaponSkill, " weaponPower = ", weaponPower, " newAim.pHit = ", newAim.pHit);
-			# debprint (
-				# "Bombable: Weapons_loop " ~ myNodeName1 ~ " " ~ elem, 
-				# " heading = ", weaps[elem].weaponAngle_deg.heading, 
-				# " elevation = ", weaps[elem].weaponAngle_deg.elevation
-			# );
+		# debprint ("Bombable: Weapons_loop ", myNodeName1, " weaponSkill = ",weaponSkill, " weaponPower = ", weaponPower, " newAim.pHit = ", newAim.pHit);
+		# debprint (
+			# "Bombable: Weapons_loop " ~ myNodeName1 ~ " " ~ elem, 
+			# " heading = ", weaps[elem].weaponAngle_deg.heading, 
+			# " elevation = ", weaps[elem].weaponAngle_deg.elevation
+		# );
+		
+		if (newAim.pHit == -1) break; #flag for no line of sight; assume none of the gunners can see the target so abort loop
+
+		
+		#debprint ("aim-check weapon");
+		if (newAim.pHit > (0.01 * weaponSkill))
+		# a skilled gunner will fire at 1% pHit; an unskilled one 0.1%
+		{
+			debprint ("Bombable: AI aircraft aimed at main aircraft, ",
+			myNodeName1, " ", weaps[elem].name, " ", elem,
+			" accuracy ", round(newAim.pHit * 100 ),"%",
+			" interceptSpd", round(newAim.interceptSpd), " mps");
 			
-			if (newAim.pHit == -1) break; #flag for no line of sight; assume none of the gunners can see the target so abort loop
-
-			
-			#debprint ("aim-check weapon");
-			if (newAim.pHit > (0.01 * weaponSkill))
-			# a skilled gunner will fire at 1% pHit; an unskilled one 0.1%
-			{
-				debprint ("Bombable: AI aircraft aimed at main aircraft, ",
-				myNodeName1, " ", weaps[elem].name, " ", elem,
-				" accuracy ", round(newAim.pHit * 100 ),"%",
-				" interceptSpd", round(newAim.interceptSpd), " mps");
-				
-				#fire weapons for visual effect
-				#whenever we're within maxDistance & aimed approximately in the right direction
-				fireAIWeapon(loopTime * 3, myNodeName1, weaps[elem], newAim.interceptSpd);
+			#fire weapons for visual effect
+			#whenever we're within maxDistance & aimed approximately in the right direction
+			fireAIWeapon(loopTime * 3, myNodeName1, weaps[elem], newAim.interceptSpd);
 
 
+						
+
+			#reduce ammo count; bad pilots waste more ammo; weaponSkill ranges 0 to 1
+			stores.reduceWeaponsCount (myNodeName1, elem, loopTime * (2 + 2 * weaponSkill));
+
+						
+			# As with our regular damage, it has a pHit% change of registering a hit
+			# The amount of damage also increases with pHit.
+			# There is a smaller chance of doing a fairly high level of damage (up to 3X the regular max),
+			# and the better/closer the hit, the greater chance of doing that significant damage.
+			var r = rand();
+			if (r < newAim.pHit) {
+
+				var ai_callsign = getCallSign (myNodeName1);
 							
-
-				#reduce ammo count; bad pilots waste more ammo; weaponSkill ranges 0 to 1
-				stores.reduceWeaponsCount (myNodeName1, elem, loopTime * (2 + 2 * weaponSkill));
-
+				var damageAdd = newAim.pHit * weaponPower;
+				if (damageAdd > weaps[elem].maxDamage_percent / 100) damageAdd = weaps[elem].maxDamage_percent / 100;
 							
-				# As with our regular damage, it has a pHit% change of registering a hit
-				# The amount of damage also increases with pHit.
-				# There is a smaller chance of doing a fairly high level of damage (up to 3X the regular max),
-				# and the better/closer the hit, the greater chance of doing that significant damage.
-				var r = rand();
-				if (r < newAim.pHit) {
-
-					var ai_callsign = getCallSign (myNodeName1);
-								
-					var damageAdd = newAim.pHit * weaponPower;
-					if (damageAdd > weaps[elem].maxDamage_percent / 100) damageAdd = weaps[elem].maxDamage_percent / 100;
-								
-					# Some chance of doing more damage (and a higher chance the closer the hit)
-					# if (r < newAim.pHit / 5 ) damageAdd  *=  3 * rand(); # rjw omitted
-								
-					weaponName = weaps[elem].name;
-					if (weaponName == nil) weaponName = "Main Weapon";
-								
-					mainAC_add_damage ( damageAdd, 0, "weapons",
-					"Hit from " ~ ai_callsign ~ " - " ~ weaponName ~"!");								
-				}
+				# Some chance of doing more damage (and a higher chance the closer the hit)
+				# if (r < newAim.pHit / 5 ) damageAdd  *=  3 * rand(); # rjw omitted
+							
+				weaponName = weaps[elem].name;
+				if (weaponName == nil) weaponName = "Main Weapon";
+							
+				mainAC_add_damage ( damageAdd, 0, "weapons",
+				"Hit from " ~ ai_callsign ~ " - " ~ weaponName ~"!");								
 			}
 		}
-		count += 1;
 	}
 }
 
@@ -8613,7 +8631,7 @@ var weaponsTrigger_listener = func (changedNode,listenedNode){
 var weapons_init = func (myNodeName = "") {
 
 	debprint ("Bombable: Delaying weapons_init . . . ", myNodeName);
-	settimer (func {weapons_init_func(myNodeName);}, 60 + rand(),1);
+	settimer (func {weapons_init_func(myNodeName);}, 60 + rand(), 1); #rjw changed delay from 60s to 30s 
 
 }
 
@@ -8707,6 +8725,7 @@ var weapons_init_func = func(myNodeName) {
 		# set turret and gun to their default positions
 		setprop ("" ~ myNodeName ~ "/" ~ elem ~ "/turret-pos-deg", weapAngles.heading);
 		setprop ("" ~ myNodeName ~ "/" ~ elem ~ "/cannon-elev-deg", weapAngles.elevation);
+		setprop ("" ~ myNodeName ~ "/" ~ elem ~ "/destroyed", 0); # needed? Could also deplete stores to zero to indicate destroyed
 		
 		
 		attributes[myNodeName].weapons[elem].aim = newAim; #add hash used to record direction weapon is pointing
@@ -8714,7 +8733,15 @@ var weapons_init_func = func(myNodeName) {
 		
 		attributes[myNodeName].weapons[elem]["fireParticle"] = count;
 		# new key to link the weapon to a fire particle
-		
+
+		if (attributes[myNodeName].weapons[elem]["weaponType"] == nil) attributes[myNodeName].weapons[elem]["weaponType"] = 0;
+		# new key to allow inclusion of new types of weapons such as rockets. Note weaponType used in other functions
+
+		if (attributes[myNodeName].weapons[elem]["weaponType"] == 1) {
+			setprop ("" ~ myNodeName ~ "/" ~ elem ~ "/launched", 0);
+		}
+		}
+
 		debprint ("Weaps: ", myNodeName, " initialized ", attributes[myNodeName].weapons[elem].name);
 		count += 1;
 	}
