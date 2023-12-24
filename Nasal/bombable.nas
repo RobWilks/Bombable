@@ -5620,7 +5620,7 @@ targetSize_m = nil,  weaponSkill = 1, maxDistance_m = 100, weaponAngle_deg = nil
 	#Function called only by main weapons_loop
 	#rjw modified to return a hash
 
-	newAim = {pHit:0, weaponDirModelFrame:[0,0,0], weaponOffsetRefFrame:[0,0,0], weaponDirRefFrame:[0,0,0], interceptSpd:0}; #reset global variable
+	newAim = {pHit:0, weaponDirModelFrame:[0,0,0], weaponOffsetRefFrame:[0,0,0], weaponDirRefFrame:[0,0,0], interceptSpeed:0, interceptTime:0}; #reset global variable
 	var weaponAimed = 0; #flag true if weapon aimed successfully
 				
 	#Weapons malfunction in proportion to the damageValue, to 100% of the time when damage = 100%
@@ -5781,9 +5781,10 @@ targetSize_m = nil,  weaponSkill = 1, maxDistance_m = 100, weaponAngle_deg = nil
 
 	if (intercept.time == -1) return(weaponAimed);
 	weaponAimed = 1;
-	newAim.interceptSpd = vectorModulus(intercept.vector);
+	newAim.interceptSpeed = vectorModulus(intercept.vector);
+	newAim.interceptTime = intercept.time;
 	
-	var interceptDirRefFrame = vectorDivide(intercept.vector, newAim.interceptSpd);
+	var interceptDirRefFrame = vectorDivide(intercept.vector, newAim.interceptSpeed);
 	
 	# debprint (
 		# sprintf(
@@ -5944,7 +5945,7 @@ var weapons_loop = func (id, myNodeName1 = "", myNodeName2 = "", targetSize_m = 
 				
 	foreach (elem;keys (weaps) ) 
 	{
-		if (getprop("" ~ myNodeName1 ~ "/" elem ~ "/destroyed") == 1) continue; #skip this weapon if destroyed
+		if (getprop("" ~ myNodeName1 ~ "/" ~ elem ~ "/destroyed") == 1) continue; #skip this weapon if destroyed
 		
 		mDD_m = weaps[elem].maxDamageDistance_m;
 		if (mDD_m == nil or mDD_m == 0) mDD_m = 100;
@@ -5960,28 +5961,33 @@ var weapons_loop = func (id, myNodeName1 = "", myNodeName2 = "", targetSize_m = 
 		}
 		else
 		{
-			var callCheckAim = (getprop("" ~ myNodeName1 ~ "/" elem ~ "/launched") == 1) ?: 0: 2;
+			var callCheckAim = (getprop("" ~ myNodeName1 ~ "/" ~ elem ~ "/launched") == 1) ? 0: 2;
 		}
 
 		if (callCheckAim != 0) 
 		{
-			if (checkAim (myNodeName1, myNodeName2, 
+			 var foundTarget = checkAim (myNodeName1, myNodeName2, 
 				targetSize_m, weaponSkill,
 				weaps[elem].maxDamageDistance_m, 
 				weaps[elem].weaponAngle_deg,
 				weaps[elem].weaponOffset_m, 
 				damageValue
-				) == 1) 
+				);
+			 if ( foundTarget ) 
 				{
 				weaps[elem].aim = newAim;
 				weaponsOrientationPositionUpdate(myNodeName1, elem);
-				}
+				if (callCheckAim == 2)
+					{
+						if (rand() < (weaponSkill * weaponSkill)) launchRocket(myNodeName1, elem);
+						continue; # if not launched then assume pHit = 0
+					}
+				}				
 		}
 		else
 		{
 			# call to guideRocket
 		}
-		if (callCheckAim == 2) continue; # if not launched then assume pHit = 0
 
 		# debprint ("Bombable: Weapons_loop ", myNodeName1, " weaponSkill = ",weaponSkill, " weaponPower = ", weaponPower, " newAim.pHit = ", newAim.pHit);
 		# debprint (
@@ -6000,11 +6006,11 @@ var weapons_loop = func (id, myNodeName1 = "", myNodeName2 = "", targetSize_m = 
 			debprint ("Bombable: AI aircraft aimed at main aircraft, ",
 			myNodeName1, " ", weaps[elem].name, " ", elem,
 			" accuracy ", round(newAim.pHit * 100 ),"%",
-			" interceptSpd", round(newAim.interceptSpd), " mps");
+			" interceptSpeed", round(newAim.interceptSpeed), " mps");
 			
 			#fire weapons for visual effect
 			#whenever we're within maxDistance & aimed approximately in the right direction
-			fireAIWeapon(loopTime * 3, myNodeName1, weaps[elem], newAim.interceptSpd);
+			fireAIWeapon(loopTime * 3, myNodeName1, weaps[elem], newAim.interceptSpeed);
 
 
 						
@@ -6036,6 +6042,21 @@ var weapons_loop = func (id, myNodeName1 = "", myNodeName2 = "", targetSize_m = 
 			}
 		}
 	}
+}
+
+############################ launchRocket ##############################
+# FUNCTION set flags, send message
+
+var launchRocket = func (myNodeName, elem)
+{
+	setprop ("" ~ myNodeName ~ "/" ~ elem ~ "/launched", 1);
+
+	var msg = "AI rocket launched from " ~ myNodeName1 ~ " interceptTime" ~ round(newAim.interceptTime) ~ " s" ~ 
+	" interceptSpeed" ~ round(newAim.interceptSpeed) ~ " mps";
+
+	targetStatusPopupTip (msg, 20);
+
+	debprint ("Bombable: " ~ msg ~ ", " ~ weaps[elem].name ~ " " ~ elem);
 }
 
 ##########################################################
@@ -8631,7 +8652,7 @@ var weaponsTrigger_listener = func (changedNode,listenedNode){
 var weapons_init = func (myNodeName = "") {
 
 	debprint ("Bombable: Delaying weapons_init . . . ", myNodeName);
-	settimer (func {weapons_init_func(myNodeName);}, 60 + rand(), 1); #rjw changed delay from 60s to 30s 
+	settimer (func {weapons_init_func(myNodeName);}, 30 + rand(), 1); #rjw changed delay from 60s to 30s 
 
 }
 
@@ -8737,11 +8758,11 @@ var weapons_init_func = func(myNodeName) {
 		if (attributes[myNodeName].weapons[elem]["weaponType"] == nil) attributes[myNodeName].weapons[elem]["weaponType"] = 0;
 		# new key to allow inclusion of new types of weapons such as rockets. Note weaponType used in other functions
 
-		if (attributes[myNodeName].weapons[elem]["weaponType"] == 1) {
+		if (attributes[myNodeName].weapons[elem]["weaponType"] == 1) 
+		{
 			setprop ("" ~ myNodeName ~ "/" ~ elem ~ "/launched", 0);
 		}
-		}
-
+	
 		debprint ("Weaps: ", myNodeName, " initialized ", attributes[myNodeName].weapons[elem].name);
 		count += 1;
 	}
@@ -9038,7 +9059,7 @@ var m_per_deg_lon = 111321.5 * math.cos (aLat_rad);
 #where we'll save the attributes for each AI object & the main aircraft, too
 var attributes = {};
 #global variable used for sighting weapons
-var newAim = {pHit:0, weaponDirModelFrame:[0,0,0], weaponOffsetRefFrame:[0,0,0], weaponDirRefFrame:[0,0,0], interceptSpeed:0}; 
+var newAim = {pHit:0, weaponDirModelFrame:[0,0,0], weaponOffsetRefFrame:[0,0,0], weaponDirRefFrame:[0,0,0], interceptSpeed:0, interceptTime}; 
 
 # List of nodes that listeners will use when checking for impact damage.
 # FG aircraft use a wide variety of nodes to report impact of armament
