@@ -1,0 +1,41 @@
+<?xml version="1.0"?>
+<PropertyList>
+<!-- enhanced Type 45 Destroyer AI ship V1.0 -->
+	<scenario>
+		<name>Type 45 destroyers in Sognefjorden</name>
+		<description>
+			
+			Bombable: Places 2 Type45 Royal Navy destroyer in Sognefjorden, longest fjord in Norway at 240k -
+			nearest airport Sogndal
+			Armament: MK8, Phalax and Sea Viper
+
+
+		</description>
+
+		<entry>
+			<search-order>PREFER_AI</search-order>
+			<type>ship</type>
+			<name>HMS_Duncan</name>
+			<pennant-number>D00</pennant-number>
+			<model>Aircraft/Type45-Bombable/RN-Type45.xml</model>
+			<turn-radius-ft>1000</turn-radius-ft>
+			
+			<flightplan>Sognefjorden_HMS_Duncan.xml</flightplan>
+			
+		</entry>
+		
+		<entry>
+			<search-order>PREFER_AI</search-order>
+			<type>ship</type>
+			<name>HMS_Daring</name>
+			<pennant-number>D32</pennant-number>
+			<model>Aircraft/Type45-Bombable/RN-Type45.xml</model>
+			<turn-radius-ft>1000</turn-radius-ft>
+			
+			<flightplan>Sognefjorden_HMS_Daring.xml</flightplan>
+			
+		</entry>
+
+		
+	</scenario>
+</PropertyList>

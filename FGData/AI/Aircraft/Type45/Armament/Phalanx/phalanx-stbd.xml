@@ -1,7 +1,7 @@
 
 <PropertyList>
 
- <path>phalanx_v2.ac</path>
+ <path>phalanx_v5.ac</path>
  
  	<params>
 		<n1>XXX/turret-pos-deg</n1>
@@ -63,7 +63,7 @@
   <axis>
    <x>0</x>
    <y>0</y>
-   <z>-1</z>
+   <z>1</z>
   </axis>
  </animation>
  
@@ -78,11 +78,11 @@
   <center>
    <x-m>0</x-m>
    <y-m>0</y-m>
-   <z-m>0.547</z-m>
+   <z-m>1.1</z-m>
   </center>
   <axis>
    <x>0</x>
-   <y>-1</y>
+   <y>1</y>
    <z>0</z>
   </axis>
  </animation>
@@ -95,7 +95,7 @@
   <center>
    <x-m>0.1449</x-m>
    <y-m>0   </y-m>
-   <z-m>1.093</z-m>
+   <z-m>2.0</z-m>
   </center>
   <axis>
    <x>1</x>

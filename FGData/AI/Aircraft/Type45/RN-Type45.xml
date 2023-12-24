@@ -2,9 +2,7 @@
 
 <!-- 3D Model by Alexdark, obtained from Blend Swap -->
 
-<PropertyList>
-
-	<!--<path>type-45.ac</path> -->
+<PropertyList include="Type45-bombableinclude.xml">
 
 	<model>
 		<name>Ship</name>
@@ -37,7 +35,7 @@
 		<object-name>flags</object-name>
 		<object-name>ships-name</object-name>
 	   
-		<property>/ai/models/Type45/roll</property>
+		<property>orientation/roll</property>
 		<factor>0.216</factor>
 		<axis>
 			<x>1</x>
@@ -58,7 +56,7 @@
 		<object-name>flags</object-name>
 		<object-name>ships-name</object-name>
 		
-		<property>/ai/models/Type45/pitch</property>
+		<property>orientation/pitch</property>
 		<factor>0.039</factor>
 		<axis>
 			<x>0</x>
@@ -79,7 +77,7 @@
 		<object-name>flags</object-name>
 		<object-name>ships-name</object-name>
 		
-		<property>/ai/models/Type45/heave</property>
+		<property>orientation/heave</property>
 		<factor>0.039</factor>
 		<axis>
 			<x>0</x>
@@ -88,134 +86,8 @@
 		</axis>
 	</animation>
 
-	<nasal>
-		<load>
-			var wind_node =
-			props.globals.getNode("/environment/wind-speed-kt");
-			var time_node =
-			props.globals.getNode("/sim/time/elapsed-sec");
-			var
-			roll_node =
-			props.globals.getNode("/ai/models/Type45/roll");
-			var
-			pitch_node =
-			props.globals.getNode("/ai/models/Type45/pitch");
-			var
-			heave_node =
-			props.globals.getNode("/ai/models/Type45/heave");
-			var
-			loopid = 1;
-			var loop = func(id) {
-			if (id != loopid) return;
-
-			var
-			rollperiod = 11.0;
-			var pitchperiod = 5.0;
-			var heaveperiod =
-			pitchperiod;
-			var heavedelay = pitchperiod*0.75;
-
-			var rolltimer =
-			time_node.getValue()/rollperiod -
-			int(time_node.getValue()/rollperiod);
-			var roll =
-			math.sin(2*math.pi*rolltimer);
-			roll_node.setValue(roll*(wind_node.getValue()+1));
-
-			var pitchtimer =
-			time_node.getValue()/pitchperiod -
-			int(time_node.getValue()/pitchperiod);
-			var pitch =
-			math.sin(2*math.pi*pitchtimer);
-			pitch_node.setValue(pitch*(wind_node.getValue()+1));
-
-			var heavetimer =
-			(time_node.getValue()+heavedelay)/heaveperiod -
-			int((time_node.getValue()+heavedelay)/heaveperiod);
-			var heave =
-			math.cos(2*math.pi*heavetimer);
-			heave_node.setValue(heave*(wind_node.getValue()+1));
-
-			settimer(func {
-			loop(id); }, 0);
-			}
-			settimer(func { loop(loopid); }, 0);
- 
-		</load>
-		<unload>
-			maintimer.stop();
-			loopid += 1;
-			
-		</unload>
-	</nasal>
-
-	<!-- Effects -->
-	<nasal>
-		<load>
-		
-			print("LOAD HMS_Duncan", cmdarg().getPath());
-
-			var fg_root =
-			getprop("/sim/fg-root");
-			var self = cmdarg();
-
-			<!-- Properties used to calculate rel wind for the bow-wave shader -->
-			var speed_Node = self.getNode("velocities/speed-kts", 1);
-			var hdg_Node
-			= self.getNode("orientation/true-heading-deg", 1);
-			var wind_speed_Node
-			= self.getNode("environment/rel-wind-speed-kts", 1);
-			wind_speed_Node.setDoubleValue(0);
-
-			<!-- The main loop -->
-			var update = func {
-			var value = wind_speed_Node.getValue();
-			setprop("/environment/Type45/rel-wind-speed-kts", value);
-			value =
-			speed_Node.getValue();
-			setprop("/environment/Type45/spd-kt", value);
-			value = hdg_Node.getValue();
-			setprop("/environment/Type45/hdg-deg",
-			value);
-
-			settimer(update,0);
-			}
-
-			<!-- Start the main loop -->
-			update();
-
-		</load>
-	</nasal>
-
-	<unload>
-		#print("UNLOAD HMS_Duncan ", cmdarg().getPath());
-	</unload>
+<!-- nasal removed and added to include file -->
 	
-<!--	<nasal>
-		<load>
-            <![CDATA[ 
-
-            var self = cmdarg();
-            print("Model load HMS_Duncan ", self.getPath());
-
-            fn_an_spn_46 = getprop("/sim/fg-root") ~ "/Aircraft/Generic/an_spn_46.nas";
-            io.load_nasal(fn_an_spn_46, "an_spn_46");
-            var anspn = an_spn_46.ANSPN46_System.new("Nimitz", self);
-            anspn.SetChannel52);
-            var an_spn_46_timer = maketimer(6, func {
-                anspn.Update();
-                an_spn_46_timer.restart(anspn.GetUpdateRate());
-            });
-            an_spn_46_timer.restart(6);
-        ]]>
-		</load>
-
-		<unload>
-            <![CDATA[ 
-            an_spn_46_timer.stop();
-            ]]>
-		</unload>-->
-
 	<animation>
 		<enable-hot type="bool">true</enable-hot>
 	</animation>
@@ -255,14 +127,15 @@
 		</offsets>
 	</model>
 
+<!-- The property tree uses the same weapon names as in the bombable attributes hash.  Note '-' is not allowed -->
 	<model>
 		<path>Armament/Mk8-Gun/mk8gun.xml</path>
 		<name>mk8gun</name>
 		<overlay>
 			<params>
-				<n1>Mk8/turret-pos-deg</n1>
-				<n2>Mk8/cannon-elev-deg</n2>
-				<n3>Mk8/cannon-recoil-m</n3>
+				<n1>mk8_front/turret-pos-deg</n1>
+				<n2>mk8_front/cannon-elev-deg</n2>
+				<n3>mk8_front/cannon-recoil-m</n3>
 			</params>
 		</overlay>
 		<offsets>
@@ -278,16 +151,16 @@
 		<name>phalanx-port</name>
 		<overlay>
 			<params>
-				<n1>phalanx-port/turret-pos-deg</n1>
-				<n2>phalanx-port/cannon-elev-deg</n2>
-				<n3>phalanx-port/cannon-spinspeed</n3>
+				<n1>phalanx_port/turret-pos-deg</n1>
+				<n2>phalanx_port/cannon-elev-deg</n2>
+				<n3>phalanx_port/cannon-spinspeed</n3>
 			</params>
 		</overlay>
 		<offsets>
 			<x-m>10.4319</x-m>
 			<y-m>-8.8514</y-m>
 			<z-m>7.45</z-m>
-			<heading-deg>-90</heading-deg>
+			<heading-deg>0</heading-deg>
 		</offsets>
 	</model>
 
@@ -296,16 +169,16 @@
 		<name>phalanx-stbd</name>
 		<overlay>
 			<params>
-				<n1>phalanx-stbd/turret-pos-deg</n1>
-				<n2>phalanx-stbd/cannon-elev-deg</n2>
-				<n3>phalanx-stbd/cannon-spinspeed</n3>
+				<n1>phalanx_stbd/turret-pos-deg</n1>
+				<n2>phalanx_stbd/cannon-elev-deg</n2>
+				<n3>phalanx_stbd/cannon-spinspeed</n3>
 			</params>
 		</overlay>
 		<offsets>
 			<x-m>10.4319</x-m>
 			<y-m>8.8514</y-m>
 			<z-m>7.45</z-m>
-			<heading-deg>90</heading-deg>
+			<heading-deg>0</heading-deg>
 		</offsets>
 	</model>
 

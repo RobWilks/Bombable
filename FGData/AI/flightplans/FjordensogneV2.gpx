@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no" ?>
+ 
+<gpx xmlns="http://www.topografix.com/GPX/1/1" creator="bikehike.co.uk" version="1.1" 
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+    xsi:schemaLocation="http://www.topografix.com/GPX/1/1 http://www.topografix.com/GPX/1/1/gpx.xsd">
+
+  <metadata>
+    <time>2023-12-22T17:18:24Z</time>
+    <bounds minlat="60.871752" minlon="4.449427" maxlat="61.485633" maxlon="7.585383" /> 
+  </metadata>
+
+
+  
+  <rte>
+    <name>FjordensogneV2</name>
+    <number>1</number>
+    <rtept lat="60.871752" lon="4.449427">
+      <ele>undefined</ele>
+      <time>2023-12-22T17:18:24Z</time>
+      <name>pt0</name>
+    </rtept>
+    <rtept lat="61.111497" lon="5.150669">
+      <ele>undefined</ele>
+      <time>2023-12-22T19:13:25Z</time>
+      <name>pt1</name>
+    </rtept>
+    <rtept lat="61.058376" lon="5.386875">
+      <ele>undefined</ele>
+      <time>2023-12-22T19:48:14Z</time>
+      <name>pt2</name>
+    </rtept>
+    <rtept lat="61.145967" lon="5.940308">
+      <ele>undefined</ele>
+      <time>2023-12-22T21:06:03Z</time>
+      <name>pt3</name>
+    </rtept>
+    <rtept lat="61.094896" lon="6.346802">
+      <ele>undefined</ele>
+      <time>2023-12-22T22:02:07Z</time>
+      <name>pt4</name>
+    </rtept>
+    <rtept lat="61.124752" lon="6.563782">
+      <ele>undefined</ele>
+      <time>2023-12-22T22:32:15Z</time>
+      <name>pt5</name>
+    </rtept>
+    <rtept lat="61.186367" lon="6.577515">
+      <ele>undefined</ele>
+      <time>2023-12-22T22:49:23Z</time>
+      <name>pt6</name>
+    </rtept>
+    <rtept lat="61.165842" lon="6.842560">
+      <ele>undefined</ele>
+      <time>2023-12-22T23:25:10Z</time>
+      <name>pt7</name>
+    </rtept>
+    <rtept lat="61.096887" lon="6.929078">
+      <ele>undefined</ele>
+      <time>2023-12-22T23:47:27Z</time>
+      <name>pt8</name>
+    </rtept>
+    <rtept lat="61.123426" lon="7.103486">
+      <ele>undefined</ele>
+      <time>2023-12-23T00:11:53Z</time>
+      <name>pt9</name>
+    </rtept>
+    <rtept lat="61.155906" lon="7.233948">
+      <ele>undefined</ele>
+      <time>2023-12-23T00:31:28Z</time>
+      <name>pt10</name>
+    </rtept>
+    <rtept lat="61.143978" lon="7.350678">
+      <ele>undefined</ele>
+      <time>2023-12-23T00:47:23Z</time>
+      <name>pt11</name>
+    </rtept>
+    <rtept lat="61.187152" lon="7.409730">
+      <ele>undefined</ele>
+      <time>2023-12-23T01:01:41Z</time>
+      <name>pt12</name>
+    </rtept>
+    <rtept lat="61.299467" lon="7.295747">
+      <ele>undefined</ele>
+      <time>2023-12-23T01:36:14Z</time>
+      <name>pt13</name>
+    </rtept>
+    <rtept lat="61.352841" lon="7.382264">
+      <ele>undefined</ele>
+      <time>2023-12-23T01:54:56Z</time>
+      <name>pt14</name>
+    </rtept>
+    <rtept lat="61.433799" lon="7.473803">
+      <ele>undefined</ele>
+      <time>2023-12-23T02:20:23Z</time>
+      <name>pt15</name>
+    </rtept>
+    <rtept lat="61.485633" lon="7.585383">
+      <ele>undefined</ele>
+      <time>2023-12-23T02:40:56Z</time>
+      <name>pt16</name>
+    </rtept>
+  </rte>
+</gpx>
