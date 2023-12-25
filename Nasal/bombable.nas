@@ -1645,6 +1645,7 @@ var init_bombable_dialog = func () {
 	#OK . . . per gui.nas line 63, this appears to be the right way to do this:
 	fgcommand ("gui-redraw");
 }
+###################################### targetStatusPopupTip #########################################
 		
 var targetStatusPopupTip = func (label, delay = 5, override = nil) {
 			
@@ -1665,6 +1666,7 @@ var targetStatusPopupTip = func (label, delay = 5, override = nil) {
 	# Final argument is a flag to use "real" time, not simulated time
 	settimer(func { if(currTimerTarget == thisTimerTarget) { popdown(tipArgTarget) } }, delay, 1);
 }
+###################################### selfStatusPopupTip #########################################
 
 var selfStatusPopupTip = func (label, delay = 10, override = nil) {
 	#return; #gui prob
@@ -3325,16 +3327,16 @@ var ground_loop = func( id, myNodeName ) {
 
 
 #######################################################
-#location-check loop, a timer function, every 15-16 seconds to check if the object has been relocated (this will happen if the object is set up as an AI ship or aircraft and FG is reset).  If so it restores the object to its position before the reset.
-#This solves an annoying problem in FG, where using file/reset (which
-#you might do if you crash the aircraft, but also if you run out of ammo
-#and need to re-load or for other reasons) will also reset the objects to
-#their original positions.
-#With moving objects (set up as AI ships or aircraft with velocities,
-#rudders, and/or flight plans) the objects abre often just getting to
-#interesting/difficult positions, so we want to preserve those positions
+# location-check loop, a timer function, every 15-16 seconds to check if the object has been relocated (this will happen if the object is set up as an AI ship or aircraft and FG is reset).  If so it restores the object to its position before the reset.
+# This solves an annoying problem in FG, where using file/reset (which
+# you might do if you crash the aircraft, but also if you run out of ammo
+# and need to re-load or for other reasons) will also reset the objects to
+# their original positions.
+# With moving objects (set up as AI ships or aircraft with velocities,
+# rudders, and/or flight plans) the objects are often just getting to
+# interesting/difficult positions, so we want to preserve those positions
 # rather than letting them reset back to where they started.
-#TODO: Some of this could be done better using a listener on /sim/signals/reinit
+# TODO: Some of this could be done better using a listener on /sim/signals/reinit
 var location_loop = func(id, myNodeName) {
 	var loopid = getprop(""~myNodeName~"/bombable/loopids/location-loopid");
 	id == loopid or return;
@@ -3368,8 +3370,8 @@ var location_loop = func(id, myNodeName) {
 
 
 			
-	#getting the global_x,y,z seems to stop strange behavior from the smoke
-	#when we do a relocate of the objects
+	# getting the global_x,y,z seems to stop strange behavior from the smoke
+	# when we do a relocate of the objects
 	var global_x = getprop(""~myNodeName~"/position/global-x");
 	var global_y = getprop(""~myNodeName~"/position/global-y");
 	var global_z = getprop(""~myNodeName~"/position/global-z");
@@ -3401,24 +3403,24 @@ var location_loop = func(id, myNodeName) {
 
 		var directDistance = GeoCoord.distance_to(GeoCoordprev);
 				
-		#debprint ("Object  ", myNodeName ", distance: ", directDistance);
+		# debprint ("Object  ", myNodeName ", distance: ", directDistance);
 				
-		#4X the previously traveled distance is our cutoff
-		#so if our object is moving faster/further than this we assume it has
-		#been reset by FG and put it back where it was before the reset.
-		#Luckily, this same scheme works in the case this subroutine has moved the
-		#object--then the previous distance exactly equals the distance traveled--
-		#so even though that is a much larger than usual distance (which would
-		#usually trigger this subroutine to think an init had happened) since
-		#the object moved that large distance on the *  * previous step *  * (due to the
-		#reset) the move back is less than 4X the previous move and so it is OK.
+		# 4X the previously traveled distance is our cutoff
+		# so if our object is moving faster/further than this we assume it has
+		# been reset by FG and put it back where it was before the reset.
+		# Luckily, this same scheme works in the case this subroutine has moved the
+		# object--then the previous distance exactly equals the distance traveled--
+		# so even though that is a much larger than usual distance (which would
+		# usually trigger this subroutine to think an init had happened) since
+		# the object moved that large distance on the *  * previous step *  * (due to the
+		# reset) the move back is less than 4X the previous move and so it is OK.
 
-		#A bit kludgy . . . but it works.
+		# A bit kludgy . . . but it works.
 		if ( directDistance > 5 and directDistance > 4 * prev_distance ) {
 			node.getNode("position/latitude-deg", 1).setDoubleValue(prevlat);
 			node.getNode("position/longitude-deg", 1).setDoubleValue(prevlon);
 			node.getNode("position/altitude-ft", 1).setDoubleValue(prevalt_ft);
-			#now we want to show the previous location as this newly relocated position and distance traveled = 0;
+			# now we want to show the previous location as this newly relocated position and distance traveled = 0;
 			lat = prevlat;
 			lon = prevlon;
 			alt_ft = prevalt_ft;
@@ -3427,7 +3429,7 @@ var location_loop = func(id, myNodeName) {
 			debprint ("Bombable: Repositioned object "~ myNodeName~ " to lat: "~ prevlat~ " long: "~ prevlon~ " altitude: "~ prevalt_ft~" ft.");
 		}
 	}
-	#now we save the current position
+	# now we save the current position
 	node.getNode("position/previous/initialized", 1).setBoolValue(1);
 	node.getNode("position/previous/latitude-deg", 1).setDoubleValue(lat);
 	node.getNode("position/previous/longitude-deg", 1).setDoubleValue(lon);
@@ -5615,7 +5617,7 @@ var vertAngle_deg = func (geocoord1, geocoord2) {
 			
 
 var checkAim = func (myNodeName1 = "", myNodeName2 = "",
-targetSize_m = nil,  weaponSkill = 1, maxDistance_m = 100, weaponAngle_deg = nil, weaponOffset_m = nil, damageValue = 0) {
+targetSize_m = nil,  weaponSkill = 1, maxDistance_m = 100, weaponAngle_deg = nil, weaponOffset_m = nil, damageValue = 0, missileSpeed = 500) {
 	#Note weaponAngle is a hash with components heading and elevation
 	#Function called only by main weapons_loop
 	#rjw modified to return a hash
@@ -5738,11 +5740,12 @@ targetSize_m = nil,  weaponSkill = 1, maxDistance_m = 100, weaponAngle_deg = nil
 
 	
 	# correct targetDispRefFrame for weapon offset
-	# find newDir the direction required for a missile travelling at missileSpeed_mps (constant) to intercept the target 
+	# find newDir the direction required for a missile travelling at missileSpeed (constant over journey) to intercept the target 
 	# given the relative velocities of node1 and node2
 	# calculate the angle between the direction in which the weapon is aimed and newDir
 	# use this angle and the solid angle subtended by the mainAC to determine pHit
-	
+
+	# rjw TODO remove use of pitch-animation
 	if (myNodeName1 == "") myHeading_deg = getprop ("/orientation/heading-deg");
 	else myHeading_deg = getprop ("" ~ myNodeName1 ~ "/orientation/true-heading-deg");
 	var pitch_deg = getprop("" ~ myNodeName1 ~ "/orientation/pitch-animation");
@@ -5770,13 +5773,11 @@ targetSize_m = nil,  weaponSkill = 1, maxDistance_m = 100, weaponAngle_deg = nil
 	#recalculate distance
 	distance_m = vectorModulus(targetDispRefFrame); #correct the distance for weapon displacement relative to AC origin	
 	
-	var missileSpeed_mps = 500; #could be passed to function with other weapon attributes
-	
 	var intercept = findIntercept(
 		myNodeName1, myNodeName2, 
 		targetDispRefFrame,
 		distance_m,
-		missileSpeed_mps
+		missileSpeed
 	);
 
 	if (intercept.time == -1) return(weaponAimed);
@@ -5971,7 +5972,8 @@ var weapons_loop = func (id, myNodeName1 = "", myNodeName2 = "", targetSize_m = 
 				weaps[elem].maxDamageDistance_m, 
 				weaps[elem].weaponAngle_deg,
 				weaps[elem].weaponOffset_m, 
-				damageValue
+				damageValue,
+				weaps[elem].missileSpeed_mps
 				);
 			 if ( foundTarget ) 
 				{
@@ -5986,7 +5988,22 @@ var weapons_loop = func (id, myNodeName1 = "", myNodeName2 = "", targetSize_m = 
 		}
 		else
 		{
-			# call to guideRocket
+			if ( guideRocket (
+				myNodeName1, myNodeName2,
+				targetSize_m,  weaponSkill, 
+				weaps[elem].aim, 
+				damageValue, weaps[elem].missileSpeed_mps, loop_time
+				) == 1)
+				{
+					weaps[elem].aim = newAim;
+				}
+			else
+				{
+					setprop ("" ~ myNodeName ~ "/" ~ elem ~ "/destroyed", 1);
+					# call for effects					
+				}
+
+			# pass weaps[elem].aim
 		}
 
 		# debprint ("Bombable: Weapons_loop ", myNodeName1, " weaponSkill = ",weaponSkill, " weaponPower = ", weaponPower, " newAim.pHit = ", newAim.pHit);
@@ -6051,13 +6068,181 @@ var launchRocket = func (myNodeName, elem)
 {
 	setprop ("" ~ myNodeName ~ "/" ~ elem ~ "/launched", 1);
 
-	var msg = "AI rocket launched from " ~ myNodeName1 ~ " interceptTime" ~ round(newAim.interceptTime) ~ " s" ~ 
-	" interceptSpeed" ~ round(newAim.interceptSpeed) ~ " mps";
+	var weaps = attributes[myNodeName].weapons;
+	var msg = "AI rocket launched from " ~ 
+	getprop ("" ~ myNodeName ~ "/name") ~ 
+	" intercept time " ~ round(newAim.interceptTime) ~ "s" ~ 
+	" intercept speed " ~ round(newAim.interceptSpeed) ~ " mps";
 
 	targetStatusPopupTip (msg, 20);
 
-	debprint ("Bombable: " ~ msg ~ ", " ~ weaps[elem].name ~ " " ~ elem);
+	debprint ("Bombable: " ~ msg ~ myNodeName ~ ", " ~ weaps[elem].name ~ " " ~ elem);
 }
+
+############################ guideRocket ##############################
+# FUNCTION check if run out of fuel, check collision with main AC, direction of main AC,
+# change direction, calculate position after time delta_t, trigger messages and effects
+# derived from checkAim
+# hash newAim returns results
+# weaponDirRefFrame is updates with the new direction, the new position is recorded in the property tree
+# node 1 is AI, node 2 is main AC
+# return rocket status 1 = in flight or 0 = destroyed
+
+var guideRocket = func 
+(
+	myNodeName1 = "", myNodeName2 = "",
+	targetSize_m = nil,  weaponSkill = 1, 
+	aim, 
+	damageValue = 0, missileSpeed = 500, delta_t
+)
+{
+	# TODO:  check whether run out of fuel
+	newAim = {pHit:0, weaponDirModelFrame:[0,0,0], weaponOffsetRefFrame:[0,0,0], weaponDirRefFrame:[0,0,1], interceptSpeed:0, interceptTime:0}; #reset global variable
+
+	var alat_deg = getprop("" ~ myNodeName1 ~ "/" ~ elem ~ "/position/latitude-deg"); # AI
+	var alon_deg = getprop("" ~ myNodeName1 ~ "/" ~ elem ~ "/position/longitude-deg");
+	# var elev_ref getprop("" ~ myNodeName1 ~ "/" ~ elem ~ "/orientation/pitch-deg");
+	# var heading_ref = getprop("" ~ myNodeName1 ~ "/" ~ elem ~ "/orientation/true-heading-deg", );
+	var mlat_deg = getprop("" ~ myNodeName2 ~ "/position/latitude-deg"); # main AC
+	var mlon_deg = getprop("" ~ myNodeName2 ~ "/position/longitude-deg");
+	var aAlt_m = getprop("" ~ myNodeName1 ~ "/" ~ elem ~ "/position/altitude-ft") * feet2meters;
+	var mAlt_m = getprop("" ~ myNodeName2 ~ "/position/altitude-ft") * feet2meters;
+	
+	deltaLat_deg = mlat_deg - alat_deg;
+	deltaLon_deg = mlon_deg - alon_deg ;
+
+	if (targetSize_m == nil or targetSize_m.horz <= 0 or targetSize_m.vert <= 0 or maxDistance_m <= 0) return (weaponAimed);				
+	if (weaponAngle_deg == nil ){ weaponAngle_deg = {heading:0, elevation:90, headingMin:-180, headingMax:180, elevationMin:-90, elevationMax:90, track:0}; } #note definition of value for each key of hash
+
+	# calculate targetDispRefFrame, the displacement vector from node1 (AI) to node2 (mainAC) in a lon-lat-alt (x-y-z) frame of reference aka 'reference frame'
+	# the AI model is at < 0,0,0 > 
+	# and the main AC or target is at < deltaX,deltaY,deltaAlt > in relation to it.
+
+	var deltaY_m = deltaLat_deg * m_per_deg_lat;
+	var deltaX_m = deltaLon_deg * m_per_deg_lon;
+	var deltaAlt_m = mAlt_m - aAlt_m;
+	# m_per_deg_lat/lon are bombable general variables
+
+	var targetDispRefFrame = [deltaX_m, deltaY_m, deltaAlt_m];
+	var distance_m = vectorModulus (targetDispRefFrame);
+
+	if (distance_m < attributes[myNodeName1].dimensions.crashRadius_m){
+		#simple way to do this:
+		add_damage(1, myNodeName1, "collision"); # causes nil error in records class, ballisticMass not defined
+		msg = sprintf("Missile hit! Damage added %1.0f%%", 100 );
+		selfStatusPopupTip (msg, 10);
+		newAim.pHit = 1; # rjw this is the only type of hit from a rocket - all or nothing
+		return (0);
+	}
+
+	# check above ground level
+	var GeoCoord = geo.Coord.new();
+	GeoCoord.set_latlon(alat_deg, alon_deg);
+	var ground_Alt_m = elev (GeoCoord.lat(), GeoCoord.lon()) * FT2M; 
+	if (ground_Alt_m > aAlt_m) 
+	{
+		debprint ("Bombable: checkAGL for ",  myNodeName1 , "/" , elem , "deltaAlt = ", ground_Alt_m - aAlt_m);
+		newAim.pHit = 0; 
+		return(0);
+	}	
+
+	# find newDir the direction required for a missile travelling at missileSpeed (constant over journey)
+	# to intercept the target given the relative velocities of node1 and node2
+	# calculate the angle between the direction in which the rocket is travelling and newDir
+
+
+	var intercept = findIntercept(
+		myNodeName1, myNodeName2, 
+		targetDispRefFrame,
+		distance_m,
+		missileSpeed
+	);
+
+	if (intercept.time == -1) return(0);
+	# terminate rocket since cannot calculate intercept
+
+	newAim.interceptSpeed = vectorModulus(intercept.vector);
+	newAim.interceptTime = intercept.time;
+
+	var interceptDirRefFrame = vectorDivide(intercept.vector, newAim.interceptSpeed);
+	
+	debprint (
+		sprintf(
+			"Bombable: Intercept time =%6.1f Intercept vector =[%6.2f, %6.2f, %6.2f]",
+			intercept.time, interceptDirRefFrame[0], interceptDirRefFrame[1], interceptDirRefFrame[2] 
+		)
+	);
+
+	#form vector for the current direction of missile in the ground reference frame
+	
+	# var cosElev = math.cos(elev_ref);
+	# var missileDir = [
+	# 	cosElev * math.sin(heading_ref),
+	# 	cosElev * math.cos(heading_ref),
+	# 	math.sin(elev_ref)
+	# ];
+
+	var missileDir = aim.weaponDirRefFrame;
+
+	#calculate angular offset
+	var cosOffset = dotProduct(interceptDirRefFrame, missileDir);
+
+	#rotate up to 20 degrees to the target direction
+	# cos(pi / 9) = 0.94
+	var maxTurn = 0.94;
+	if (cosOffset < maxTurn) cosOffset = maxTurn;
+
+	debprint (
+		sprintf(
+			"Bombable: missileDir vector =[%6.2f, %6.2f, %6.2f]",
+			missileDir[0], missileDir[1], missileDir[2] 
+		)
+	);
+
+	missileDir = vectorRotate(missileDir, interceptDirRefFrame, acos(maxTurn));
+
+	newAim.weaponDirRefFrame = missileDir;
+	debprint (
+		sprintf(
+			"Bombable: missileDir vector =[%6.2f, %6.2f, %6.2f]",
+			missileDir[0], missileDir[1], missileDir[2] 
+		)
+	);
+
+	# reduce speed according to rate of turn
+	var deltaXYZ = vectorMultiply (missileDir,
+	missileSpeed * cosOffset * cosOffset * delta_t);
+
+
+
+	# record new weapon position
+	# setprop("" ~ myNodeName ~ "/" ~ elem ~ "/orientation/pitch-deg", newElev_ref);
+	# setprop("" ~ myNodeName ~ "/" ~ elem ~ "/orientation/true-heading-deg", newHeading_ref);
+	setprop("" ~ myNodeName ~ "/" ~ elem ~ "/position/altitude-ft",
+	( aAlt_m + deltaXYZ[2] ) / FT2M);
+
+	setprop("" ~ myNodeName ~ "/" ~ elem ~ "/position/latitude-deg",
+	alat_deg + deltaXYZ[1] / m_per_deg_lat); 
+
+	setprop("" ~ myNodeName ~ "/" ~ elem ~ "/position/longitude-deg",
+	alon_deg + deltaXYZ[0] / m_per_deg_lon);
+
+	# TODO deplete fuel
+
+	# TODO send messages
+
+	var msg = "AI rocket from " ~ 
+	getprop ("" ~ myNodeName ~ "/name") ~ 
+	" intercept time " ~ round(newAim.interceptTime) ~ "s" ~ 
+	" heading " ~ round(math.atan2(aim.weaponDirModelFrame[0], aim.weaponDirModelFrame[1]) * R2D) ~ " deg" ~
+	" pitch " ~ round(math.asin(aim.weaponDirRefFrame[2]) * R2D) ~ " deg";
+	
+
+	targetStatusPopupTip (msg, 20);
+
+	return (1);
+}
+
 
 ##########################################################
 # CLASS stores
@@ -8758,6 +8943,9 @@ var weapons_init_func = func(myNodeName) {
 		if (attributes[myNodeName].weapons[elem]["weaponType"] == nil) attributes[myNodeName].weapons[elem]["weaponType"] = 0;
 		# new key to allow inclusion of new types of weapons such as rockets. Note weaponType used in other functions
 
+		if (attributes[myNodeName].weapons[elem]["missileSpeed_mps"] == nil) attributes[myNodeName].weapons[elem]["missileSpeed_mps"] = 500;
+		# new key to allow inclusion of new types of weapons such as rockets. Note weaponType used in other functions
+
 		if (attributes[myNodeName].weapons[elem]["weaponType"] == 1) 
 		{
 			setprop ("" ~ myNodeName ~ "/" ~ elem ~ "/launched", 0);
@@ -9059,7 +9247,7 @@ var m_per_deg_lon = 111321.5 * math.cos (aLat_rad);
 #where we'll save the attributes for each AI object & the main aircraft, too
 var attributes = {};
 #global variable used for sighting weapons
-var newAim = {pHit:0, weaponDirModelFrame:[0,0,0], weaponOffsetRefFrame:[0,0,0], weaponDirRefFrame:[0,0,0], interceptSpeed:0, interceptTime}; 
+var newAim = {pHit:0, weaponDirModelFrame:[0,0,0], weaponOffsetRefFrame:[0,0,0], weaponDirRefFrame:[0,0,0], interceptSpeed:0, interceptTime:0}; 
 
 # List of nodes that listeners will use when checking for impact damage.
 # FG aircraft use a wide variety of nodes to report impact of armament
@@ -9771,6 +9959,21 @@ var normalize = func(v1)
 {
 	var magnitude = vectorModulus (v1);
 	return(vectorDivide(v1, magnitude));
+}
+
+########################## vectorRotate ###########################
+# rotate unit vector v1 by alpha, rotation axis defined by cross product k of v1 and v2
+# uses https://en.wikipedia.org/wiki/Rodrigues%27_rotation_formula
+# returns rotated unit vector
+
+var vectorRotate = func(v1, v2, alpha)
+{
+	var v1v2 = dotProduct (v1, v2);
+	var magnitude_k = math.sin (math.acos (v1v2));
+	var sinAbymagK = math.sin(alpha) / magnitude_k;
+	var v3 = vectorMultiply (v1, ( math.cos(alpha) - v1v2 * sinAbymagK ));
+	var v4 = vectorMultiply (v2, sinAbymagK );
+	return (vectorSum (v3, v4));
 }
 
 
