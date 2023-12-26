@@ -336,13 +336,13 @@ var start_terrain_fire = func ( lat_deg, lon_deg, alt_m = 0, ballisticMass_lb = 
 	
 	##put it out, but slowly, for large impacts
 	if (ballisticMass_lb > 50) {
-		var time_sec2 = 120; var fp = "AI/Aircraft/Fire-Particles/fire-particles-very-small.xml";
+		var time_sec2 = 120; var fp2 = "AI/Aircraft/Fire-Particles/fire-particles-very-small.xml";
 		settimer (func { put_remove_model(lat_deg:lat_deg, lon_deg:lon_deg, elev_m:alt_m, time_sec:time_sec2, startSize_m: nil, endSize_m:nil, path:fp2 )} , time_sec);
 		
-		var time_sec3 = 120; var fp = "AI/Aircraft/Fire-Particles/fire-particles-very-very-small.xml";
+		var time_sec3 = 120; var fp3 = "AI/Aircraft/Fire-Particles/fire-particles-very-very-small.xml";
 		settimer (func { put_remove_model(lat_deg:lat_deg, lon_deg:lon_deg, elev_m:alt_m, time_sec:time_sec3, startSize_m: nil, endSize_m:nil, path:fp3 )} , time_sec + time_sec2);
 		
-		var time_sec4 = 120; var fp = "AI/Aircraft/Fire-Particles/fire-particles-very-very-very-small.xml";
+		var time_sec4 = 120; var fp4 = "AI/Aircraft/Fire-Particles/fire-particles-very-very-very-small.xml";
 		settimer (func { put_remove_model(lat_deg:lat_deg, lon_deg:lon_deg, elev_m:alt_m, time_sec:time_sec4, startSize_m: nil, endSize_m:nil, path:fp4 )} , time_sec + time_sec2 + time_sec3);
 		
 	}
@@ -5978,7 +5978,7 @@ var weapons_loop = func (id, myNodeName1 = "", myNodeName2 = "", targetSize_m = 
 				weaps[elem].weaponAngle_deg,
 				weaps[elem].weaponOffset_m, 
 				damageValue,
-				weaps[elem].missileSpeed_mps
+				weaps[elem].maxMissileSpeed_mps
 				);
 			 if ( foundTarget ) 
 				{
@@ -6072,6 +6072,7 @@ var weapons_loop = func (id, myNodeName1 = "", myNodeName2 = "", targetSize_m = 
 var launchRocket = func (myNodeName, elem)
 {
 	setprop ("" ~ myNodeName ~ "/" ~ elem ~ "/launched", 1);
+	setprop("" ~ myNodeName ~ "/" ~ elem ~ "/velocities/true-airspeed-kt", 0);
 
 	var weaps = attributes[myNodeName].weapons;
 	var msg = "AI rocket launched from " ~ 
@@ -6116,11 +6117,25 @@ var guideRocket = func
 	var mlon_deg = getprop("" ~ myNodeName2 ~ "/position/longitude-deg");
 	var aAlt_m = getprop("" ~ myNodeName1 ~ "/" ~ elem ~ "/position/altitude-ft") * feet2meters;
 	var mAlt_m = getprop("" ~ myNodeName2 ~ "/position/altitude-ft") * feet2meters;
+
+	var missileSpeed_mps = getprop("" ~ myNodeName1 ~ "/" ~ elem ~ "/velocities/true-airspeed-kt") * knots2mps;
+	if (missileSpeed_mps < weaps[elem].maxMissileSpeed_mps) missileSpeed_mps = missileSpeed_mps + weaps[elem].missileAcceleration * delta_t;
+	setprop("" ~ myNodeName1 ~ "/" ~ elem ~ "/velocities/true-airspeed-kt",
+	missileSpeed_mps / knots2mps);
 	
 	deltaLat_deg = mlat_deg - alat_deg;
 	deltaLon_deg = mlon_deg - alon_deg ;
 
-	if (targetSize_m == nil or targetSize_m.horz <= 0 or targetSize_m.vert <= 0 or weaps[elem].maxDamageDistance_m <= 0) return (weaponAimed);				
+	if (targetSize_m == nil or targetSize_m.horz <= 0 or targetSize_m.vert <= 0 or weaps[elem].maxDamageDistance_m <= 0) 
+	{
+		var msg = elem ~ " rocket from " ~ 
+		getprop ("" ~ myNodeName1 ~ "/name") ~ 
+		" aborted - no target";
+		targetStatusPopupTip (msg, 20);						
+
+		return(0); # abort rocket				
+	}
+	
 
 	# calculate targetDispRefFrame, the displacement vector from node1 (AI) to node2 (mainAC) in a lon-lat-alt (x-y-z) frame of reference aka 'reference frame'
 	# the AI model is at < 0,0,0 > 
@@ -6158,7 +6173,6 @@ var guideRocket = func
 	{
 		debprint ("Bombable: checkAGL for ",  myNodeName1 , "/" , elem , "deltaAlt = ", ground_Alt_m - aAlt_m);
 
-		newAim.pHit = 0; 
 		var msg = elem ~ " rocket from " ~ 
 		getprop ("" ~ myNodeName1 ~ "/name") ~ 
 		" hit ground and destroyed";
@@ -6172,11 +6186,12 @@ var guideRocket = func
 	# calculate the angle between the direction in which the rocket is travelling and newDir
 
 
+
 	var intercept = findIntercept(
 		myNodeName1, myNodeName2, 
 		targetDispRefFrame,
 		distance_m,
-		weaps[elem].missileSpeed_mps
+		missileSpeed_mps
 	);
 
 	if (intercept.time == -1) return(0);
@@ -6232,14 +6247,14 @@ var guideRocket = func
 
 	# reduce speed according to rate of turn
 	var deltaXYZ = vectorMultiply (missileDir,
-	weaps[elem].missileSpeed_mps * cosOffset * cosOffset * delta_t);
+	missileSpeed_mps * cosOffset * cosOffset * delta_t);
 
 	var missile_lat_deg = alat_deg + deltaXYZ[1] / m_per_deg_lat;
 	var missile_lon_deg = alon_deg + deltaXYZ[0] / m_per_deg_lon;
 
 	# record new weapon position
-	# setprop("" ~ myNodeName ~ "/" ~ elem ~ "/orientation/pitch-deg", newElev_ref);
-	# setprop("" ~ myNodeName ~ "/" ~ elem ~ "/orientation/true-heading-deg", newHeading_ref);
+	# setprop("" ~ myNodeName1 ~ "/" ~ elem ~ "/orientation/pitch-deg", newElev_ref);
+	# setprop("" ~ myNodeName1 ~ "/" ~ elem ~ "/orientation/true-heading-deg", newHeading_ref);
 	setprop("" ~ myNodeName1 ~ "/" ~ elem ~ "/position/altitude-ft",
 	( aAlt_m + deltaXYZ[2] ) / FT2M);
 
@@ -6249,21 +6264,21 @@ var guideRocket = func
 	setprop("" ~ myNodeName1 ~ "/" ~ elem ~ "/position/longitude-deg",
 	missile_lon_deg);
 
-	time_sec2 = 2; var fp = "AI/Aircraft/Fire-Particles/fire-particles-very-small.xml";
+	var time_sec = 1;
+
+	var time_sec2 = 2; var fp2 = "AI/Aircraft/Fire-Particles/fire-particles-very-small.xml";
 	settimer (func { put_remove_model(lat_deg:missile_lat_deg, lon_deg:missile_lon_deg, elev_m:aAlt_m + deltaXYZ[2], 
 	time_sec:time_sec2, startSize_m: nil, endSize_m:nil, path:fp2 )} , time_sec);
 	
-	time_sec3 = 2; var fp = "AI/Aircraft/Fire-Particles/fire-particles-very-very-small.xml";
+	var time_sec3 = 2; var fp3 = "AI/Aircraft/Fire-Particles/fire-particles-very-very-small.xml";
 	settimer (func { put_remove_model(lat_deg:missile_lat_deg, lon_deg:missile_lon_deg, elev_m:aAlt_m + deltaXYZ[2], 
 	time_sec:time_sec3, startSize_m: nil, endSize_m:nil, path:fp3 )} , time_sec + time_sec2);
 	
-	time_sec4 = 2; var fp = "AI/Aircraft/Fire-Particles/fire-particles-very-very-very-small.xml";
+	var time_sec4 = 2; var fp4 = "AI/Aircraft/Fire-Particles/fire-particles-very-very-very-small.xml";
 	settimer (func { put_remove_model(lat_deg:missile_lat_deg, lon_deg:missile_lon_deg, elev_m:aAlt_m + deltaXYZ[2], 
 	time_sec:time_sec4, startSize_m: nil, endSize_m:nil, path:fp4 )} , time_sec + time_sec2 + time_sec3);
 
 	# TODO deplete fuel
-
-	# TODO send messages
 
 	if (rand() < 0.2)
 	{
@@ -8980,8 +8995,11 @@ var weapons_init_func = func(myNodeName) {
 		if (attributes[myNodeName].weapons[elem]["weaponType"] == nil) attributes[myNodeName].weapons[elem]["weaponType"] = 0;
 		# new key to allow inclusion of new types of weapons such as rockets. Note weaponType used in other functions
 
-		if (attributes[myNodeName].weapons[elem]["missileSpeed_mps"] == nil) attributes[myNodeName].weapons[elem]["missileSpeed_mps"] = 500;
+		if (attributes[myNodeName].weapons[elem]["maxMissileSpeed_mps"] == nil) attributes[myNodeName].weapons[elem]["maxMissileSpeed_mps"] = 500;
 		# new key to allow inclusion of new types of weapons such as rockets. Note weaponType used in other functions
+
+		if (attributes[myNodeName].weapons[elem]["missileAcceleration"] == nil) attributes[myNodeName].weapons[elem]["missileAcceleration"] = 0;
+		# acceleration of missile during flight - units m per sec per sec
 
 		if (attributes[myNodeName].weapons[elem]["weaponType"] == 1) 
 		{
@@ -9239,6 +9257,7 @@ var meters2feet = 1/feet2meters;
 var nmiles2meters = 1852;
 var meters2nmiles = 1/nmiles2meters;
 var knots2fps = 1.68780986;
+var knots2mps = knots2fps * feet2meters;
 var fps2knots = 1/knots2fps;
 var grav_fpss = 32.174;
 var bomb_menu_pp = "/bombable/menusettings/";
