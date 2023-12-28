@@ -1900,6 +1900,7 @@ var dialog = {
 		["Piston engine exhaust enabled", trigger1_pp~"pistonexhaust"~trigger2_pp, "checkbox"],
 		["Damaged engine smoke enabled", trigger1_pp~"damagedengine"~trigger2_pp, "checkbox"],
 		["Flares enabled", trigger1_pp~"flare"~trigger2_pp, "checkbox"],
+		["Skywriting enabled", trigger1_pp~"skywriting"~trigger2_pp, "checkbox"],
 		#["Easy mode enabled (twice as easy to hit targets; AI aircraft do easier manuevers; may combine w/Super Easy)", bomb_menu_pp~"easy-mode", "checkbox"],
 		#["Super Easy Mode (3X as easy to hit targets; damaged tripled; AI aircraft do yet easier manuevers)", bomb_menu_pp~"super-easy-mode", "checkbox"],
 		["AI ground detection: Can be disabled to improve framerate when your AI scenarios are far above the ground", bomb_menu_pp~"ai-ground-loop-enabled", "checkbox"],
@@ -2173,6 +2174,10 @@ var setupBombableMenu = func {
 	if (getprop (""~trigger1_pp~"flack"~trigger2_pp) == nil )
 	props.globals.getNode(""~trigger1_pp~"flack"~trigger2_pp, 1).setBoolValue(1);
 
+	#rjw skywriting to show rocket trajectory
+	if (getprop (""~trigger1_pp~"skywriting"~trigger2_pp) == nil )
+	props.globals.getNode(""~trigger1_pp~"skywriting"~trigger2_pp, 1).setBoolValue(1);
+
 	if (getprop (""~trigger1_pp~"ai-weapon-fire-visual"~trigger2_pp) == nil )
 	props.globals.getNode(""~trigger1_pp~"ai-weapon-fire-visual"~trigger2_pp, 1).setBoolValue(1);
 
@@ -2186,6 +2191,7 @@ var setupBombableMenu = func {
 	["pistonexhaust", 15, -1],
 	["damagedengine",  55, -1],
 	["flare",66,3600],
+	["skywriting",66,-1],
 	] ) {
 				
 		# trigger is the overall flag for that type of smoke/fire
@@ -2211,7 +2217,7 @@ var setupBombableMenu = func {
 	#
 	# Now, read the menu default file:
 	debprint ("Bombable: ioreading . . . ");
-	var target = props.globals.getNode(""~bomb_menu_pp);
+	var target = props.globals.getNode("" ~ bomb_menu_pp);
 	io.read_properties(bombable_settings_file, target);
 
 			
@@ -5978,7 +5984,7 @@ var weapons_loop = func (id, myNodeName1 = "", myNodeName2 = "", targetSize_m = 
 				weaps[elem].weaponAngle_deg,
 				weaps[elem].weaponOffset_m, 
 				damageValue,
-				weaps[elem].maxMissileSpeed_mps
+				weaps[elem].maxMissileSpeed_mps / callCheckAim
 				);
 			 if ( foundTarget ) 
 				{
@@ -6004,6 +6010,7 @@ var weapons_loop = func (id, myNodeName1 = "", myNodeName2 = "", targetSize_m = 
 				}
 			else
 				{
+					# props.globals.getNode("" ~ myNodeName ~ "/" ~ elem ~ "/destroyed", 0).setBoolValue(0);
 					setprop ("" ~ myNodeName1 ~ "/" ~ elem ~ "/destroyed", 1);
 					# call for effects					
 				}
@@ -6071,14 +6078,16 @@ var weapons_loop = func (id, myNodeName1 = "", myNodeName2 = "", targetSize_m = 
 
 var launchRocket = func (myNodeName, elem)
 {
+	# props.globals.getNode("" ~ myNodeName ~ "/" ~ elem ~ "/launched", 0).setBoolValue(1);
+
 	setprop ("" ~ myNodeName ~ "/" ~ elem ~ "/launched", 1);
 	setprop("" ~ myNodeName ~ "/" ~ elem ~ "/velocities/true-airspeed-kt", 0);
 
 	var weaps = attributes[myNodeName].weapons;
-	var msg = "AI rocket launched from " ~ 
+	var msg = weaps[elem].name ~ " launched from " ~ 
 	getprop ("" ~ myNodeName ~ "/name") ~ 
-	" intercept time " ~ round(newAim.interceptTime) ~ "s" ~ 
-	" intercept speed " ~ round(newAim.interceptSpeed) ~ " mps";
+	" intercept time ~" ~ round(newAim.interceptTime) ~ "s" ~ 
+	" intercept speed ~" ~ round(newAim.interceptSpeed) ~ " mps";
 
 	targetStatusPopupTip (msg, 20);
 
@@ -6151,7 +6160,7 @@ var guideRocket = func
 
 	if (distance_m < attributes[myNodeName1].dimensions.crashRadius_m){
 		#simple way to do this:
-		add_damage(1, myNodeName1, "collision"); # causes nil error in records class, ballisticMass not defined
+		add_damage(1, myNodeName2, "collision"); # causes nil error in records class, ballisticMass not defined
 		newAim.pHit = 1; # rjw this is the only type of hit from a rocket - all or nothing
 		# message from weapons_loop
 		
@@ -6173,7 +6182,7 @@ var guideRocket = func
 	{
 		debprint ("Bombable: checkAGL for ",  myNodeName1 , "/" , elem , "deltaAlt = ", ground_Alt_m - aAlt_m);
 
-		var msg = elem ~ " rocket from " ~ 
+		var msg = weaps[elem].name ~ " from " ~ 
 		getprop ("" ~ myNodeName1 ~ "/name") ~ 
 		" hit ground and destroyed";
 		targetStatusPopupTip (msg, 20);						
@@ -6264,23 +6273,36 @@ var guideRocket = func
 	setprop("" ~ myNodeName1 ~ "/" ~ elem ~ "/position/longitude-deg",
 	missile_lon_deg);
 
-	var time_sec = 1;
+	# var time_sec = 3;
 
-	var time_sec2 = 2; var fp2 = "AI/Aircraft/Fire-Particles/fire-particles-very-small.xml";
-	settimer (func { put_remove_model(lat_deg:missile_lat_deg, lon_deg:missile_lon_deg, elev_m:aAlt_m + deltaXYZ[2], 
-	time_sec:time_sec2, startSize_m: nil, endSize_m:nil, path:fp2 )} , time_sec);
+	# var time_sec2 = 3; var fp2 = "AI/Aircraft/Fire-Particles/fire-particles-very-small.xml";
+	# settimer (func { put_remove_model(lat_deg:missile_lat_deg, lon_deg:missile_lon_deg, elev_m:aAlt_m + deltaXYZ[2], 
+	# time_sec:time_sec2, startSize_m: nil, endSize_m:nil, path:fp2 )} , time_sec);
 	
-	var time_sec3 = 2; var fp3 = "AI/Aircraft/Fire-Particles/fire-particles-very-very-small.xml";
-	settimer (func { put_remove_model(lat_deg:missile_lat_deg, lon_deg:missile_lon_deg, elev_m:aAlt_m + deltaXYZ[2], 
-	time_sec:time_sec3, startSize_m: nil, endSize_m:nil, path:fp3 )} , time_sec + time_sec2);
+	# var time_sec3 = 3; var fp3 = "AI/Aircraft/Fire-Particles/fire-particles-very-very-small.xml";
+	# settimer (func { put_remove_model(lat_deg:missile_lat_deg, lon_deg:missile_lon_deg, elev_m:aAlt_m + deltaXYZ[2], 
+	# time_sec:time_sec3, startSize_m: nil, endSize_m:nil, path:fp3 )} , time_sec + time_sec2);
 	
-	var time_sec4 = 2; var fp4 = "AI/Aircraft/Fire-Particles/fire-particles-very-very-very-small.xml";
-	settimer (func { put_remove_model(lat_deg:missile_lat_deg, lon_deg:missile_lon_deg, elev_m:aAlt_m + deltaXYZ[2], 
-	time_sec:time_sec4, startSize_m: nil, endSize_m:nil, path:fp4 )} , time_sec + time_sec2 + time_sec3);
+	# var time_sec4 = 3; var fp4 = "AI/Aircraft/Fire-Particles/fire-particles-very-very-very-small.xml";
+	# settimer (func { put_remove_model(lat_deg:missile_lat_deg, lon_deg:missile_lon_deg, elev_m:aAlt_m + deltaXYZ[2], 
+	# time_sec:time_sec4, startSize_m: nil, endSize_m:nil, path:fp4 )} , time_sec + time_sec2 + time_sec3);
+
+	var time_sec = 60; 
+	# var fp = "AI/Aircraft/Fire-Particles/fire-particles-very-very-small.xml";
+	var fp = "AI/Aircraft/Fire-Particles/skywriting-particles.xml";
+	 
+	put_remove_model(
+	lat_deg: missile_lat_deg, 
+	lon_deg: missile_lon_deg, 
+	elev_m: aAlt_m + deltaXYZ[2], 
+	time_sec: time_sec, 
+	startSize_m: nil, endSize_m: nil, 
+	path: fp );
+
 
 	# TODO deplete fuel
 
-	if (rand() < 0.2)
+	if (rand() < 1.0)
 	{
 		var msg = "AI rocket from " ~ 
 		getprop ("" ~ myNodeName1 ~ "/name") ~ 
@@ -6289,7 +6311,7 @@ var guideRocket = func
 		" pitch " ~ round(math.asin(newAim.weaponDirRefFrame[2]) * R2D) ~ " deg";
 	
 
-		targetStatusPopupTip (msg, 20);
+		targetStatusPopupTip (msg, 5);
 	}
 
 	return (1);
@@ -8955,6 +8977,7 @@ var weapons_init_func = func(myNodeName) {
 	if (count == nil) {
 		count = 0; #index of first fire particle for AI aircraft
 		}
+	
 
 	
 	
@@ -8983,7 +9006,11 @@ var weapons_init_func = func(myNodeName) {
 		# set turret and gun to their default positions
 		setprop ("" ~ myNodeName ~ "/" ~ elem ~ "/turret-pos-deg", weapAngles.heading);
 		setprop ("" ~ myNodeName ~ "/" ~ elem ~ "/cannon-elev-deg", weapAngles.elevation);
-		setprop ("" ~ myNodeName ~ "/" ~ elem ~ "/destroyed", 0); # needed? Could also deplete stores to zero to indicate destroyed
+			
+		# needed? Could also deplete stores to zero to indicate destroyed
+		# use rather than setprop to allow flag to be set as boolean type  
+		props.globals.getNode("" ~ myNodeName ~ "/" ~ elem ~ "/destroyed", 1).setBoolValue(0);
+		# setprop ("" ~ myNodeName ~ "/" ~ elem ~ "/destroyed", 0); 
 		
 		
 		attributes[myNodeName].weapons[elem].aim = newAim; #add hash used to record direction weapon is pointing
@@ -9003,7 +9030,8 @@ var weapons_init_func = func(myNodeName) {
 
 		if (attributes[myNodeName].weapons[elem]["weaponType"] == 1) 
 		{
-			setprop ("" ~ myNodeName ~ "/" ~ elem ~ "/launched", 0);
+			props.globals.getNode("" ~ myNodeName ~ "/" ~ elem ~ "/launched", 1).setBoolValue(0);
+			# enable sky-writing to show weapon trajectory
 		}
 	
 		debprint ("Weaps: ", myNodeName, " initialized ", attributes[myNodeName].weapons[elem].name);
@@ -9260,12 +9288,13 @@ var knots2fps = 1.68780986;
 var knots2mps = knots2fps * feet2meters;
 var fps2knots = 1/knots2fps;
 var grav_fpss = 32.174;
+var grav_mpss = grav_fpss * feet2meters;
 var bomb_menu_pp = "/bombable/menusettings/";
 var bombable_settings_file = getprop("/sim/fg-home") ~ "/state/bombable-startup-settings.xml";
 
 var bomb_menuNum = -1; #we set this to -1 initially and then the FG menu number when it is assigned
 
-var trigger1_pp = ""~bomb_menu_pp~"fire-particles/";
+var trigger1_pp = "" ~ bomb_menu_pp ~ "fire-particles/";
 var trigger2_pp = "-trigger";
 var burning_pp = "-burning";
 var life1_pp = "/bombable/fire-particles/";
@@ -9277,7 +9306,7 @@ var vulnerabilities_pp = attributes_pp ~ "/vulnerabilities/";
 var GF_damage_pp = vulnerabilities_pp ~ "gforce_damage/";
 var GF_damage_menu_pp = bomb_menu_pp ~ "gforce_damage/";
 					
-var MP_share_pp = bomb_menu_pp~"/MP-share-events/";
+var MP_share_pp = bomb_menu_pp ~ "/MP-share-events/";
 var MP_broadcast_exists_pp = "/bombable/mp_broadcast_exists/";
 var screenHProp = nil;
 
@@ -9390,7 +9419,9 @@ var bombableInit = func {
 	setprop ("/bombable/fire-particles/flack-endsize", 1.0);
 						
 	props.globals.getNode(bomb_menu_pp ~ "fire-particles/fire-trigger", 1).setBoolValue(1);
-	#props.globals.getNode(bomb_menu_pp ~ "fire-particles/flack-trigger", 1).setBoolValue(0);
+	# props.globals.getNode(bomb_menu_pp ~ "fire-particles/flack-trigger", 1).setBoolValue(0);
+	# props.globals.getNode("/bombable/fire-particles/skywriting-life-sec", 1).setDoubleValue( 60.0 );
+
 
 	props.globals.getNode("/bombable/attributes/damage", 1).setDoubleValue(0.0);
 
@@ -9430,7 +9461,7 @@ var bombableInit = func {
 	#  setprop (bomb_menu_save_lock, 0); #save_lock prevents this change from being written to the menu save file
 						
 	#set attributes for main aircraft
-	attributesSet = getprop (""~attributes_pp~"/attrbitues_set");
+	attributesSet = getprop (""~attributes_pp~"/attributes_set");
 	if (attributesSet == nil or ! attributesSet ) setAttributes ();
 						
 						
