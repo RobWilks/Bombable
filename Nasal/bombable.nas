@@ -2192,7 +2192,7 @@ var setupBombableMenu = func {
 	["pistonexhaust", 15, -1],
 	["damagedengine",  55, -1],
 	["flare",66,3600],
-	["skywriting",66,-1],
+	["skywriting",7,-1],
 	] ) {
 				
 		# trigger is the overall flag for that type of smoke/fire
@@ -6162,6 +6162,7 @@ var guideRocket = func
 	var targetDispRefFrame = [deltaX_m, deltaY_m, deltaAlt_m];
 	var distance_m = vectorModulus (targetDispRefFrame);
 
+
 	if (distance_m < attributes[myNodeName1].dimensions.crashRadius_m){
 		#simple way to do this:
 		add_damage(weaps[elem].maxDamage_percent / 100, myNodeName2, "weapon"); # causes nil error in records class, ballisticMass not defined
@@ -6220,6 +6221,10 @@ var guideRocket = func
 		var interceptDirRefFrame = vectorDivide(targetDispRefFrame, distance_m);
 	}
 
+
+
+
+
 	debprint (
 		sprintf(
 			"Bombable: Intercept time =%6.1f Intercept vector =[%6.3f, %6.3f, %6.3f]",
@@ -6227,21 +6232,39 @@ var guideRocket = func
 		)
 	);
 
-	#form vector for the current direction of missile in the ground reference frame
-	
-	# var cosElev = math.cos(elev_ref);
-	# var missileDir = [
-	# 	cosElev * math.sin(heading_ref),
-	# 	cosElev * math.cos(heading_ref),
-	# 	math.sin(elev_ref)
-	# ];
-
 	var missileDir = weaps[elem].aim.weaponDirRefFrame;
 
-	#calculate angular offset
+	if (distance_m < missileSpeed_mps * delta_t)
+	{
+		var closestApproach = modulus (
+			vectorSum (
+				targetDispRefFrame,
+				vectorMultiply(
+					missileDir,
+					dotProduct(
+						missileDir,
+						targetDispRefFrame
+						)
+					)		
+				)
+			);
+
+		debprint ("Bombable: closest approach for ",  myNodeName1 , "/" , elem , "is ", closestApproach);
+
+		if (closestApproach < attributes[myNodeName2].dimensions.crashRadius_m)
+		{
+			# do something
+		};
+	}
+
+
+	# calculate angular offset between direction of missile and direction of target
 	var cosOffset = dotProduct(interceptDirRefFrame, missileDir);
 
-	if (cosOffset + 1.0 < 1e-5) interceptDirRefFrame = [0.0, 0.0, 1.0]; 
+	if (cosOffset + 1.0 < 1e-5) {
+		interceptDirRefFrame = [0.0, 0.0, 1.0]; 
+		debprint ("Bombable: vectorRotate trap");
+	}
 	# trap - if travelling opposite to the direction of the target then the direction to turn is ill-defined
 
 	#rotate up to 10 degrees to the target direction
@@ -6273,9 +6296,9 @@ var guideRocket = func
 	# reduce speed according to rate of turn
 	var deltaXYZ = vectorMultiply (missileDir,
 	missileSpeed_mps * cosOffset * cosOffset * delta_t);
-
-	var missile_lat_deg = alat_deg + deltaXYZ[1] / m_per_deg_lat;
-	var missile_lon_deg = alon_deg + deltaXYZ[0] / m_per_deg_lon;
+	var deltaLat = deltaXYZ[1] / m_per_deg_lat;
+	var deltaLon = deltaXYZ[0] / m_per_deg_lon;
+	
 
 	# record new weapon position
 	# setprop("" ~ myNodeName1 ~ "/" ~ elem ~ "/orientation/pitch-deg", newElev_ref);
@@ -6284,12 +6307,12 @@ var guideRocket = func
 	( aAlt_m + deltaXYZ[2] ) / FT2M);
 
 	setprop("" ~ myNodeName1 ~ "/" ~ elem ~ "/position/latitude-deg",
-	missile_lat_deg); 
+	alat_deg + deltaLat); 
 
 	setprop("" ~ myNodeName1 ~ "/" ~ elem ~ "/position/longitude-deg",
-	missile_lon_deg);
+	alon_deg + deltaLon);
 
-	var time_sec = 30; 
+	var time_sec = 15; 
 	# var fp = "AI/Aircraft/Fire-Particles/fire-particles-very-very-small.xml";
 	var fp = "AI/Aircraft/Fire-Particles/skywriting-particles.xml";
 	# var fp = "AI/Aircraft/Fire-Particles/jetcontrail-particles.xml";
@@ -6303,23 +6326,22 @@ var guideRocket = func
 	# startSize_m: nil, endSize_m: nil, 
 	# path: fp );
 
-	var r = rand();
+	for (var i=0; i < 3; i = i + 1) {
+		
+		var r = rand();
 
-	put_remove_model(
-	lat_deg: missile_lat_deg - r * deltaXYZ[1] / m_per_deg_lat, 
-	lon_deg: missile_lon_deg - r * deltaXYZ[0] / m_per_deg_lon, 
-	elev_m: aAlt_m + r * deltaXYZ[2], 
-	time_sec: time_sec, 
-	startSize_m: nil, endSize_m: nil, 
-	path: fp );
+		settimer(func {
+		put_remove_model(
+		lat_deg: alat_deg + r * deltaLat, 
+		lon_deg: alon_deg + r * deltaLon, 
+		elev_m: aAlt_m + r * deltaXYZ[2], 
+		time_sec: time_sec, 
+		startSize_m: nil, endSize_m: nil, 
+		path: fp );
+		},
+		r * delta_t);
+	}
 
-	put_remove_model(
-	lat_deg: missile_lat_deg - r * deltaXYZ[1] / m_per_deg_lat, 
-	lon_deg: missile_lon_deg - r * deltaXYZ[0] / m_per_deg_lon, 
-	elev_m: aAlt_m + r * deltaXYZ[2], 
-	time_sec: time_sec, 
-	startSize_m: nil, endSize_m: nil, 
-	path: fp );
 
 
 	# TODO deplete fuel
