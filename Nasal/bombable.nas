@@ -248,7 +248,8 @@ var put_ballistic_model = func(myNodeName = "/ai/models/aircraft", path = "AI/Ai
 # particles.  If time_sec is slower than the frame length then you get zero particle.
 # Smallest safe value for time_sec is maybe .3 .4 or .5 seconds.
 #
-var put_remove_model = func(lat_deg = nil, lon_deg = nil, elev_m = nil, time_sec = nil, startSize_m = nil, endSize_m = 1, path = "AI/Aircraft/Fire-Particles/flack-impact.xml" ) {
+var put_remove_model = func(lat_deg = nil, lon_deg = nil, elev_m = nil, time_sec = nil, 
+	startSize_m = nil, 	endSize_m = 1, path = "AI/Aircraft/Fire-Particles/flack-impact.xml" ) {
 
 	if (lat_deg == nil or lon_deg == nil or elev_m == nil) { return; }
 	
@@ -3134,11 +3135,11 @@ var ground_loop = func( id, myNodeName ) {
 	}
 
 	if (type == "ship" and thorough ) {
-		if (math.fmod(groundLoopCounter , 10) == 0) debprint(
-		"Bombable: Ground_loop: ",
-		"vels.maxSpeedReduce_percent = ", vels.maxSpeedReduce_percent,
-		"alts.initialAlt_ft = ", alts.initialAlt_ft
-		);		
+		# if (math.fmod(groundLoopCounter , 10) == 0) debprint(
+		# "Bombable: Ground_loop: ",
+		# "vels.maxSpeedReduce_percent = ", vels.maxSpeedReduce_percent,
+		# "alts.initialAlt_ft = ", alts.initialAlt_ft
+		# );		
 
 		# pitch and roll controlled by model animation
 		rollangle_deg = getprop (""~myNodeName~"/orientation/roll-animation");
@@ -5922,7 +5923,7 @@ var weapons_loop = func (id, myNodeName1 = "", myNodeName2 = "", targetSize_m = 
 	id == loopid or return;
 	#debprint ("aim-timer");
 				
-	var loopTime = .5;
+	var loopTime = .25;
 	settimer (  func { weapons_loop (id, myNodeName1, myNodeName2, targetSize_m )}, loopTime * (1 + rand()/8));
 
 	#debprint ("weapons_loop starting");
@@ -6033,10 +6034,10 @@ var weapons_loop = func (id, myNodeName1 = "", myNodeName2 = "", targetSize_m = 
 		{
 			if (weaps[elem].weaponType == 0)
 			{
-				debprint ("Bombable: AI aircraft aimed at main aircraft, ",
-				myNodeName1, " ", weaps[elem].name, " ", elem,
-				" accuracy ", round(newAim.pHit * 100 ),"%",
-				" interceptSpeed", round(newAim.interceptSpeed), " mps");
+				# debprint ("Bombable: AI aircraft aimed at main aircraft, ",
+				# myNodeName1, " ", weaps[elem].name, " ", elem,
+				# " accuracy ", round(newAim.pHit * 100 ),"%",
+				# " interceptSpeed", round(newAim.interceptSpeed), " mps");
 				
 				#fire weapons for visual effect
 				#whenever we're within maxDistance & aimed approximately in the right direction
@@ -6099,7 +6100,9 @@ var launchRocket = func (myNodeName, elem)
 # change direction, calculate position after time delta_t, trigger messages and effects
 # derived from checkAim
 # hash newAim returns results
-# weaponDirRefFrame is updates with the new direction, the new position is recorded in the property tree
+# hash aim in attributes[node].weapons[elem] holds results of the previous calculation of rocket direction 
+# it contains: weaponDirRefFrame, the current direction of the rocket in the ground frame of reference
+# weaponDirRefFrame is updated with the new direction, the new position is recorded in the property tree
 # node 1 is AI, node 2 is main AC
 # return rocket status 1 = in flight or 0 = destroyed
 
@@ -6108,15 +6111,16 @@ var guideRocket = func
 	myNodeName1 = "", myNodeName2 = "",
 	elem = "",
 	targetSize_m = nil,  weaponSkill = 1, 
-	damageValue = 0, delta_t = 0.5
+	damageValue = 0, delta_t = 0.25
 )
 {
 
 	# TODO:  check whether run out of fuel
 	
-	newAim = {pHit:0, weaponDirModelFrame:[0,0,0], weaponOffsetRefFrame:[0,0,0], weaponDirRefFrame:[0,0,1], interceptSpeed:0, interceptTime:0}; #reset global variable
 	var weaps = attributes[myNodeName1].weapons;
-	
+	# newAim = {pHit:0, weaponDirModelFrame:[0,0,0], weaponOffsetRefFrame:[0,0,0], weaponDirRefFrame:[0,0,1], interceptSpeed:0, interceptTime:0}; #reset global variable
+	newAim = weaps[elem].aim; #reset global variable
+	newAim.pHit = 0;
 
 	var alat_deg = getprop("" ~ myNodeName1 ~ "/" ~ elem ~ "/position/latitude-deg"); # AI
 	var alon_deg = getprop("" ~ myNodeName1 ~ "/" ~ elem ~ "/position/longitude-deg");
@@ -6160,7 +6164,7 @@ var guideRocket = func
 
 	if (distance_m < attributes[myNodeName1].dimensions.crashRadius_m){
 		#simple way to do this:
-		add_damage(1, myNodeName2, "collision"); # causes nil error in records class, ballisticMass not defined
+		add_damage(weaps[elem].maxDamage_percent, myNodeName2, "collision"); # causes nil error in records class, ballisticMass not defined
 		newAim.pHit = 1; # rjw this is the only type of hit from a rocket - all or nothing
 		# message from weapons_loop
 		
@@ -6203,18 +6207,23 @@ var guideRocket = func
 		missileSpeed_mps
 	);
 
-	if (intercept.time == -1) return(0);
-	# terminate rocket since cannot calculate intercept
+	if (intercept.time != -1) 
+	{
+		newAim.interceptSpeed = vectorModulus(intercept.vector);
+		newAim.interceptTime = intercept.time;
 
-	newAim.interceptSpeed = vectorModulus(intercept.vector);
-	newAim.interceptTime = intercept.time;
-
-	var interceptDirRefFrame = vectorDivide(intercept.vector, newAim.interceptSpeed);
+		var interceptDirRefFrame = vectorDivide(intercept.vector, newAim.interceptSpeed);
+	}
+	else
+	# no intercept - at start of flight it is not possible to calculate an intercept because the speed is too low 
+	{
+		var interceptDirRefFrame = vectorDivide(targetDispRefFrame, distance_m);
+	}
 	
 	debprint (
 		sprintf(
-			"Bombable: Intercept time =%6.1f Intercept vector =[%6.2f, %6.2f, %6.2f]",
-			intercept.time, interceptDirRefFrame[0], interceptDirRefFrame[1], interceptDirRefFrame[2] 
+			"Bombable: Intercept time =%6.1f Intercept vector =[%6.3f, %6.3f, %6.3f]",
+			newAim.interceptTime, interceptDirRefFrame[0], interceptDirRefFrame[1], interceptDirRefFrame[2] 
 		)
 	);
 
@@ -6229,27 +6238,34 @@ var guideRocket = func
 
 	var missileDir = weaps[elem].aim.weaponDirRefFrame;
 
-	#calculate angular offset
+	#calculate absolute angular offset
 	var cosOffset = dotProduct(interceptDirRefFrame, missileDir);
 
+	if (cosOffset + 1.0 < 1e-5) interceptDirRefFrame = [0.0, 0.0, 1.0]; 
+	# trap - if travelling opposite to the direction of the target then the direction to turn is ill-defined
+
 	#rotate up to 10 degrees to the target direction
-	# cos(pi / 18) = 0.984
-	var maxTurn = 0.984;
+	var maxTurn = 0.984; # cos ( 10.0 * D2R )
+	var minTurn = 0.9998; # cos ( 1.0 * D2R)
 	if (cosOffset < maxTurn) cosOffset = maxTurn;
 
-
-	missileDir = vectorRotate(missileDir, interceptDirRefFrame, math.acos(maxTurn));
+	#small direction errors are ignored
+	if (cosOffset < minTurn) {
+		missileDir = vectorRotate(missileDir, interceptDirRefFrame, math.acos( cosOffset ));
+	}
 
 	newAim.weaponDirRefFrame = missileDir;
+	
 	debprint (
 		sprintf(
 			"Bombable: distance vector to target =[%6.2f, %6.2f, %6.2f]",
 			deltaX_m, deltaY_m, deltaAlt_m 
 		)
 	);
+	
 	debprint (
 		sprintf(
-			"Bombable: missileDir vector =[%6.2f, %6.2f, %6.2f]",
+			"Bombable: missileDir vector =[%6.3f, %6.3f, %6.3f]",
 			missileDir[0], missileDir[1], missileDir[2] 
 		)
 	);
@@ -6273,31 +6289,26 @@ var guideRocket = func
 	setprop("" ~ myNodeName1 ~ "/" ~ elem ~ "/position/longitude-deg",
 	missile_lon_deg);
 
-	# var time_sec = 3;
-
-	# var time_sec2 = 3; var fp2 = "AI/Aircraft/Fire-Particles/fire-particles-very-small.xml";
-	# settimer (func { put_remove_model(lat_deg:missile_lat_deg, lon_deg:missile_lon_deg, elev_m:aAlt_m + deltaXYZ[2], 
-	# time_sec:time_sec2, startSize_m: nil, endSize_m:nil, path:fp2 )} , time_sec);
-	
-	# var time_sec3 = 3; var fp3 = "AI/Aircraft/Fire-Particles/fire-particles-very-very-small.xml";
-	# settimer (func { put_remove_model(lat_deg:missile_lat_deg, lon_deg:missile_lon_deg, elev_m:aAlt_m + deltaXYZ[2], 
-	# time_sec:time_sec3, startSize_m: nil, endSize_m:nil, path:fp3 )} , time_sec + time_sec2);
-	
-	# var time_sec4 = 3; var fp4 = "AI/Aircraft/Fire-Particles/fire-particles-very-very-very-small.xml";
-	# settimer (func { put_remove_model(lat_deg:missile_lat_deg, lon_deg:missile_lon_deg, elev_m:aAlt_m + deltaXYZ[2], 
-	# time_sec:time_sec4, startSize_m: nil, endSize_m:nil, path:fp4 )} , time_sec + time_sec2 + time_sec3);
-
-	var time_sec = 60; 
+	var time_sec = 30; 
 	# var fp = "AI/Aircraft/Fire-Particles/fire-particles-very-very-small.xml";
 	var fp = "AI/Aircraft/Fire-Particles/skywriting-particles.xml";
-	 
+	# var fp = "AI/Aircraft/Fire-Particles/jetcontrail-particles.xml";
+
 	put_remove_model(
 	lat_deg: missile_lat_deg, 
 	lon_deg: missile_lon_deg, 
-	elev_m: aAlt_m + deltaXYZ[2], 
+	elev_m: aAlt_m, 
 	time_sec: time_sec, 
 	startSize_m: nil, endSize_m: nil, 
 	path: fp );
+
+	# put_remove_model(
+	# lat_deg: missile_lat_deg - rand() * deltaXYZ[1] / m_per_deg_lat, 
+	# lon_deg: missile_lon_deg - rand() * deltaXYZ[0] / m_per_deg_lon, 
+	# elev_m: aAlt_m + rand() * deltaXYZ[2], 
+	# time_sec: time_sec, 
+	# startSize_m: nil, endSize_m: nil, 
+	# path: fp );
 
 
 	# TODO deplete fuel
@@ -10048,20 +10059,55 @@ var normalize = func(v1)
 	return(vectorDivide(v1, magnitude));
 }
 
+########################## crossProduct ###########################
+# cross product v1 ^ v2
+var crossProduct = func(v1, v2)
+{
+
+	return(
+		[
+		v1[1] * v2[2] - v1[2] * v2[1],
+		v1[2] * v2[0] - v1[0] * v2[2],
+		v1[0] * v2[1] - v1[1] * v2[0]
+		]
+	);
+}
 ########################## vectorRotate ###########################
-# rotate unit vector v1 by alpha, rotation axis defined by cross product k of v1 and v2
-# uses https://en.wikipedia.org/wiki/Rodrigues%27_rotation_formula
+# rotate unit vector v1 by alpha, in the direction of unit vector v2 
+# using rotation axis defined by cross product k = v1 ^ v2
+# algorithm from https://en.wikipedia.org/wiki/Rodrigues%27_rotation_formula
 # returns rotated unit vector
 
 var vectorRotate = func(v1, v2, alpha)
 {
 	var v1v2 = dotProduct (v1, v2);
-	var magnitude_k = math.sin (math.acos (v1v2));
+	var magnitude_k = math.abs (math.sin (math.acos (v1v2)));
+	# abs needed since angles between 90 and 180 or -180 and -90 will otherwise give magnitude < 0
 	var sinAbymagK = math.sin(alpha) / magnitude_k;
 	var v3 = vectorMultiply (v1, ( math.cos(alpha) - v1v2 * sinAbymagK ));
 	var v4 = vectorMultiply (v2, sinAbymagK );
 	return (vectorSum (v3, v4));
 }
+########################## vectorRotate_ ###########################
+# rotate unit vector v1 by alpha, in the direction of unit vector v2 
+# using rotation axis defined by cross product k = v1 ^ v2
+# algorithm from https://en.wikipedia.org/wiki/Rodrigues%27_rotation_formula
+# returns rotated unit vector
+
+var vectorRotate_ = func(v1, v2, alpha)
+{
+	var k = crossProduct (v1, v2);
+	var unitK = normalize(k);
+	var v3 = vectorMultiply ( v1, math.cos( alpha) );
+	var v4 = vectorMultiply ( crossProduct ( unitK, v1), math.sin (alpha));
+	return (vectorSum (v3, v4));
+}
+	
+
+
+
+
+
 
 
 ########################## END ###########################
