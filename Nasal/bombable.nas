@@ -257,7 +257,7 @@ var put_remove_model = func(lat_deg = nil, lon_deg = nil, elev_m = nil, time_sec
 	#we try to reduce this by making the smoke appear a fraction of a second later, after
 	# the a/c model has moved out of the way. (possibly moved, anyway--depending on it's speed)
 
-	debprint ("Bombable: Placing flack");
+	# debprint ("Bombable: Placing flack");
 	
 	settimer ( func {
 		#start & end size in particle system appear to be in feet
@@ -285,7 +285,7 @@ var put_remove_model = func(lat_deg = nil, lon_deg = nil, elev_m = nil, time_sec
 			setprop(  flackModelNodeName ~"/"~ name ~ "-prop",flackModelNodeName ~ "/" ~ name );
 		}
 		
-		debprint ("Bombable: Placed flack, ", flackModelNodeName);
+		# debprint ("Bombable: Placed flack, ", flackModelNodeName);
 		
 		settimer ( func { props.globals.getNode(flackModelNodeName).remove();}, time_sec);
 
@@ -6046,7 +6046,14 @@ var weapons_loop = func (id, myNodeName1 = "", myNodeName2 = "", targetSize_m = 
 						
 
 			#reduce ammo count; bad pilots waste more ammo; weaponSkill ranges 0 to 1
-			stores.reduceWeaponsCount (myNodeName1, elem, loopTime * (2 + 2 * weaponSkill));
+			if (stores.reduceWeaponsCount (myNodeName1, elem, loopTime * (2 + 2 * weaponSkill)) == 1)
+			{
+				var msg = weaps[elem].name ~ " on " ~ 
+				getprop ("" ~ myNodeName1 ~ "/name") ~ 
+				" out of ammo";
+
+				targetStatusPopupTip (msg, 20);
+			}
 
 						
 			# As with our regular damage, it has a pHit% change of registering a hit
@@ -6163,19 +6170,9 @@ var guideRocket = func
 	var distance_m = vectorModulus (targetDispRefFrame);
 
 
-	if (distance_m < attributes[myNodeName1].dimensions.crashRadius_m){
-		#simple way to do this:
-		add_damage(weaps[elem].maxDamage_percent / 100, myNodeName2, "weapon"); # causes nil error in records class, ballisticMass not defined
-		newAim.pHit = 1; # rjw this is the only type of hit from a rocket - all or nothing
-		# message from weapons_loop
-		
-		# var msg = 
-		# "Missile hit!!!" ~
-		# elem ~ " from " ~ 
-		# getprop ("" ~ myNodeName1 ~ "/name") ~ 
-		# sprintf (" Damage added %1.0f%%", 100 );
-		# selfStatusPopupTip (msg, 20);
-
+	if (distance_m < attributes[myNodeName2].dimensions.crashRadius_m){
+		newAim.pHit = 1; 
+		# message rocket hit from weapons_loop
 		return (0);
 	}
 
@@ -6236,12 +6233,12 @@ var guideRocket = func
 
 	if (distance_m < missileSpeed_mps * delta_t)
 	{
-		var closestApproach = modulus (
+		var closestApproach = vectorModulus (
 			vectorSum (
 				targetDispRefFrame,
 				vectorMultiply(
 					missileDir,
-					dotProduct(
+					-dotProduct(
 						missileDir,
 						targetDispRefFrame
 						)
@@ -6249,11 +6246,18 @@ var guideRocket = func
 				)
 			);
 
-		debprint ("Bombable: closest approach for ",  myNodeName1 , "/" , elem , "is ", closestApproach);
+		debprint (
+		"Bombable: closest approach for ",  
+		myNodeName1 , "/" , elem , 
+		sprintf("is %6.3", closestApproach)
+		);
+		# debprint ("Bombable: crash radius for ",  myNodeName2 , " is ", attributes[myNodeName2].dimensions.crashRadius_m);
 
 		if (closestApproach < attributes[myNodeName2].dimensions.crashRadius_m)
 		{
-			# do something
+			newAim.pHit = 1;
+			# message rocket hit from weapons_loop
+			return (0);
 		};
 	}
 
@@ -6342,9 +6346,16 @@ var guideRocket = func
 		r * delta_t);
 	}
 
+	if (stores.reduceWeaponsCount (myNodeName1, elem, delta_t) == 1)
+	{
+		var msg = weaps[elem].name ~ " fired from " ~ 
+		getprop ("" ~ myNodeName1 ~ "/name") ~ 
+		" out of fuel";
 
-
-	# TODO deplete fuel
+		targetStatusPopupTip (msg, 20);
+		
+		return(0);
+	}
 
 	if (rand() < 1.0)
 	{
@@ -6375,12 +6386,18 @@ var stores = {};
 #
 stores.reduceWeaponsCount = func (myNodeName, elem, time_sec) {
 
+	var lastRound = 0;
 	var stos = attributes[myNodeName].stores;
-	var ammo_seconds = 6000;  #Number of seconds worth of ammo firing the weapon has
+	var ammo_sec = attributes[myNodeName].weapons[elem].ammo_seconds;  #Number of seconds worth of ammo firing the weapon has
 	#TODO: This should be set per aircraft per weapon
 	if (stos["weapons"][elem] == nil) stos["weapons"][elem] = 0;
-	stos.weapons[elem]  -=  time_sec/ammo_seconds;
-	if (stos.weapons[elem] < 0 ) stos.weapons[elem] = 0;
+	if (stos.weapons[elem] > 0 ) stos.weapons[elem]  -=  time_sec / ammo_sec;
+	if (stos.weapons[elem] < 0 ) 
+	{
+		stos.weapons[elem] = 0;
+		lastRound = 1;
+	}
+	return (lastRound);
 }
 
 
@@ -6398,7 +6415,7 @@ stores.reduceFuel = func (myNodeName, time_sec) {
 	#fuel reserves.
 	#TODO: This should be set per aircraft
 	if (stos["fuel"] == nil) stos["fuel"] = 0;
-	stos.fuel  -=  time_sec/fuel_seconds;
+	stos.fuel  -=  time_sec / fuel_seconds;
 	if (stos.fuel < 0 ) stos.fuel = 0;
 }
 
@@ -9078,6 +9095,8 @@ var weapons_init_func = func(myNodeName) {
 			# enable sky-writing to show weapon trajectory
 		}
 	
+		if (attributes[myNodeName].weapons[elem]["ammo_seconds"] == nil) attributes[myNodeName].weapons[elem]["ammo_seconds"] = 120;
+
 		debprint ("Weaps: ", myNodeName, " initialized ", attributes[myNodeName].weapons[elem].name);
 		count += 1;
 	}
