@@ -6164,7 +6164,7 @@ var guideRocket = func
 
 	if (distance_m < attributes[myNodeName1].dimensions.crashRadius_m){
 		#simple way to do this:
-		add_damage(weaps[elem].maxDamage_percent, myNodeName2, "collision"); # causes nil error in records class, ballisticMass not defined
+		add_damage(weaps[elem].maxDamage_percent / 100, myNodeName2, "weapon"); # causes nil error in records class, ballisticMass not defined
 		newAim.pHit = 1; # rjw this is the only type of hit from a rocket - all or nothing
 		# message from weapons_loop
 		
@@ -6219,7 +6219,7 @@ var guideRocket = func
 	{
 		var interceptDirRefFrame = vectorDivide(targetDispRefFrame, distance_m);
 	}
-	
+
 	debprint (
 		sprintf(
 			"Bombable: Intercept time =%6.1f Intercept vector =[%6.3f, %6.3f, %6.3f]",
@@ -6238,7 +6238,7 @@ var guideRocket = func
 
 	var missileDir = weaps[elem].aim.weaponDirRefFrame;
 
-	#calculate absolute angular offset
+	#calculate angular offset
 	var cosOffset = dotProduct(interceptDirRefFrame, missileDir);
 
 	if (cosOffset + 1.0 < 1e-5) interceptDirRefFrame = [0.0, 0.0, 1.0]; 
@@ -6294,21 +6294,32 @@ var guideRocket = func
 	var fp = "AI/Aircraft/Fire-Particles/skywriting-particles.xml";
 	# var fp = "AI/Aircraft/Fire-Particles/jetcontrail-particles.xml";
 
+
+	# put_remove_model(
+	# lat_deg: missile_lat_deg, 
+	# lon_deg: missile_lon_deg, 
+	# elev_m: aAlt_m, 
+	# time_sec: time_sec, 
+	# startSize_m: nil, endSize_m: nil, 
+	# path: fp );
+
+	var r = rand();
+
 	put_remove_model(
-	lat_deg: missile_lat_deg, 
-	lon_deg: missile_lon_deg, 
-	elev_m: aAlt_m, 
+	lat_deg: missile_lat_deg - r * deltaXYZ[1] / m_per_deg_lat, 
+	lon_deg: missile_lon_deg - r * deltaXYZ[0] / m_per_deg_lon, 
+	elev_m: aAlt_m + r * deltaXYZ[2], 
 	time_sec: time_sec, 
 	startSize_m: nil, endSize_m: nil, 
 	path: fp );
 
-	# put_remove_model(
-	# lat_deg: missile_lat_deg - rand() * deltaXYZ[1] / m_per_deg_lat, 
-	# lon_deg: missile_lon_deg - rand() * deltaXYZ[0] / m_per_deg_lon, 
-	# elev_m: aAlt_m + rand() * deltaXYZ[2], 
-	# time_sec: time_sec, 
-	# startSize_m: nil, endSize_m: nil, 
-	# path: fp );
+	put_remove_model(
+	lat_deg: missile_lat_deg - r * deltaXYZ[1] / m_per_deg_lat, 
+	lon_deg: missile_lon_deg - r * deltaXYZ[0] / m_per_deg_lon, 
+	elev_m: aAlt_m + r * deltaXYZ[2], 
+	time_sec: time_sec, 
+	startSize_m: nil, endSize_m: nil, 
+	path: fp );
 
 
 	# TODO deplete fuel
