@@ -2192,7 +2192,8 @@ var setupBombableMenu = func {
 	["pistonexhaust", 15, -1],
 	["damagedengine",  55, -1],
 	["flare",66,3600],
-	["skywriting",7,-1],
+	["skywriting",5,-1],
+	["blaze",13,-1],
 	] ) {
 				
 		# trigger is the overall flag for that type of smoke/fire
@@ -6083,6 +6084,7 @@ var weapons_loop = func (id, myNodeName1 = "", myNodeName2 = "", targetSize_m = 
 
 ############################ launchRocket ##############################
 # FUNCTION set flags, send message
+# create flare on launch pad
 
 var launchRocket = func (myNodeName, elem)
 {
@@ -6100,6 +6102,27 @@ var launchRocket = func (myNodeName, elem)
 	targetStatusPopupTip (msg, 20);
 
 	debprint ("Bombable: " ~ msg ~ " " ~ myNodeName ~ ", " ~ weaps[elem].name ~ " " ~ elem);
+
+
+	var alat_deg = getprop("" ~ myNodeName ~ "/" ~ elem ~ "/position/latitude-deg"); # AI
+	var alon_deg = getprop("" ~ myNodeName ~ "/" ~ elem ~ "/position/longitude-deg");
+	var aAlt_m = getprop("" ~ myNodeName ~ "/" ~ elem ~ "/position/altitude-ft") * feet2meters;
+
+
+
+	var fp = "AI/Aircraft/Fire-Particles/blaze.xml";
+
+	# possible should tie to ship
+	put_remove_model(
+	lat_deg: alat_deg, 
+	lon_deg: alon_deg, 
+	elev_m: aAlt_m, 
+	time_sec: 5, 
+	startSize_m: nil, endSize_m: nil, 
+	path: fp );
+		
+
+
 }
 
 ############################ guideRocket ##############################
@@ -6249,7 +6272,7 @@ var guideRocket = func
 		debprint (
 		"Bombable: closest approach for ",  
 		myNodeName1 , "/" , elem , 
-		sprintf("is %6.3", closestApproach)
+		sprintf("is %6.3f", closestApproach)
 		);
 		# debprint ("Bombable: crash radius for ",  myNodeName2 , " is ", attributes[myNodeName2].dimensions.crashRadius_m);
 
@@ -6317,18 +6340,7 @@ var guideRocket = func
 	alon_deg + deltaLon);
 
 	var time_sec = 15; 
-	# var fp = "AI/Aircraft/Fire-Particles/fire-particles-very-very-small.xml";
 	var fp = "AI/Aircraft/Fire-Particles/skywriting-particles.xml";
-	# var fp = "AI/Aircraft/Fire-Particles/jetcontrail-particles.xml";
-
-
-	# put_remove_model(
-	# lat_deg: missile_lat_deg, 
-	# lon_deg: missile_lon_deg, 
-	# elev_m: aAlt_m, 
-	# time_sec: time_sec, 
-	# startSize_m: nil, endSize_m: nil, 
-	# path: fp );
 
 	for (var i=0; i < 3; i = i + 1) {
 		
@@ -8388,6 +8400,13 @@ var initialize_func = func ( b ){
 		if (b.attacks.attackCheckTimeEngaged_sec < 0.1) b.attacks.attackCheckTimeEngaged_sec = 0.1;
 	}
 						
+	b["stores"] = {};
+	b.stores["fuel"] = 1;
+	b.stores["weapons"] = {};
+	b.stores["messages"] = {};
+	b.stores["messages"]["unreadymessageposted"] = 0;
+	b.stores["messages"]["readymessageposted"] = 1;
+
 	# weapons sanity checking
 	if (contains(b, "weapons") and typeof (b.weapons) == "hash") {
 		var n = 0;
@@ -8412,6 +8431,7 @@ var initialize_func = func ( b ){
 			or b.weapons[elem].weaponSize_m.start <= 0 ) b.weapons[elem].weaponSize_m.start = 0.07;
 			if (b.weapons[elem].weaponSize_m.end == nil
 			or b.weapons[elem].weaponSize_m.end <= 0 ) b.weapons[elem].weaponSize_m.end = 0.05;
+			
 		}
 	}
 						
@@ -8419,13 +8439,6 @@ var initialize_func = func ( b ){
 		b.damageLiveries.count = size (b.damageLiveries.damageLivery) ;
 	}
 						
-	b["stores"] = {};
-	b.stores["fuel"] = 1;
-	b.stores["weapons"] = {};
-	b.stores["messages"] = {};
-	b.stores["messages"]["unreadymessageposted"] = 0;
-	b.stores["messages"]["readymessageposted"] = 1;
-
 						
 						
 	# the object has stored the node telling where to store itself on the
@@ -8445,8 +8458,8 @@ var initialize_func = func ( b ){
 	
 	attributes[b.objectNodeName] = b;
 	var myNodeName = b.objectNodeName;
-	stores.fillWeapons(myNodeName,1);
-	stores.fillFuel(myNodeName,1);
+	stores.fillWeapons(myNodeName, 1);
+	stores.fillFuel(myNodeName, 1);
 }
 
 ######################## update_m_per_deg_latlon #########################
@@ -9083,11 +9096,14 @@ var weapons_init_func = func(myNodeName) {
 		if (attributes[myNodeName].weapons[elem]["weaponType"] == nil) attributes[myNodeName].weapons[elem]["weaponType"] = 0;
 		# new key to allow inclusion of new types of weapons such as rockets. Note weaponType used in other functions
 
-		if (attributes[myNodeName].weapons[elem]["maxMissileSpeed_mps"] == nil) attributes[myNodeName].weapons[elem]["maxMissileSpeed_mps"] = 500;
+		if (attributes[myNodeName].weapons[elem]["maxMissileSpeed_mps"] == nil) attributes[myNodeName].weapons[elem]["maxMissileSpeed_mps"] = 300;
 		# new key to allow inclusion of new types of weapons such as rockets. Note weaponType used in other functions
 
 		if (attributes[myNodeName].weapons[elem]["missileAcceleration"] == nil) attributes[myNodeName].weapons[elem]["missileAcceleration"] = 0;
 		# acceleration of missile during flight - units m per sec per sec
+
+		if (attributes[myNodeName].weapons[elem]["ammo_seconds"] == nil) attributes[myNodeName].weapons[elem]["ammo_seconds"] = 6000;
+		# used to fill weapon store 
 
 		if (attributes[myNodeName].weapons[elem]["weaponType"] == 1) 
 		{
@@ -9095,8 +9111,6 @@ var weapons_init_func = func(myNodeName) {
 			# enable sky-writing to show weapon trajectory
 		}
 	
-		if (attributes[myNodeName].weapons[elem]["ammo_seconds"] == nil) attributes[myNodeName].weapons[elem]["ammo_seconds"] = 120;
-
 		debprint ("Weaps: ", myNodeName, " initialized ", attributes[myNodeName].weapons[elem].name);
 		count += 1;
 	}
@@ -9483,7 +9497,6 @@ var bombableInit = func {
 						
 	props.globals.getNode(bomb_menu_pp ~ "fire-particles/fire-trigger", 1).setBoolValue(1);
 	# props.globals.getNode(bomb_menu_pp ~ "fire-particles/flack-trigger", 1).setBoolValue(0);
-	# props.globals.getNode("/bombable/fire-particles/skywriting-life-sec", 1).setDoubleValue( 60.0 );
 
 
 	props.globals.getNode("/bombable/attributes/damage", 1).setDoubleValue(0.0);
