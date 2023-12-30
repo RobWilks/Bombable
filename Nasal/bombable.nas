@@ -6014,7 +6014,11 @@ var weapons_loop = func (id, myNodeName1 = "", myNodeName2 = "", targetSize_m = 
 				{
 					# props.globals.getNode("" ~ myNodeName ~ "/" ~ elem ~ "/destroyed", 0).setBoolValue(0);
 					setprop ("" ~ myNodeName1 ~ "/" ~ elem ~ "/destroyed", 1);
-					# call for effects					
+					# call for effects	
+					# move rocket out of scene				
+					setprop ("ai/models/aircraft[" ~ weaps[elem].rocketsIndex ~ "]/position/latitude-deg", 0);
+					setprop ("ai/models/aircraft[" ~ weaps[elem].rocketsIndex ~ "]/position/longitude-deg", 0);
+					setprop ("ai/models/aircraft[" ~ weaps[elem].rocketsIndex ~ "]/position/altitude-ft", 0);
 				}
 
 		}
@@ -6088,12 +6092,14 @@ var weapons_loop = func (id, myNodeName1 = "", myNodeName2 = "", targetSize_m = 
 
 var launchRocket = func (myNodeName, elem)
 {
-	# props.globals.getNode("" ~ myNodeName ~ "/" ~ elem ~ "/launched", 0).setBoolValue(1);
+	var weaps = attributes[myNodeName].weapons;
 
 	setprop ("" ~ myNodeName ~ "/" ~ elem ~ "/launched", 1);
 	setprop("" ~ myNodeName ~ "/" ~ elem ~ "/velocities/true-airspeed-kt", 0);
 
-	var weaps = attributes[myNodeName].weapons;
+
+
+
 	var msg = weaps[elem].name ~ " launched from " ~ 
 	getprop ("" ~ myNodeName ~ "/name") ~ 
 	" intercept time ~" ~ round(newAim.interceptTime) ~ "s" ~ 
@@ -6106,20 +6112,26 @@ var launchRocket = func (myNodeName, elem)
 
 	var alat_deg = getprop("" ~ myNodeName ~ "/" ~ elem ~ "/position/latitude-deg"); # AI
 	var alon_deg = getprop("" ~ myNodeName ~ "/" ~ elem ~ "/position/longitude-deg");
-	var aAlt_m = getprop("" ~ myNodeName ~ "/" ~ elem ~ "/position/altitude-ft") * feet2meters;
+	var aAlt_m = getprop("" ~ myNodeName ~ "/" ~ elem ~ "/position/altitude-ft") * F2M;
 
 
+	# rocket initiated by moving it from {lat, lon} {0, 0} to location of AC / ship
+	setprop ("ai/models/aircraft[" ~ weaps[elem].rocketsIndex ~ "]/position/latitude-deg", alat_deg);
+	setprop ("ai/models/aircraft[" ~ weaps[elem].rocketsIndex ~ "]/position/longitude-deg", alon_deg);
+	setprop ("ai/models/aircraft[" ~ weaps[elem].rocketsIndex ~ "]/position/altitude-ft", aAlt_m / FT2M);
 
-	var fp = "AI/Aircraft/Fire-Particles/blaze.xml";
+	# put extra smoke / flash on launch pad
 
-	# possible should tie to ship
-	put_remove_model(
-	lat_deg: alat_deg, 
-	lon_deg: alon_deg, 
-	elev_m: aAlt_m, 
-	time_sec: 5, 
-	startSize_m: nil, endSize_m: nil, 
-	path: fp );
+	# var fp = "AI/Aircraft/Fire-Particles/blaze.xml";
+
+	# # possible should tie to ship
+	# put_remove_model(
+	# lat_deg: alat_deg, 
+	# lon_deg: alon_deg, 
+	# elev_m: aAlt_m, 
+	# time_sec: 5, 
+	# startSize_m: nil, endSize_m: nil, 
+	# path: fp );
 		
 
 
@@ -6325,20 +6337,38 @@ var guideRocket = func
 	missileSpeed_mps * cosOffset * cosOffset * delta_t);
 	var deltaLat = deltaXYZ[1] / m_per_deg_lat;
 	var deltaLon = deltaXYZ[0] / m_per_deg_lon;
+	var new_lat = alat_deg + deltaLat;
+	var new_lon = alon_deg + deltaLon;
+	var new_alt = ( aAlt_m + deltaXYZ[2] ) / FT2M;
+
 	
 
 	# record new weapon position
 	# setprop("" ~ myNodeName1 ~ "/" ~ elem ~ "/orientation/pitch-deg", newElev_ref);
 	# setprop("" ~ myNodeName1 ~ "/" ~ elem ~ "/orientation/true-heading-deg", newHeading_ref);
-	setprop("" ~ myNodeName1 ~ "/" ~ elem ~ "/position/altitude-ft",
-	( aAlt_m + deltaXYZ[2] ) / FT2M);
 
 	setprop("" ~ myNodeName1 ~ "/" ~ elem ~ "/position/latitude-deg",
-	alat_deg + deltaLat); 
+	new_lat); 
 
 	setprop("" ~ myNodeName1 ~ "/" ~ elem ~ "/position/longitude-deg",
-	alon_deg + deltaLon);
+	new_lon);
 
+	setprop("" ~ myNodeName1 ~ "/" ~ elem ~ "/position/altitude-ft",
+	new_alt;
+
+	# updates position of AI model for rocket
+	setprop ("ai/models/aircraft[" ~ weaps[elem].rocketsIndex ~ "]/position/latitude-deg", new_lat);
+	setprop ("ai/models/aircraft[" ~ weaps[elem].rocketsIndex ~ "]/position/longitude-deg", new_lon);
+	setprop ("ai/models/aircraft[" ~ weaps[elem].rocketsIndex ~ "]/position/altitude-ft", new_alt);
+	var pitch = math.asin(missileDir[2]) * R2D;
+	var heading = math.atan2(missileDir[0], missileDir[1]) * R2D;
+	setprop ("ai/models/aircraft[" ~ weaps[elem].rocketsIndex ~ "]/orientation/pitch-deg", pitch);
+	setprop ("ai/models/aircraft[" ~ weaps[elem].rocketsIndex ~ "]/orientation/heading-deg", heading);
+
+
+
+
+	# update this as a tied model-contrail if use of AI model for rocket works
 	var time_sec = 15; 
 	var fp = "AI/Aircraft/Fire-Particles/skywriting-particles.xml";
 
@@ -9051,6 +9081,10 @@ var weapons_init_func = func(myNodeName) {
 	if (count == nil) {
 		count = 0; #index of first fire particle for AI aircraft
 		}
+	var rocketCount = getprop ("/bombable/rockets/index") ;
+	if (rocketCount == nil) {
+		rocketCount = 0; #index of first rocket for AI aircraft
+		}
 	
 
 	
@@ -9097,7 +9131,6 @@ var weapons_init_func = func(myNodeName) {
 		# new key to allow inclusion of new types of weapons such as rockets. Note weaponType used in other functions
 
 		if (attributes[myNodeName].weapons[elem]["maxMissileSpeed_mps"] == nil) attributes[myNodeName].weapons[elem]["maxMissileSpeed_mps"] = 300;
-		# new key to allow inclusion of new types of weapons such as rockets. Note weaponType used in other functions
 
 		if (attributes[myNodeName].weapons[elem]["missileAcceleration"] == nil) attributes[myNodeName].weapons[elem]["missileAcceleration"] = 0;
 		# acceleration of missile during flight - units m per sec per sec
@@ -9109,6 +9142,9 @@ var weapons_init_func = func(myNodeName) {
 		{
 			props.globals.getNode("" ~ myNodeName ~ "/" ~ elem ~ "/launched", 1).setBoolValue(0);
 			# enable sky-writing to show weapon trajectory
+			attributes[myNodeName].weapons[elem]["rocketsIndex"] = rocketCount;
+			rocketCount += 1;
+			# each rocket is a separate weapon with a separate AI model - not tied to the parent AC/ship
 		}
 	
 		debprint ("Weaps: ", myNodeName, " initialized ", attributes[myNodeName].weapons[elem].name);
@@ -9116,6 +9152,7 @@ var weapons_init_func = func(myNodeName) {
 	}
 	
 	setprop ("/bombable/fire-particles/index" , count) ; #next unassigned fire particle
+	setprop ("/bombable/rockets/index" , rocketCount) ; #next unassigned rocket
 
 	#append(listenerids, listenerid);
 	#props.globals.getNode(""~myNodeName~"/bombable/weapons/listenerids",1).setValues({listenerids: listenerids});
