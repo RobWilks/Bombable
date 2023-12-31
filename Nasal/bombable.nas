@@ -6020,8 +6020,7 @@ var weapons_loop = func (id, myNodeName1 = "", myNodeName2 = "", targetSize_m = 
 					setprop (rp ~ "/position/latitude-deg", 0);
 					setprop (rp ~ "/position/longitude-deg", 0);
 					setprop (rp ~ "/position/altitude-ft", 0);
-					setprop (rp ~ "/velocities/true-air-speed", 0);
-	);
+					setprop (rp ~ "/velocities/true-airspeed-kt", 0);
 
 				}
 
@@ -6099,6 +6098,9 @@ var launchRocket = func (myNodeName, elem)
 	var weaps = attributes[myNodeName].weapons;
 
 	setprop ("" ~ myNodeName ~ "/" ~ elem ~ "/launched", 1);
+	var launchPadSpeed = 
+	getprop ("" ~ myNodeName ~ "/velocities/true-airspeed-kt");
+	setprop("" ~ myNodeName ~ "/" ~ elem ~ "/velocities/true-airspeed-kt", launchPadSpeed);
 
 
 
@@ -6115,7 +6117,7 @@ var launchRocket = func (myNodeName, elem)
 
 	var alat_deg = getprop("" ~ myNodeName ~ "/" ~ elem ~ "/position/latitude-deg"); # AI
 	var alon_deg = getprop("" ~ myNodeName ~ "/" ~ elem ~ "/position/longitude-deg");
-	var aAlt_m = getprop("" ~ myNodeName ~ "/" ~ elem ~ "/position/altitude-ft") * F2M;
+	var aAlt_m = getprop("" ~ myNodeName ~ "/" ~ elem ~ "/position/altitude-ft") * FT2M;
 
 
 	# rocket initiated by moving it from {lat, lon} {0, 0} to location of AC / ship
@@ -6123,9 +6125,7 @@ var launchRocket = func (myNodeName, elem)
 	setprop (rp ~ "/position/latitude-deg", alat_deg);
 	setprop (rp ~ "/position/longitude-deg", alon_deg);
 	setprop (rp ~ "/position/altitude-ft", aAlt_m / FT2M);
-	setprop (rp ~ "/velocities/true-air-speed", 
-	getprop ("" ~ myNodeName ~ "/velocities/true-air-speed")
-	);
+	setprop (rp ~ "/velocities/true-airspeed-kt", launchPadSpeed);
 	setprop (rp ~ "/orientation/pitch-deg", 90);
 	setprop (rp ~ "/orientation/true-heading-deg",
 	getprop ("" ~ myNodeName ~ "/orientation/true-heading-deg")
@@ -6168,8 +6168,6 @@ var guideRocket = func
 )
 {
 
-	# TODO:  check whether run out of fuel
-	
 	var weaps = attributes[myNodeName1].weapons;
 	# newAim = {pHit:0, weaponDirModelFrame:[0,0,0], weaponOffsetRefFrame:[0,0,0], weaponDirRefFrame:[0,0,1], interceptSpeed:0, interceptTime:0}; #reset global variable
 	newAim = weaps[elem].aim; #reset global variable
@@ -6184,10 +6182,10 @@ var guideRocket = func
 	var aAlt_m = getprop("" ~ myNodeName1 ~ "/" ~ elem ~ "/position/altitude-ft") * feet2meters;
 	var mAlt_m = getprop("" ~ myNodeName2 ~ "/position/altitude-ft") * feet2meters;
 
-	var missileSpeed_mps = getprop("" ~ myNodeName1 ~ "/" ~ elem ~ "/velocities/true-airspeed-kt") * knots2mps;
+	var missileSpeed_mps = getprop("" ~ myNodeName1 ~ "/" ~ elem ~ "/velocities/true-airspeed-kt") * KT2MPS;
 	if (missileSpeed_mps < weaps[elem].maxMissileSpeed_mps) missileSpeed_mps = missileSpeed_mps + weaps[elem].missileAcceleration * delta_t;
 	setprop("" ~ myNodeName1 ~ "/" ~ elem ~ "/velocities/true-airspeed-kt",
-	missileSpeed_mps / knots2mps);
+	missileSpeed_mps / KT2MPS);
 	
 	deltaLat_deg = mlat_deg - alat_deg;
 	deltaLon_deg = mlon_deg - alon_deg ;
@@ -6364,12 +6362,16 @@ var guideRocket = func
 	setprop("" ~ myNodeName1 ~ "/" ~ elem ~ "/position/altitude-ft",
 	new_alt);
 
+	setprop("" ~ myNodeName1 ~ "/" ~ elem ~ "/velocities/true-airspeed-kt", 
+	new_missileSpeed_mps / KT2MPS);
+
+
 	# updates position, speed and orientation of AI model for rocket
 	var rp = "ai/models/aircraft[" ~ weaps[elem].rocketsIndex ~ "]";
 	setprop (rp ~ "/position/latitude-deg", new_lat);
 	setprop (rp ~ "/position/longitude-deg", new_lon);
 	setprop (rp ~ "/position/altitude-ft", new_alt);
-	setprop (rp ~ "/velocities/true-air-speed", new_missileSpeed_mps);
+	setprop (rp ~ "/velocities/true-airspeed-kt", new_missileSpeed_mps / KT2MPS);
 
 	var pitch = math.asin(missileDir[2]) * R2D;
 	var heading = math.atan2(missileDir[0], missileDir[1]) * R2D;
