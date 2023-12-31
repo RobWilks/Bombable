@@ -268,7 +268,7 @@ var put_remove_model = func(lat_deg = nil, lon_deg = nil, elev_m = nil, time_sec
 			"path": path,
 			"latitude-deg": lat_deg,
 			"longitude-deg":lon_deg,
-			"elevation-ft": elev_m/feet2meters,
+			"elevation-ft": elev_m/FT2M,
 			"heading-deg"  : 0,
 			"pitch-deg"    : 0,
 			"roll-deg"     : 0,
@@ -1085,7 +1085,7 @@ var startFire = func (myNodeName = "", model = "")
 	
 	
 	
-	#var fire_node = geo.put_model("Models/Effects/Wildfire/wildfire.xml", lat, lon, alt * feet2meters);
+	#var fire_node = geo.put_model("Models/Effects/Wildfire/wildfire.xml", lat, lon, alt * FT2M);
 	#print ("started fire! ", myNodeName);
 	
 	#turn off the fire after user-set amount of time (default 1800 seconds)
@@ -1167,7 +1167,7 @@ var startSmoke = func (smokeType, myNodeName = "", model = "")
 	var fireNode = put_tied_model(myNodeName, model);
 	
 	
-	#var fire_node = geo.put_model("Models/bombable/Wildfire/wildfire.xml", lat, lon, alt * feet2meters);
+	#var fire_node = geo.put_model("Models/bombable/Wildfire/wildfire.xml", lat, lon, alt * FT2M);
 	#debprint ("started fire! "~ myNodeName);
 	
 	# turn off the flare after user-set amount of time (default 1800 seconds)
@@ -1380,7 +1380,7 @@ var revitalizeAllAIObjects = func (revitType = "aircraft", preservePosSpeed = 0)
 			setprop("ai/models/"~aiName~"/position/previous/longitude-deg", newlon_deg);
 			setprop("ai/models/"~aiName~"/position/previous/altitude-ft", alt_ft);
 			
-			var cart = geodtocart(newlat_deg, newlon_deg, alt_ft * feet2meters); # lat/lon/alt(m)
+			var cart = geodtocart(newlat_deg, newlon_deg, alt_ft * FT2M); # lat/lon/alt(m)
 			
 			
 			setprop("ai/models/"~aiName~"/position/previous/global-x", cart[0]);
@@ -2291,7 +2291,7 @@ var elev = func (lat, lon) {
 	if (info != nil) {
 		var alt_m = info[0];
 		if (alt_m == nil) alt_m = 0;
-		return alt_m / feet2meters; #return the altitude in feet
+		return alt_m * M2FT; #return the altitude in feet
 	} else  return 0;
 			
 }
@@ -2750,7 +2750,7 @@ var ground_loop = func( id, myNodeName ) {
 	# just to be safe.  Otherwise objects climb indefinitely, always trying to get on top of themselves
 	# Sometimes needed in _m, sometimes _ft, so we need both . . .
 	var FGAltObjectPerimeterBuffer_m = 0.5 * dims.length_m;
-	var FGAltObjectPerimeterBuffer_ft = FGAltObjectPerimeterBuffer_m / feet2meters;
+	var FGAltObjectPerimeterBuffer_ft = FGAltObjectPerimeterBuffer_m * M2FT;
 			
 			
 	# Update altitude to keep moving objects at ground level the ground
@@ -3073,7 +3073,7 @@ var ground_loop = func( id, myNodeName ) {
 		
 		#limit amount of sinkage to damageAltMaxRate in one hit/loop--otherwise it just goes down too fast, not realistic.  
 		#Analogous to the terminal velocity
-		damageAltMaxPerCycle_ft = -abs(vels.damagedAltitudeChangeMaxRate_meterspersecond * updateTime_s / feet2meters);
+		damageAltMaxPerCycle_ft = -abs(vels.damagedAltitudeChangeMaxRate_meterspersecond * updateTime_s * M2FT);
 		#rjw might change this amount if crashing at the terminal velocity; probably no need for abs unless error in input data		
 				
 				
@@ -3404,10 +3404,10 @@ var location_loop = func(id, myNodeName) {
 		var prev_distance = getprop(""~myNodeName~"/position/previous/distance");
 				
 		var GeoCoord = geo.Coord.new();
-		GeoCoord.set_latlon(lat, lon, alt_ft * feet2meters);
+		GeoCoord.set_latlon(lat, lon, alt_ft * FT2M);
 
 		var GeoCoordprev = geo.Coord.new();
-		GeoCoordprev.set_latlon(prevlat, prevlon, prevalt_ft * feet2meters);
+		GeoCoordprev.set_latlon(prevlat, prevlon, prevalt_ft * FT2M);
 
 		var directDistance = GeoCoord.distance_to(GeoCoordprev);
 				
@@ -3770,7 +3770,7 @@ var test_impact = func(changedNode, myNodeName) {
 		return;
 	}
 
-	var oAlt_m = getprop (""~myNodeName~"/position/altitude-ft") * feet2meters;
+	var oAlt_m = getprop (""~myNodeName~"/position/altitude-ft") * FT2M;
 	var iAlt_m = getprop (""~impactNodeName~"/impact/elevation-m");
 	var deltaAlt_m = (oAlt_m - iAlt_m);
 			
@@ -3884,7 +3884,7 @@ var test_impact = func(changedNode, myNodeName) {
 		#);
 				
 		#var impactSurfaceDistance_m = objectGeoCoord.distance_to(impactGeoCoord);
-		#var heightDifference_m = math.abs(getprop (""~impactNodeName~"/impact/elevation-m") - getprop (""~nodeName~"/impact/altitude-ft") * feet2meters);
+		#var heightDifference_m = math.abs(getprop (""~impactNodeName~"/impact/elevation-m") - getprop (""~nodeName~"/impact/altitude-ft") * FT2M);
 	}
 
 	var damAdd = 0; #total amount of damage actually added as the result of the impact
@@ -4639,7 +4639,7 @@ var do_acrobatic_loop_loop = func (id, myNodeName, loop_time = 20, full_loop_ste
 	currSpeed_fps = currSpeed_kt * knots2fps;
 				
 	currAlt_ft = getprop(""~myNodeName~"/position/altitude-ft");
-	currAlt_m = currAlt_ft * feet2meters;
+	currAlt_m = currAlt_ft * FT2M;
 				
 				
 	#we use main AC elev as a stand-in for our own elevation, since the elev
@@ -4800,8 +4800,8 @@ var choose_random_acrobatic = func (myNodeName){
 	#get the object's initial altitude
 	var lat = getprop(""~myNodeName~"/position/latitude-deg");
 	var lon = getprop(""~myNodeName~"/position/longitude-deg");
-	var elev_m = elev (lat, lon) * feet2meters;
-	var alt_m = getprop ("/position/altitude-ft") * feet2meters;
+	var elev_m = elev (lat, lon) * FT2M;
+	var alt_m = getprop ("/position/altitude-ft") * FT2M;
 	var altAGL_m = alt_m-elev_m;
 	var alts = attributes[myNodeName].altitudes;
 				
@@ -4855,12 +4855,12 @@ skill, currAlt_m, targetAlt_m, elevTarget_m){
 				
 	if (time > maxTime) time = maxTime;
 
-	#var currElev_m = elev (any_aircraft_position(myNodeName).lat(),geo.aircraft_position(myNodeName).lon() ) * feet2meters;
+	#var currElev_m = elev (any_aircraft_position(myNodeName).lat(),geo.aircraft_position(myNodeName).lon() ) * FT2M;
 	var currElev_m = elevGround (myNodeName);
 	#rjw mod: if the arguments for elev are lat and long of current aircraft position why not read property tree directly?
 	#geo.aircraft_position(); Returns the main aircraft's current position in the form of a geo.Coord object
 	#currElev_m is the elevation of the ground beneath the AI aircraft - try
-	#var currElev_m = elev (getprop(""~myNodeName~"/position/latitude-deg"),getprop(""~myNodeName~"/position/longitude-deg")) * feet2meters;
+	#var currElev_m = elev (getprop(""~myNodeName~"/position/latitude-deg"),getprop(""~myNodeName~"/position/longitude-deg")) * FT2M;
 	#or create a new geo object for the AI aircraft using coord = geo.Coord.new(geo.aircraft_position(myNodeName))
  			
 	#loops only help if the target is behind us
@@ -5681,8 +5681,8 @@ missileSpeed = 500) {
 	var deltaY_m = deltaLat_deg * m_per_deg_lat;
 	var deltaX_m = deltaLon_deg * m_per_deg_lon;
 
-	var aAlt_m = getprop(""~myNodeName1~"/position/altitude-ft") * feet2meters;
-	var mAlt_m = getprop(""~myNodeName2~"/position/altitude-ft") * feet2meters;
+	var aAlt_m = getprop(""~myNodeName1~"/position/altitude-ft") * FT2M;
+	var mAlt_m = getprop(""~myNodeName2~"/position/altitude-ft") * FT2M;
 	var deltaAlt_m = mAlt_m - aAlt_m;
 
 	var targetDispRefFrame = [deltaX_m, deltaY_m, deltaAlt_m];
@@ -6120,13 +6120,12 @@ var launchRocket = func (myNodeName, elem)
 
 	var alat_deg = getprop("" ~ myNodeName ~ "/" ~ elem ~ "/position/latitude-deg"); # AI
 	var alon_deg = getprop("" ~ myNodeName ~ "/" ~ elem ~ "/position/longitude-deg");
-	var aAlt_m = getprop("" ~ myNodeName ~ "/" ~ elem ~ "/position/altitude-ft") * FT2M;
+	var alt_ft = getprop("" ~ myNodeName ~ "/" ~ elem ~ "/position/altitude-ft");
 
 
 	# rocket initiated by moving it from {lat, lon} {0, 0} to location of AC / ship
 	var rp = "ai/models/aircraft[" ~ weaps[elem].rocketsIndex ~ "]";
 	var initialPitch = 90.0; # orientation of rocket vs AC - use weaponDirRefFrame?
-	var alt_ft = alt_m / FT2M;
 	var heading = getprop ("" ~ myNodeName ~ "/orientation/true-heading-deg");
 
 	setprop (rp ~ "/position/latitude-deg", alat_deg);
@@ -6139,8 +6138,8 @@ var launchRocket = func (myNodeName, elem)
 	# initialize rocket control system
 	setprop (rp ~ "/controls/flight/lateral-mode", "hdg");
 	setprop (rp ~ "/controls/flight/vertical-mode", "alt");
-	setprop (rp ~ "/controls/flight/target-alt", (pitch == 90.0) ? alt_ft + 500.0 : alt_ft );
-	setprop (rp ~ "/controls/flight/target-heading", heading);
+	setprop (rp ~ "/controls/flight/target-alt", (initialPitch == 90.0) ? alt_ft + 500.0 : alt_ft );
+	setprop (rp ~ "/controls/flight/target-hdg", heading);
 	setprop (rp ~ "/controls/flight/target-spd", weaps[elem].maxMissileSpeed_mps);
 
 
@@ -6195,13 +6194,13 @@ var guideRocket = func
 	# var heading_ref = getprop("" ~ myNodeName1 ~ "/" ~ elem ~ "/orientation/true-heading-deg", );
 	var mlat_deg = getprop("" ~ myNodeName2 ~ "/position/latitude-deg"); # main AC
 	var mlon_deg = getprop("" ~ myNodeName2 ~ "/position/longitude-deg");
-	var aAlt_m = getprop("" ~ myNodeName1 ~ "/" ~ elem ~ "/position/altitude-ft") * feet2meters;
-	var mAlt_m = getprop("" ~ myNodeName2 ~ "/position/altitude-ft") * feet2meters;
+	var aAlt_m = getprop("" ~ myNodeName1 ~ "/" ~ elem ~ "/position/altitude-ft") * FT2M;
+	var mAlt_m = getprop("" ~ myNodeName2 ~ "/position/altitude-ft") * FT2M;
 
 	var missileSpeed_mps = getprop("" ~ myNodeName1 ~ "/" ~ elem ~ "/velocities/true-airspeed-kt") * KT2MPS;
 	if (missileSpeed_mps < weaps[elem].maxMissileSpeed_mps) missileSpeed_mps = missileSpeed_mps + weaps[elem].missileAcceleration * delta_t;
 	setprop("" ~ myNodeName1 ~ "/" ~ elem ~ "/velocities/true-airspeed-kt",
-	missileSpeed_mps / KT2MPS);
+	missileSpeed_mps * MPS2KT);
 	
 	deltaLat_deg = mlat_deg - alat_deg;
 	deltaLon_deg = mlon_deg - alon_deg ;
@@ -6341,8 +6340,13 @@ var guideRocket = func
 	if (stillTurning) cosOffset = maxTurn;
 
 	#small direction errors are ignored
-	if (cosOffset < minTurn) {
+	if (cosOffset < minTurn) 
+	{
 		newMissileDir = vectorRotate(missileDir, interceptDirRefFrame, math.acos( cosOffset ));
+	}
+	else
+	{
+		newMissileDir = missileDir;
 	}
 
 	newAim.weaponDirRefFrame = newMissileDir;
@@ -6369,10 +6373,10 @@ var guideRocket = func
 	var deltaLon = deltaXYZ[0] / m_per_deg_lon;
 	var new_lat = alat_deg + deltaLat;
 	var new_lon = alon_deg + deltaLon;
-	var new_alt = ( aAlt_m + deltaXYZ[2] ) / FT2M;
+	var new_alt = ( aAlt_m + deltaXYZ[2] ) * M2FT;
 
 	
-	# update rocket co-ords
+	# update co-ords for calculation of rocket flightpath
 	setprop("" ~ myNodeName1 ~ "/" ~ elem ~ "/position/latitude-deg",
 	new_lat); 
 
@@ -6383,22 +6387,31 @@ var guideRocket = func
 	new_alt);
 
 	setprop("" ~ myNodeName1 ~ "/" ~ elem ~ "/velocities/true-airspeed-kt", 
-	newMissileSpeed_mps / KT2MPS);
+	newMissileSpeed_mps  * MPS2KT);
 
 
-	# updates position, speed and orientation of AI model for rocket
+	# updates position, speed and orientation of AI model of rocket
+	# the rocket position and orientation are forced to follow the calculated rocket flightpath
+	# the AI controls are used to provide continuous interpolation between the calculated points 
+	var pitch = math.asin(newMissileDir[2]) * R2D;
+	var trueHeading = math.atan2(newMissileDir[0], newMissileDir[1]) * R2D;
+
 	var rp = "ai/models/aircraft[" ~ weaps[elem].rocketsIndex ~ "]";
 	setprop (rp ~ "/position/latitude-deg", new_lat);
 	setprop (rp ~ "/position/longitude-deg", new_lon);
 	setprop (rp ~ "/position/altitude-ft", new_alt);
-	setprop (rp ~ "/velocities/true-airspeed-kt", newMissileSpeed_mps / KT2MPS);
+	setprop (rp ~ "/velocities/true-airspeed-kt", newMissileSpeed_mps * MPS2KT);
+	setprop (rp ~ "/orientation/pitch-deg", pitch); #in vertical-mode = "alt" the AI attempts to set altitude
+	setprop (rp ~ "/orientation/true-heading-deg", trueHeading);
 
-	# var pitch = math.asin(newMissileDir[2]) * R2D;
+
+	# estimate next heading, speed and altutude
 	var targetHeading = math.atan2(interceptDirRefFrame[0], interceptDirRefFrame[1]) * R2D;
-	setprop (rp ~ "/controls/flight/target-alt", 
-	new_alt + newMissileSpeed_mps / FT2M * newMissileDir[2] * delta_t);
-	setprop (rp ~ "/controls/flight/target-heading", targetHeading);
-	setprop (rp ~ "/controls/flight/target-spd", (newMissileSpeed_mps - cosOffset * cosOffset * stillTurning) / KT2MPS);
+	var targetSpeed = newMissileSpeed_mps * ( stillTurning ? cosOffset * cosOffset : 1.0 ) * MPS2KT;
+	var targetAlt = new_alt + newMissileSpeed_mps * M2FT * newMissileDir[2] * delta_t;
+	setprop (rp ~ "/controls/flight/target-alt", targetAlt);
+	setprop (rp ~ "/controls/flight/target-hdg", targetHeading);
+	setprop (rp ~ "/controls/flight/target-spd", targetSpeed);
 
 
 
@@ -6895,12 +6908,12 @@ var attack_loop = func (id, myNodeName, looptime) {
 
 	#it turns out that the main AC's AGL is available in the prop tree, which is
 	#far quicker to access then the elev function, which is very slow
-	#elevTarget_m = elev (geo.aircraft_position().lat(),geo.aircraft_position().lon() ) * feet2meters;
+	#elevTarget_m = elev (geo.aircraft_position().lat(),geo.aircraft_position().lon() ) * FT2M;
 	#targetAGL_m = targetAlt_m-elevTarget_m;
 				
-	targetAGL_m = getprop ("/position/altitude-agl-ft") * feet2meters;
+	targetAGL_m = getprop ("/position/altitude-agl-ft") * FT2M;
 	elevTarget_m = targetAlt_m-targetAGL_m;
-	currAlt_m = getprop(""~myNodeName~"/position/altitude-ft") * feet2meters;
+	currAlt_m = getprop(""~myNodeName~"/position/altitude-ft") * FT2M;
 
 
 	var attackClimbDive_inprogress = getprop(""~myNodeName~"/bombable/attackClimbDive-inprogress");
@@ -7033,7 +7046,7 @@ var attack_loop = func (id, myNodeName, looptime) {
 	aircraftSetVertSpeed (myNodeName, targetAlt_m - currAlt_m, "evas" );
 				
 	#debprint ("Bombable: setprop 4275");
-	setprop(""~myNodeName~"/bombable/attributes/altitudes/targetAGL_ft", targetAGL_m/feet2meters);
+	setprop(""~myNodeName~"/bombable/attributes/altitudes/targetAGL_ft", targetAGL_m/FT2M);
 	setprop(""~myNodeName~"/bombable/attributes/altitudes/targetAGL_m", targetAGL_m);
 	aircraftTurnToHeading ( myNodeName, courseToTarget_deg, roll_deg, targetAlt_m, atts.rollMax_deg, favor);
 				
@@ -7232,7 +7245,7 @@ var aircraftTurnToHeadingControl = func (myNodeName, id, targetdegrees = 0, roll
 		targetAlt_ft = targetAlt_m * M2FT;
 					
 					
-		# currElev_m = elev (any_aircraft_position(myNodeName).lat(),geo.aircraft_position(myNodeName).lon() ) * feet2meters;
+		# currElev_m = elev (any_aircraft_position(myNodeName).lat(),geo.aircraft_position(myNodeName).lon() ) * FT2M;
 		currElev_m = elevGround (myNodeName);
 		if (alts.minimumAGL_m == nil) debprint("error alts.min");
 		if (targetAlt_m == nil) debprint("error targetAlt_m");
@@ -8297,10 +8310,10 @@ var initialize_func = func ( b ){
 		if (b.altitudes.crashedAGL_m == 0 )b.altitudes.crashedAGL_m = -0.001;
 							
 		b.altitudes.initialized = 0; #this is how ground_loop knows to initialize the alititude on its first call
-		b.altitudes.wheelsOnGroundAGL_ft = b.altitudes.wheelsOnGroundAGL_m/feet2meters;
-		b.altitudes.minimumAGL_ft = b.altitudes.minimumAGL_m/feet2meters;
-		b.altitudes.maximumAGL_ft = b.altitudes.maximumAGL_m/feet2meters;
-		b.altitudes.crashedAGL_ft = b.altitudes.crashedAGL_m/feet2meters;
+		b.altitudes.wheelsOnGroundAGL_ft = b.altitudes.wheelsOnGroundAGL_m/FT2M;
+		b.altitudes.minimumAGL_ft = b.altitudes.minimumAGL_m/FT2M;
+		b.altitudes.maximumAGL_ft = b.altitudes.maximumAGL_m/FT2M;
+		b.altitudes.crashedAGL_ft = b.altitudes.crashedAGL_m/FT2M;
 							
 		#crashedAGL must be at least a bit lower than minimumAGL
 		if (b.altitudes.crashedAGL_m > b.altitudes.minimumAGL_m )
@@ -8329,14 +8342,14 @@ var initialize_func = func ( b ){
 		b.evasions.dodgeAltMin_m = checkRangeHash ( b.evasions, "dodgeAltMin_m", -100000, 100000, -20 );
 		if (b.evasions.dodgeAltMax_m < b.evasions.dodgeAltMin_m)
 		b.evasions.dodgeAltMax_m = b.evasions.dodgeAltMin_m;
-		b.evasions.dodgeAltMin_ft = b.evasions.dodgeAltMin_m/feet2meters;
-		b.evasions.dodgeAltMax_ft = b.evasions.dodgeAltMax_m/feet2meters;
+		b.evasions.dodgeAltMin_ft = b.evasions.dodgeAltMin_m/FT2M;
+		b.evasions.dodgeAltMax_ft = b.evasions.dodgeAltMax_m/FT2M;
 							
 							
 		b.evasions.dodgeVertSpeedClimb_mps = checkRangeHash (b.evasions, "dodgeVertSpeedClimb_mps", 0, 3000, 0 );
 		b.evasions.dodgeVertSpeedDive_mps = checkRangeHash ( b.evasions, "dodgeVertSpeedDive_mps", 0, 5000, 0 );
-		b.evasions.dodgeVertSpeedClimb_fps = b.evasions.dodgeVertSpeedClimb_mps/feet2meters;
-		b.evasions.dodgeVertSpeedDive_fps = b.evasions.dodgeVertSpeedDive_mps/feet2meters;
+		b.evasions.dodgeVertSpeedClimb_fps = b.evasions.dodgeVertSpeedClimb_mps/FT2M;
+		b.evasions.dodgeVertSpeedDive_fps = b.evasions.dodgeVertSpeedDive_mps/FT2M;
 	}
 						
 						
@@ -8359,10 +8372,10 @@ var initialize_func = func ( b ){
 
 		# add some helpful new:
 		#
-		b.dimensions.width_ft = b.dimensions.width_m/feet2meters;
-		b.dimensions.length_ft = b.dimensions.length_m/feet2meters;
-		b.dimensions.height_ft = b.dimensions.height_m/feet2meters;
-		b.dimensions.damageRadius_ft = b.dimensions.damageRadius_m/feet2meters;
+		b.dimensions.width_ft = b.dimensions.width_m/FT2M;
+		b.dimensions.length_ft = b.dimensions.length_m/FT2M;
+		b.dimensions.height_ft = b.dimensions.height_m/FT2M;
+		b.dimensions.damageRadius_ft = b.dimensions.damageRadius_m/FT2M;
 	}
 						
 	# velocities sanity checking
@@ -8991,7 +9004,7 @@ var weaponsOrientationPositionUpdate = func (myNodeName, elem) {
 	setprop("" ~ myNodeName ~ "/" ~ elem ~ "/orientation/true-heading-deg", newHeading_ref);
 	# note weapon offset in m; altitude is in feet
 	setprop("" ~ myNodeName ~ "/" ~ elem ~ "/position/altitude-ft",
-	getprop("" ~ myNodeName ~ "/position/altitude-ft") + aim.weaponOffsetRefFrame[2] / FT2M);
+	getprop("" ~ myNodeName ~ "/position/altitude-ft") + aim.weaponOffsetRefFrame[2] * M2FT);
 
 	setprop("" ~ myNodeName ~ "/" ~ elem ~ "/position/latitude-deg",
 	getprop("" ~ myNodeName ~ "/position/latitude-deg") + aim.weaponOffsetRefFrame[1] / m_per_deg_lat); 
