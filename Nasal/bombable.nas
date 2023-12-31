@@ -268,7 +268,7 @@ var put_remove_model = func(lat_deg = nil, lon_deg = nil, elev_m = nil, time_sec
 			"path": path,
 			"latitude-deg": lat_deg,
 			"longitude-deg":lon_deg,
-			"elevation-ft": elev_m/FT2M,
+			"elevation-ft": elev_m * M2FT,
 			"heading-deg"  : 0,
 			"pitch-deg"    : 0,
 			"roll-deg"     : 0,
@@ -5802,7 +5802,7 @@ missileSpeed = 500) {
 	
 	# debprint (
 		# sprintf(
-			# "Bombable: Intercept time =%6.1f Intercept vector =[%6.2f, %6.2f, %6.2f]",
+			# "Bombable: intercept time =%6.1f Intercept vector =[%6.2f, %6.2f, %6.2f]",
 			# intercept.time, interceptDirRefFrame[0], interceptDirRefFrame[1], interceptDirRefFrame[2] 
 		# )
 	# );
@@ -6281,12 +6281,12 @@ var guideRocket = func
 
 
 
-	debprint (
-		sprintf(
-			"Bombable: Intercept time =%6.1f Intercept vector =[%6.3f, %6.3f, %6.3f]",
-			newAim.interceptTime, interceptDirRefFrame[0], interceptDirRefFrame[1], interceptDirRefFrame[2] 
-		)
-	);
+	# debprint (
+	# 	sprintf(
+	# 		"Bombable: intercept time =%6.1f Intercept vector =[%6.3f, %6.3f, %6.3f]",
+	# 		newAim.interceptTime, interceptDirRefFrame[0], interceptDirRefFrame[1], interceptDirRefFrame[2] 
+	# 	)
+	# );
 
 	var missileDir = weaps[elem].aim.weaponDirRefFrame;
 
@@ -6351,19 +6351,19 @@ var guideRocket = func
 
 	newAim.weaponDirRefFrame = newMissileDir;
 	
-	debprint (
-		sprintf(
-			"Bombable: distance vector to target =[%6.2f, %6.2f, %6.2f]",
-			deltaX_m, deltaY_m, deltaAlt_m 
-		)
-	);
+	# debprint (
+	# 	sprintf(
+	# 		"Bombable: distance vector to target =[%6.2f, %6.2f, %6.2f]",
+	# 		deltaX_m, deltaY_m, deltaAlt_m 
+	# 	)
+	# );
 	
-	debprint (
-		sprintf(
-			"Bombable: newMissileDir vector =[%6.3f, %6.3f, %6.3f]",
-			newMissileDir[0], newMissileDir[1], newMissileDir[2] 
-		)
-	);
+	# debprint (
+	# 	sprintf(
+	# 		"Bombable: newMissileDir vector =[%6.3f, %6.3f, %6.3f]",
+	# 		newMissileDir[0], newMissileDir[1], newMissileDir[2] 
+	# 	)
+	# );
 
 	# reduce speed according to rate of turn
 	var newMissileSpeed_mps = missileSpeed_mps * cosOffset * cosOffset;
@@ -6397,6 +6397,17 @@ var guideRocket = func
 	var trueHeading = math.atan2(newMissileDir[0], newMissileDir[1]) * R2D;
 
 	var rp = "ai/models/aircraft[" ~ weaps[elem].rocketsIndex ~ "]";
+
+	debprint(
+		sprintf(
+		"Alt_ = %6.3f Heading_ = %6.3f Speed_ = %6.3f",
+		getprop (rp ~ "/position/altitude-ft"),
+		getprop (rp ~ "/orientation/true-heading-deg"),
+		getprop (rp ~ "/velocities/true-airspeed-kt")
+		)
+	);
+
+
 	setprop (rp ~ "/position/latitude-deg", new_lat);
 	setprop (rp ~ "/position/longitude-deg", new_lon);
 	setprop (rp ~ "/position/altitude-ft", new_alt);
@@ -6412,6 +6423,14 @@ var guideRocket = func
 	setprop (rp ~ "/controls/flight/target-alt", targetAlt);
 	setprop (rp ~ "/controls/flight/target-hdg", targetHeading);
 	setprop (rp ~ "/controls/flight/target-spd", targetSpeed);
+
+	debprint(
+		sprintf(
+		"tAlt = %6.3f tHeading = %6.3f tSpeed = %6.3f",
+		targetAlt,
+		targetHeading,
+		targetSpeed)
+	);
 
 
 
@@ -7046,7 +7065,7 @@ var attack_loop = func (id, myNodeName, looptime) {
 	aircraftSetVertSpeed (myNodeName, targetAlt_m - currAlt_m, "evas" );
 				
 	#debprint ("Bombable: setprop 4275");
-	setprop(""~myNodeName~"/bombable/attributes/altitudes/targetAGL_ft", targetAGL_m/FT2M);
+	setprop(""~myNodeName~"/bombable/attributes/altitudes/targetAGL_ft", targetAGL_m * M2FT);
 	setprop(""~myNodeName~"/bombable/attributes/altitudes/targetAGL_m", targetAGL_m);
 	aircraftTurnToHeading ( myNodeName, courseToTarget_deg, roll_deg, targetAlt_m, atts.rollMax_deg, favor);
 				
@@ -8310,10 +8329,10 @@ var initialize_func = func ( b ){
 		if (b.altitudes.crashedAGL_m == 0 )b.altitudes.crashedAGL_m = -0.001;
 							
 		b.altitudes.initialized = 0; #this is how ground_loop knows to initialize the alititude on its first call
-		b.altitudes.wheelsOnGroundAGL_ft = b.altitudes.wheelsOnGroundAGL_m/FT2M;
-		b.altitudes.minimumAGL_ft = b.altitudes.minimumAGL_m/FT2M;
-		b.altitudes.maximumAGL_ft = b.altitudes.maximumAGL_m/FT2M;
-		b.altitudes.crashedAGL_ft = b.altitudes.crashedAGL_m/FT2M;
+		b.altitudes.wheelsOnGroundAGL_ft = b.altitudes.wheelsOnGroundAGL_m * M2FT;
+		b.altitudes.minimumAGL_ft = b.altitudes.minimumAGL_m * M2FT;
+		b.altitudes.maximumAGL_ft = b.altitudes.maximumAGL_m * M2FT;
+		b.altitudes.crashedAGL_ft = b.altitudes.crashedAGL_m * M2FT;
 							
 		#crashedAGL must be at least a bit lower than minimumAGL
 		if (b.altitudes.crashedAGL_m > b.altitudes.minimumAGL_m )
@@ -8342,14 +8361,14 @@ var initialize_func = func ( b ){
 		b.evasions.dodgeAltMin_m = checkRangeHash ( b.evasions, "dodgeAltMin_m", -100000, 100000, -20 );
 		if (b.evasions.dodgeAltMax_m < b.evasions.dodgeAltMin_m)
 		b.evasions.dodgeAltMax_m = b.evasions.dodgeAltMin_m;
-		b.evasions.dodgeAltMin_ft = b.evasions.dodgeAltMin_m/FT2M;
-		b.evasions.dodgeAltMax_ft = b.evasions.dodgeAltMax_m/FT2M;
+		b.evasions.dodgeAltMin_ft = b.evasions.dodgeAltMin_m * M2FT;
+		b.evasions.dodgeAltMax_ft = b.evasions.dodgeAltMax_m * M2FT;
 							
 							
 		b.evasions.dodgeVertSpeedClimb_mps = checkRangeHash (b.evasions, "dodgeVertSpeedClimb_mps", 0, 3000, 0 );
 		b.evasions.dodgeVertSpeedDive_mps = checkRangeHash ( b.evasions, "dodgeVertSpeedDive_mps", 0, 5000, 0 );
-		b.evasions.dodgeVertSpeedClimb_fps = b.evasions.dodgeVertSpeedClimb_mps/FT2M;
-		b.evasions.dodgeVertSpeedDive_fps = b.evasions.dodgeVertSpeedDive_mps/FT2M;
+		b.evasions.dodgeVertSpeedClimb_fps = b.evasions.dodgeVertSpeedClimb_mps * M2FT;
+		b.evasions.dodgeVertSpeedDive_fps = b.evasions.dodgeVertSpeedDive_mps * M2FT;
 	}
 						
 						
@@ -8372,10 +8391,10 @@ var initialize_func = func ( b ){
 
 		# add some helpful new:
 		#
-		b.dimensions.width_ft = b.dimensions.width_m/FT2M;
-		b.dimensions.length_ft = b.dimensions.length_m/FT2M;
-		b.dimensions.height_ft = b.dimensions.height_m/FT2M;
-		b.dimensions.damageRadius_ft = b.dimensions.damageRadius_m/FT2M;
+		b.dimensions.width_ft = b.dimensions.width_m * M2FT;
+		b.dimensions.length_ft = b.dimensions.length_m * M2FT;
+		b.dimensions.height_ft = b.dimensions.height_m * M2FT;
+		b.dimensions.damageRadius_ft = b.dimensions.damageRadius_m * M2FT;
 	}
 						
 	# velocities sanity checking
