@@ -6015,10 +6015,14 @@ var weapons_loop = func (id, myNodeName1 = "", myNodeName2 = "", targetSize_m = 
 					# props.globals.getNode("" ~ myNodeName ~ "/" ~ elem ~ "/destroyed", 0).setBoolValue(0);
 					setprop ("" ~ myNodeName1 ~ "/" ~ elem ~ "/destroyed", 1);
 					# call for effects	
-					# move rocket out of scene				
-					setprop ("ai/models/aircraft[" ~ weaps[elem].rocketsIndex ~ "]/position/latitude-deg", 0);
-					setprop ("ai/models/aircraft[" ~ weaps[elem].rocketsIndex ~ "]/position/longitude-deg", 0);
-					setprop ("ai/models/aircraft[" ~ weaps[elem].rocketsIndex ~ "]/position/altitude-ft", 0);
+					# move rocket out of scene
+					var rp = "ai/models/aircraft[" ~ weaps[elem].rocketsIndex ~ "]";				
+					setprop (rp ~ "/position/latitude-deg", 0);
+					setprop (rp ~ "/position/longitude-deg", 0);
+					setprop (rp ~ "/position/altitude-ft", 0);
+					setprop (rp ~ "/velocities/true-air-speed", 0);
+	);
+
 				}
 
 		}
@@ -6095,7 +6099,6 @@ var launchRocket = func (myNodeName, elem)
 	var weaps = attributes[myNodeName].weapons;
 
 	setprop ("" ~ myNodeName ~ "/" ~ elem ~ "/launched", 1);
-	setprop("" ~ myNodeName ~ "/" ~ elem ~ "/velocities/true-airspeed-kt", 0);
 
 
 
@@ -6116,9 +6119,17 @@ var launchRocket = func (myNodeName, elem)
 
 
 	# rocket initiated by moving it from {lat, lon} {0, 0} to location of AC / ship
-	setprop ("ai/models/aircraft[" ~ weaps[elem].rocketsIndex ~ "]/position/latitude-deg", alat_deg);
-	setprop ("ai/models/aircraft[" ~ weaps[elem].rocketsIndex ~ "]/position/longitude-deg", alon_deg);
-	setprop ("ai/models/aircraft[" ~ weaps[elem].rocketsIndex ~ "]/position/altitude-ft", aAlt_m / FT2M);
+	var rp = "ai/models/aircraft[" ~ weaps[elem].rocketsIndex ~ "]";
+	setprop (rp ~ "/position/latitude-deg", alat_deg);
+	setprop (rp ~ "/position/longitude-deg", alon_deg);
+	setprop (rp ~ "/position/altitude-ft", aAlt_m / FT2M);
+	setprop (rp ~ "/velocities/true-air-speed", 
+	getprop ("" ~ myNodeName ~ "/velocities/true-air-speed")
+	);
+	setprop (rp ~ "/orientation/pitch-deg", 90);
+	setprop (rp ~ "/orientation/true-heading-deg",
+	getprop ("" ~ myNodeName ~ "/orientation/true-heading-deg")
+	);
 
 	# put extra smoke / flash on launch pad
 
@@ -6333,8 +6344,9 @@ var guideRocket = func
 	);
 
 	# reduce speed according to rate of turn
-	var deltaXYZ = vectorMultiply (missileDir,
-	missileSpeed_mps * cosOffset * cosOffset * delta_t);
+	var new_missileSpeed_mps = missileSpeed_mps * cosOffset * cosOffset;
+
+	var deltaXYZ = vectorMultiply (missileDir, new_missileSpeed_mps * delta_t);
 	var deltaLat = deltaXYZ[1] / m_per_deg_lat;
 	var deltaLon = deltaXYZ[0] / m_per_deg_lon;
 	var new_lat = alat_deg + deltaLat;
@@ -6342,11 +6354,7 @@ var guideRocket = func
 	var new_alt = ( aAlt_m + deltaXYZ[2] ) / FT2M;
 
 	
-
-	# record new weapon position
-	# setprop("" ~ myNodeName1 ~ "/" ~ elem ~ "/orientation/pitch-deg", newElev_ref);
-	# setprop("" ~ myNodeName1 ~ "/" ~ elem ~ "/orientation/true-heading-deg", newHeading_ref);
-
+	# update rocket co-ords
 	setprop("" ~ myNodeName1 ~ "/" ~ elem ~ "/position/latitude-deg",
 	new_lat); 
 
@@ -6354,16 +6362,20 @@ var guideRocket = func
 	new_lon);
 
 	setprop("" ~ myNodeName1 ~ "/" ~ elem ~ "/position/altitude-ft",
-	new_alt;
+	new_alt);
 
-	# updates position of AI model for rocket
-	setprop ("ai/models/aircraft[" ~ weaps[elem].rocketsIndex ~ "]/position/latitude-deg", new_lat);
-	setprop ("ai/models/aircraft[" ~ weaps[elem].rocketsIndex ~ "]/position/longitude-deg", new_lon);
-	setprop ("ai/models/aircraft[" ~ weaps[elem].rocketsIndex ~ "]/position/altitude-ft", new_alt);
+	# updates position, speed and orientation of AI model for rocket
+	var rp = "ai/models/aircraft[" ~ weaps[elem].rocketsIndex ~ "]";
+	setprop (rp ~ "/position/latitude-deg", new_lat);
+	setprop (rp ~ "/position/longitude-deg", new_lon);
+	setprop (rp ~ "/position/altitude-ft", new_alt);
+	setprop (rp ~ "/velocities/true-air-speed", new_missileSpeed_mps);
+
 	var pitch = math.asin(missileDir[2]) * R2D;
 	var heading = math.atan2(missileDir[0], missileDir[1]) * R2D;
-	setprop ("ai/models/aircraft[" ~ weaps[elem].rocketsIndex ~ "]/orientation/pitch-deg", pitch);
-	setprop ("ai/models/aircraft[" ~ weaps[elem].rocketsIndex ~ "]/orientation/heading-deg", heading);
+	setprop (rp ~ "/orientation/pitch-deg", pitch);
+	setprop (rp ~ "/orientation/true-heading-deg", heading);
+
 
 
 
