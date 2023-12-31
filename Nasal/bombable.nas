@@ -6021,6 +6021,9 @@ var weapons_loop = func (id, myNodeName1 = "", myNodeName2 = "", targetSize_m = 
 					setprop (rp ~ "/position/longitude-deg", 0);
 					setprop (rp ~ "/position/altitude-ft", 0);
 					setprop (rp ~ "/velocities/true-airspeed-kt", 0);
+					setprop (rp ~ "/controls/flight/target-alt", 0);
+					setprop (rp ~ "/controls/flight/target-spd", 0);
+				
 
 				}
 
@@ -6122,14 +6125,27 @@ var launchRocket = func (myNodeName, elem)
 
 	# rocket initiated by moving it from {lat, lon} {0, 0} to location of AC / ship
 	var rp = "ai/models/aircraft[" ~ weaps[elem].rocketsIndex ~ "]";
+	var initialPitch = 90.0; # orientation of rocket vs AC - use weaponDirRefFrame?
+	var alt_ft = alt_m / FT2M;
+	var heading = getprop ("" ~ myNodeName ~ "/orientation/true-heading-deg");
+
 	setprop (rp ~ "/position/latitude-deg", alat_deg);
 	setprop (rp ~ "/position/longitude-deg", alon_deg);
-	setprop (rp ~ "/position/altitude-ft", aAlt_m / FT2M);
+	setprop (rp ~ "/position/altitude-ft", alt_ft);
 	setprop (rp ~ "/velocities/true-airspeed-kt", launchPadSpeed);
-	setprop (rp ~ "/orientation/pitch-deg", 90);
-	setprop (rp ~ "/orientation/true-heading-deg",
-	getprop ("" ~ myNodeName ~ "/orientation/true-heading-deg")
-	);
+	setprop (rp ~ "/orientation/pitch-deg", initialPitch);
+	setprop (rp ~ "/orientation/true-heading-deg", heading);
+
+	# initialize rocket control system
+	setprop (rp ~ "/controls/flight/lateral-mode", "hdg");
+	setprop (rp ~ "/controls/flight/vertical-mode", "alt");
+	setprop (rp ~ "/controls/flight/target-alt", (pitch == 90.0) ? alt_ft + 500.0 : alt_ft );
+	setprop (rp ~ "/controls/flight/target-heading", heading);
+	setprop (rp ~ "/controls/flight/target-spd", weaps[elem].maxMissileSpeed_mps);
+
+
+
+
 
 	# put extra smoke / flash on launch pad
 
@@ -6307,7 +6323,10 @@ var guideRocket = func
 
 
 	# calculate angular offset between direction of missile and direction of target
-	var cosOffset = dotProduct(interceptDirRefFrame, missileDir);
+	var cosOffset = dotProduct(missileDir, interceptDirRefFrame);
+
+	# calculate whether to turn left (-1) or right (+1) - not needed
+	# var turnDirection = ( missileDir[0] * interceptDir[1] < missileDir[1] * interceptDir[0] ) ? 1 : -1;
 
 	if (cosOffset + 1.0 < 1e-5) {
 		interceptDirRefFrame = [0.0, 0.0, 1.0]; 
@@ -6318,14 +6337,15 @@ var guideRocket = func
 	#rotate up to 10 degrees to the target direction
 	var maxTurn = 0.984; # cos ( 10.0 * D2R )
 	var minTurn = 0.9998; # cos ( 1.0 * D2R)
-	if (cosOffset < maxTurn) cosOffset = maxTurn;
+	var stillTurning = (cosOffset < maxTurn); # flag used for AI speed control
+	if (stillTurning) cosOffset = maxTurn;
 
 	#small direction errors are ignored
 	if (cosOffset < minTurn) {
-		missileDir = vectorRotate(missileDir, interceptDirRefFrame, math.acos( cosOffset ));
+		newMissileDir = vectorRotate(missileDir, interceptDirRefFrame, math.acos( cosOffset ));
 	}
 
-	newAim.weaponDirRefFrame = missileDir;
+	newAim.weaponDirRefFrame = newMissileDir;
 	
 	debprint (
 		sprintf(
@@ -6336,15 +6356,15 @@ var guideRocket = func
 	
 	debprint (
 		sprintf(
-			"Bombable: missileDir vector =[%6.3f, %6.3f, %6.3f]",
-			missileDir[0], missileDir[1], missileDir[2] 
+			"Bombable: newMissileDir vector =[%6.3f, %6.3f, %6.3f]",
+			newMissileDir[0], newMissileDir[1], newMissileDir[2] 
 		)
 	);
 
 	# reduce speed according to rate of turn
-	var new_missileSpeed_mps = missileSpeed_mps * cosOffset * cosOffset;
+	var newMissileSpeed_mps = missileSpeed_mps * cosOffset * cosOffset;
 
-	var deltaXYZ = vectorMultiply (missileDir, new_missileSpeed_mps * delta_t);
+	var deltaXYZ = vectorMultiply (newMissileDir, newMissileSpeed_mps * delta_t);
 	var deltaLat = deltaXYZ[1] / m_per_deg_lat;
 	var deltaLon = deltaXYZ[0] / m_per_deg_lon;
 	var new_lat = alat_deg + deltaLat;
@@ -6363,7 +6383,7 @@ var guideRocket = func
 	new_alt);
 
 	setprop("" ~ myNodeName1 ~ "/" ~ elem ~ "/velocities/true-airspeed-kt", 
-	new_missileSpeed_mps / KT2MPS);
+	newMissileSpeed_mps / KT2MPS);
 
 
 	# updates position, speed and orientation of AI model for rocket
@@ -6371,12 +6391,14 @@ var guideRocket = func
 	setprop (rp ~ "/position/latitude-deg", new_lat);
 	setprop (rp ~ "/position/longitude-deg", new_lon);
 	setprop (rp ~ "/position/altitude-ft", new_alt);
-	setprop (rp ~ "/velocities/true-airspeed-kt", new_missileSpeed_mps / KT2MPS);
+	setprop (rp ~ "/velocities/true-airspeed-kt", newMissileSpeed_mps / KT2MPS);
 
-	var pitch = math.asin(missileDir[2]) * R2D;
-	var heading = math.atan2(missileDir[0], missileDir[1]) * R2D;
-	setprop (rp ~ "/orientation/pitch-deg", pitch);
-	setprop (rp ~ "/orientation/true-heading-deg", heading);
+	# var pitch = math.asin(newMissileDir[2]) * R2D;
+	var targetHeading = math.atan2(interceptDirRefFrame[0], interceptDirRefFrame[1]) * R2D;
+	setprop (rp ~ "/controls/flight/target-alt", 
+	new_alt + newMissileSpeed_mps / FT2M * newMissileDir[2] * delta_t);
+	setprop (rp ~ "/controls/flight/target-heading", targetHeading);
+	setprop (rp ~ "/controls/flight/target-spd", (newMissileSpeed_mps - cosOffset * cosOffset * stillTurning) / KT2MPS);
 
 
 
