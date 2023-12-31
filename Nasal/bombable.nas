@@ -6158,6 +6158,11 @@ var launchRocket = func (myNodeName, elem)
 	# time_sec: 5, 
 	# startSize_m: nil, endSize_m: nil, 
 	# path: fp );
+
+
+	# add contrail to AI rocket
+
+	startSmoke("skywriting", rp, model = "AI/Aircraft/Fire-Particles/skywriting-particles.xml");
 		
 
 
@@ -6437,24 +6442,24 @@ var guideRocket = func
 
 
 	# update this as a tied model-contrail if use of AI model for rocket works
-	var time_sec = 15; 
-	var fp = "AI/Aircraft/Fire-Particles/skywriting-particles.xml";
+	# var time_sec = 15; 
+	# var fp = "AI/Aircraft/Fire-Particles/skywriting-particles.xml";
 
-	for (var i=0; i < 3; i = i + 1) {
+	# for (var i=0; i < 3; i = i + 1) {
 		
-		var r = rand();
+	# 	var r = rand();
 
-		settimer(func {
-		put_remove_model(
-		lat_deg: alat_deg + r * deltaLat, 
-		lon_deg: alon_deg + r * deltaLon, 
-		elev_m: aAlt_m + r * deltaXYZ[2], 
-		time_sec: time_sec, 
-		startSize_m: nil, endSize_m: nil, 
-		path: fp );
-		},
-		r * delta_t);
-	}
+	# 	settimer(func {
+	# 	put_remove_model(
+	# 	lat_deg: alat_deg + r * deltaLat, 
+	# 	lon_deg: alon_deg + r * deltaLon, 
+	# 	elev_m: aAlt_m + r * deltaXYZ[2], 
+	# 	time_sec: time_sec, 
+	# 	startSize_m: nil, endSize_m: nil, 
+	# 	path: fp );
+	# 	},
+	# 	r * delta_t);
+	# }
 
 	if (stores.reduceWeaponsCount (myNodeName1, elem, delta_t) == 1)
 	{
