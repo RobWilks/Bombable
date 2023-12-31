@@ -248,7 +248,8 @@ var put_ballistic_model = func(myNodeName = "/ai/models/aircraft", path = "AI/Ai
 # particles.  If time_sec is slower than the frame length then you get zero particle.
 # Smallest safe value for time_sec is maybe .3 .4 or .5 seconds.
 #
-var put_remove_model = func(lat_deg = nil, lon_deg = nil, elev_m = nil, time_sec = nil, startSize_m = nil, endSize_m = 1, path = "AI/Aircraft/Fire-Particles/flack-impact.xml" ) {
+var put_remove_model = func(lat_deg = nil, lon_deg = nil, elev_m = nil, time_sec = nil, 
+	startSize_m = nil, 	endSize_m = 1, path = "AI/Aircraft/Fire-Particles/flack-impact.xml" ) {
 
 	if (lat_deg == nil or lon_deg == nil or elev_m == nil) { return; }
 	
@@ -256,7 +257,7 @@ var put_remove_model = func(lat_deg = nil, lon_deg = nil, elev_m = nil, time_sec
 	#we try to reduce this by making the smoke appear a fraction of a second later, after
 	# the a/c model has moved out of the way. (possibly moved, anyway--depending on it's speed)
 
-	debprint ("Bombable: Placing flack");
+	# debprint ("Bombable: Placing flack");
 	
 	settimer ( func {
 		#start & end size in particle system appear to be in feet
@@ -267,7 +268,7 @@ var put_remove_model = func(lat_deg = nil, lon_deg = nil, elev_m = nil, time_sec
 			"path": path,
 			"latitude-deg": lat_deg,
 			"longitude-deg":lon_deg,
-			"elevation-ft": elev_m/feet2meters,
+			"elevation-ft": elev_m * M2FT,
 			"heading-deg"  : 0,
 			"pitch-deg"    : 0,
 			"roll-deg"     : 0,
@@ -284,7 +285,7 @@ var put_remove_model = func(lat_deg = nil, lon_deg = nil, elev_m = nil, time_sec
 			setprop(  flackModelNodeName ~"/"~ name ~ "-prop",flackModelNodeName ~ "/" ~ name );
 		}
 		
-		debprint ("Bombable: Placed flack, ", flackModelNodeName);
+		# debprint ("Bombable: Placed flack, ", flackModelNodeName);
 		
 		settimer ( func { props.globals.getNode(flackModelNodeName).remove();}, time_sec);
 
@@ -319,12 +320,12 @@ var start_terrain_fire = func ( lat_deg, lon_deg, alt_m = 0, ballisticMass_lb = 
 	}
 	
 	if (ballisticMass_lb == nil or ballisticMass_lb < 0) ballisticMass_lb = 1.2;
-	if (ballisticMass_lb < 3 ) { time_sec = 20; fp = "AI/Aircraft/Fire-Particles/fire-particles-very-very-small.xml"; }
-	elsif (ballisticMass_lb < 20 ) { time_sec = 60; fp = "AI/Aircraft/Fire-Particles/fire-particles-very-very-small.xml"; }
-	elsif (ballisticMass_lb < 50 ) { time_sec = 120; fp = "AI/Aircraft/Fire-Particles/fire-particles-very-small.xml"; }
-	elsif (ballisticMass_lb > 450 ) {time_sec = 600; fp = "AI/Aircraft/Fire-Particles/fire-particles.xml"; }
-	elsif (ballisticMass_lb > 1000 ) { time_sec = 900; fp = "AI/Aircraft/Fire-Particles/fire-particles-large.xml"; }
-	else {time_sec = 300; fp = "AI/Aircraft/Fire-Particles/fire-particles-small.xml";}
+	if (ballisticMass_lb < 3 ) { var time_sec = 20; var fp = "AI/Aircraft/Fire-Particles/fire-particles-very-very-small.xml"; }
+	elsif (ballisticMass_lb < 20 ) { var time_sec = 60; var fp = "AI/Aircraft/Fire-Particles/fire-particles-very-very-small.xml"; }
+	elsif (ballisticMass_lb < 50 ) { var time_sec = 120; var fp = "AI/Aircraft/Fire-Particles/fire-particles-very-small.xml"; }
+	elsif (ballisticMass_lb > 450 ) { var time_sec = 600; var fp = "AI/Aircraft/Fire-Particles/fire-particles.xml"; }
+	elsif (ballisticMass_lb > 1000 ) { var time_sec = 900; var fp = "AI/Aircraft/Fire-Particles/fire-particles-large.xml"; }
+	else { var time_sec = 300; var fp = "AI/Aircraft/Fire-Particles/fire-particles-small.xml";}
 
 	debprint ({lat_deg:lat_deg, lon_deg:lon_deg, elev_m:alt_m, time_sec:time_sec, startSize_m: nil, endSize_m:nil, path:fp });
 	put_remove_model(lat_deg:lat_deg, lon_deg:lon_deg, elev_m:alt_m, time_sec:time_sec, startSize_m: nil, endSize_m:nil, path:fp );
@@ -336,14 +337,14 @@ var start_terrain_fire = func ( lat_deg, lon_deg, alt_m = 0, ballisticMass_lb = 
 	
 	##put it out, but slowly, for large impacts
 	if (ballisticMass_lb > 50) {
-		time_sec2 = 120; fp2 = "AI/Aircraft/Fire-Particles/fire-particles-very-small.xml";
+		var time_sec2 = 120; var fp2 = "AI/Aircraft/Fire-Particles/fire-particles-very-small.xml";
 		settimer (func { put_remove_model(lat_deg:lat_deg, lon_deg:lon_deg, elev_m:alt_m, time_sec:time_sec2, startSize_m: nil, endSize_m:nil, path:fp2 )} , time_sec);
 		
-		time_sec3 = 120; fp3 = "AI/Aircraft/Fire-Particles/fire-particles-very-very-small.xml";
+		var time_sec3 = 120; var fp3 = "AI/Aircraft/Fire-Particles/fire-particles-very-very-small.xml";
 		settimer (func { put_remove_model(lat_deg:lat_deg, lon_deg:lon_deg, elev_m:alt_m, time_sec:time_sec3, startSize_m: nil, endSize_m:nil, path:fp3 )} , time_sec + time_sec2);
 		
-		time_sec4 = 120; fp4 = "AI/Aircraft/Fire-Particles/fire-particles-very-very-very-small.xml";
-		settimer (func { put_remove_model(lat_deg:lat_deg, lon_deg:lon_deg, elev_m:alt_m, time_sec:time_sec4, startSize_m: nil, endSize_m:nil, path:fp4 )} , time_sec + time_sec2+time_sec3);
+		var time_sec4 = 120; var fp4 = "AI/Aircraft/Fire-Particles/fire-particles-very-very-very-small.xml";
+		settimer (func { put_remove_model(lat_deg:lat_deg, lon_deg:lon_deg, elev_m:alt_m, time_sec:time_sec4, startSize_m: nil, endSize_m:nil, path:fp4 )} , time_sec + time_sec2 + time_sec3);
 		
 	}
 
@@ -561,7 +562,7 @@ var damageCheck = func () {
 # the strongest aircraft of WWII were the Italian monoplane fighters. They were built to withstand 8g normal load with 12g failure load. The same spec for German aircraft was 6g - 8.33g. For the late war P51s it was 5.33g
 # Spitfire VIII can pull about 9 and dive to about 570 mph before ripping apart while the F4U will only dive to about 560 mph and pull a similar load.
 # at normal weight the designed limit load was 7.5 g positive and 3.5 g negative for the Corsair.
-#  FIAT G.50 had an ultimate factor of 14 g. According to Dottore Eng. Gianni Cattaneo´s Profile booklet on the Macchi C.202, it had an ultimate factor of no less than 15.8 g! That would make it virtually indestructible. Also the Hawker Tempest was strong with its 14+ G strength.
+#  FIAT G.50 had an ultimate factor of 14 g. According to Dottore Eng. Gianni Cattaneoï¿½s Profile booklet on the Macchi C.202, it had an ultimate factor of no less than 15.8 g! That would make it virtually indestructible. Also the Hawker Tempest was strong with its 14+ G strength.
 # http://www.aviastar.org/air/japan/mitsubishi_a6m.php :
 # Most Japanese fighters were designed to withstand a force of 7g. From 1932 all Japanese warplanes were required to meet a safety load factor of 1.8 so the limit for the A6M had to be 12.6g (1.8x7g).
 #
@@ -1084,7 +1085,7 @@ var startFire = func (myNodeName = "", model = "")
 	
 	
 	
-	#var fire_node = geo.put_model("Models/Effects/Wildfire/wildfire.xml", lat, lon, alt * feet2meters);
+	#var fire_node = geo.put_model("Models/Effects/Wildfire/wildfire.xml", lat, lon, alt * FT2M);
 	#print ("started fire! ", myNodeName);
 	
 	#turn off the fire after user-set amount of time (default 1800 seconds)
@@ -1166,7 +1167,7 @@ var startSmoke = func (smokeType, myNodeName = "", model = "")
 	var fireNode = put_tied_model(myNodeName, model);
 	
 	
-	#var fire_node = geo.put_model("Models/bombable/Wildfire/wildfire.xml", lat, lon, alt * feet2meters);
+	#var fire_node = geo.put_model("Models/bombable/Wildfire/wildfire.xml", lat, lon, alt * FT2M);
 	#debprint ("started fire! "~ myNodeName);
 	
 	# turn off the flare after user-set amount of time (default 1800 seconds)
@@ -1379,7 +1380,7 @@ var revitalizeAllAIObjects = func (revitType = "aircraft", preservePosSpeed = 0)
 			setprop("ai/models/"~aiName~"/position/previous/longitude-deg", newlon_deg);
 			setprop("ai/models/"~aiName~"/position/previous/altitude-ft", alt_ft);
 			
-			var cart = geodtocart(newlat_deg, newlon_deg, alt_ft * feet2meters); # lat/lon/alt(m)
+			var cart = geodtocart(newlat_deg, newlon_deg, alt_ft * FT2M); # lat/lon/alt(m)
 			
 			
 			setprop("ai/models/"~aiName~"/position/previous/global-x", cart[0]);
@@ -1645,6 +1646,7 @@ var init_bombable_dialog = func () {
 	#OK . . . per gui.nas line 63, this appears to be the right way to do this:
 	fgcommand ("gui-redraw");
 }
+###################################### targetStatusPopupTip #########################################
 		
 var targetStatusPopupTip = func (label, delay = 5, override = nil) {
 			
@@ -1665,6 +1667,7 @@ var targetStatusPopupTip = func (label, delay = 5, override = nil) {
 	# Final argument is a flag to use "real" time, not simulated time
 	settimer(func { if(currTimerTarget == thisTimerTarget) { popdown(tipArgTarget) } }, delay, 1);
 }
+###################################### selfStatusPopupTip #########################################
 
 var selfStatusPopupTip = func (label, delay = 10, override = nil) {
 	#return; #gui prob
@@ -1898,6 +1901,7 @@ var dialog = {
 		["Piston engine exhaust enabled", trigger1_pp~"pistonexhaust"~trigger2_pp, "checkbox"],
 		["Damaged engine smoke enabled", trigger1_pp~"damagedengine"~trigger2_pp, "checkbox"],
 		["Flares enabled", trigger1_pp~"flare"~trigger2_pp, "checkbox"],
+		["Skywriting enabled", trigger1_pp~"skywriting"~trigger2_pp, "checkbox"],
 		#["Easy mode enabled (twice as easy to hit targets; AI aircraft do easier manuevers; may combine w/Super Easy)", bomb_menu_pp~"easy-mode", "checkbox"],
 		#["Super Easy Mode (3X as easy to hit targets; damaged tripled; AI aircraft do yet easier manuevers)", bomb_menu_pp~"super-easy-mode", "checkbox"],
 		["AI ground detection: Can be disabled to improve framerate when your AI scenarios are far above the ground", bomb_menu_pp~"ai-ground-loop-enabled", "checkbox"],
@@ -2171,6 +2175,10 @@ var setupBombableMenu = func {
 	if (getprop (""~trigger1_pp~"flack"~trigger2_pp) == nil )
 	props.globals.getNode(""~trigger1_pp~"flack"~trigger2_pp, 1).setBoolValue(1);
 
+	#rjw skywriting to show rocket trajectory
+	if (getprop (""~trigger1_pp~"skywriting"~trigger2_pp) == nil )
+	props.globals.getNode(""~trigger1_pp~"skywriting"~trigger2_pp, 1).setBoolValue(1);
+
 	if (getprop (""~trigger1_pp~"ai-weapon-fire-visual"~trigger2_pp) == nil )
 	props.globals.getNode(""~trigger1_pp~"ai-weapon-fire-visual"~trigger2_pp, 1).setBoolValue(1);
 
@@ -2184,6 +2192,8 @@ var setupBombableMenu = func {
 	["pistonexhaust", 15, -1],
 	["damagedengine",  55, -1],
 	["flare",66,3600],
+	["skywriting",5,-1],
+	["blaze",13,-1],
 	] ) {
 				
 		# trigger is the overall flag for that type of smoke/fire
@@ -2209,7 +2219,7 @@ var setupBombableMenu = func {
 	#
 	# Now, read the menu default file:
 	debprint ("Bombable: ioreading . . . ");
-	var target = props.globals.getNode(""~bomb_menu_pp);
+	var target = props.globals.getNode("" ~ bomb_menu_pp);
 	io.read_properties(bombable_settings_file, target);
 
 			
@@ -2281,7 +2291,7 @@ var elev = func (lat, lon) {
 	if (info != nil) {
 		var alt_m = info[0];
 		if (alt_m == nil) alt_m = 0;
-		return alt_m / feet2meters; #return the altitude in feet
+		return alt_m * M2FT; #return the altitude in feet
 	} else  return 0;
 			
 }
@@ -2740,7 +2750,7 @@ var ground_loop = func( id, myNodeName ) {
 	# just to be safe.  Otherwise objects climb indefinitely, always trying to get on top of themselves
 	# Sometimes needed in _m, sometimes _ft, so we need both . . .
 	var FGAltObjectPerimeterBuffer_m = 0.5 * dims.length_m;
-	var FGAltObjectPerimeterBuffer_ft = FGAltObjectPerimeterBuffer_m / feet2meters;
+	var FGAltObjectPerimeterBuffer_ft = FGAltObjectPerimeterBuffer_m * M2FT;
 			
 			
 	# Update altitude to keep moving objects at ground level the ground
@@ -2868,7 +2878,7 @@ var ground_loop = func( id, myNodeName ) {
 	}
 
 	var objectsLowestAllowedAlt_ft = alt_ft + alts.wheelsOnGroundAGL_ft + alts.crashedAGL_ft;
-	if (thorough) debprint (" objectsLowestAllowedAlt_ft = ", objectsLowestAllowedAlt_ft);
+	# if (thorough) debprint (" objectsLowestAllowedAlt_ft = ", objectsLowestAllowedAlt_ft);
 			
 	# If the object is as low as allowed by crashedAGL_m
 	# we consider it "on the ground" (for an airplane) or
@@ -3063,7 +3073,7 @@ var ground_loop = func( id, myNodeName ) {
 		
 		#limit amount of sinkage to damageAltMaxRate in one hit/loop--otherwise it just goes down too fast, not realistic.  
 		#Analogous to the terminal velocity
-		damageAltMaxPerCycle_ft = -abs(vels.damagedAltitudeChangeMaxRate_meterspersecond * updateTime_s / feet2meters);
+		damageAltMaxPerCycle_ft = -abs(vels.damagedAltitudeChangeMaxRate_meterspersecond * updateTime_s * M2FT);
 		#rjw might change this amount if crashing at the terminal velocity; probably no need for abs unless error in input data		
 				
 				
@@ -3126,11 +3136,11 @@ var ground_loop = func( id, myNodeName ) {
 	}
 
 	if (type == "ship" and thorough ) {
-		if (math.fmod(groundLoopCounter , 10) == 0) debprint(
-		"Bombable: Ground_loop: ",
-		"vels.maxSpeedReduce_percent = ", vels.maxSpeedReduce_percent,
-		"alts.initialAlt_ft = ", alts.initialAlt_ft
-		);		
+		# if (math.fmod(groundLoopCounter , 10) == 0) debprint(
+		# "Bombable: Ground_loop: ",
+		# "vels.maxSpeedReduce_percent = ", vels.maxSpeedReduce_percent,
+		# "alts.initialAlt_ft = ", alts.initialAlt_ft
+		# );		
 
 		# pitch and roll controlled by model animation
 		rollangle_deg = getprop (""~myNodeName~"/orientation/roll-animation");
@@ -3325,16 +3335,16 @@ var ground_loop = func( id, myNodeName ) {
 
 
 #######################################################
-#location-check loop, a timer function, every 15-16 seconds to check if the object has been relocated (this will happen if the object is set up as an AI ship or aircraft and FG is reset).  If so it restores the object to its position before the reset.
-#This solves an annoying problem in FG, where using file/reset (which
-#you might do if you crash the aircraft, but also if you run out of ammo
-#and need to re-load or for other reasons) will also reset the objects to
-#their original positions.
-#With moving objects (set up as AI ships or aircraft with velocities,
-#rudders, and/or flight plans) the objects abre often just getting to
-#interesting/difficult positions, so we want to preserve those positions
+# location-check loop, a timer function, every 15-16 seconds to check if the object has been relocated (this will happen if the object is set up as an AI ship or aircraft and FG is reset).  If so it restores the object to its position before the reset.
+# This solves an annoying problem in FG, where using file/reset (which
+# you might do if you crash the aircraft, but also if you run out of ammo
+# and need to re-load or for other reasons) will also reset the objects to
+# their original positions.
+# With moving objects (set up as AI ships or aircraft with velocities,
+# rudders, and/or flight plans) the objects are often just getting to
+# interesting/difficult positions, so we want to preserve those positions
 # rather than letting them reset back to where they started.
-#TODO: Some of this could be done better using a listener on /sim/signals/reinit
+# TODO: Some of this could be done better using a listener on /sim/signals/reinit
 var location_loop = func(id, myNodeName) {
 	var loopid = getprop(""~myNodeName~"/bombable/loopids/location-loopid");
 	id == loopid or return;
@@ -3368,8 +3378,8 @@ var location_loop = func(id, myNodeName) {
 
 
 			
-	#getting the global_x,y,z seems to stop strange behavior from the smoke
-	#when we do a relocate of the objects
+	# getting the global_x,y,z seems to stop strange behavior from the smoke
+	# when we do a relocate of the objects
 	var global_x = getprop(""~myNodeName~"/position/global-x");
 	var global_y = getprop(""~myNodeName~"/position/global-y");
 	var global_z = getprop(""~myNodeName~"/position/global-z");
@@ -3394,31 +3404,31 @@ var location_loop = func(id, myNodeName) {
 		var prev_distance = getprop(""~myNodeName~"/position/previous/distance");
 				
 		var GeoCoord = geo.Coord.new();
-		GeoCoord.set_latlon(lat, lon, alt_ft * feet2meters);
+		GeoCoord.set_latlon(lat, lon, alt_ft * FT2M);
 
 		var GeoCoordprev = geo.Coord.new();
-		GeoCoordprev.set_latlon(prevlat, prevlon, prevalt_ft * feet2meters);
+		GeoCoordprev.set_latlon(prevlat, prevlon, prevalt_ft * FT2M);
 
 		var directDistance = GeoCoord.distance_to(GeoCoordprev);
 				
-		#debprint ("Object  ", myNodeName ", distance: ", directDistance);
+		# debprint ("Object  ", myNodeName ", distance: ", directDistance);
 				
-		#4X the previously traveled distance is our cutoff
-		#so if our object is moving faster/further than this we assume it has
-		#been reset by FG and put it back where it was before the reset.
-		#Luckily, this same scheme works in the case this subroutine has moved the
-		#object--then the previous distance exactly equals the distance traveled--
-		#so even though that is a much larger than usual distance (which would
-		#usually trigger this subroutine to think an init had happened) since
-		#the object moved that large distance on the *  * previous step *  * (due to the
-		#reset) the move back is less than 4X the previous move and so it is OK.
+		# 4X the previously traveled distance is our cutoff
+		# so if our object is moving faster/further than this we assume it has
+		# been reset by FG and put it back where it was before the reset.
+		# Luckily, this same scheme works in the case this subroutine has moved the
+		# object--then the previous distance exactly equals the distance traveled--
+		# so even though that is a much larger than usual distance (which would
+		# usually trigger this subroutine to think an init had happened) since
+		# the object moved that large distance on the *  * previous step *  * (due to the
+		# reset) the move back is less than 4X the previous move and so it is OK.
 
-		#A bit kludgy . . . but it works.
+		# A bit kludgy . . . but it works.
 		if ( directDistance > 5 and directDistance > 4 * prev_distance ) {
 			node.getNode("position/latitude-deg", 1).setDoubleValue(prevlat);
 			node.getNode("position/longitude-deg", 1).setDoubleValue(prevlon);
 			node.getNode("position/altitude-ft", 1).setDoubleValue(prevalt_ft);
-			#now we want to show the previous location as this newly relocated position and distance traveled = 0;
+			# now we want to show the previous location as this newly relocated position and distance traveled = 0;
 			lat = prevlat;
 			lon = prevlon;
 			alt_ft = prevalt_ft;
@@ -3427,7 +3437,7 @@ var location_loop = func(id, myNodeName) {
 			debprint ("Bombable: Repositioned object "~ myNodeName~ " to lat: "~ prevlat~ " long: "~ prevlon~ " altitude: "~ prevalt_ft~" ft.");
 		}
 	}
-	#now we save the current position
+	# now we save the current position
 	node.getNode("position/previous/initialized", 1).setBoolValue(1);
 	node.getNode("position/previous/latitude-deg", 1).setDoubleValue(lat);
 	node.getNode("position/previous/longitude-deg", 1).setDoubleValue(lon);
@@ -3760,7 +3770,7 @@ var test_impact = func(changedNode, myNodeName) {
 		return;
 	}
 
-	var oAlt_m = getprop (""~myNodeName~"/position/altitude-ft") * feet2meters;
+	var oAlt_m = getprop (""~myNodeName~"/position/altitude-ft") * FT2M;
 	var iAlt_m = getprop (""~impactNodeName~"/impact/elevation-m");
 	var deltaAlt_m = (oAlt_m - iAlt_m);
 			
@@ -3874,7 +3884,7 @@ var test_impact = func(changedNode, myNodeName) {
 		#);
 				
 		#var impactSurfaceDistance_m = objectGeoCoord.distance_to(impactGeoCoord);
-		#var heightDifference_m = math.abs(getprop (""~impactNodeName~"/impact/elevation-m") - getprop (""~nodeName~"/impact/altitude-ft") * feet2meters);
+		#var heightDifference_m = math.abs(getprop (""~impactNodeName~"/impact/elevation-m") - getprop (""~nodeName~"/impact/altitude-ft") * FT2M);
 	}
 
 	var damAdd = 0; #total amount of damage actually added as the result of the impact
@@ -4629,7 +4639,7 @@ var do_acrobatic_loop_loop = func (id, myNodeName, loop_time = 20, full_loop_ste
 	currSpeed_fps = currSpeed_kt * knots2fps;
 				
 	currAlt_ft = getprop(""~myNodeName~"/position/altitude-ft");
-	currAlt_m = currAlt_ft * feet2meters;
+	currAlt_m = currAlt_ft * FT2M;
 				
 				
 	#we use main AC elev as a stand-in for our own elevation, since the elev
@@ -4790,8 +4800,8 @@ var choose_random_acrobatic = func (myNodeName){
 	#get the object's initial altitude
 	var lat = getprop(""~myNodeName~"/position/latitude-deg");
 	var lon = getprop(""~myNodeName~"/position/longitude-deg");
-	var elev_m = elev (lat, lon) * feet2meters;
-	var alt_m = getprop ("/position/altitude-ft") * feet2meters;
+	var elev_m = elev (lat, lon) * FT2M;
+	var alt_m = getprop ("/position/altitude-ft") * FT2M;
 	var altAGL_m = alt_m-elev_m;
 	var alts = attributes[myNodeName].altitudes;
 				
@@ -4845,12 +4855,12 @@ skill, currAlt_m, targetAlt_m, elevTarget_m){
 				
 	if (time > maxTime) time = maxTime;
 
-	#var currElev_m = elev (any_aircraft_position(myNodeName).lat(),geo.aircraft_position(myNodeName).lon() ) * feet2meters;
+	#var currElev_m = elev (any_aircraft_position(myNodeName).lat(),geo.aircraft_position(myNodeName).lon() ) * FT2M;
 	var currElev_m = elevGround (myNodeName);
 	#rjw mod: if the arguments for elev are lat and long of current aircraft position why not read property tree directly?
 	#geo.aircraft_position(); Returns the main aircraft's current position in the form of a geo.Coord object
 	#currElev_m is the elevation of the ground beneath the AI aircraft - try
-	#var currElev_m = elev (getprop(""~myNodeName~"/position/latitude-deg"),getprop(""~myNodeName~"/position/longitude-deg")) * feet2meters;
+	#var currElev_m = elev (getprop(""~myNodeName~"/position/latitude-deg"),getprop(""~myNodeName~"/position/longitude-deg")) * FT2M;
 	#or create a new geo object for the AI aircraft using coord = geo.Coord.new(geo.aircraft_position(myNodeName))
  			
 	#loops only help if the target is behind us
@@ -5508,13 +5518,13 @@ var mp_send_damage = func (myNodeName = "", damageRise = 0 ) {
 ###################### fireAIWeapon_stop ######################
 # fireAIWeapon_stop: turns off one of the triggers in AI/Aircraft/Fire-Particles/projectile-tracer.xml
 #
-var fireAIWeapon_stop = func (id, myNodeName, elem) {
-
-	var loopid = getprop("bombable/loopids/fireAIWeapon/" ~ elem ~ "-loopid");
+var fireAIWeapon_stop = func (id, myNodeName, index) {
+	# index of the fire particle tied to the weapon that will stop firing
+	var loopid = getprop("" ~ myNodeName ~ "/bombable/loopids/fireAIWeapon" ~ index ~ "-loopid");
+	# debprint("" ~ myNodeName ~ "bombable/loopids/fireAIWeapon" ~ index ~ "-loopid " ~ loopid ~ " id " ~ id);
 	if (loopid != id) return;
 	#if (myNodeName == "" or myNodeName == "environment") myNodeName = "/environment";
-	setprop("bombable/fire-particles/projectile-tracer[" ~ elem.fireParticle ~ "]/ai-weapon-firing", 0); 
-
+	setprop("bombable/fire-particles/projectile-tracer[" ~ index ~ "]/ai-weapon-firing", 0); 
 }
 
 ###################### fireAIWeapon ######################
@@ -5522,17 +5532,23 @@ var fireAIWeapon_stop = func (id, myNodeName, elem) {
 # Using the loopids ensures that it stays on for one full second after the last time it was
 # turned on.
 #
-var fireAIWeapon = func (time_sec, myNodeName, elem) {
-	var index = elem.fireParticle; # get the index of the fire particle tied to the weapon
+var fireAIWeapon = func (time_sec, myNodeName, elem, speed) {
+	var index = elem.fireParticle;
+	# index of the fire particle tied to the weapon
+	# rjw speed is the calculated intercept speed in a stationary frame
 	#if (myNodeName == "" or myNodeName == "environment") myNodeName = "/environment";
 	var isFiring = getprop("bombable/fire-particles/projectile-tracer[" ~ index ~ "]/ai-weapon-firing");
-	if (isFiring != nil) isFiring = 0;
-	if (isFiring == 1) return;
+	if (isFiring != nil) {
+		if (isFiring == 1) return; #prevents double trigger
+		}
+	
+	setprop("bombable/fire-particles/projectile-tracer[" ~ index ~ "]/speed", speed);
 	setprop("bombable/fire-particles/projectile-tracer[" ~ index ~ "]/ai-weapon-firing", 1); 
-	debprint (	"Bombable: myNodeName " ~ myNodeName ~
-				" index " ~ index);
-	var loopid = inc_loopid(myNodeName, "fireAIWeapon/" ~ elem);
-	settimer ( func { fireAIWeapon_stop(loopid, myNodeName, elem)}, time_sec);
+	var loopid = inc_loopid(myNodeName, "fireAIWeapon" ~ index);
+	# debprint (	"Bombable: myNodeName " ~ myNodeName ~
+	# 			" index " ~ index,
+	# 			" time " ~ time_sec);
+	settimer ( func { fireAIWeapon_stop(loopid, myNodeName, index)}, time_sec);
 }
 
 ###################### vertAngle_deg #########################
@@ -5602,18 +5618,29 @@ var vertAngle_deg = func (geocoord1, geocoord2) {
 # of a hit determined by how close the aim is to the general area of the main aircraft, rather than
 # actually launching projectiles and seeing if they hit) this is generally a 'good enough' approach.
 # myNodeName1 is the AI aircraft and myNodeName2 is the main aircraft
+
+#rjw modified pHit to return the probability of aircraft hit given the 
+#overlap of the solid angle subtended by the target and a cone of 1/12 radian subtended by the shooter
+#function updates global hash variable newAim with weapon direction vectors in model and reference frames
 			
 
 var checkAim = func (myNodeName1 = "", myNodeName2 = "",
-targetSize_m = nil,  weaponSkill = 1, maxDistance_m = 100, weaponAngle_deg = nil, weaponOffset_m = nil, damageValue = 0 ) {
+targetSize_m = nil,  weaponSkill = 1, 
+maxDistance_m = 100, 
+weaponAngle_deg = nil, 
+weaponOffset_m = nil, 
+damageValue = 0, 
+missileSpeed = 500) {
 	#Note weaponAngle is a hash with components heading and elevation
 	#Function called only by main weapons_loop
 	#rjw modified to return a hash
-	var result = {pHit:0, weaponDirModelFrame:[0,0,-1], weaponOffsetRefFrame:[0,0,0], weaponDirRefFrame:[0,0,0], interceptSpd:0};
+
+	newAim = {pHit:0, weaponDirModelFrame:[0,0,0], weaponOffsetRefFrame:[0,0,0], weaponDirRefFrame:[0,0,0], interceptSpeed:0, interceptTime:0}; #reset global variable
+	var weaponAimed = 0; #flag true if weapon aimed successfully
 				
 	#Weapons malfunction in proportion to the damageValue, to 100% of the time when damage = 100%
 	#debprint ("Bombable: AI weapons, ", myNodeName1, ", ", myNodeName2);
-	if (rand() < damageValue) return (result) ;
+	if (rand() < damageValue) return (weaponAimed) ;
 				
 	#if (myNodeName1 == "/environment" or myNodeName1 == "environment") myNodeName1 = "";
 	#if (myNodeName2 == "/environment" or myNodeName2 == "environment") myNodeName2 = "";
@@ -5631,17 +5658,17 @@ targetSize_m = nil,  weaponSkill = 1, maxDistance_m = 100, weaponAngle_deg = nil
 	deltaLat_deg = mlat_deg - alat_deg;
 	if (abs(deltaLat_deg) > maxDistance_m / m_per_deg_lat ) {
 		#debprint ("Aim: Not close in lat.");
-		return (result);
+		return (weaponAimed);
 	}
 				
 	deltaLon_deg = mlon_deg - alon_deg ;
 	if (abs(deltaLon_deg) > maxDistance_m / m_per_deg_lon )  {
 		#debprint ("Aim: Not close in lon.");
-		return (result);
+		return (weaponAimed);
 	}
 
 				
-	if (targetSize_m == nil or targetSize_m.horz <= 0 or targetSize_m.vert <= 0 or maxDistance_m <= 0) return (result);				
+	if (targetSize_m == nil or targetSize_m.horz <= 0 or targetSize_m.vert <= 0 or maxDistance_m <= 0) return (weaponAimed);				
 	if (weaponAngle_deg == nil ){ weaponAngle_deg = {heading:0, elevation:0, headingMin:-60, headingMax:60, elevationMin:-20, elevationMax:20, track:0}; } #note definition of value for each key of hash
 	if (weaponOffset_m == nil ){ weaponOffset_m = {x:0,y:0,z:0}; }
 				
@@ -5654,8 +5681,8 @@ targetSize_m = nil,  weaponSkill = 1, maxDistance_m = 100, weaponAngle_deg = nil
 	var deltaY_m = deltaLat_deg * m_per_deg_lat;
 	var deltaX_m = deltaLon_deg * m_per_deg_lon;
 
-	var aAlt_m = getprop(""~myNodeName1~"/position/altitude-ft") * feet2meters;
-	var mAlt_m = getprop(""~myNodeName2~"/position/altitude-ft") * feet2meters;
+	var aAlt_m = getprop(""~myNodeName1~"/position/altitude-ft") * FT2M;
+	var mAlt_m = getprop(""~myNodeName2~"/position/altitude-ft") * FT2M;
 	var deltaAlt_m = mAlt_m - aAlt_m;
 
 	var targetDispRefFrame = [deltaX_m, deltaY_m, deltaAlt_m];
@@ -5664,7 +5691,7 @@ targetSize_m = nil,  weaponSkill = 1, maxDistance_m = 100, weaponAngle_deg = nil
 				
 	# debprint ("Bombable: AI weapons, distance: ", distance_m, " for ", myNodeName1);
 				
-	if (distance_m > maxDistance_m ) return (result);
+	if (distance_m > maxDistance_m ) return (weaponAimed);
 	
 	
 	
@@ -5675,10 +5702,10 @@ targetSize_m = nil,  weaponSkill = 1, maxDistance_m = 100, weaponAngle_deg = nil
 		add_damage(1, myNodeName1, "collision"); # causes nil error in records class, ballisticMass not defined
 		msg = sprintf("You collided! Damage added %1.0f%%", 100 );
 		selfStatusPopupTip (msg, 10);
-		result.pHit = 1;
-		return (result);
+		newAim.pHit = 1;
+		return (weaponAimed);
 		
-		#rjw following code currently not used
+		#rjw with the return above the following code in the block is unused
 		#more complicated way - maybe we'll try it later:
 		#case of within vital damage, it's case closed, both aircraft totalled
 		var retDam = 0;
@@ -5705,8 +5732,8 @@ targetSize_m = nil,  weaponSkill = 1, maxDistance_m = 100, weaponAngle_deg = nil
 					
 		msg = sprintf("You collided! Damage added %1.0f%%", retDam * 100 );
 		selfStatusPopupTip (msg, 10);
-		result.pHit = retDam;
-		return (result);
+		newAim.pHit = retDam;
+		return (weaponAimed);
 	}
 
 	# check line of sight by calculating the height above ground of the bullet trajectory at the mid point between AI and main AC
@@ -5719,20 +5746,21 @@ targetSize_m = nil,  weaponSkill = 1, maxDistance_m = 100, weaponAngle_deg = nil
 	if (ground_Alt_m > mid_Alt_m) 
 	{
 		# debprint ("Bombable: checkLoS for ",  myNodeName1, "deltaAlt at mid point = ", ground_Alt_m - mid_Alt_m);
-		result.pHit = -1; #flag for no line of sight
-		return(result);
+		newAim.pHit = -1; #flag for no line of sight
+		return(weaponAimed);
 	}
 	
+
 	
-	
-	# calculate the offset of the weapon in the reference frame
 	# correct targetDispRefFrame for weapon offset
-	# find newDir the direction required for a missile travelling at missileSpeed_mps (constant) to intercept the target given the relative velocities of node1 and node2
+	# find newDir the direction required for a missile travelling at missileSpeed (constant over journey) to intercept the target 
+	# given the relative velocities of node1 and node2
 	# calculate the angle between the direction in which the weapon is aimed and newDir
 	# use this angle and the solid angle subtended by the mainAC to determine pHit
-	
+
+	# rjw TODO remove use of pitch-animation
 	if (myNodeName1 == "") myHeading_deg = getprop ("/orientation/heading-deg");
-	else myHeading_deg = getprop (""~myNodeName1~"/orientation/true-heading-deg");
+	else myHeading_deg = getprop ("" ~ myNodeName1 ~ "/orientation/true-heading-deg");
 	var pitch_deg = getprop("" ~ myNodeName1 ~ "/orientation/pitch-animation");
 	var roll_deg = getprop("" ~ myNodeName1 ~ "/orientation/roll-animation");
 	if (pitch_deg == nil) {
@@ -5743,48 +5771,47 @@ targetSize_m = nil,  weaponSkill = 1, maxDistance_m = 100, weaponAngle_deg = nil
 	# roll increases clockwise in the direction of travel
 	# in 3D model co-ords the x-axis points 180 deg from direction of travel i.e. backwards
 	# the y-axis points at 90 deg to the direction of travel i.e. to the right
-	# weaponOffset is given in model co-ords
+	# weaponOffset is given in model co-ords; weaponOffsetRefFrame in the ground frame
 
-	# calculate weapon offset in reference frame
-	result.weaponOffsetRefFrame = rotate_zxy([
+	# calculate the offset of the weapon in the ground reference frame
+	newAim.weaponOffsetRefFrame = rotate_zxy([
 		weaponOffset_m.y,
 		-weaponOffset_m.x,
 		weaponOffset_m.z
 	], -pitch_deg, -roll_deg, myHeading_deg);
 
 	
-	targetDispRefFrame = vectorSubtract(targetDispRefFrame, result.weaponOffsetRefFrame);
+	targetDispRefFrame = vectorSubtract(targetDispRefFrame, newAim.weaponOffsetRefFrame);
 	
 	#recalculate distance
-	distance_m = vectorModulus(targetDispRefFrame);	
-	
-	var missileSpeed_mps = 500;
+	distance_m = vectorModulus(targetDispRefFrame); #correct the distance for weapon displacement relative to AC origin	
 	
 	var intercept = findIntercept(
 		myNodeName1, myNodeName2, 
 		targetDispRefFrame,
 		distance_m,
-		missileSpeed_mps
+		missileSpeed
 	);
 
-	if (intercept.time == -1) return(result);
+	if (intercept.time == -1) return(weaponAimed);
+	weaponAimed = 1;
+	newAim.interceptSpeed = vectorModulus(intercept.vector);
+	newAim.interceptTime = intercept.time;
 	
-	result.interceptSpd = vectorModulus(intercept.vector);
+	var interceptDirRefFrame = vectorDivide(intercept.vector, newAim.interceptSpeed);
 	
-	var interceptDirRefFrame = vectorDivide(intercept.vector, result.interceptSpd);
-	
-	debprint (
-		sprintf(
-			"Bombable: Intercept time =%6.1f Intercept vector =[%6.2f, %6.2f, %6.2f]",
-			intercept.time, interceptDirRefFrame[0], interceptDirRefFrame[1], interceptDirRefFrame[2] 
-		)
-	);
+	# debprint (
+		# sprintf(
+			# "Bombable: intercept time =%6.1f Intercept vector =[%6.2f, %6.2f, %6.2f]",
+			# intercept.time, interceptDirRefFrame[0], interceptDirRefFrame[1], interceptDirRefFrame[2] 
+		# )
+	# );
 
-	#translate to the frame of reference of the weapon
+	#translate intercept direction to the frame of reference of the model
 	var newDir = rotate_yxz(interceptDirRefFrame, pitch_deg, roll_deg, -myHeading_deg);
 	
 		
-	#form vector for weapon direction, weapDir
+	#form vector for the current direction of weapon, weapDir, in the reference frame of the model
 	var cosWeapElev = cos(weaponAngle_deg.elevation);
 	weapDir = [
 		cosWeapElev * sin(weaponAngle_deg.heading),
@@ -5802,7 +5829,7 @@ targetSize_m = nil,  weaponSkill = 1, maxDistance_m = 100, weaponAngle_deg = nil
 		var targetSize_rad = math.atan2(math.sqrt(targetSize_m.horz * targetSize_m.vert) / 2 , distance_m);	
 		# geometric mean of key dimensions and half angle
 
-		# debprint (sprintf("Bombable: CheckAim for %s targetOffset_rad =%6.2f targetSize_rad =%6.2f", 
+		# debprint (sprintf("Bombable: checkAim for %s targetOffset_rad =%6.2f targetSize_rad =%6.2f", 
 			# myNodeName1,
 			# targetOffset_rad,
 			# targetSize_rad));
@@ -5820,14 +5847,14 @@ targetSize_m = nil,  weaponSkill = 1, maxDistance_m = 100, weaponAngle_deg = nil
 		var weapSDev = 1/12; # spray vs sharpshooter
 		if ( targetSize_rad > targetOffset_rad ) 
 		{				
-			result.pHit = erf((targetSize_rad + targetOffset_rad) / weapSDev) +  erf((targetSize_rad - targetOffset_rad) / weapSDev);
+			newAim.pHit = erf((targetSize_rad + targetOffset_rad) / weapSDev) +  erf((targetSize_rad - targetOffset_rad) / weapSDev);
 		}
 		else
 		{
-			result.pHit = 0.5 - erf((targetOffset_rad - targetSize_rad) / weapSDev);
+			newAim.pHit = 0.5 - erf((targetOffset_rad - targetSize_rad) / weapSDev);
 		}
 		# debprint ("Bombable: hit ", myNodeName1,
-		# " result.pHit = ", result.pHit);
+		# " newAim.pHit = ", newAim.pHit);
 	}
 
 	if ( rand() < weaponSkill) {
@@ -5860,17 +5887,18 @@ targetSize_m = nil,  weaponSkill = 1, maxDistance_m = 100, weaponAngle_deg = nil
 				sin(newElev)
 			];
 		}
-		debprint ("Bombable: Changed aim for ", myNodeName1,
-		sprintf("newElev =%6.1f newHeading =%6.1f", newElev, newHeading));
+		# debprint ("Bombable: checkAim for ", myNodeName1,
+		# sprintf("newElev =%6.1f newHeading =%6.1f changes=%2.0f", newElev, newHeading, changes));
 	}
 	else
 	{
+		# keep weapon direction unchanged
 		newDir = weapDir;
 	}
-	# change aim of weapon
-	result.weaponDirModelFrame = newDir;
-	result.weaponDirRefFrame = rotate_zxy(newDir, -pitch_deg, -roll_deg, myHeading_deg);
-	return (result); 	
+	# change aim of weapon by setting weapon direction to intercept direction
+	newAim.weaponDirModelFrame = newDir;
+	newAim.weaponDirRefFrame = rotate_zxy(newDir, -pitch_deg, -roll_deg, myHeading_deg);
+	return (weaponAimed); 	
 }
 
 ############################ weapons_loop #############################
@@ -5896,7 +5924,7 @@ var weapons_loop = func (id, myNodeName1 = "", myNodeName2 = "", targetSize_m = 
 	id == loopid or return;
 	#debprint ("aim-timer");
 				
-	var loopTime = .5;
+	var loopTime = .25;
 	settimer (  func { weapons_loop (id, myNodeName1, myNodeName2, targetSize_m )}, loopTime * (1 + rand()/8));
 
 	#debprint ("weapons_loop starting");
@@ -5928,85 +5956,532 @@ var weapons_loop = func (id, myNodeName1 = "", myNodeName2 = "", targetSize_m = 
 	# currently both are attributes of the AI model, not the weapon
 	
 	
-	var count = loopid * 10;					
 				
 	foreach (elem;keys (weaps) ) 
 	{
+		if (getprop("" ~ myNodeName1 ~ "/" ~ elem ~ "/destroyed") == 1) continue; #skip this weapon if destroyed
+		
 		mDD_m = weaps[elem].maxDamageDistance_m;
 		if (mDD_m == nil or mDD_m == 0) mDD_m = 100;
 
-		#can only shoot if ammo left!
-		if ( stores.checkWeaponsReadiness ( myNodeName1, elem )) 
+		
+		if ( stores.checkWeaponsReadiness ( myNodeName1, elem ) == 0) continue; #can only shoot if ammo left!
+
 		# Could also check weaponSkill here. However skill of gunner not simply correlated with how frequently they fire
+
+		if (weaps[elem].weaponType == 0) 
 		{
-			var newAim = checkAim (myNodeName1, myNodeName2, 
+			var callCheckAim = 1;
+		}
+		else
+		{
+			var callCheckAim = (getprop("" ~ myNodeName1 ~ "/" ~ elem ~ "/launched") == 1) ? 0: 2;
+		}
+
+		if (callCheckAim != 0) 
+		{
+			 var foundTarget = checkAim (myNodeName1, myNodeName2, 
 				targetSize_m, weaponSkill,
 				weaps[elem].maxDamageDistance_m, 
 				weaps[elem].weaponAngle_deg,
 				weaps[elem].weaponOffset_m, 
-				damageValue
-			);
+				damageValue,
+				weaps[elem].maxMissileSpeed_mps / callCheckAim
+				);
+			 if ( foundTarget ) 
+				{
+				weaps[elem].aim = newAim;
+				weaponsOrientationPositionUpdate(myNodeName1, elem);
+				if (callCheckAim == 2)
+					{
+						if (rand() < (weaponSkill * weaponSkill)) launchRocket(myNodeName1, elem);
+						continue; # if not launched then assume pHit = 0
+					}
+				}				
+		}
+		else
+		{
+			if ( guideRocket (
+				myNodeName1, myNodeName2,
+				elem,
+				targetSize_m,  weaponSkill, 
+				damageValue, loopTime
+				) == 1)
+				{
+					weaps[elem].aim = newAim;
+				}
+			else
+				{
+					# props.globals.getNode("" ~ myNodeName ~ "/" ~ elem ~ "/destroyed", 0).setBoolValue(0);
+					setprop ("" ~ myNodeName1 ~ "/" ~ elem ~ "/destroyed", 1);
+					# call for effects	
+					# move rocket out of scene
+					var rp = "ai/models/aircraft[" ~ weaps[elem].rocketsIndex ~ "]";				
+					setprop (rp ~ "/position/latitude-deg", 0);
+					setprop (rp ~ "/position/longitude-deg", 0);
+					setprop (rp ~ "/position/altitude-ft", 0);
+					setprop (rp ~ "/velocities/true-airspeed-kt", 0);
+					setprop (rp ~ "/controls/flight/target-alt", 0);
+					setprop (rp ~ "/controls/flight/target-spd", 0);
+				
 
-			if (newAim.weaponDirModelFrame[2] != -1) attributes[myNodeName1].weapons[elem].aim = newAim;
-			# stored for use in weaponsOrientationPositionUpdate_loop
-			# -1 is a flag to indicate whether new aim data are available
+				}
 
-			# debprint ("Bombable: Weapons_loop ", myNodeName1, " weaponSkill = ",weaponSkill, " weaponPower = ", weaponPower, " newAim.pHit = ", newAim.pHit);
-			# debprint (
-				# "Bombable: Weapons_loop " ~ myNodeName1 ~ " " ~ elem, 
-				# " heading = ", weaps[elem].weaponAngle_deg.heading, 
-				# " elevation = ", weaps[elem].weaponAngle_deg.elevation
-			# );
-			
-			if (newAim.pHit == -1) break; #flag for no line of sight; assume none of the gunners can see the target so abort loop
+		}
 
-			
-			#debprint ("aim-check weapon");
-			if (newAim.pHit > (0.01 * weaponSkill))
-			# a skilled gunner will fire at 1% pHit; an unskilled one 0.1%
+		# debprint ("Bombable: Weapons_loop ", myNodeName1, " weaponSkill = ",weaponSkill, " weaponPower = ", weaponPower, " newAim.pHit = ", newAim.pHit);
+		# debprint (
+			# "Bombable: Weapons_loop " ~ myNodeName1 ~ " " ~ elem, 
+			# " heading = ", weaps[elem].weaponAngle_deg.heading, 
+			# " elevation = ", weaps[elem].weaponAngle_deg.elevation
+		# );
+		
+		if (newAim.pHit == -1) break; #flag for no line of sight; assume none of the gunners can see the target so abort loop
+
+		
+		#debprint ("aim-check weapon");
+		if (newAim.pHit > (0.01 * weaponSkill))
+		# a skilled gunner will fire at 1% pHit; an unskilled one 0.1%
+		{
+			if (weaps[elem].weaponType == 0)
 			{
-				debprint ("Bombable: AI aircraft aimed at main aircraft, ",
-				myNodeName1, " ", weaps[elem].name, " ", elem,
-				" accuracy ", round(newAim.pHit * 100 ),"%",
-				" interceptSpd", round(newAim.interceptSpd), " mps");
+				# debprint ("Bombable: AI aircraft aimed at main aircraft, ",
+				# myNodeName1, " ", weaps[elem].name, " ", elem,
+				# " accuracy ", round(newAim.pHit * 100 ),"%",
+				# " interceptSpeed", round(newAim.interceptSpeed), " mps");
 				
 				#fire weapons for visual effect
 				#whenever we're within maxDistance & aimed approximately in the right direction
-				fireAIWeapon(loopTime * 3, myNodeName1, elem, count, newAim.interceptSpd);
+				fireAIWeapon(loopTime * 3, myNodeName1, weaps[elem], newAim.interceptSpeed);
+			}
+						
 
+			#reduce ammo count; bad pilots waste more ammo; weaponSkill ranges 0 to 1
+			if (stores.reduceWeaponsCount (myNodeName1, elem, loopTime * (2 + 2 * weaponSkill)) == 1)
+			{
+				var msg = weaps[elem].name ~ " on " ~ 
+				getprop ("" ~ myNodeName1 ~ "/name") ~ 
+				" out of ammo";
 
+				targetStatusPopupTip (msg, 20);
+			}
+
+						
+			# As with our regular damage, it has a pHit% change of registering a hit
+			# The amount of damage also increases with pHit.
+			# There is a smaller chance of doing a fairly high level of damage (up to 3X the regular max),
+			# and the better/closer the hit, the greater chance of doing that significant damage.
+			var r = rand();
+			if (r < newAim.pHit) {
+
+				var ai_callsign = getCallSign (myNodeName1);
 							
-
-				#reduce ammo count; bad pilots waste more ammo; weaponSkill ranges 0 to 1
-				stores.reduceWeaponsCount (myNodeName1, elem, loopTime * (2 + 2 * weaponSkill));
-
+				var damageAdd = newAim.pHit * weaponPower;
+				if (damageAdd > weaps[elem].maxDamage_percent / 100) damageAdd = weaps[elem].maxDamage_percent / 100;
 							
-				# As with our regular damage, it has a pHit% change of registering a hit
-				# The amount of damage also increases with pHit.
-				# There is a smaller chance of doing a fairly high level of damage (up to 3X the regular max),
-				# and the better/closer the hit, the greater chance of doing that significant damage.
-				var r = rand();
-				if (r < newAim.pHit) {
-
-					var ai_callsign = getCallSign (myNodeName1);
-								
-					var damageAdd = newAim.pHit * weaponPower;
-					if (damageAdd > weaps[elem].maxDamage_percent / 100) damageAdd = weaps[elem].maxDamage_percent / 100;
-								
-					# Some chance of doing more damage (and a higher chance the closer the hit)
-					# if (r < newAim.pHit / 5 ) damageAdd  *=  3 * rand(); # rjw omitted
-								
-					weaponName = weaps[elem].name;
-					if (weaponName == nil) weaponName = "Main Weapon";
-								
-					mainAC_add_damage ( damageAdd, 0, "weapons",
-					"Hit from " ~ ai_callsign ~ " - " ~ weaponName ~"!");								
-				}
+				# Some chance of doing more damage (and a higher chance the closer the hit)
+				# if (r < newAim.pHit / 5 ) damageAdd  *=  3 * rand(); # rjw omitted
+							
+				weaponName = weaps[elem].name;
+				if (weaponName == nil) weaponName = "Main Weapon";
+							
+				mainAC_add_damage ( damageAdd, 0, "weapons",
+				"Hit from " ~ ai_callsign ~ " - " ~ weaponName ~"!");								
 			}
 		}
-		count += 1;
 	}
 }
+
+############################ launchRocket ##############################
+# FUNCTION set flags, send message
+# create flare on launch pad
+
+var launchRocket = func (myNodeName, elem)
+{
+	var weaps = attributes[myNodeName].weapons;
+
+	setprop ("" ~ myNodeName ~ "/" ~ elem ~ "/launched", 1);
+	var launchPadSpeed = 
+	getprop ("" ~ myNodeName ~ "/velocities/true-airspeed-kt");
+	setprop("" ~ myNodeName ~ "/" ~ elem ~ "/velocities/true-airspeed-kt", launchPadSpeed);
+
+
+
+
+	var msg = weaps[elem].name ~ " launched from " ~ 
+	getprop ("" ~ myNodeName ~ "/name") ~ 
+	" intercept time ~" ~ round(newAim.interceptTime) ~ "s" ~ 
+	" intercept speed ~" ~ round(newAim.interceptSpeed) ~ " mps";
+
+	targetStatusPopupTip (msg, 20);
+
+	debprint ("Bombable: " ~ msg ~ " " ~ myNodeName ~ ", " ~ weaps[elem].name ~ " " ~ elem);
+
+
+	var alat_deg = getprop("" ~ myNodeName ~ "/" ~ elem ~ "/position/latitude-deg"); # AI
+	var alon_deg = getprop("" ~ myNodeName ~ "/" ~ elem ~ "/position/longitude-deg");
+	var alt_ft = getprop("" ~ myNodeName ~ "/" ~ elem ~ "/position/altitude-ft");
+
+
+	# rocket initiated by moving it from {lat, lon} {0, 0} to location of AC / ship
+	var rp = "ai/models/aircraft[" ~ weaps[elem].rocketsIndex ~ "]";
+	var initialPitch = 90.0; # orientation of rocket vs AC - use weaponDirRefFrame?
+	var heading = getprop ("" ~ myNodeName ~ "/orientation/true-heading-deg");
+
+	setprop (rp ~ "/position/latitude-deg", alat_deg);
+	setprop (rp ~ "/position/longitude-deg", alon_deg);
+	setprop (rp ~ "/position/altitude-ft", alt_ft);
+	setprop (rp ~ "/velocities/true-airspeed-kt", launchPadSpeed);
+	setprop (rp ~ "/orientation/pitch-deg", initialPitch);
+	setprop (rp ~ "/orientation/true-heading-deg", heading);
+
+	# initialize rocket control system
+	setprop (rp ~ "/controls/flight/lateral-mode", "hdg");
+	setprop (rp ~ "/controls/flight/vertical-mode", "alt");
+	setprop (rp ~ "/controls/flight/target-alt", (initialPitch == 90.0) ? alt_ft + 500.0 : alt_ft );
+	setprop (rp ~ "/controls/flight/target-hdg", heading);
+	setprop (rp ~ "/controls/flight/target-spd", weaps[elem].maxMissileSpeed_mps);
+
+
+
+
+
+	# put extra smoke / flash on launch pad
+
+	# var fp = "AI/Aircraft/Fire-Particles/blaze.xml";
+
+	# # possible should tie to ship
+	# put_remove_model(
+	# lat_deg: alat_deg, 
+	# lon_deg: alon_deg, 
+	# elev_m: aAlt_m, 
+	# time_sec: 5, 
+	# startSize_m: nil, endSize_m: nil, 
+	# path: fp );
+		
+
+
+}
+
+############################ guideRocket ##############################
+# FUNCTION check if run out of fuel, check collision with main AC, direction of main AC,
+# change direction, calculate position after time delta_t, trigger messages and effects
+# derived from checkAim
+# hash newAim returns results
+# hash aim in attributes[node].weapons[elem] holds results of the previous calculation of rocket direction 
+# it contains: weaponDirRefFrame, the current direction of the rocket in the ground frame of reference
+# weaponDirRefFrame is updated with the new direction, the new position is recorded in the property tree
+# node 1 is AI, node 2 is main AC
+# return rocket status 1 = in flight or 0 = destroyed
+
+var guideRocket = func 
+(
+	myNodeName1 = "", myNodeName2 = "",
+	elem = "",
+	targetSize_m = nil,  weaponSkill = 1, 
+	damageValue = 0, delta_t = 0.25
+)
+{
+
+	var weaps = attributes[myNodeName1].weapons;
+	# newAim = {pHit:0, weaponDirModelFrame:[0,0,0], weaponOffsetRefFrame:[0,0,0], weaponDirRefFrame:[0,0,1], interceptSpeed:0, interceptTime:0}; #reset global variable
+	newAim = weaps[elem].aim; #reset global variable
+	newAim.pHit = 0;
+
+	var alat_deg = getprop("" ~ myNodeName1 ~ "/" ~ elem ~ "/position/latitude-deg"); # AI
+	var alon_deg = getprop("" ~ myNodeName1 ~ "/" ~ elem ~ "/position/longitude-deg");
+	# var elev_ref getprop("" ~ myNodeName1 ~ "/" ~ elem ~ "/orientation/pitch-deg");
+	# var heading_ref = getprop("" ~ myNodeName1 ~ "/" ~ elem ~ "/orientation/true-heading-deg", );
+	var mlat_deg = getprop("" ~ myNodeName2 ~ "/position/latitude-deg"); # main AC
+	var mlon_deg = getprop("" ~ myNodeName2 ~ "/position/longitude-deg");
+	var aAlt_m = getprop("" ~ myNodeName1 ~ "/" ~ elem ~ "/position/altitude-ft") * FT2M;
+	var mAlt_m = getprop("" ~ myNodeName2 ~ "/position/altitude-ft") * FT2M;
+
+	var missileSpeed_mps = getprop("" ~ myNodeName1 ~ "/" ~ elem ~ "/velocities/true-airspeed-kt") * KT2MPS;
+	if (missileSpeed_mps < weaps[elem].maxMissileSpeed_mps) missileSpeed_mps = missileSpeed_mps + weaps[elem].missileAcceleration * delta_t;
+	setprop("" ~ myNodeName1 ~ "/" ~ elem ~ "/velocities/true-airspeed-kt",
+	missileSpeed_mps * MPS2KT);
+	
+	deltaLat_deg = mlat_deg - alat_deg;
+	deltaLon_deg = mlon_deg - alon_deg ;
+
+	if (targetSize_m == nil or targetSize_m.horz <= 0 or targetSize_m.vert <= 0 or weaps[elem].maxDamageDistance_m <= 0) 
+	{
+		var msg = elem ~ " rocket from " ~ 
+		getprop ("" ~ myNodeName1 ~ "/name") ~ 
+		" aborted - no target";
+		targetStatusPopupTip (msg, 20);						
+
+		return(0); # abort rocket				
+	}
+	
+
+	# calculate targetDispRefFrame, the displacement vector from node1 (AI) to node2 (mainAC) in a lon-lat-alt (x-y-z) frame of reference aka 'reference frame'
+	# the AI model is at < 0,0,0 > 
+	# and the main AC or target is at < deltaX,deltaY,deltaAlt > in relation to it.
+
+	var deltaY_m = deltaLat_deg * m_per_deg_lat;
+	var deltaX_m = deltaLon_deg * m_per_deg_lon;
+	var deltaAlt_m = mAlt_m - aAlt_m;
+	# m_per_deg_lat/lon are bombable general variables
+
+	var targetDispRefFrame = [deltaX_m, deltaY_m, deltaAlt_m];
+	var distance_m = vectorModulus (targetDispRefFrame);
+
+
+	if (distance_m < attributes[myNodeName2].dimensions.crashRadius_m){
+		newAim.pHit = 1; 
+		# message rocket hit from weapons_loop
+		return (0);
+	}
+
+	# check above ground level
+	var GeoCoord = geo.Coord.new();
+	GeoCoord.set_latlon(alat_deg, alon_deg);
+	var ground_Alt_m = elev (GeoCoord.lat(), GeoCoord.lon()) * FT2M; 
+	if (ground_Alt_m > aAlt_m) 
+	{
+		debprint ("Bombable: checkAGL for ",  myNodeName1 , "/" , elem , "deltaAlt = ", ground_Alt_m - aAlt_m);
+
+		var msg = weaps[elem].name ~ " from " ~ 
+		getprop ("" ~ myNodeName1 ~ "/name") ~ 
+		" hit ground and destroyed";
+		targetStatusPopupTip (msg, 20);						
+
+		return(0);
+	}	
+
+	# find newDir the direction required for a missile travelling at missileSpeed (constant over journey)
+	# to intercept the target given the relative velocities of node1 and node2
+	# calculate the angle between the direction in which the rocket is travelling and newDir
+
+
+
+	var intercept = findIntercept(
+		myNodeName1, myNodeName2, 
+		targetDispRefFrame,
+		distance_m,
+		missileSpeed_mps
+	);
+
+	if (intercept.time != -1) 
+	{
+		newAim.interceptSpeed = vectorModulus(intercept.vector);
+		newAim.interceptTime = intercept.time;
+
+		var interceptDirRefFrame = vectorDivide(intercept.vector, newAim.interceptSpeed);
+	}
+	else
+	# no intercept - at start of flight it is not possible to calculate an intercept because the speed is too low 
+	{
+		var interceptDirRefFrame = vectorDivide(targetDispRefFrame, distance_m);
+	}
+
+
+
+
+
+	# debprint (
+	# 	sprintf(
+	# 		"Bombable: intercept time =%6.1f Intercept vector =[%6.3f, %6.3f, %6.3f]",
+	# 		newAim.interceptTime, interceptDirRefFrame[0], interceptDirRefFrame[1], interceptDirRefFrame[2] 
+	# 	)
+	# );
+
+	var missileDir = weaps[elem].aim.weaponDirRefFrame;
+
+	if (distance_m < missileSpeed_mps * delta_t)
+	{
+		var closestApproach = vectorModulus (
+			vectorSum (
+				targetDispRefFrame,
+				vectorMultiply(
+					missileDir,
+					-dotProduct(
+						missileDir,
+						targetDispRefFrame
+						)
+					)		
+				)
+			);
+
+		debprint (
+		"Bombable: closest approach for ",  
+		myNodeName1 , "/" , elem , 
+		sprintf("is %6.3f", closestApproach)
+		);
+		# debprint ("Bombable: crash radius for ",  myNodeName2 , " is ", attributes[myNodeName2].dimensions.crashRadius_m);
+
+		if (closestApproach < attributes[myNodeName2].dimensions.crashRadius_m)
+		{
+			newAim.pHit = 1;
+			# message rocket hit from weapons_loop
+			return (0);
+		};
+	}
+
+
+	# calculate angular offset between direction of missile and direction of target
+	var cosOffset = dotProduct(missileDir, interceptDirRefFrame);
+
+	# calculate whether to turn left (-1) or right (+1) - not needed
+	# var turnDirection = ( missileDir[0] * interceptDir[1] < missileDir[1] * interceptDir[0] ) ? 1 : -1;
+
+	if (cosOffset + 1.0 < 1e-5) {
+		interceptDirRefFrame = [0.0, 0.0, 1.0]; 
+		debprint ("Bombable: vectorRotate trap");
+	}
+	# trap - if travelling opposite to the direction of the target then the direction to turn is ill-defined
+
+	#rotate up to 10 degrees to the target direction
+	var maxTurn = 0.984; # cos ( 10.0 * D2R )
+	var minTurn = 0.9998; # cos ( 1.0 * D2R)
+	var stillTurning = (cosOffset < maxTurn); # flag used for AI speed control
+	if (stillTurning) cosOffset = maxTurn;
+
+	#small direction errors are ignored
+	if (cosOffset < minTurn) 
+	{
+		newMissileDir = vectorRotate(missileDir, interceptDirRefFrame, math.acos( cosOffset ));
+	}
+	else
+	{
+		newMissileDir = missileDir;
+	}
+
+	newAim.weaponDirRefFrame = newMissileDir;
+	
+	# debprint (
+	# 	sprintf(
+	# 		"Bombable: distance vector to target =[%6.2f, %6.2f, %6.2f]",
+	# 		deltaX_m, deltaY_m, deltaAlt_m 
+	# 	)
+	# );
+	
+	# debprint (
+	# 	sprintf(
+	# 		"Bombable: newMissileDir vector =[%6.3f, %6.3f, %6.3f]",
+	# 		newMissileDir[0], newMissileDir[1], newMissileDir[2] 
+	# 	)
+	# );
+
+	# reduce speed according to rate of turn
+	var newMissileSpeed_mps = missileSpeed_mps * cosOffset * cosOffset;
+
+	var deltaXYZ = vectorMultiply (newMissileDir, newMissileSpeed_mps * delta_t);
+	var deltaLat = deltaXYZ[1] / m_per_deg_lat;
+	var deltaLon = deltaXYZ[0] / m_per_deg_lon;
+	var new_lat = alat_deg + deltaLat;
+	var new_lon = alon_deg + deltaLon;
+	var new_alt = ( aAlt_m + deltaXYZ[2] ) * M2FT;
+
+	
+	# update co-ords for calculation of rocket flightpath
+	setprop("" ~ myNodeName1 ~ "/" ~ elem ~ "/position/latitude-deg",
+	new_lat); 
+
+	setprop("" ~ myNodeName1 ~ "/" ~ elem ~ "/position/longitude-deg",
+	new_lon);
+
+	setprop("" ~ myNodeName1 ~ "/" ~ elem ~ "/position/altitude-ft",
+	new_alt);
+
+	setprop("" ~ myNodeName1 ~ "/" ~ elem ~ "/velocities/true-airspeed-kt", 
+	newMissileSpeed_mps  * MPS2KT);
+
+
+	# updates position, speed and orientation of AI model of rocket
+	# the rocket position and orientation are forced to follow the calculated rocket flightpath
+	# the AI controls are used to provide continuous interpolation between the calculated points 
+	var pitch = math.asin(newMissileDir[2]) * R2D;
+	var trueHeading = math.atan2(newMissileDir[0], newMissileDir[1]) * R2D;
+
+	var rp = "ai/models/aircraft[" ~ weaps[elem].rocketsIndex ~ "]";
+
+	debprint(
+		sprintf(
+		"Alt_ = %6.3f Heading_ = %6.3f Speed_ = %6.3f",
+		getprop (rp ~ "/position/altitude-ft"),
+		getprop (rp ~ "/orientation/true-heading-deg"),
+		getprop (rp ~ "/velocities/true-airspeed-kt")
+		)
+	);
+
+
+	setprop (rp ~ "/position/latitude-deg", new_lat);
+	setprop (rp ~ "/position/longitude-deg", new_lon);
+	setprop (rp ~ "/position/altitude-ft", new_alt);
+	setprop (rp ~ "/velocities/true-airspeed-kt", newMissileSpeed_mps * MPS2KT);
+	setprop (rp ~ "/orientation/pitch-deg", pitch); #in vertical-mode = "alt" the AI attempts to set altitude
+	setprop (rp ~ "/orientation/true-heading-deg", trueHeading);
+
+
+	# estimate next heading, speed and altutude
+	var targetHeading = math.atan2(interceptDirRefFrame[0], interceptDirRefFrame[1]) * R2D;
+	var targetSpeed = newMissileSpeed_mps * ( stillTurning ? cosOffset * cosOffset : 1.0 ) * MPS2KT;
+	var targetAlt = new_alt + newMissileSpeed_mps * M2FT * newMissileDir[2] * delta_t;
+	setprop (rp ~ "/controls/flight/target-alt", targetAlt);
+	setprop (rp ~ "/controls/flight/target-hdg", targetHeading);
+	setprop (rp ~ "/controls/flight/target-spd", targetSpeed);
+
+	debprint(
+		sprintf(
+		"tAlt = %6.3f tHeading = %6.3f tSpeed = %6.3f",
+		targetAlt,
+		targetHeading,
+		targetSpeed)
+	);
+
+
+
+
+
+	# update this as a tied model-contrail if use of AI model for rocket works
+	var time_sec = 15; 
+	var fp = "AI/Aircraft/Fire-Particles/skywriting-particles.xml";
+
+	for (var i=0; i < 3; i = i + 1) {
+		
+		var r = rand();
+
+		settimer(func {
+		put_remove_model(
+		lat_deg: alat_deg + r * deltaLat, 
+		lon_deg: alon_deg + r * deltaLon, 
+		elev_m: aAlt_m + r * deltaXYZ[2], 
+		time_sec: time_sec, 
+		startSize_m: nil, endSize_m: nil, 
+		path: fp );
+		},
+		r * delta_t);
+	}
+
+	if (stores.reduceWeaponsCount (myNodeName1, elem, delta_t) == 1)
+	{
+		var msg = weaps[elem].name ~ " fired from " ~ 
+		getprop ("" ~ myNodeName1 ~ "/name") ~ 
+		" out of fuel";
+
+		targetStatusPopupTip (msg, 20);
+		
+		return(0);
+	}
+
+	if (rand() < 1.0)
+	{
+		var msg = "AI rocket from " ~ 
+		getprop ("" ~ myNodeName1 ~ "/name") ~ 
+		" intercept time " ~ round(newAim.interceptTime) ~ "s" ~ 
+		" heading " ~ round(math.atan2(newAim.weaponDirRefFrame[0], newAim.weaponDirRefFrame[1]) * R2D) ~ " deg" ~
+		" pitch " ~ round(math.asin(newAim.weaponDirRefFrame[2]) * R2D) ~ " deg";
+	
+
+		targetStatusPopupTip (msg, 5);
+	}
+
+	return (1);
+}
+
 
 ##########################################################
 # CLASS stores
@@ -6021,12 +6496,18 @@ var stores = {};
 #
 stores.reduceWeaponsCount = func (myNodeName, elem, time_sec) {
 
+	var lastRound = 0;
 	var stos = attributes[myNodeName].stores;
-	var ammo_seconds = 6000;  #Number of seconds worth of ammo firing the weapon has
+	var ammo_sec = attributes[myNodeName].weapons[elem].ammo_seconds;  #Number of seconds worth of ammo firing the weapon has
 	#TODO: This should be set per aircraft per weapon
 	if (stos["weapons"][elem] == nil) stos["weapons"][elem] = 0;
-	stos.weapons[elem]  -=  time_sec/ammo_seconds;
-	if (stos.weapons[elem] < 0 ) stos.weapons[elem] = 0;
+	if (stos.weapons[elem] > 0 ) stos.weapons[elem]  -=  time_sec / ammo_sec;
+	if (stos.weapons[elem] < 0 ) 
+	{
+		stos.weapons[elem] = 0;
+		lastRound = 1;
+	}
+	return (lastRound);
 }
 
 
@@ -6044,7 +6525,7 @@ stores.reduceFuel = func (myNodeName, time_sec) {
 	#fuel reserves.
 	#TODO: This should be set per aircraft
 	if (stos["fuel"] == nil) stos["fuel"] = 0;
-	stos.fuel  -=  time_sec/fuel_seconds;
+	stos.fuel  -=  time_sec / fuel_seconds;
 	if (stos.fuel < 0 ) stos.fuel = 0;
 }
 
@@ -6446,12 +6927,12 @@ var attack_loop = func (id, myNodeName, looptime) {
 
 	#it turns out that the main AC's AGL is available in the prop tree, which is
 	#far quicker to access then the elev function, which is very slow
-	#elevTarget_m = elev (geo.aircraft_position().lat(),geo.aircraft_position().lon() ) * feet2meters;
+	#elevTarget_m = elev (geo.aircraft_position().lat(),geo.aircraft_position().lon() ) * FT2M;
 	#targetAGL_m = targetAlt_m-elevTarget_m;
 				
-	targetAGL_m = getprop ("/position/altitude-agl-ft") * feet2meters;
+	targetAGL_m = getprop ("/position/altitude-agl-ft") * FT2M;
 	elevTarget_m = targetAlt_m-targetAGL_m;
-	currAlt_m = getprop(""~myNodeName~"/position/altitude-ft") * feet2meters;
+	currAlt_m = getprop(""~myNodeName~"/position/altitude-ft") * FT2M;
 
 
 	var attackClimbDive_inprogress = getprop(""~myNodeName~"/bombable/attackClimbDive-inprogress");
@@ -6584,7 +7065,7 @@ var attack_loop = func (id, myNodeName, looptime) {
 	aircraftSetVertSpeed (myNodeName, targetAlt_m - currAlt_m, "evas" );
 				
 	#debprint ("Bombable: setprop 4275");
-	setprop(""~myNodeName~"/bombable/attributes/altitudes/targetAGL_ft", targetAGL_m/feet2meters);
+	setprop(""~myNodeName~"/bombable/attributes/altitudes/targetAGL_ft", targetAGL_m * M2FT);
 	setprop(""~myNodeName~"/bombable/attributes/altitudes/targetAGL_m", targetAGL_m);
 	aircraftTurnToHeading ( myNodeName, courseToTarget_deg, roll_deg, targetAlt_m, atts.rollMax_deg, favor);
 				
@@ -6783,7 +7264,7 @@ var aircraftTurnToHeadingControl = func (myNodeName, id, targetdegrees = 0, roll
 		targetAlt_ft = targetAlt_m * M2FT;
 					
 					
-		# currElev_m = elev (any_aircraft_position(myNodeName).lat(),geo.aircraft_position(myNodeName).lon() ) * feet2meters;
+		# currElev_m = elev (any_aircraft_position(myNodeName).lat(),geo.aircraft_position(myNodeName).lon() ) * FT2M;
 		currElev_m = elevGround (myNodeName);
 		if (alts.minimumAGL_m == nil) debprint("error alts.min");
 		if (targetAlt_m == nil) debprint("error targetAlt_m");
@@ -7757,7 +8238,7 @@ var checkRangeHash = func (b = nil, v = nil, low = nil, high = nil, default = 1)
 }
 
 ######################################################################
-################################ b ######################################
+################################ initialize ######################################
 ######################################################################
 #delaying all the _init functions until FG's initialization sequence
 #has settled down seems to solve a lot of FG crashes on startup when
@@ -7771,7 +8252,7 @@ var initialize = func (b) {
 }
 
 
-######################### b ############################
+######################### initialize_func ############################
 # initialize: Do sanity checking, then
 # slurp the pertinent properties into
 # the object's node tree under sub-node "bombable"
@@ -7848,10 +8329,10 @@ var initialize_func = func ( b ){
 		if (b.altitudes.crashedAGL_m == 0 )b.altitudes.crashedAGL_m = -0.001;
 							
 		b.altitudes.initialized = 0; #this is how ground_loop knows to initialize the alititude on its first call
-		b.altitudes.wheelsOnGroundAGL_ft = b.altitudes.wheelsOnGroundAGL_m/feet2meters;
-		b.altitudes.minimumAGL_ft = b.altitudes.minimumAGL_m/feet2meters;
-		b.altitudes.maximumAGL_ft = b.altitudes.maximumAGL_m/feet2meters;
-		b.altitudes.crashedAGL_ft = b.altitudes.crashedAGL_m/feet2meters;
+		b.altitudes.wheelsOnGroundAGL_ft = b.altitudes.wheelsOnGroundAGL_m * M2FT;
+		b.altitudes.minimumAGL_ft = b.altitudes.minimumAGL_m * M2FT;
+		b.altitudes.maximumAGL_ft = b.altitudes.maximumAGL_m * M2FT;
+		b.altitudes.crashedAGL_ft = b.altitudes.crashedAGL_m * M2FT;
 							
 		#crashedAGL must be at least a bit lower than minimumAGL
 		if (b.altitudes.crashedAGL_m > b.altitudes.minimumAGL_m )
@@ -7880,14 +8361,14 @@ var initialize_func = func ( b ){
 		b.evasions.dodgeAltMin_m = checkRangeHash ( b.evasions, "dodgeAltMin_m", -100000, 100000, -20 );
 		if (b.evasions.dodgeAltMax_m < b.evasions.dodgeAltMin_m)
 		b.evasions.dodgeAltMax_m = b.evasions.dodgeAltMin_m;
-		b.evasions.dodgeAltMin_ft = b.evasions.dodgeAltMin_m/feet2meters;
-		b.evasions.dodgeAltMax_ft = b.evasions.dodgeAltMax_m/feet2meters;
+		b.evasions.dodgeAltMin_ft = b.evasions.dodgeAltMin_m * M2FT;
+		b.evasions.dodgeAltMax_ft = b.evasions.dodgeAltMax_m * M2FT;
 							
 							
 		b.evasions.dodgeVertSpeedClimb_mps = checkRangeHash (b.evasions, "dodgeVertSpeedClimb_mps", 0, 3000, 0 );
 		b.evasions.dodgeVertSpeedDive_mps = checkRangeHash ( b.evasions, "dodgeVertSpeedDive_mps", 0, 5000, 0 );
-		b.evasions.dodgeVertSpeedClimb_fps = b.evasions.dodgeVertSpeedClimb_mps/feet2meters;
-		b.evasions.dodgeVertSpeedDive_fps = b.evasions.dodgeVertSpeedDive_mps/feet2meters;
+		b.evasions.dodgeVertSpeedClimb_fps = b.evasions.dodgeVertSpeedClimb_mps * M2FT;
+		b.evasions.dodgeVertSpeedDive_fps = b.evasions.dodgeVertSpeedDive_mps * M2FT;
 	}
 						
 						
@@ -7910,10 +8391,10 @@ var initialize_func = func ( b ){
 
 		# add some helpful new:
 		#
-		b.dimensions.width_ft = b.dimensions.width_m/feet2meters;
-		b.dimensions.length_ft = b.dimensions.length_m/feet2meters;
-		b.dimensions.height_ft = b.dimensions.height_m/feet2meters;
-		b.dimensions.damageRadius_ft = b.dimensions.damageRadius_m/feet2meters;
+		b.dimensions.width_ft = b.dimensions.width_m * M2FT;
+		b.dimensions.length_ft = b.dimensions.length_m * M2FT;
+		b.dimensions.height_ft = b.dimensions.height_m * M2FT;
+		b.dimensions.damageRadius_ft = b.dimensions.damageRadius_m * M2FT;
 	}
 						
 	# velocities sanity checking
@@ -8017,6 +8498,13 @@ var initialize_func = func ( b ){
 		if (b.attacks.attackCheckTimeEngaged_sec < 0.1) b.attacks.attackCheckTimeEngaged_sec = 0.1;
 	}
 						
+	b["stores"] = {};
+	b.stores["fuel"] = 1;
+	b.stores["weapons"] = {};
+	b.stores["messages"] = {};
+	b.stores["messages"]["unreadymessageposted"] = 0;
+	b.stores["messages"]["readymessageposted"] = 1;
+
 	# weapons sanity checking
 	if (contains(b, "weapons") and typeof (b.weapons) == "hash") {
 		var n = 0;
@@ -8041,6 +8529,7 @@ var initialize_func = func ( b ){
 			or b.weapons[elem].weaponSize_m.start <= 0 ) b.weapons[elem].weaponSize_m.start = 0.07;
 			if (b.weapons[elem].weaponSize_m.end == nil
 			or b.weapons[elem].weaponSize_m.end <= 0 ) b.weapons[elem].weaponSize_m.end = 0.05;
+			
 		}
 	}
 						
@@ -8048,13 +8537,6 @@ var initialize_func = func ( b ){
 		b.damageLiveries.count = size (b.damageLiveries.damageLivery) ;
 	}
 						
-	b["stores"] = {};
-	b.stores["fuel"] = 1;
-	b.stores["weapons"] = {};
-	b.stores["messages"] = {};
-	b.stores["messages"]["unreadymessageposted"] = 0;
-	b.stores["messages"]["readymessageposted"] = 1;
-
 						
 						
 	# the object has stored the node telling where to store itself on the
@@ -8074,8 +8556,8 @@ var initialize_func = func ( b ){
 	
 	attributes[b.objectNodeName] = b;
 	var myNodeName = b.objectNodeName;
-	stores.fillWeapons(myNodeName,1);
-	stores.fillFuel(myNodeName,1);
+	stores.fillWeapons(myNodeName, 1);
+	stores.fillFuel(myNodeName, 1);
 }
 
 ######################## update_m_per_deg_latlon #########################
@@ -8142,6 +8624,7 @@ var setMaxLatLon = func (myNodeName, damageDetectDistance_m){
 }
 
 
+######################### bombable_init ############################
 var bombable_init = func (myNodeName = "") {
 	debprint ("Bombable: Delaying bombable_init . . . ", myNodeName);
 	settimer (func {bombable_init_func(myNodeName);}, 35 + rand(),1);
@@ -8494,88 +8977,72 @@ var attack_init_func = func(myNodeName) {
 
 }
 
-######################## weaponsOrientationPositionUpdate_loop #########################
-# weaponsOrientationPositionUpdate_loop
+
+
+######################## weaponsOrientationPositionUpdate #########################
+# weaponsOrientationPositionUpdate
 # to update the position/angle of weapons attached
 # to AI aircraft.  Use for visual weapons effects
 
-var weaponsOrientationPositionUpdate_loop = func (id, myNodeName) {
+var weaponsOrientationPositionUpdate = func (myNodeName, elem) {
+	# make weapon and projectile point in the direction of the target
+	# the direction is calculated in the checkAim loop
+	# first point weapon in the direction of the target
+	# and then the projectile in the direction of the weapon
 
-						
-	var loopid = getprop(""~myNodeName~"/bombable/loopids/weaponsOrientation-loopid");
-	# debprint ("weapsOrientatationPos_loop:  id= ",id," loopid= ",loopid);
-	id == loopid or return;
-	
-	settimer (func {weaponsOrientationPositionUpdate_loop (id, myNodeName)}, 1);
-	
-						
 	# no need to do this if any of these are turned off in the bombable menu
 	# though we may update weapons_loop to rely on these numbers as well
 	if (! getprop ( trigger1_pp~"ai-weapon-fire-visual"~trigger2_pp)
 	or ! getprop(bomb_menu_pp~"bombable-enabled")
 	) return;
 	
-	var damageValue = getprop(""~myNodeName~"/bombable/attributes/damage");
-	if (rand() < damageValue) return;
-	
-	weaps = attributes[myNodeName].weapons;
-						
-	#debprint ("ist: ", myNodeName, " node: ",listenedNode.getName(), " weap:", weaps[elem].weaponAngle_deg.elevation);
+	# var damageValue = getprop(""~myNodeName~"/bombable/attributes/damage");
+	# if (rand() < damageValue) return;
+	# this acts to delay model update for damaged AI
 
-	
-	# loop to make weapon and projectile point in the direction of the target
-	# the direction is calculated in the checkAim loop
+	var weaps = attributes[myNodeName].weapons;
+	var aim = weaps[elem].aim;
 
-						
-	# first point weapon in the direction of the target
-	# and then the projectile in the direction of the weapon
+	# first, point the weapon.  The first frame is relative to the model, 
+	# the second is lon-lat-alt (x-y-z), aka 'reference frame'
+	var newElev = math.asin(aim.weaponDirModelFrame[2]) * R2D;
+	var newHeading = math.atan2(aim.weaponDirModelFrame[0], aim.weaponDirModelFrame[1]) * R2D;
+	var newElev_ref = math.asin(aim.weaponDirRefFrame[2]) * R2D;
+	var newHeading_ref = math.atan2(aim.weaponDirRefFrame[0], aim.weaponDirRefFrame[1]) * R2D;
+	weaps[elem].weaponAngle_deg.heading = newHeading; #weaps is local to this function so these lines have no effect!!!
+	weaps[elem].weaponAngle_deg.elevation = newElev;
+	# see https://wiki.flightgear.org/Object_Oriented_Programming_with_Nasal#Hashes
 
+	setprop("" ~ myNodeName ~ "/" ~ elem ~ "/cannon-elev-deg" , newElev);
+	setprop("" ~ myNodeName ~ "/" ~ elem ~ "/turret-pos-deg" , -newHeading);
+	# position in model frame of reference
 	
-	var weapCount = 0;
-	foreach (elem;keys (weaps) ) {
-	
-		var aim = weaps[elem].aim;
-		# stored in weapons_loop 
+	# next, point the projectile
+	# the projectile models follow the aircraft using these orientation and position data from the property tree
+	setprop("" ~ myNodeName ~ "/" ~ elem ~ "/orientation/pitch-deg", newElev_ref);
+	setprop("" ~ myNodeName ~ "/" ~ elem ~ "/orientation/true-heading-deg", newHeading_ref);
+	# note weapon offset in m; altitude is in feet
+	setprop("" ~ myNodeName ~ "/" ~ elem ~ "/position/altitude-ft",
+	getprop("" ~ myNodeName ~ "/position/altitude-ft") + aim.weaponOffsetRefFrame[2] * M2FT);
+
+	setprop("" ~ myNodeName ~ "/" ~ elem ~ "/position/latitude-deg",
+	getprop("" ~ myNodeName ~ "/position/latitude-deg") + aim.weaponOffsetRefFrame[1] / m_per_deg_lat); 
+
+	setprop("" ~ myNodeName ~ "/" ~ elem ~ "/position/longitude-deg",
+	getprop("" ~ myNodeName ~ "/position/longitude-deg") + aim.weaponOffsetRefFrame[0] / m_per_deg_lon);
 
 		
-		# first, point the weapon.  The first frame is relative to the model, 
-		# the second is lon-lat-alt (x-y-z), aka 'reference frame'
-		var newElev = math.asin(aim.weaponDirModelFrame[2]) * R2D;
-		var newHeading = math.atan2(aim.weaponDirModelFrame[0], aim.weaponDirModelFrame[1]) * R2D;
-		var newElev_ref = math.asin(aim.weaponDirRefFrame[2]) * R2D;
-		var newHeading_ref = math.atan2(aim.weaponDirRefFrame[0], aim.weaponDirRefFrame[1]) * R2D;
-		weaps[elem].weaponAngle_deg.heading = newHeading;
-		weaps[elem].weaponAngle_deg.elevation = newElev;
-		setprop("" ~ myNodeName ~ "/surface-positions[" ~ weapCount ~ "]/cannon-elev-deg" , newElev);
-		setprop("" ~ myNodeName ~ "/surface-positions[" ~ weapCount ~ "]/turret-pos-deg" , -newHeading);
-
-		
-		# next, point the projectile
-		# the projectile models follow the aircraft using these orientation and position data from the property tree
-		setprop("" ~ myNodeName ~ "/" ~elem~ "/orientation/pitch-deg", newElev_ref);
-		setprop("" ~ myNodeName ~ "/" ~elem~ "/orientation/true-heading-deg", newHeading_ref);
-		
-		setprop("" ~ myNodeName ~ "/" ~elem~ "/position/altitude-ft",
-		getprop("" ~ myNodeName ~ "/position/altitude-ft") + aim.weaponOffsetRefFrame[2] * FT2M);
-
-		setprop("" ~ myNodeName ~ "/" ~elem~ "/position/latitude-deg",
-		getprop("" ~ myNodeName ~ "/position/latitude-deg") + aim.weaponOffsetRefFrame[1] * FT2M / m_per_deg_lat); 
-
-		setprop("" ~ myNodeName ~ "/" ~elem~ "/position/longitude-deg",
-		getprop("" ~ myNodeName ~ "/position/longitude-deg") + aim.weaponOffsetRefFrame[0] * FT2M / m_per_deg_lon);
-
-		
-		weapCount += 1;
-		# debprint("weaponsOrientationPositionUpdate_loop " ~ elem ~ 
-			# sprintf(" newElev =%6.1f pitch-deg =%6.1f newHeading =%6.1f true-heading-deg =%6.1f", 
-				# newElev, 
-				# newElev_ref,
-				# newHeading, 
-				# newHeading_ref
-			# )			
-		# );
-	}
+	# debprint("weaponsOrientationPositionUpdate_loop " ~ elem ~ 
+		# sprintf(" newElev =%6.1f pitch-deg =%6.1f newHeading =%6.1f true-heading-deg =%6.1f", 
+			# newElev, 
+			# newElev_ref,
+			# newHeading, 
+			# newHeading_ref
+		# )			
+	# );
 }
+
+
 
 ################# weaponsTrigger_listener ####################
 # weaponsTrigger_listener
@@ -8616,7 +9083,7 @@ var weaponsTrigger_listener = func (changedNode,listenedNode){
 var weapons_init = func (myNodeName = "") {
 
 	debprint ("Bombable: Delaying weapons_init . . . ", myNodeName);
-	settimer (func {weapons_init_func(myNodeName);}, 60 + rand(),1);
+	settimer (func {weapons_init_func(myNodeName);}, 30 + rand(), 1); #rjw changed delay from 60s to 30s - 15s causes a Nasal error - : bad/missing argument to contains() 
 
 }
 
@@ -8678,50 +9145,82 @@ var weapons_init_func = func(myNodeName) {
 	# set to 1 if initialized and 0 when de-inited. Nil if never before inited.
 	setprop(""~myNodeName~"/bombable/initializers/weapons-initialized", 1);
 						
-	var count = getprop ("/bombable/fire-particles/index" , 1) ;
+	var count = getprop ("/bombable/fire-particles/index") ;
 	if (count == nil) {
 		count = 0; #index of first fire particle for AI aircraft
 		}
+	var rocketCount = getprop ("/bombable/rockets/index") ;
+	if (rocketCount == nil) {
+		rocketCount = 0; #index of first rocket for AI aircraft
+		}
+	
 
-
-
-	var loopid = inc_loopid (myNodeName, "weaponsOrientation"); 
-	settimer (func { weaponsOrientationPositionUpdate_loop(loopid, myNodeName)} , 3 + rand());
 	
 	
 
 	foreach (elem;keys (weaps) ) 
 	{
+		# the weapon long lat and altitude should be set before tie-ing the fire particle to the aircraft
+		# these are calculated in checkAim
 		put_tied_weapon
 			(
 				myNodeName, elem,
-				"AI/Aircraft/Fire-Particles/projectile-tracer/projectile-tracer" ~ count ~ ".xml"
+				"AI/Aircraft/Fire-Particles/projectile-tracer/projectile-tracer-" ~ count ~ ".xml"
 			);
 		setprop ("/bombable/fire-particles/projectile-tracer[" ~ count ~ "]/projectile-startsize", weaps[elem].weaponSize_m.start);
 		setprop ("/bombable/fire-particles/projectile-tracer[" ~ count ~ "]/projectile-endsize", weaps[elem].weaponSize_m.end);
 		setprop ("/bombable/fire-particles/projectile-tracer[" ~ count ~ "]/ai-weapon-firing", 0); 
 		
-		#form vector for weapon direction, weapDir
-		var weapAngle_deg = attributes[myNodeName].weapons[elem].weaponAngle_deg;
-		var cosWeapElev = cos(weapAngle_deg.elevation);
+		# form vector for weapon direction, weapDir
+		var weapAngles = attributes[myNodeName].weapons[elem].weaponAngle_deg;
+		var cosWeapElev = cos(weapAngles.elevation);
 		var weapDir = [
-			cosWeapElev * sin(weapAngle_deg.heading),
-			cosWeapElev * cos(weapAngle_deg.heading),
-			sin(weapAngle_deg.elevation)
-		];
+			cosWeapElev * sin(weapAngles.heading),
+			cosWeapElev * cos(weapAngles.heading),
+			sin(weapAngles.elevation)
+		];		
+		# set turret and gun to their default positions
+		setprop ("" ~ myNodeName ~ "/" ~ elem ~ "/turret-pos-deg", weapAngles.heading);
+		setprop ("" ~ myNodeName ~ "/" ~ elem ~ "/cannon-elev-deg", weapAngles.elevation);
+			
+		# needed? Could also deplete stores to zero to indicate destroyed
+		# use rather than setprop to allow flag to be set as boolean type  
+		props.globals.getNode("" ~ myNodeName ~ "/" ~ elem ~ "/destroyed", 1).setBoolValue(0);
+		# setprop ("" ~ myNodeName ~ "/" ~ elem ~ "/destroyed", 0); 
 		
 		
-		attributes[myNodeName].weapons[elem].aim = {pHit:0, weaponDirModelFrame:weapDir, weaponOffsetRefFrame:[0,0,0], weaponDirRefFrame:[0,0,0]}; 
-		#used to translate weapon position and orientation from frame of reference of model to the frame of reference of the scene
+		attributes[myNodeName].weapons[elem].aim = newAim; #add hash used to record direction weapon is pointing
+		# used to translate weapon position and orientation from frame of reference of model to the frame of reference of the scene
 		
 		attributes[myNodeName].weapons[elem]["fireParticle"] = count;
-		#new key to link the weapon to a fire particle
-		
-		debprint ("Weaps: ", myNodeName, " initialized ", weapons[elem].name);
+		# new key to link the weapon to a fire particle
+
+		if (attributes[myNodeName].weapons[elem]["weaponType"] == nil) attributes[myNodeName].weapons[elem]["weaponType"] = 0;
+		# new key to allow inclusion of new types of weapons such as rockets. Note weaponType used in other functions
+
+		if (attributes[myNodeName].weapons[elem]["maxMissileSpeed_mps"] == nil) attributes[myNodeName].weapons[elem]["maxMissileSpeed_mps"] = 300;
+
+		if (attributes[myNodeName].weapons[elem]["missileAcceleration"] == nil) attributes[myNodeName].weapons[elem]["missileAcceleration"] = 0;
+		# acceleration of missile during flight - units m per sec per sec
+
+		if (attributes[myNodeName].weapons[elem]["ammo_seconds"] == nil) attributes[myNodeName].weapons[elem]["ammo_seconds"] = 6000;
+		# used to fill weapon store 
+
+		if (attributes[myNodeName].weapons[elem]["weaponType"] == 1) 
+		{
+			props.globals.getNode("" ~ myNodeName ~ "/" ~ elem ~ "/launched", 1).setBoolValue(0);
+			# enable sky-writing to show weapon trajectory
+			attributes[myNodeName].weapons[elem]["rocketsIndex"] = rocketCount;
+			rocketCount += 1;
+			# each rocket is a separate weapon with a separate AI model - not tied to the parent AC/ship
+		}
+	
+		debprint ("Weaps: ", myNodeName, " initialized ", attributes[myNodeName].weapons[elem].name);
 		count += 1;
 	}
 	
 	setprop ("/bombable/fire-particles/index" , count) ; #next unassigned fire particle
+	setprop ("/bombable/rockets/index" , rocketCount) ; #next unassigned rocket
 
 	#append(listenerids, listenerid);
 	#props.globals.getNode(""~myNodeName~"/bombable/weapons/listenerids",1).setValues({listenerids: listenerids});
@@ -8779,7 +9278,6 @@ var weapons_init_func = func(myNodeName) {
 	}
 						
 	debprint ("Bombable: Effect * weapons * loaded for ", myNodeName);
-	debprint ("fireparticle index ", weap_fireparticles[loopInitValue], " to ", weap_fireparticles[loopInitValue + 1]);
 						
 						
 }
@@ -8969,14 +9467,16 @@ var meters2feet = 1/feet2meters;
 var nmiles2meters = 1852;
 var meters2nmiles = 1/nmiles2meters;
 var knots2fps = 1.68780986;
+var knots2mps = knots2fps * feet2meters;
 var fps2knots = 1/knots2fps;
 var grav_fpss = 32.174;
+var grav_mpss = grav_fpss * feet2meters;
 var bomb_menu_pp = "/bombable/menusettings/";
 var bombable_settings_file = getprop("/sim/fg-home") ~ "/state/bombable-startup-settings.xml";
 
 var bomb_menuNum = -1; #we set this to -1 initially and then the FG menu number when it is assigned
 
-var trigger1_pp = ""~bomb_menu_pp~"fire-particles/";
+var trigger1_pp = "" ~ bomb_menu_pp ~ "fire-particles/";
 var trigger2_pp = "-trigger";
 var burning_pp = "-burning";
 var life1_pp = "/bombable/fire-particles/";
@@ -8988,7 +9488,7 @@ var vulnerabilities_pp = attributes_pp ~ "/vulnerabilities/";
 var GF_damage_pp = vulnerabilities_pp ~ "gforce_damage/";
 var GF_damage_menu_pp = bomb_menu_pp ~ "gforce_damage/";
 					
-var MP_share_pp = bomb_menu_pp~"/MP-share-events/";
+var MP_share_pp = bomb_menu_pp ~ "/MP-share-events/";
 var MP_broadcast_exists_pp = "/bombable/mp_broadcast_exists/";
 var screenHProp = nil;
 
@@ -9013,6 +9513,8 @@ var m_per_deg_lon = 111321.5 * math.cos (aLat_rad);
 
 #where we'll save the attributes for each AI object & the main aircraft, too
 var attributes = {};
+#global variable used for sighting weapons
+var newAim = {pHit:0, weaponDirModelFrame:[0,0,0], weaponOffsetRefFrame:[0,0,0], weaponDirRefFrame:[0,0,0], interceptSpeed:0, interceptTime:0}; 
 
 # List of nodes that listeners will use when checking for impact damage.
 # FG aircraft use a wide variety of nodes to report impact of armament
@@ -9099,7 +9601,8 @@ var bombableInit = func {
 	setprop ("/bombable/fire-particles/flack-endsize", 1.0);
 						
 	props.globals.getNode(bomb_menu_pp ~ "fire-particles/fire-trigger", 1).setBoolValue(1);
-	#props.globals.getNode(bomb_menu_pp ~ "fire-particles/flack-trigger", 1).setBoolValue(0);
+	# props.globals.getNode(bomb_menu_pp ~ "fire-particles/flack-trigger", 1).setBoolValue(0);
+
 
 	props.globals.getNode("/bombable/attributes/damage", 1).setDoubleValue(0.0);
 
@@ -9139,7 +9642,7 @@ var bombableInit = func {
 	#  setprop (bomb_menu_save_lock, 0); #save_lock prevents this change from being written to the menu save file
 						
 	#set attributes for main aircraft
-	attributesSet = getprop (""~attributes_pp~"/attrbitues_set");
+	attributesSet = getprop (""~attributes_pp~"/attributes_set");
 	if (attributesSet == nil or ! attributesSet ) setAttributes ();
 						
 						
@@ -9725,6 +10228,56 @@ var normalize = func(v1)
 	var magnitude = vectorModulus (v1);
 	return(vectorDivide(v1, magnitude));
 }
+
+########################## crossProduct ###########################
+# cross product v1 ^ v2
+var crossProduct = func(v1, v2)
+{
+
+	return(
+		[
+		v1[1] * v2[2] - v1[2] * v2[1],
+		v1[2] * v2[0] - v1[0] * v2[2],
+		v1[0] * v2[1] - v1[1] * v2[0]
+		]
+	);
+}
+########################## vectorRotate ###########################
+# rotate unit vector v1 by alpha, in the direction of unit vector v2 
+# using rotation axis defined by cross product k = v1 ^ v2
+# algorithm from https://en.wikipedia.org/wiki/Rodrigues%27_rotation_formula
+# returns rotated unit vector
+
+var vectorRotate = func(v1, v2, alpha)
+{
+	var v1v2 = dotProduct (v1, v2);
+	var magnitude_k = math.abs (math.sin (math.acos (v1v2)));
+	# abs needed since angles between 90 and 180 or -180 and -90 will otherwise give magnitude < 0
+	var sinAbymagK = math.sin(alpha) / magnitude_k;
+	var v3 = vectorMultiply (v1, ( math.cos(alpha) - v1v2 * sinAbymagK ));
+	var v4 = vectorMultiply (v2, sinAbymagK );
+	return (vectorSum (v3, v4));
+}
+########################## vectorRotate_ ###########################
+# rotate unit vector v1 by alpha, in the direction of unit vector v2 
+# using rotation axis defined by cross product k = v1 ^ v2
+# algorithm from https://en.wikipedia.org/wiki/Rodrigues%27_rotation_formula
+# returns rotated unit vector
+
+var vectorRotate_ = func(v1, v2, alpha)
+{
+	var k = crossProduct (v1, v2);
+	var unitK = normalize(k);
+	var v3 = vectorMultiply ( v1, math.cos( alpha) );
+	var v4 = vectorMultiply ( crossProduct ( unitK, v1), math.sin (alpha));
+	return (vectorSum (v3, v4));
+}
+	
+
+
+
+
+
 
 
 ########################## END ###########################
