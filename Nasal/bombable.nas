@@ -6114,6 +6114,8 @@ var launchRocket = func (myNodeName, elem)
 	var alon_deg = getprop("" ~ myNodeName ~ "/" ~ elem ~ "/position/longitude-deg");
 	var alt_ft = getprop("" ~ myNodeName ~ "/" ~ elem ~ "/position/altitude-ft");
 
+	setprop("" ~ myNodeName ~ "/" ~ elem ~ "/velocities/true-airspeed-kt", 0); # change this when switch to velocity vector in attributes
+
 
 	# rocket initiated by moving it from {lat, lon} {0, 0} to location of AC / ship
 	var rp = "ai/models/aircraft[" ~ weaps[elem].rocketsIndex ~ "]";
@@ -6135,6 +6137,7 @@ var launchRocket = func (myNodeName, elem)
 	setprop (rp ~ "/controls/flight/target-spd", 0 );
 
 
+	# TODO:  the launchPad velocity is used to set the initial velocity of the missile
 	weaps[elem]["velocity"] = [
 		launchPadSpeed * math.cos ( launchPadPitch * D2R ) * math.sin( launchPadHeading * D2R ),
 		launchPadSpeed * math.cos ( launchPadPitch * D2R ) * math.cos( launchPadHeading * D2R ),
@@ -6195,8 +6198,6 @@ var guideRocket = func
 	var missileDir = weaps[elem].aim.weaponDirRefFrame;
 	var missileSpeed_mps = getprop("" ~ myNodeName1 ~ "/" ~ elem ~ "/velocities/true-airspeed-kt") * KT2MPS;
 	if (missileSpeed_mps < weaps[elem].maxMissileSpeed_mps) missileSpeed_mps = missileSpeed_mps + weaps[elem].missileAcceleration * delta_t;
-	setprop("" ~ myNodeName1 ~ "/" ~ elem ~ "/velocities/true-airspeed-kt",
-	missileSpeed_mps * MPS2KT);
 	var a_delta_dist = missileSpeed_mps * delta_t;
 
 
@@ -6206,7 +6207,7 @@ var guideRocket = func
 	var mAlt_m = getprop("" ~ myNodeName2 ~ "/position/altitude-ft") * FT2M;
 	var mPitch = getprop("" ~ myNodeName2 ~ "/orientation/pitch-deg"); # main AC
 	var mHeading = getprop("" ~ myNodeName2 ~ "orientation/true-heading-deg"); 
-	var mSpeed = getprop("" ~ myNodeName2 ~ "/velocities/true-airspeed-kt") * KT2MPS;
+	var mSpeed = getprop("" ~ myNodeName2 ~ "/velocities/airspeed-kt") * KT2MPS;
 	var m_delta_dist = mSpeed * delta_t;
 
 
@@ -6312,7 +6313,7 @@ var guideRocket = func
 		targetDispRefFrame,
 		deltaXYZ_AC);
 
-	targetDispRefFrame = vectorSum(
+	targetDispRefFrame = vectorSubtract(
 		targetDispRefFrame,
 		deltaXYZ_weap);
 
@@ -6348,12 +6349,12 @@ var guideRocket = func
 	}
 
 
-	# debprint (
-	# 	sprintf(
-	# 		"Bombable: intercept time =%6.1f Intercept vector =[%6.3f, %6.3f, %6.3f]",
-	# 		newAim.interceptTime, interceptDirRefFrame[0], interceptDirRefFrame[1], interceptDirRefFrame[2] 
-	# 	)
-	# );
+	debprint (
+		sprintf(
+			"Bombable: intercept time =%6.1f Intercept vector =[%6.3f, %6.3f, %6.3f]",
+			newAim.interceptTime, interceptDirRefFrame[0], interceptDirRefFrame[1], interceptDirRefFrame[2] 
+		)
+	);
 
 
 	# calculate angular offset between direction of missile and direction of target
@@ -6369,71 +6370,66 @@ var guideRocket = func
 	# trap - if travelling opposite to the direction of the target then the direction to turn is ill-defined
 
 	#rotate up to 10 degrees to the target direction
-	var maxTurn = 0.984; # cos ( 10.0 * D2R )
 	var minTurn = 0.9998; # cos ( 1.0 * D2R)
+	var maxTurn = 0.984; # cos ( 10.0 * D2R )
+	var turning = (cosOffset < minTurn);
 	var stillTurning = (cosOffset < maxTurn); # flag used for AI speed control
 	if (stillTurning) cosOffset = maxTurn;
 
 	#small direction errors are ignored
-	if (cosOffset < minTurn) 
-	{
-		newMissileDir = vectorRotate(missileDir, interceptDirRefFrame, math.acos( cosOffset ));
-	}
-	else
-	{
-		newMissileDir = missileDir;
-	}
 
-	newAim.weaponDirRefFrame = newMissileDir;
 	
-	# debprint (
-	# 	sprintf(
-	# 		"Bombable: distance vector to target =[%6.2f, %6.2f, %6.2f]",
-	# 		deltaX_m, deltaY_m, deltaAlt_m 
-	# 	)
-	# );
-	
-	# debprint (
-	# 	sprintf(
-	# 		"Bombable: newMissileDir vector =[%6.3f, %6.3f, %6.3f]",
-	# 		newMissileDir[0], newMissileDir[1], newMissileDir[2] 
-	# 	)
-	# );
+	debprint (
+		sprintf(
+			"Bombable: distance vector to target =[%6.2f, %6.2f, %6.2f]",
+			deltaX_m, deltaY_m, deltaAlt_m 
+		)
+	);
 
 	# reduce speed according to rate of turn
 	var newMissileSpeed_mps = missileSpeed_mps * cosOffset * cosOffset;
 
 	# creates set of intermediate positions in wayPoint hash
-	# incremental change in position given by vector newMissileDir * delta_t
-	# newMissileDir changes each increment
+	# incremental change in position given by vector newMissileDir * time_inc
+	# newMissileDir changes each time increment
 
 	var nSteps = 5;
 	var theta = math.acos( cosOffset ) / nSteps;
-	var newMissileDir = [0, 0, 0];
+	var newMissileDir = missileDir;
 	var deltaXYZ = [0, 0, 0];
 	var deltaLat = 0;
 	var deltaLon = 0;
+	var deltaAlt = 0;
 	var time_inc = delta_t / nSteps;
 
 
 
 	for (var i = 0; i < nSteps; i = i + 1) 
 	{
-		newMissileDir = vectorRotateSmall (missileDir, interceptDirRefFrame, theta * (i + 1));
-		deltaXYZ = vectorMultiply (newMissileDir, newMissileSpeed_mps * delta_t);
-		deltaLat = deltaXYZ[1] / m_per_deg_lat;
-		deltaLon = deltaXYZ[0] / m_per_deg_lon;
+		if (turning == 1) newMissileDir = vectorRotateSmall (missileDir, interceptDirRefFrame, theta * (i + 1)); # probably don't need to omit small turns
+		deltaXYZ = vectorMultiply (newMissileDir, newMissileSpeed_mps * time_inc);
+		deltaLat = deltaLat + deltaXYZ[1] / m_per_deg_lat;
+		deltaLon = deltaLon + deltaXYZ[0] / m_per_deg_lon;
+		deltaAlt = deltaAlt + deltaXYZ[2];
 		weaps[elem].flightPath[i].lon = alon_deg + deltaLon;
 		weaps[elem].flightPath[i].lat = alat_deg + deltaLat;
-		weaps[elem].flightPath[i].alt = ( aAlt_m + deltaXYZ[2] ) * M2FT;
+		weaps[elem].flightPath[i].alt = ( aAlt_m + deltaAlt ) * M2FT;
 	}
 
+	newAim.weaponDirRefFrame = newMissileDir;
+	
+	debprint (
+		sprintf(
+			"Bombable: newMissileDir vector =[%6.3f, %6.3f, %6.3f]",
+			newMissileDir[0], newMissileDir[1], newMissileDir[2] 
+		)
+	);
 
 	settimer ( func{ moveRocket (myNodeName1, elem, 0, nSteps, time_inc )}, time_inc );
 
 	var pitch = math.asin(newMissileDir[2]) * R2D;
 	var trueHeading = math.atan2(newMissileDir[0], newMissileDir[1]) * R2D;
-
+	# pitch and heading are updated to their final positions on this section
 
 	# update co-ords for calculation of rocket flightpath - no longer needed if use flightPath in attributes
 	setprop("" ~ myNodeName1 ~ "/" ~ elem ~ "/position/latitude-deg",
@@ -6510,7 +6506,8 @@ var moveRocket = func (myNodeName, elem, index, lastIndex, timeInc)
 
 	#get flighpath waypoint
 
-	var fpath = attributes[myNodeName1].weapons[elem].flightPath;
+	var weaps = attributes[myNodeName].weapons;
+	var fpath = weaps[elem].flightPath;
 
 	var rp = "ai/models/aircraft[" ~ weaps[elem].rocketsIndex ~ "]";
 
@@ -6520,7 +6517,7 @@ var moveRocket = func (myNodeName, elem, index, lastIndex, timeInc)
 
 
 	var nextIndex = index + 1;
-	if (index < last) settimer ( func{ moveRocket (myNodeName, elem, nextIndex, lastIndex, timeInc)}, timeInc );
+	if (nextIndex < lastIndex) settimer ( func{ moveRocket (myNodeName, elem, nextIndex, lastIndex, timeInc)}, timeInc );
 }
 
 
