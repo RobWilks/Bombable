@@ -6428,6 +6428,8 @@ var guideRocket = func
 
 	settimer ( func{ moveRocket (myNodeName1, elem, 0, nSteps, time_inc )}, 0 ); # first step called immediately
 
+	var newAlt_ft = ( aAlt_m + deltaAlt ) * M2FT;
+
 	# update co-ords for calculation of rocket flightpath - no longer needed if use flightPath in attributes
 	setprop("" ~ myNodeName1 ~ "/" ~ elem ~ "/position/longitude-deg",
 	alon_deg + deltaLon);
@@ -6436,7 +6438,7 @@ var guideRocket = func
 	alat_deg + deltaLat); 
 
 	setprop("" ~ myNodeName1 ~ "/" ~ elem ~ "/position/altitude-ft",
-	( aAlt_m + deltaAlt ) * M2FT);
+	newAlt_ft);
 
 	setprop("" ~ myNodeName1 ~ "/" ~ elem ~ "/velocities/true-airspeed-kt", 
 	newMissileSpeed_mps  * MPS2KT);
@@ -6447,24 +6449,26 @@ var guideRocket = func
 	# the rocket position and orientation are forced to follow the calculated rocket flightpath
 	# the AI controls are used to provide continuous interpolation between the calculated points 
 
-	var pitch = math.asin(newMissileDir[2]) * R2D;
-	var trueHeading = math.atan2(newMissileDir[0], newMissileDir[1]) * R2D;
+	var newPitch = math.asin(newMissileDir[2]) * R2D;
+	var newHeading = math.atan2(newMissileDir[0], newMissileDir[1]) * R2D;
 
 	var rp = "ai/models/aircraft[" ~ weaps[elem].rocketsIndex ~ "]";
 
 	debprint(
 		sprintf(
 		"Pitch = %6.3f Heading_ = %6.3f Speed_ = %6.3f",
-		pitch,
-		trueHeading,
+		newPitch,
+		newHeading,
 		newMissileSpeed_mps * MPS2KT,
 		)
 	);
 
 	setprop (rp ~ "/velocities/true-airspeed-kt", newMissileSpeed_mps * MPS2KT);
 	setprop (rp ~ "/controls/flight/target-spd", newMissileSpeed_mps * MPS2KT);
-	setprop (rp ~ "/orientation/pitch-deg", pitch); #in vertical-mode = "alt" the AI attempts to set altitude
-	setprop (rp ~ "/orientation/true-heading-deg", trueHeading);
+	setprop (rp ~ "/controls/flight/target-alt", newAlt_ft);
+	setprop (rp ~ "/controls/flight/target-hdg", newHeading);
+	setprop (rp ~ "/orientation/pitch-deg", newPitch); #in vertical-mode = "alt" the AI attempts to set altitude
+	setprop (rp ~ "/orientation/true-heading-deg", newHeading);
 
 
 	if (stores.reduceWeaponsCount (myNodeName1, elem, delta_t) == 1)
@@ -6483,8 +6487,8 @@ var guideRocket = func
 		var msg = "AI rocket from " ~ 
 		getprop ("" ~ myNodeName1 ~ "/name") ~ 
 		" intercept time " ~ round(newAim.interceptTime) ~ "s" ~ 
-		" heading " ~ round(math.atan2(newAim.weaponDirRefFrame[0], newAim.weaponDirRefFrame[1]) * R2D) ~ " deg" ~
-		" pitch " ~ round(math.asin(newAim.weaponDirRefFrame[2]) * R2D) ~ " deg";
+		" heading " ~ newHeading ~ " deg" ~
+		" pitch " ~ newPitch ~ " deg";
 	
 
 		targetStatusPopupTip (msg, 5);
