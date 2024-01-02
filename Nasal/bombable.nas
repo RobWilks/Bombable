@@ -5924,8 +5924,8 @@ var weapons_loop = func (id, myNodeName1 = "", myNodeName2 = "", targetSize_m = 
 	id == loopid or return;
 	#debprint ("aim-timer");
 				
-	var loopTime = .25;
-	settimer (  func { weapons_loop (id, myNodeName1, myNodeName2, targetSize_m )}, loopTime * (1 + rand()/8));
+	var loopTime = .25 * (1 + rand()/8);
+	settimer (  func { weapons_loop (id, myNodeName1, myNodeName2, targetSize_m )}, loopTime);
 
 	#debprint ("weapons_loop starting");
 
@@ -6408,8 +6408,8 @@ var guideRocket = func
 	{
 		if (turning == 1) newMissileDir = vectorRotateSmall (missileDir, interceptDirRefFrame, theta * (i + 1)); # probably don't need to omit small turns
 		deltaXYZ = vectorMultiply (newMissileDir, newMissileSpeed_mps * time_inc);
-		deltaLat = deltaLat + deltaXYZ[1] / m_per_deg_lat;
 		deltaLon = deltaLon + deltaXYZ[0] / m_per_deg_lon;
+		deltaLat = deltaLat + deltaXYZ[1] / m_per_deg_lat;
 		deltaAlt = deltaAlt + deltaXYZ[2];
 		weaps[elem].flightPath[i].lon = alon_deg + deltaLon;
 		weaps[elem].flightPath[i].lat = alat_deg + deltaLat;
@@ -6432,14 +6432,14 @@ var guideRocket = func
 	# pitch and heading are updated to their final positions on this section
 
 	# update co-ords for calculation of rocket flightpath - no longer needed if use flightPath in attributes
-	setprop("" ~ myNodeName1 ~ "/" ~ elem ~ "/position/latitude-deg",
-	alat_deg + deltaLat); 
-
 	setprop("" ~ myNodeName1 ~ "/" ~ elem ~ "/position/longitude-deg",
 	alon_deg + deltaLon);
 
+	setprop("" ~ myNodeName1 ~ "/" ~ elem ~ "/position/latitude-deg",
+	alat_deg + deltaLat); 
+
 	setprop("" ~ myNodeName1 ~ "/" ~ elem ~ "/position/altitude-ft",
-	( aAlt_m + deltaXYZ[2] ) * M2FT);
+	( aAlt_m + deltaAlt ) * M2FT);
 
 	setprop("" ~ myNodeName1 ~ "/" ~ elem ~ "/velocities/true-airspeed-kt", 
 	newMissileSpeed_mps  * MPS2KT);
@@ -6464,6 +6464,7 @@ var guideRocket = func
 	);
 
 	setprop (rp ~ "/velocities/true-airspeed-kt", newMissileSpeed_mps * MPS2KT);
+	setprop (rp ~ "/controls/flight/target-spd", newMissileSpeed_mps * MPS2KT);
 	setprop (rp ~ "/orientation/pitch-deg", pitch); #in vertical-mode = "alt" the AI attempts to set altitude
 	setprop (rp ~ "/orientation/true-heading-deg", trueHeading);
 
@@ -10346,16 +10347,16 @@ var vectorRotate_ = func(v1, v2, alpha)
 # using rotation axis defined by cross product k = v1 ^ v2
 # algorithm from https://en.wikipedia.org/wiki/Rodrigues%27_rotation_formula
 # returns rotated unit vector
-# assume alpha is small
+# alpha in radians.  Assume is small
+
 
 var vectorRotateSmall = func(v1, v2, alpha)
 {
 	var v1v2 = dotProduct (v1, v2);
 	var magnitude_k = math.abs (math.sin (math.acos (v1v2)));
 	# abs needed since angles between 90 and 180 or -180 and -90 will otherwise give magnitude < 0
-	var alpha_rad = alpha * D2R;
-	var sinAbymagK = alpha_rad * D2R / magnitude_k;
-	var v3 = vectorMultiply (v1, ( 1.0 - alpha_rad * alpha_rad / 2.0 - v1v2 * sinAbymagK ));
+	var sinAbymagK = alpha * D2R / magnitude_k;
+	var v3 = vectorMultiply (v1, ( 1.0 - alpha * alpha / 2.0 - v1v2 * sinAbymagK ));
 	var v4 = vectorMultiply (v2, sinAbymagK );
 	return (vectorSum (v3, v4));
 }	
