@@ -2192,7 +2192,7 @@ var setupBombableMenu = func {
 	["pistonexhaust", 15, -1],
 	["damagedengine",  55, -1],
 	["flare",66,3600],
-	["skywriting",5,-1],
+	["skywriting",11,-1],
 	["blaze",13,-1],
 	] ) {
 				
@@ -6370,14 +6370,13 @@ var guideRocket = func
 	# trap - if travelling opposite to the direction of the target then the direction to turn is ill-defined
 
 	#rotate up to 10 degrees to the target direction
-	var minTurn = 0.9998; # cos ( 1.0 * D2R)
-	var maxTurn = 0.984; # cos ( 10.0 * D2R )
-	var turning = (cosOffset < minTurn);
+	var minTurn = 0.9999; # equivalent to 1 deg
+	var maxTurn = 0.984; # 10 deg
+	if (cosOffset > minTurn) cosOffset = 1.0; # get math.acos errors if dotproduct ~ 1
 	var stillTurning = (cosOffset < maxTurn); # flag used for AI speed control
 	if (stillTurning) cosOffset = maxTurn;
 
-	#small direction errors are ignored
-
+	
 	
 	debprint (
 		sprintf(
@@ -6406,7 +6405,7 @@ var guideRocket = func
 	weaps[elem].atomic = 1; #to lock access
 	for (var i = 0; i < nSteps; i = i + 1) 
 	{
-		if (turning == 1) newMissileDir = vectorRotateSmall (missileDir, interceptDirRefFrame, theta * (i + 1)); # probably don't need to omit small turns
+		if (cosOffset != 1.0) newMissileDir = vectorRotateSmall (missileDir, interceptDirRefFrame, theta * (i + 1)); # probably don't need to omit small turns
 		deltaXYZ = vectorMultiply (newMissileDir, newMissileSpeed_mps * time_inc);
 		deltaLon = deltaLon + deltaXYZ[0] / m_per_deg_lon;
 		deltaLat = deltaLat + deltaXYZ[1] / m_per_deg_lat;
@@ -6486,9 +6485,12 @@ var guideRocket = func
 	{
 		var msg = "AI rocket from " ~ 
 		getprop ("" ~ myNodeName1 ~ "/name") ~ 
-		" intercept time " ~ round(newAim.interceptTime) ~ "s" ~ 
-		" heading " ~ newHeading ~ " deg" ~
-		" pitch " ~ newPitch ~ " deg";
+		sprintf(
+		" intercept time %6.1fs, heading %6.1f deg, pitch %6.1f deg",
+		newAim.interceptTime,
+		newHeading,
+		newPitch
+		);
 	
 
 		targetStatusPopupTip (msg, 5);
@@ -6536,7 +6538,10 @@ var moveRocket = func (myNodeName, elem, index, lastIndex, timeInc)
 var killRocket = func (myNodeName, elem)
 {
 	var weaps = attributes[myNodeName].weapons;
-	var rp = "ai/models/aircraft[" ~ weaps[elem].rocketsIndex ~ "]";				
+	var rp = "ai/models/aircraft[" ~ weaps[elem].rocketsIndex ~ "]";	
+
+	deleteSmoke ("skywriting", rp);
+
 	setprop (rp ~ "/position/latitude-deg", 0);
 	setprop (rp ~ "/position/longitude-deg", 0);
 	setprop (rp ~ "/position/altitude-ft", 0);
@@ -7337,7 +7342,6 @@ var aircraftTurnToHeadingControl = func (myNodeName, id, targetdegrees = 0, roll
 		if (targetAlt_m - currElev_m < alts.minimumAGL_m ) targetAlt_ft = (alts.minimumAGL_m + currElev_m) * M2FT;
 		if (targetAlt_m - currElev_m > alts.maximumAGL_m ) targetAlt_ft = (alts.maximumAGL_m + currElev_m) * M2FT;
 					
-		#debprint ("Bombable: setprop 2955");
 		# we set the target altitude, unless we are stalling and trying to move
 		# higher, then we basically stop moving up
 		var stalling = getprop ("" ~ myNodeName ~ "/bombable/stalling");
@@ -10361,6 +10365,15 @@ var vectorRotate_ = func(v1, v2, alpha)
 var vectorRotateSmall = func(v1, v2, alpha)
 {
 	var v1v2 = dotProduct (v1, v2);
+	# trap for math.acos errors not needed is screen out small turns
+	# if (v1v2 > 1.0) 
+	# {
+	# 	v1v2 = 1.0;
+	# }
+	# elsif (v1v2 < -1.0) 
+	# {
+	# 	v1v2 = -1.0;
+	# }
 	var magnitude_k = math.abs (math.sin (math.acos (v1v2)));
 	# abs needed since angles between 90 and 180 or -180 and -90 will otherwise give magnitude < 0
 	var sinAbymagK = alpha / magnitude_k;
