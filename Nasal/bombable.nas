@@ -5986,7 +5986,7 @@ var weapons_loop = func (id, myNodeName1 = "", myNodeName2 = "", targetSize_m = 
 				weaps[elem].weaponAngle_deg,
 				weaps[elem].weaponOffset_m, 
 				damageValue,
-				weaps[elem].maxMissileSpeed_mps / callCheckAim
+				weaps[elem].maxMissileSpeed_mps / callCheckAim # estimate of average speed over trajectory
 				);
 			 if ( foundTarget ) 
 				{
@@ -6403,7 +6403,7 @@ var guideRocket = func
 	var time_inc = delta_t / nSteps;
 
 
-
+	weaps[elem].atomic = 1; #to lock access
 	for (var i = 0; i < nSteps; i = i + 1) 
 	{
 		if (turning == 1) newMissileDir = vectorRotateSmall (missileDir, interceptDirRefFrame, theta * (i + 1)); # probably don't need to omit small turns
@@ -6415,6 +6415,7 @@ var guideRocket = func
 		weaps[elem].flightPath[i].lat = alat_deg + deltaLat;
 		weaps[elem].flightPath[i].alt = ( aAlt_m + deltaAlt ) * M2FT;
 	}
+	weaps[elem].atomic = 0; #to unlock access
 
 	newAim.weaponDirRefFrame = newMissileDir;
 	
@@ -6425,11 +6426,7 @@ var guideRocket = func
 		)
 	);
 
-	settimer ( func{ moveRocket (myNodeName1, elem, 0, nSteps, time_inc )}, time_inc );
-
-	var pitch = math.asin(newMissileDir[2]) * R2D;
-	var trueHeading = math.atan2(newMissileDir[0], newMissileDir[1]) * R2D;
-	# pitch and heading are updated to their final positions on this section
+	settimer ( func{ moveRocket (myNodeName1, elem, 0, nSteps, time_inc )}, 0 ); # first step called immediately
 
 	# update co-ords for calculation of rocket flightpath - no longer needed if use flightPath in attributes
 	setprop("" ~ myNodeName1 ~ "/" ~ elem ~ "/position/longitude-deg",
@@ -6446,6 +6443,7 @@ var guideRocket = func
 
 
 	# updates speed and orientation of AI model of rocket
+	# pitch and heading are updated to their final positions on this section
 	# the rocket position and orientation are forced to follow the calculated rocket flightpath
 	# the AI controls are used to provide continuous interpolation between the calculated points 
 
@@ -6512,13 +6510,17 @@ var moveRocket = func (myNodeName, elem, index, lastIndex, timeInc)
 
 	var rp = "ai/models/aircraft[" ~ weaps[elem].rocketsIndex ~ "]";
 
-	setprop (rp ~ "/position/latitude-deg", fpath[index].lat);
+	if (weaps[elem].atomic == 1) return (0);
+
 	setprop (rp ~ "/position/longitude-deg", fpath[index].lon);
+	setprop (rp ~ "/position/latitude-deg", fpath[index].lat);
 	setprop (rp ~ "/position/altitude-ft", fpath[index].alt);
 
 
 	var nextIndex = index + 1;
 	if (nextIndex < lastIndex) settimer ( func{ moveRocket (myNodeName, elem, nextIndex, lastIndex, timeInc)}, timeInc );
+
+	return (1);
 }
 
 
@@ -9280,6 +9282,8 @@ var weapons_init_func = func(myNodeName) {
 
 			attributes[myNodeName].weapons[elem]["flightPath"] = fp;
 
+			attributes[myNodeName].weapons[elem]["atomic"] = 0; # flag to control access
+
 			rocketCount += 1;
 			# each rocket is a separate weapon with a separate AI model - not tied to the parent AC/ship
 		}
@@ -10347,7 +10351,7 @@ var vectorRotate_ = func(v1, v2, alpha)
 # using rotation axis defined by cross product k = v1 ^ v2
 # algorithm from https://en.wikipedia.org/wiki/Rodrigues%27_rotation_formula
 # returns rotated unit vector
-# alpha in radians.  Assume is small
+# assume alpha is small
 
 
 var vectorRotateSmall = func(v1, v2, alpha)
@@ -10355,7 +10359,7 @@ var vectorRotateSmall = func(v1, v2, alpha)
 	var v1v2 = dotProduct (v1, v2);
 	var magnitude_k = math.abs (math.sin (math.acos (v1v2)));
 	# abs needed since angles between 90 and 180 or -180 and -90 will otherwise give magnitude < 0
-	var sinAbymagK = alpha * D2R / magnitude_k;
+	var sinAbymagK = alpha / magnitude_k;
 	var v3 = vectorMultiply (v1, ( 1.0 - alpha * alpha / 2.0 - v1v2 * sinAbymagK ));
 	var v4 = vectorMultiply (v2, sinAbymagK );
 	return (vectorSum (v3, v4));
