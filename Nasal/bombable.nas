@@ -5441,7 +5441,6 @@ var mainAC_add_damage = func (damageRise = 0, damageTotal = 0, source = "", mess
 	if (damageValue >= 1 and (prevDamageValue < 1 or getprop("/controls/engines/engine[0]/magnetos") > 0 or getprop("/controls/engines/engine[0]/throttle") > 0 )) {
 					
 		#turn off all engines
-		#debprint ("Bombable: setprop 2553");
 		setprop("/controls/engines/engine[0]/magnetos",0);
 		setprop("/controls/engines/engine[0]/throttle",0);
 		setprop("/controls/engines/engine[1]/magnetos",0);
@@ -6014,7 +6013,6 @@ var weapons_loop = func (id, myNodeName1 = "", myNodeName2 = "", targetSize_m = 
 				{
 					# props.globals.getNode("" ~ myNodeName ~ "/" ~ elem ~ "/destroyed", 0).setBoolValue(0);
 					setprop ("" ~ myNodeName1 ~ "/" ~ elem ~ "/destroyed", 1);
-#					settimer(func {killRocket (myNodeName1, elem);}, loopTime); # delay to ensure that moveRocket sequence complete
 					killRocket (myNodeName1, elem);
 				}
 
@@ -6187,7 +6185,6 @@ var guideRocket = func
 	damageValue = 0, delta_t = 0.25
 )
 {
-
 	var weaps = attributes[myNodeName1].weapons;
 	# newAim = {pHit:0, weaponDirModelFrame:[0,0,0], weaponOffsetRefFrame:[0,0,0], weaponDirRefFrame:[0,0,1], interceptSpeed:0, interceptTime:0}; #reset global variable
 	newAim = weaps[elem].aim; #reset global variable
@@ -6201,8 +6198,6 @@ var guideRocket = func
 	if (missileSpeed_mps < weaps[elem].maxMissileSpeed_mps) missileSpeed_mps = missileSpeed_mps + weaps[elem].missileAcceleration * delta_t;
 	var a_delta_dist = missileSpeed_mps * delta_t;
 
-
-
 	var mlat_deg = getprop("" ~ myNodeName2 ~ "/position/latitude-deg"); # main AC
 	var mlon_deg = getprop("" ~ myNodeName2 ~ "/position/longitude-deg");
 	var mAlt_m = getprop("" ~ myNodeName2 ~ "/position/altitude-ft") * FT2M;
@@ -6211,6 +6206,16 @@ var guideRocket = func
 	var mSpeed = getprop("" ~ myNodeName2 ~ "/velocities/airspeed-kt") * KT2MPS;
 	var m_delta_dist = mSpeed * delta_t;
 
+	# variables used to calculate the new positions
+	var nSteps = 5;
+	var distMissile = missileSpeed_mps * delta_t; #distance missile travels over this stage which is divided into nSteps
+	var step = distMissile / nSteps;
+	var time_inc = delta_t / nSteps;
+	var deltaXYZ = [0, 0, 0];
+	var deltaLat = 0;
+	var deltaLon = 0;
+	var deltaAlt = 0;
+	var newMissileDir = missileDir;
 
 	# add look ahead
 
@@ -6277,17 +6282,15 @@ var guideRocket = func
 		return(0);
 	}	
 
-	if (distance_m < missileSpeed_mps * delta_t)
+	if (distance_m < distMissile)
 	{
+		var dp = dotProduct( missileDir, targetDispRefFrame );
 		var closestApproach = vectorModulus (
 			vectorSum (
 				targetDispRefFrame,
 				vectorMultiply(
 					missileDir,
-					-dotProduct(
-						missileDir,
-						targetDispRefFrame
-						)
+					-dp
 					)		
 				)
 			);
@@ -6301,8 +6304,29 @@ var guideRocket = func
 
 		if (closestApproach < attributes[myNodeName2].dimensions.crashRadius_m)
 		{
-			newAim.pHit = 1;
 			# message rocket hit from weapons_loop
+			newAim.pHit = 1;
+
+			# run missile on to target
+			var steps_to_target = (dp > 0) ? math.floor ( dp / distMissile ) : 0;
+			deltaXYZ = vectorMultiply (missileDir, step);
+
+
+			weaps[elem].atomic = 1; #to lock access
+			for (var i = 0; i < nSteps; i = i + 1) 
+			{
+				if (i < steps_to_target)
+				{
+					deltaLon = deltaLon + deltaXYZ[0] / m_per_deg_lon;
+					deltaLat = deltaLat + deltaXYZ[1] / m_per_deg_lat;
+					deltaAlt = deltaAlt + deltaXYZ[2];
+				}
+				weaps[elem].flightPath[i].lon = alon_deg + deltaLon;
+				weaps[elem].flightPath[i].lat = alat_deg + deltaLat;
+				weaps[elem].flightPath[i].alt = ( aAlt_m + deltaAlt ) * M2FT;
+			}
+			weaps[elem].atomic = 0; #to unlock access
+
 			return (0);
 		};
 	}
@@ -6394,14 +6418,7 @@ var guideRocket = func
 	# incremental change in position given by vector newMissileDir * time_inc
 	# newMissileDir changes each time increment
 
-	var nSteps = 5;
 	var theta = math.acos( cosOffset ) / nSteps;
-	var newMissileDir = missileDir;
-	var deltaXYZ = [0, 0, 0];
-	var deltaLat = 0;
-	var deltaLon = 0;
-	var deltaAlt = 0;
-	var time_inc = delta_t / nSteps;
 
 
 	weaps[elem].atomic = 1; #to lock access
@@ -6428,6 +6445,10 @@ var guideRocket = func
 	);
 
 	settimer ( func{ moveRocket (myNodeName1, elem, 0, nSteps, time_inc )}, 0 ); # first step called immediately
+
+	# change missile velocity vector here
+
+
 
 	var newAlt_ft = ( aAlt_m + deltaAlt ) * M2FT;
 
@@ -6554,7 +6575,7 @@ var killRocket = func (myNodeName, elem)
 			setprop (rp ~ "/controls/flight/target-alt", 0);
 			setprop (rp ~ "/controls/flight/target-spd", 0);
 			}
-		, 2.0
+		, 4.0
 	);
 }
 
