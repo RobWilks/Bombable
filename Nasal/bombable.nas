@@ -6014,6 +6014,7 @@ var weapons_loop = func (id, myNodeName1 = "", myNodeName2 = "", targetSize_m = 
 				{
 					# props.globals.getNode("" ~ myNodeName ~ "/" ~ elem ~ "/destroyed", 0).setBoolValue(0);
 					setprop ("" ~ myNodeName1 ~ "/" ~ elem ~ "/destroyed", 1);
+#					settimer(func {killRocket (myNodeName1, elem);}, loopTime); # delay to ensure that moveRocket sequence complete
 					killRocket (myNodeName1, elem);
 				}
 
@@ -6118,7 +6119,7 @@ var launchRocket = func (myNodeName, elem)
 
 
 	# rocket initiated by moving it from {lat, lon} {0, 0} to location of AC / ship
-	var rp = "ai/models/aircraft[" ~ weaps[elem].rocketsIndex ~ "]";
+	var rp = "ai/models/static[" ~ weaps[elem].rocketsIndex ~ "]";
 	var pitch = math.asin(weaps[elem].aim.weaponDirRefFrame[2]) * R2D; # orientation of rocket vs AC - use weaponDirRefFrame?
 	var heading = math.atan2(weaps[elem].aim.weaponDirRefFrame[0], weaps[elem].aim.weaponDirRefFrame[1]) * R2D;
 
@@ -6363,16 +6364,17 @@ var guideRocket = func
 	# calculate whether to turn left (-1) or right (+1) - not needed
 	# var turnDirection = ( missileDir[0] * interceptDir[1] < missileDir[1] * interceptDir[0] ) ? 1 : -1;
 
-	if (cosOffset + 1.0 < 1e-5) {
+	#rotate up to 10 degrees to the target direction
+	var minTurn = 0.9999; # equivalent to 1 deg
+	var maxTurn = 0.984; # 10 deg
+	if (cosOffset > minTurn) cosOffset = 1.0; # get math.acos errors if dotproduct ~ 1
+
+	if (cosOffset < -maxTurn) {
 		interceptDirRefFrame = [0.0, 0.0, 1.0]; 
 		debprint ("Bombable: vectorRotate trap");
 	}
 	# trap - if travelling opposite to the direction of the target then the direction to turn is ill-defined
 
-	#rotate up to 10 degrees to the target direction
-	var minTurn = 0.9999; # equivalent to 1 deg
-	var maxTurn = 0.984; # 10 deg
-	if (cosOffset > minTurn) cosOffset = 1.0; # get math.acos errors if dotproduct ~ 1
 	var stillTurning = (cosOffset < maxTurn); # flag used for AI speed control
 	if (stillTurning) cosOffset = maxTurn;
 
@@ -6405,7 +6407,7 @@ var guideRocket = func
 	weaps[elem].atomic = 1; #to lock access
 	for (var i = 0; i < nSteps; i = i + 1) 
 	{
-		if (cosOffset != 1.0) newMissileDir = vectorRotateSmall (missileDir, interceptDirRefFrame, theta * (i + 1)); # probably don't need to omit small turns
+		if (cosOffset != 1.0) newMissileDir = vectorRotate (missileDir, interceptDirRefFrame, theta * (i + 1)); # probably don't need to omit small turns
 		deltaXYZ = vectorMultiply (newMissileDir, newMissileSpeed_mps * time_inc);
 		deltaLon = deltaLon + deltaXYZ[0] / m_per_deg_lon;
 		deltaLat = deltaLat + deltaXYZ[1] / m_per_deg_lat;
@@ -6451,7 +6453,7 @@ var guideRocket = func
 	var newPitch = math.asin(newMissileDir[2]) * R2D;
 	var newHeading = math.atan2(newMissileDir[0], newMissileDir[1]) * R2D;
 
-	var rp = "ai/models/aircraft[" ~ weaps[elem].rocketsIndex ~ "]";
+	var rp = "ai/models/static[" ~ weaps[elem].rocketsIndex ~ "]";
 
 	debprint(
 		sprintf(
@@ -6514,7 +6516,7 @@ var moveRocket = func (myNodeName, elem, index, lastIndex, timeInc)
 	var weaps = attributes[myNodeName].weapons;
 	var fpath = weaps[elem].flightPath;
 
-	var rp = "ai/models/aircraft[" ~ weaps[elem].rocketsIndex ~ "]";
+	var rp = "ai/models/static[" ~ weaps[elem].rocketsIndex ~ "]";
 
 	if (weaps[elem].atomic == 1) return (0);
 
@@ -6538,18 +6540,22 @@ var moveRocket = func (myNodeName, elem, index, lastIndex, timeInc)
 var killRocket = func (myNodeName, elem)
 {
 	var weaps = attributes[myNodeName].weapons;
-	var rp = "ai/models/aircraft[" ~ weaps[elem].rocketsIndex ~ "]";	
+	var rp = "ai/models/static[" ~ weaps[elem].rocketsIndex ~ "]";	
 
 	deleteSmoke ("skywriting", rp);
-
-	setprop (rp ~ "/position/latitude-deg", 0);
-	setprop (rp ~ "/position/longitude-deg", 0);
-	setprop (rp ~ "/position/altitude-ft", 0);
-	setprop (rp ~ "/velocities/true-airspeed-kt", 0);
-	setprop (rp ~ "/controls/flight/target-alt", 0);
-	setprop (rp ~ "/controls/flight/target-spd", 0);
-
-
+	startSmoke ("flare", rp, "AI/Aircraft/Fire-Particles/large-explosion-particles.xml" ); 
+	settimer (
+		func {
+			deleteSmoke("flare", rp ); 
+			setprop (rp ~ "/position/latitude-deg", 0);
+			setprop (rp ~ "/position/longitude-deg", 0);
+			setprop (rp ~ "/position/altitude-ft", 0);
+			setprop (rp ~ "/velocities/true-airspeed-kt", 0);
+			setprop (rp ~ "/controls/flight/target-alt", 0);
+			setprop (rp ~ "/controls/flight/target-spd", 0);
+			}
+		, 2.0
+	);
 }
 
 ##########################################################
@@ -6830,7 +6836,7 @@ var attack_loop = func (id, myNodeName, looptime) {
 	var skill = calcPilotSkill (myNodeName);
 	if (skill <= .2) skillMult = 3/0.2;
 	else skillMult = 3/skill;
-				
+	 
 	#Higher skill makes the AI pilot react faster/more often:
 	var looptimeActual = skillMult * looptime;
 	settimer ( func { attack_loop (id, myNodeName, looptime) }, looptimeActual);
