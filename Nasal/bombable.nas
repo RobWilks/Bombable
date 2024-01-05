@@ -6195,8 +6195,7 @@ var guideRocket = func
 	var aAlt_m = getprop("" ~ myNodeName1 ~ "/" ~ elem ~ "/position/altitude-ft") * FT2M;
 	var missileDir = weaps[elem].aim.weaponDirRefFrame;
 	var missileSpeed_mps = getprop("" ~ myNodeName1 ~ "/" ~ elem ~ "/velocities/true-airspeed-kt") * KT2MPS;
-	if (missileSpeed_mps < weaps[elem].maxMissileSpeed_mps) missileSpeed_mps = missileSpeed_mps + weaps[elem].missileAcceleration * delta_t;
-	var a_delta_dist = missileSpeed_mps * delta_t;
+	var a_delta_dist = missileSpeed_mps * delta_t; #distance missile travels over this stage which is divided into nSteps
 
 	var mlat_deg = getprop("" ~ myNodeName2 ~ "/position/latitude-deg"); # main AC
 	var mlon_deg = getprop("" ~ myNodeName2 ~ "/position/longitude-deg");
@@ -6208,8 +6207,7 @@ var guideRocket = func
 
 	# variables used to calculate the new positions
 	var nSteps = 5;
-	var distMissile = missileSpeed_mps * delta_t; #distance missile travels over this stage which is divided into nSteps
-	var step = distMissile / nSteps;
+	var step = a_delta_dist / nSteps;
 	var time_inc = delta_t / nSteps;
 	var deltaXYZ = [0, 0, 0];
 	var deltaLat = 0;
@@ -6282,7 +6280,7 @@ var guideRocket = func
 		return(0);
 	}	
 
-	if (distance_m < distMissile)
+	if (distance_m < a_delta_dist)
 	{
 		var dp = dotProduct( missileDir, targetDispRefFrame );
 		var closestApproach = vectorModulus (
@@ -6308,7 +6306,7 @@ var guideRocket = func
 			newAim.pHit = 1;
 
 			# run missile on to target
-			var steps_to_target = (dp > 0) ? math.floor ( dp / distMissile ) : 0;
+			var steps_to_target = (dp > 0) ? math.floor ( dp / a_delta_dist ) : 0;
 			deltaXYZ = vectorMultiply (missileDir, step);
 
 
@@ -6411,9 +6409,6 @@ var guideRocket = func
 		)
 	);
 
-	# reduce speed according to rate of turn
-	var newMissileSpeed_mps = missileSpeed_mps * cosOffset * cosOffset;
-
 	# creates set of intermediate positions in wayPoint hash
 	# incremental change in position given by vector newMissileDir * time_inc
 	# newMissileDir changes each time increment
@@ -6425,7 +6420,7 @@ var guideRocket = func
 	for (var i = 0; i < nSteps; i = i + 1) 
 	{
 		if (cosOffset != 1.0) newMissileDir = vectorRotate (missileDir, interceptDirRefFrame, theta * (i + 1)); # probably don't need to omit small turns
-		deltaXYZ = vectorMultiply (newMissileDir, newMissileSpeed_mps * time_inc);
+		deltaXYZ = vectorMultiply (newMissileDir, missileSpeed_mps * time_inc);
 		deltaLon = deltaLon + deltaXYZ[0] / m_per_deg_lon;
 		deltaLat = deltaLat + deltaXYZ[1] / m_per_deg_lat;
 		deltaAlt = deltaAlt + deltaXYZ[2];
@@ -6447,6 +6442,10 @@ var guideRocket = func
 	settimer ( func{ moveRocket (myNodeName1, elem, 0, nSteps, time_inc )}, 0 ); # first step called immediately
 
 	# change missile velocity vector here
+	if (missileSpeed_mps < weaps[elem].maxMissileSpeed_mps) missileSpeed_mps = missileSpeed_mps + weaps[elem].missileAcceleration * delta_t;
+	# reduce speed according to rate of turn
+	missileSpeed_mps = missileSpeed_mps * cosOffset * cosOffset;
+
 
 
 
@@ -6463,7 +6462,7 @@ var guideRocket = func
 	newAlt_ft);
 
 	setprop("" ~ myNodeName1 ~ "/" ~ elem ~ "/velocities/true-airspeed-kt", 
-	newMissileSpeed_mps  * MPS2KT);
+	missileSpeed_mps  * MPS2KT);
 
 
 	# updates speed and orientation of AI model of rocket
