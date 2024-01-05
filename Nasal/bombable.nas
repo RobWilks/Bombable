@@ -5634,7 +5634,9 @@ missileSpeed = 500) {
 	#Function called only by main weapons_loop
 	#rjw modified to return a hash
 
-	newAim = {pHit:0, weaponDirModelFrame:[0,0,0], weaponOffsetRefFrame:[0,0,0], weaponDirRefFrame:[0,0,0], interceptSpeed:0, interceptTime:0}; #reset global variable
+	newAim = {pHit:0, weaponDirModelFrame:[0,0,0], weaponOffsetRefFrame:[0,0,0], weaponDirRefFrame:[0,0,0], 
+	interceptSpeed:0, interceptTime:0, nextPosition:[0,0,0]}; #reset global variable
+
 	var weaponAimed = 0; #flag true if weapon aimed successfully
 				
 	#Weapons malfunction in proportion to the damageValue, to 100% of the time when damage = 100%
@@ -6414,7 +6416,7 @@ var guideRocket = func
 	# newMissileDir changes each time increment
 
 	var theta = math.acos( cosOffset ) / nSteps;
-	var newVely = newVelocity(myNodeName1, elem, missileSpeed_mps, missileDir, interceptDir, theta, delta_t);
+	var newVely = newVelocity(myNodeName1, elem, missileSpeed_mps, missileDir, interceptDirRefFrame, theta, delta_t);
 	var newMissileSpeed_mps = vectorModulus (newVely);
 	var newMissileDir = vectorDivide ( newVely, newMissileSpeed_mps );
 	
@@ -6422,7 +6424,7 @@ var guideRocket = func
 	
 	var v = vectorMultiply(missileDir, missileSpeed_mps); # current velocity
 	var deltaV = vectorDivide(
-		newVely - v,
+		vectorSubtract(newVely , v),
 		nSteps); # velocity increments
 
 	weaps[elem].atomic = 1; #to lock access
@@ -6498,7 +6500,7 @@ var guideRocket = func
 		" out of fuel";
 
 		targetStatusPopupTip (msg, 20);
-		# could make the rocket fall out of the skr rather than abort mid-air
+		# could make the rocket fall out of the sky rather than abort mid-air
 		return(0);
 	}
 
@@ -6520,9 +6522,9 @@ var guideRocket = func
 # calculate the (x,y,z) offset to the nextPosition by calculating the rotation for the next turn and the new missile direction and speed
 
 	theta = nextTurn / nSteps;
-	newVely = newVelocity(myNodeName1, elem, newMissileSpeed_mps, newMissileDir, interceptDir, theta, delta_t);
+	newVely = newVelocity(myNodeName1, elem, newMissileSpeed_mps, newMissileDir, interceptDirRefFrame, theta, delta_t);
 	deltaV = vectorDivide(
-		newVely - v,
+		vectorSubtract(newVely , v),
 		nSteps);
 	var nextPos = [0, 0, 0];
 
@@ -6548,18 +6550,17 @@ var newVelocity = func (myNodeName, elem, missileSpeed_mps, missileDir, intercep
 {
 	var weaps = attributes[myNodeName].weapons;
 	var maxSpeed= weaps[elem].maxMissileSpeed_mps;
-	var DtoL = 1.0 / weaps[elem].liftDragRatio;
 	var newDir = missileDir;
 
 	# acceleration from thrust and deceleration due to drag - g term because T = W / (L/D) for level flight
-	var deltaSpd = grav_mpss * DtoL * ( 1.0 - missileSpeed_mps * missileSpeed_mps / maxSpeed / maxSpeed) * delta_t;
+	var deltaSpd = weaps[elem].missileAcceleration_mpss * ( 1.0 - missileSpeed_mps * missileSpeed_mps / maxSpeed / maxSpeed) * delta_t;
 
 	var newSpd = missileSpeed_mps + deltaSpd;
 
 	
 	# reduce speed according to rate of turn
 	# approximation of dv / v = exp (-theta / dragLiftRatio )
-	newSpd = newSpd * ( 1.0 - theta * DtoL );
+	newSpd = newSpd * ( 1.0 - theta / weaps[elem].liftDragRatio );
 
 	if (theta > 0) newDir = vectorRotate (missileDir, interceptDir, theta);
 
@@ -9358,8 +9359,10 @@ var weapons_init_func = func(myNodeName) {
 		# new key to allow inclusion of new types of weapons such as rockets. Note weaponType used in other functions
 
 		if (attributes[myNodeName].weapons[elem]["maxMissileSpeed_mps"] == nil) attributes[myNodeName].weapons[elem]["maxMissileSpeed_mps"] = 300;
+		
+		if (attributes[myNodeName].weapons[elem]["missileAcceleration_mpss"] == nil) attributes[myNodeName].weapons[elem]["missileAcceleration_mpss"] = 3 * grav_mpss;
 
-		if (attributes[myNodeName].weapons[elem]["liftDragRatio"] == nil) attributes[myNodeName].weapons[elem]["liftDragRatio"] = 0;
+		if (attributes[myNodeName].weapons[elem]["liftDragRatio"] == nil) attributes[myNodeName].weapons[elem]["liftDragRatio"] = 1.33;
 		# acceleration of missile during flight - units m per sec per sec
 
 		if (attributes[myNodeName].weapons[elem]["ammo_seconds"] == nil) attributes[myNodeName].weapons[elem]["ammo_seconds"] = 6000;
