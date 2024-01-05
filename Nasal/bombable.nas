@@ -6186,8 +6186,7 @@ var guideRocket = func
 )
 {
 	var weaps = attributes[myNodeName1].weapons;
-	# newAim = {pHit:0, weaponDirModelFrame:[0,0,0], weaponOffsetRefFrame:[0,0,0], weaponDirRefFrame:[0,0,1], interceptSpeed:0, interceptTime:0}; #reset global variable
-	newAim = weaps[elem].aim; #reset global variable
+	newAim = weaps[elem].aim; 
 	newAim.pHit = 0;
 
 	var alat_deg = getprop("" ~ myNodeName1 ~ "/" ~ elem ~ "/position/latitude-deg"); # AI
@@ -6214,22 +6213,6 @@ var guideRocket = func
 	var deltaLon = 0;
 	var deltaAlt = 0;
 	var newMissileDir = missileDir;
-
-	# add look ahead
-
-	var deltaXYZ_weap = vectorMultiply(
-		missileDir,
-		a_delta_dist
-	);
-
-	var deltaXYZ_AC = vectorMultiply(
-		[
-		math.cos ( mPitch * D2R ) * math.sin( mHeading * D2R ),
-		math.cos ( mPitch * D2R ) * math.cos( mHeading * D2R ),
-		math.sin ( mPitch * D2R )
-		],
-		m_delta_dist
-	);
 
 	deltaLat_deg = mlat_deg - alat_deg;
 	deltaLon_deg = mlon_deg - alon_deg ;
@@ -6330,7 +6313,17 @@ var guideRocket = func
 	}
 
 	# look ahead by assessing relative positions at next up date 
-	# assume no change in velocity vectors
+
+	var deltaXYZ_weap = newAim.nextPosition;
+
+	var deltaXYZ_AC = vectorMultiply(
+		[
+		math.cos ( mPitch * D2R ) * math.sin( mHeading * D2R ),
+		math.cos ( mPitch * D2R ) * math.cos( mHeading * D2R ),
+		math.sin ( mPitch * D2R )
+		],
+		m_delta_dist
+	);
 
 	targetDispRefFrame = vectorSum(
 		targetDispRefFrame,
@@ -6378,6 +6371,14 @@ var guideRocket = func
 			newAim.interceptTime, interceptDirRefFrame[0], interceptDirRefFrame[1], interceptDirRefFrame[2] 
 		)
 	);
+	
+	
+	debprint (
+		sprintf(
+			"Bombable: distance vector to target =[%6.2f, %6.2f, %6.2f]",
+			deltaX_m, deltaY_m, deltaAlt_m 
+		)
+	);
 
 
 	# calculate angular offset between direction of missile and direction of target
@@ -6389,6 +6390,9 @@ var guideRocket = func
 	#rotate up to 10 degrees to the target direction
 	var minTurn = 0.9999; # equivalent to 1 deg
 	var maxTurn = 0.984; # 10 deg
+	var maxTurn_rad = 0.1745; # pi / 18 rad
+	var nextTurn = 0;
+
 	if (cosOffset > minTurn) cosOffset = 1.0; # get math.acos errors if dotproduct ~ 1
 
 	if (cosOffset < -maxTurn) {
@@ -6397,30 +6401,35 @@ var guideRocket = func
 	}
 	# trap - if travelling opposite to the direction of the target then the direction to turn is ill-defined
 
-	var stillTurning = (cosOffset < maxTurn); # flag used for AI speed control
-	if (stillTurning) cosOffset = maxTurn;
+	if (cosOffset < maxTurn)
+	{
+		nextTurn = math.acos( cosOffset ) - maxTurn_rad;
+		if (nextTurn > maxTurn_rad) nextTurn = maxTurn_rad;
+		cosOffset = maxTurn;
+	}
 
-	
-	
-	debprint (
-		sprintf(
-			"Bombable: distance vector to target =[%6.2f, %6.2f, %6.2f]",
-			deltaX_m, deltaY_m, deltaAlt_m 
-		)
-	);
 
 	# creates set of intermediate positions in wayPoint hash
 	# incremental change in position given by vector newMissileDir * time_inc
 	# newMissileDir changes each time increment
 
 	var theta = math.acos( cosOffset ) / nSteps;
-
+	var newVely = newVelocity(myNodeName1, elem, missileSpeed_mps, missileDir, interceptDir, theta, delta_t);
+	var newMissileSpeed_mps = vectorModulus (newVely);
+	var newMissileDir = vectorDivide ( newVely, newMissileSpeed_mps );
+	
+	newAim.weaponDirRefFrame = newMissileDir;
+	
+	var v = vectorMultiply(missileDir, missileSpeed_mps); # current velocity
+	var deltaV = vectorDivide(
+		newVely - v,
+		nSteps); # velocity increments
 
 	weaps[elem].atomic = 1; #to lock access
 	for (var i = 0; i < nSteps; i = i + 1) 
 	{
-		if (cosOffset != 1.0) newMissileDir = vectorRotate (missileDir, interceptDirRefFrame, theta * (i + 1)); # probably don't need to omit small turns
-		deltaXYZ = vectorMultiply (newMissileDir, missileSpeed_mps * time_inc);
+		deltaXYZ = vectorMultiply (v, time_inc);
+		v = vectorSum(v, deltaV);
 		deltaLon = deltaLon + deltaXYZ[0] / m_per_deg_lon;
 		deltaLat = deltaLat + deltaXYZ[1] / m_per_deg_lat;
 		deltaAlt = deltaAlt + deltaXYZ[2];
@@ -6430,24 +6439,14 @@ var guideRocket = func
 	}
 	weaps[elem].atomic = 0; #to unlock access
 
-	newAim.weaponDirRefFrame = newMissileDir;
-	
+	settimer ( func{ moveRocket (myNodeName1, elem, 0, nSteps, time_inc )}, 0 ); # first step called immediately
+
 	debprint (
 		sprintf(
 			"Bombable: newMissileDir vector =[%6.3f, %6.3f, %6.3f]",
 			newMissileDir[0], newMissileDir[1], newMissileDir[2] 
 		)
 	);
-
-	settimer ( func{ moveRocket (myNodeName1, elem, 0, nSteps, time_inc )}, 0 ); # first step called immediately
-
-	# change missile velocity vector here
-	if (missileSpeed_mps < weaps[elem].maxMissileSpeed_mps) missileSpeed_mps = missileSpeed_mps + weaps[elem].missileAcceleration * delta_t;
-	# reduce speed according to rate of turn
-	missileSpeed_mps = missileSpeed_mps * cosOffset * cosOffset;
-
-
-
 
 	var newAlt_ft = ( aAlt_m + deltaAlt ) * M2FT;
 
@@ -6462,7 +6461,7 @@ var guideRocket = func
 	newAlt_ft);
 
 	setprop("" ~ myNodeName1 ~ "/" ~ elem ~ "/velocities/true-airspeed-kt", 
-	missileSpeed_mps  * MPS2KT);
+	newMissileSpeed_mps  * MPS2KT);
 
 
 	# updates speed and orientation of AI model of rocket
@@ -6499,7 +6498,7 @@ var guideRocket = func
 		" out of fuel";
 
 		targetStatusPopupTip (msg, 20);
-		
+		# could make the rocket fall out of the skr rather than abort mid-air
 		return(0);
 	}
 
@@ -6518,8 +6517,66 @@ var guideRocket = func
 		targetStatusPopupTip (msg, 5);
 	}
 
+# calculate the (x,y,z) offset to the nextPosition by calculating the rotation for the next turn and the new missile direction and speed
+
+	theta = nextTurn / nSteps;
+	newVely = newVelocity(myNodeName1, elem, newMissileSpeed_mps, newMissileDir, interceptDir, theta, delta_t);
+	deltaV = vectorDivide(
+		newVely - v,
+		nSteps);
+	var nextPos = [0, 0, 0];
+
+	for (var i = 0; i < nSteps; i = i + 1) 
+	{
+		deltaXYZ = vectorMultiply (v, time_inc);
+		v = vectorSum(v, deltaV);
+		nextPos = vectorSum(nextPos, deltaXYZ);
+	}
+
+	weaps[elem].aim.newPosition = nextPos;
+
 	return (1);
 }
+
+############################ newVelocity ##############################
+# calculates velocity of rocket after delta_t accounting for:
+# gravity, skin drag, turn drag
+# rotates missle in direction of interceptDir
+# returns new velocity
+
+var newVelocity = func (myNodeName, elem, missileSpeed_mps, missileDir, interceptDir, theta, delta_t)
+{
+	var weaps = attributes[myNodeName].weapons;
+	var maxSpeed= weaps[elem].maxMissileSpeed_mps;
+	var DtoL = 1.0 / weaps[elem].liftDragRatio;
+	var newDir = missileDir;
+
+	# acceleration from thrust and deceleration due to drag - g term because T = W / (L/D) for level flight
+	var deltaSpd = grav_mpss * DtoL * ( 1.0 - missileSpeed_mps * missileSpeed_mps / maxSpeed / maxSpeed) * delta_t;
+
+	var newSpd = missileSpeed_mps + deltaSpd;
+
+	
+	# reduce speed according to rate of turn
+	# approximation of dv / v = exp (-theta / dragLiftRatio )
+	newSpd = newSpd * ( 1.0 - theta * DtoL );
+
+	if (theta > 0) newDir = vectorRotate (missileDir, interceptDir, theta);
+
+	var newVely = vectorMultiply( newDir, newSpd); 
+
+	# acceration due to gravity
+	newVely[2] -= grav_mpss * delta_t;
+
+	debprint (
+		sprintf(
+			"Bombable: New velocity vector =[%6.3f, %6.3f, %6.3f]",
+			newVely[0], newVely[1], newVely[2] 
+		)
+	);
+
+	return(newVely);
+	}
 
 ############################ moveRocket ##############################
 # moveRocket updates the position of the AI model
@@ -9302,7 +9359,7 @@ var weapons_init_func = func(myNodeName) {
 
 		if (attributes[myNodeName].weapons[elem]["maxMissileSpeed_mps"] == nil) attributes[myNodeName].weapons[elem]["maxMissileSpeed_mps"] = 300;
 
-		if (attributes[myNodeName].weapons[elem]["missileAcceleration"] == nil) attributes[myNodeName].weapons[elem]["missileAcceleration"] = 0;
+		if (attributes[myNodeName].weapons[elem]["liftDragRatio"] == nil) attributes[myNodeName].weapons[elem]["liftDragRatio"] = 0;
 		# acceleration of missile during flight - units m per sec per sec
 
 		if (attributes[myNodeName].weapons[elem]["ammo_seconds"] == nil) attributes[myNodeName].weapons[elem]["ammo_seconds"] = 6000;
@@ -9621,7 +9678,7 @@ var m_per_deg_lon = 111321.5 * math.cos (aLat_rad);
 #where we'll save the attributes for each AI object & the main aircraft, too
 var attributes = {};
 #global variable used for sighting weapons
-var newAim = {pHit:0, weaponDirModelFrame:[0,0,0], weaponOffsetRefFrame:[0,0,0], weaponDirRefFrame:[0,0,0], interceptSpeed:0, interceptTime:0}; 
+var newAim = {pHit:0, weaponDirModelFrame:[0,0,0], weaponOffsetRefFrame:[0,0,0], weaponDirRefFrame:[0,0,0], interceptSpeed:0, interceptTime:0, nextPosition:[0,0,0]}; 
 
 # List of nodes that listeners will use when checking for impact damage.
 # FG aircraft use a wide variety of nodes to report impact of armament
