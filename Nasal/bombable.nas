@@ -6130,12 +6130,12 @@ var launchRocket = func (myNodeName, elem)
 	setprop (rp ~ "/orientation/pitch-deg", pitch);
 	setprop (rp ~ "/orientation/true-heading-deg", heading);
 
-	# initialize rocket control system
-	setprop (rp ~ "/controls/flight/lateral-mode", "hdg");
-	setprop (rp ~ "/controls/flight/vertical-mode", "alt");
-	setprop (rp ~ "/controls/flight/target-alt", 0 );
-	setprop (rp ~ "/controls/flight/target-hdg", 0 );
-	setprop (rp ~ "/controls/flight/target-spd", 0 );
+	# initialize rocket control system - assume not needed for static models
+	# setprop (rp ~ "/controls/flight/lateral-mode", "hdg");
+	# setprop (rp ~ "/controls/flight/vertical-mode", "alt");
+	# setprop (rp ~ "/controls/flight/target-alt", 0 );
+	# setprop (rp ~ "/controls/flight/target-hdg", 0 );
+	# setprop (rp ~ "/controls/flight/target-spd", 0 );
 
 
 	# TODO:  the launchPad velocity is used to set the initial velocity of the missile
@@ -6148,21 +6148,23 @@ var launchRocket = func (myNodeName, elem)
 
 	# put extra smoke / flash on launch pad
 
-	# var fp = "AI/Aircraft/Fire-Particles/blaze.xml";
-
-	# # possible should tie to ship
-	# put_remove_model(
-	# lat_deg: alat_deg, 
-	# lon_deg: alon_deg, 
-	# elev_m: aAlt_m, 
-	# time_sec: 5, 
-	# startSize_m: nil, endSize_m: nil, 
-	# path: fp );
+	startSmoke ("blaze", rp, "AI/Aircraft/Fire-Particles/blaze-particles.xml" ); 
+	settimer (
+		func {
+			deleteSmoke("blaze", rp ); 
+			}
+		, 2.0
+	);
 
 
 	# add contrail to AI rocket
 
-	startSmoke("skywriting", rp, model = "AI/Aircraft/Fire-Particles/skywriting-particles.xml");
+	settimer (
+		func {
+			startSmoke("skywriting", rp, model = "AI/Aircraft/Fire-Particles/skywriting-particles.xml");
+			}
+		, 2.0
+	);
 		
 
 
@@ -6495,9 +6497,9 @@ var guideRocket = func
 	);
 
 	setprop (rp ~ "/velocities/true-airspeed-kt", newMissileSpeed_mps * MPS2KT);
-	setprop (rp ~ "/controls/flight/target-spd", newMissileSpeed_mps * MPS2KT);
-	setprop (rp ~ "/controls/flight/target-alt", newAlt_ft);
-	setprop (rp ~ "/controls/flight/target-hdg", newHeading);
+	# setprop (rp ~ "/controls/flight/target-spd", newMissileSpeed_mps * MPS2KT);
+	# setprop (rp ~ "/controls/flight/target-alt", newAlt_ft);
+	# setprop (rp ~ "/controls/flight/target-hdg", newHeading);
 	setprop (rp ~ "/orientation/pitch-deg", newPitch); #in vertical-mode = "alt" the AI attempts to set altitude
 	setprop (rp ~ "/orientation/true-heading-deg", newHeading);
 
