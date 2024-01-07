@@ -6313,7 +6313,15 @@ var guideRocket = func
 			weaps[elem].atomic = 0; #to unlock access
 
 			return (0);
-		};
+		}
+		elsif (closestApproach < 3.0 * attributes[myNodeName2].dimensions.crashRadius_m)
+		{
+			var msg = "Near miss from " ~ 
+			weaps[elem].name ~ " fired from " ~ 
+			getprop ("" ~ myNodeName1 ~ "/name")			;
+
+			targetStatusPopupTip (msg, 20);
+		}
 	}
 
 	# look ahead by assessing relative positions at next up date 
@@ -6400,23 +6408,30 @@ var guideRocket = func
 
 	#rotate up to 10 degrees to the target direction
 	var minTurn = 0.9999; # equivalent to 1 deg
-	var maxTurn = 0.984; # 10 deg
+	var maxTurn = 0.984; # 10 deg per delta_t, in effect a turn rate
 	var maxTurn_rad = 0.1745; # pi / 18 rad
 	var nextTurn = 0;
 
 	if (cosOffset > minTurn) cosOffset = 1.0; # get math.acos errors if dotproduct ~ 1
 
 	if (cosOffset < -maxTurn) {
-		interceptDirRefFrame = rotate_round_z_axis ( interceptDirRefFrame, (1.0 - 2.0 * (rand() > 0.5)) * math.pi/12 );# +/- 15 degree rotation about z-axis
-		debprint ("Bombable: vectorRotate trap");
+		if (distance_m > missileSpeed_mps / maxTurn_rad * delta_t)
+		{
+			interceptDirRefFrame = rotate_round_z_axis ( interceptDirRefFrame, (1.0 - 2.0 * (rand() > 0.5)) * math.pi/12 );# +/- 15 degree rotation about z-axis
+			debprint ("Bombable: vectorRotate trap");
+		}
+		else
+		{
+			cosOffset = 1.0; # delay turn til a turn radius away from target
+		}
 	}
 	# trap - if travelling opposite to the direction of the target then the direction to turn is ill-defined
 
 	if (cosOffset < maxTurn)
-	{
-		nextTurn = math.acos( cosOffset ) - maxTurn_rad;
-		if (nextTurn > maxTurn_rad) nextTurn = maxTurn_rad;
-		cosOffset = maxTurn;
+	{		
+			nextTurn = math.acos( cosOffset ) - maxTurn_rad;
+			if (nextTurn > maxTurn_rad) nextTurn = maxTurn_rad;
+			cosOffset = maxTurn;
 	}
 
 
