@@ -6093,6 +6093,7 @@ var launchRocket = func (myNodeName, elem)
 
 	# get speed and orientation of launchpad or pylon
 	setprop ("" ~ myNodeName ~ "/" ~ elem ~ "/launched", 1);
+	setprop ("" ~ myNodeName ~ "/" ~ elem ~ "/flightTime", 0);
 	var launchPadSpeed = 
 	getprop ("" ~ myNodeName ~ "/velocities/true-airspeed-kt");
 	var launchPadPitch = 
@@ -6130,14 +6131,27 @@ var launchRocket = func (myNodeName, elem)
 	setprop (rp ~ "/orientation/pitch-deg", pitch);
 	setprop (rp ~ "/orientation/true-heading-deg", heading);
 
-	# TODO:  the launchPad velocity is used to set the initial velocity of the missile
-	# at launch the missile is nor oriented with the direction of travel
-	weaps[elem].initialVelocity = [
-		launchPadSpeed * math.cos ( launchPadPitch * D2R ) * math.sin( launchPadHeading * D2R ),
-		launchPadSpeed * math.cos ( launchPadPitch * D2R ) * math.cos( launchPadHeading * D2R ),
-		launchPadSpeed * math.sin ( launchPadPitch * D2R )
-	];
+	# the launchPad velocity is used to set the initial velocity of the missile
+	# at launch the missile is not oriented with the direction of travel
+	# from ships or groundvehicles rockets are launched from tubes creating an initial vertical velocity
 
+	var lengthTube = 6.5; # 1.5 x length
+	var vVert = math.sqrt(2.0 * weaps[elem].missileAcceleration_mpss * lengthTube); # v^2 = u^2 + 2*a*s
+	weaps[elem].initialVelocity = vectorSum 
+		(
+			[
+			launchPadSpeed * math.cos ( launchPadPitch * D2R ) * math.sin( launchPadHeading * D2R ),
+			launchPadSpeed * math.cos ( launchPadPitch * D2R ) * math.cos( launchPadHeading * D2R ),
+			launchPadSpeed * math.sin ( launchPadPitch * D2R )
+			],
+			[
+			-vVert * math.sin ( launchPadPitch * D2R ) * math.sin( launchPadHeading * D2R ),
+			-vVert * math.sin ( launchPadPitch * D2R ) * math.cos( launchPadHeading * D2R ),
+			vVert * math.cos ( launchPadPitch * D2R )
+			]		
+		);
+		
+		
 
 	# put extra smoke / flash on launch pad
 
@@ -6183,6 +6197,7 @@ var guideRocket = func
 )
 {
 	var weaps = attributes[myNodeName1].weapons;
+	var flightTime = getprop ("" ~ myNodeName1 ~ "/" ~ elem ~ "/flightTime");
 	newAim = weaps[elem].aim; 
 	newAim.pHit = 0;
 
@@ -6424,7 +6439,7 @@ var guideRocket = func
 	#rotate up to 10 degrees to the target direction
 	var minTurn = 0.9999; # equivalent to 1 deg
 	var maxTurn_rad = delta_t * weaps[elem].rateOfTurn_degps * D2R; 
-	var maxTurn = cos(maxTurn_rad); 
+	var maxTurn = math.cos(maxTurn_rad); 
 	var nextTurn = 0;
 
 	if (cosOffset > minTurn) cosOffset = 1.0; # get math.acos errors if dotproduct ~ 1
@@ -6454,7 +6469,7 @@ var guideRocket = func
 	# incremental change in position given by vector newMissileDir * time_inc
 	# newMissileDir changes each time increment
 
-	var theta = math.acos( cosOffset );
+	var theta = (flightTime > 2.0) ? math.acos( cosOffset ) : 0 ; # no turn in early part of flight
 	var newV = newVelocity(myNodeName1, elem, missileSpeed_mps, missileDir, interceptDirRefFrame, theta, delta_t, gotFuel);
 	newV = vectorSum ( newV, weaps[elem].initialVelocity);
 	weaps[elem].initialVelocity = [0, 0, 0]; # feeds in velocity of launchpad
@@ -6570,6 +6585,8 @@ var guideRocket = func
 
 	weaps[elem].aim.newPosition = nextPos;
 	weaps[elem].aim.newVelocity = newV;
+	setprop ("" ~ myNodeName1 ~ "/" ~ elem ~ "/flightTime", flightTime + delta_t );
+
 
 	return (1);
 }
