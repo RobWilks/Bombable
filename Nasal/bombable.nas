@@ -6091,7 +6091,7 @@ var launchRocket = func (myNodeName, elem)
 {
 	var weaps = attributes[myNodeName].weapons;
 
-	# get speed and orientation of launchpad
+	# get speed and orientation of launchpad or pylon
 	setprop ("" ~ myNodeName ~ "/" ~ elem ~ "/launched", 1);
 	var launchPadSpeed = 
 	getprop ("" ~ myNodeName ~ "/velocities/true-airspeed-kt");
@@ -6130,16 +6130,9 @@ var launchRocket = func (myNodeName, elem)
 	setprop (rp ~ "/orientation/pitch-deg", pitch);
 	setprop (rp ~ "/orientation/true-heading-deg", heading);
 
-	# initialize rocket control system - assume not needed for static models
-	# setprop (rp ~ "/controls/flight/lateral-mode", "hdg");
-	# setprop (rp ~ "/controls/flight/vertical-mode", "alt");
-	# setprop (rp ~ "/controls/flight/target-alt", 0 );
-	# setprop (rp ~ "/controls/flight/target-hdg", 0 );
-	# setprop (rp ~ "/controls/flight/target-spd", 0 );
-
-
 	# TODO:  the launchPad velocity is used to set the initial velocity of the missile
-	weaps[elem]["velocity"] = [
+	# at launch the missile is nor oriented with the direction of travel
+	weaps[elem].initialVelocity = [
 		launchPadSpeed * math.cos ( launchPadPitch * D2R ) * math.sin( launchPadHeading * D2R ),
 		launchPadSpeed * math.cos ( launchPadPitch * D2R ) * math.cos( launchPadHeading * D2R ),
 		launchPadSpeed * math.sin ( launchPadPitch * D2R )
@@ -6230,7 +6223,17 @@ var guideRocket = func
 
 		return(0); # abort rocket				
 	}
-	
+
+	var gotFuel = 1 - stores.reduceWeaponsCount (myNodeName1, elem, delta_t);
+	if (gotFuel == 0)
+	{
+		var msg = weaps[elem].name ~ " fired from " ~ 
+		getprop ("" ~ myNodeName1 ~ "/name") ~ 
+		" out of fuel";
+
+		targetStatusPopupTip (msg, 20);
+		# reduce thrust to zero to make the rocket fall out of the sky, rather than abort mid-air
+	}
 
 	# calculate targetDispRefFrame, the displacement vector from node1 (AI) to node2 (mainAC) in a lon-lat-alt (x-y-z) frame of reference aka 'reference frame'
 	# the AI model is at < 0,0,0 > 
@@ -6420,8 +6423,8 @@ var guideRocket = func
 
 	#rotate up to 10 degrees to the target direction
 	var minTurn = 0.9999; # equivalent to 1 deg
-	var maxTurn = 0.984; # 10 deg per delta_t, in effect a turn rate
-	var maxTurn_rad = 0.1745; # pi / 18 rad
+	var maxTurn_rad = delta_t * weaps[elem].rateOfTurn_degps * D2R; 
+	var maxTurn = cos(maxTurn_rad); 
 	var nextTurn = 0;
 
 	if (cosOffset > minTurn) cosOffset = 1.0; # get math.acos errors if dotproduct ~ 1
@@ -6452,8 +6455,9 @@ var guideRocket = func
 	# newMissileDir changes each time increment
 
 	var theta = math.acos( cosOffset );
-	var newV = newVelocity(myNodeName1, elem, missileSpeed_mps, missileDir, interceptDirRefFrame, theta, delta_t);
-	
+	var newV = newVelocity(myNodeName1, elem, missileSpeed_mps, missileDir, interceptDirRefFrame, theta, delta_t, gotFuel);
+	newV = vectorSum ( newV, weaps[elem].initialVelocity);
+	weaps[elem].initialVelocity = [0, 0, 0]; # feeds in velocity of launchpad
 	var newMissileSpeed_mps = vectorModulus (newV);
 	var newMissileDir = vectorDivide ( newV, newMissileSpeed_mps );
 	
@@ -6512,9 +6516,6 @@ var guideRocket = func
 
 	var newPitch = math.asin(newMissileDir[2]) * R2D;
 	var newHeading = math.atan2(newMissileDir[0], newMissileDir[1]) * R2D;
-
-	var rp = "ai/models/static[" ~ weaps[elem].rocketsIndex ~ "]";
-
 	debprint(
 		sprintf(
 		"Pitch = %8.3f Heading_ = %8.3f Speed_ = %8.3f rateTurn = %8.3f",
@@ -6525,6 +6526,8 @@ var guideRocket = func
 		)
 	);
 
+	var rp = "ai/models/static[" ~ weaps[elem].rocketsIndex ~ "]";
+
 	setprop (rp ~ "/velocities/true-airspeed-kt", newMissileSpeed_mps * MPS2KT);
 	# setprop (rp ~ "/controls/flight/target-spd", newMissileSpeed_mps * MPS2KT);
 	# setprop (rp ~ "/controls/flight/target-alt", newAlt_ft);
@@ -6532,16 +6535,6 @@ var guideRocket = func
 
 
 
-	if (stores.reduceWeaponsCount (myNodeName1, elem, delta_t) == 1)
-	{
-		var msg = weaps[elem].name ~ " fired from " ~ 
-		getprop ("" ~ myNodeName1 ~ "/name") ~ 
-		" out of fuel";
-
-		targetStatusPopupTip (msg, 20);
-		# could make the rocket fall out of the sky rather than abort mid-air
-		return(0);
-	}
 
 	if (rand() < 1.0)
 	{
@@ -6562,7 +6555,7 @@ var guideRocket = func
 # the rotation for the next turn and the new missile direction and speed
 
 	theta = nextTurn / nSteps;
-	newV = newVelocity(myNodeName1, elem, newMissileSpeed_mps, newMissileDir, interceptDirRefFrame, theta, delta_t);
+	newV = newVelocity(myNodeName1, elem, newMissileSpeed_mps, newMissileDir, interceptDirRefFrame, theta, delta_t, gotFuel);
 	deltaV = vectorDivide(
 		vectorSubtract(newV , v),
 		nSteps);
@@ -6587,14 +6580,15 @@ var guideRocket = func
 # rotates missle in direction of interceptDir
 # returns new velocity
 
-var newVelocity = func (myNodeName, elem, missileSpeed_mps, missileDir, interceptDir, theta, delta_t)
+var newVelocity = func (myNodeName, elem, missileSpeed_mps, missileDir, interceptDir, theta, delta_t, gotFuel)
 {
 	var weaps = attributes[myNodeName].weapons;
 	var maxSpeed= weaps[elem].maxMissileSpeed_mps;
 	var newDir = missileDir;
 
 	# acceleration from thrust and deceleration due to drag - g term because T = W / (L/D) for level flight
-	var deltaSpd = weaps[elem].missileAcceleration_mpss * ( 1.0 - missileSpeed_mps * missileSpeed_mps / maxSpeed / maxSpeed) * delta_t;
+	# gotFuel provides thrust
+	var deltaSpd = weaps[elem].missileAcceleration_mpss * ( gotFuel - missileSpeed_mps * missileSpeed_mps / maxSpeed / maxSpeed) * delta_t;
 
 	var newSpd = missileSpeed_mps + deltaSpd;
 
@@ -9403,9 +9397,13 @@ var weapons_init_func = func(myNodeName) {
 		if (attributes[myNodeName].weapons[elem]["maxMissileSpeed_mps"] == nil) attributes[myNodeName].weapons[elem]["maxMissileSpeed_mps"] = 300;
 		
 		if (attributes[myNodeName].weapons[elem]["missileAcceleration_mpss"] == nil) attributes[myNodeName].weapons[elem]["missileAcceleration_mpss"] = 3 * grav_mpss;
+		# acceleration of missile during flight - units m per sec per sec
+
+		if (attributes[myNodeName].weapons[elem]["rateOfTurn_degps"] == nil) attributes[myNodeName].weapons[elem]["rateOfTurn_degps"] = 40.0;
+
+		if (attributes[myNodeName].weapons[elem]["initialVelocity"] == nil) attributes[myNodeName].weapons[elem]["initialVelocity"] = [0,0,0];
 
 		if (attributes[myNodeName].weapons[elem]["liftDragRatio"] == nil) attributes[myNodeName].weapons[elem]["liftDragRatio"] = 1.33;
-		# acceleration of missile during flight - units m per sec per sec
 
 		if (attributes[myNodeName].weapons[elem]["ammo_seconds"] == nil) attributes[myNodeName].weapons[elem]["ammo_seconds"] = 6000;
 		# used to fill weapon store 
