@@ -6448,6 +6448,8 @@ var guideRocket = func
 		weaps[elem].flightPath[i].lon = alon_deg + deltaLon;
 		weaps[elem].flightPath[i].lat = alat_deg + deltaLat;
 		weaps[elem].flightPath[i].alt = ( aAlt_m + deltaAlt ) * M2FT;
+		weaps[elem].flightPath[i].pitch = math.asin( v[2] / vectorModulus(v) ) * R2D;
+		weaps[elem].flightPath[i].heading = math.atan2( v[0], v[1] ) * R2D;;
 	}
 	weaps[elem].atomic = 0; #to unlock access
 
@@ -6500,8 +6502,7 @@ var guideRocket = func
 	# setprop (rp ~ "/controls/flight/target-spd", newMissileSpeed_mps * MPS2KT);
 	# setprop (rp ~ "/controls/flight/target-alt", newAlt_ft);
 	# setprop (rp ~ "/controls/flight/target-hdg", newHeading);
-	setprop (rp ~ "/orientation/pitch-deg", newPitch); #in vertical-mode = "alt" the AI attempts to set altitude
-	setprop (rp ~ "/orientation/true-heading-deg", newHeading);
+
 
 
 	if (stores.reduceWeaponsCount (myNodeName1, elem, delta_t) == 1)
@@ -6614,7 +6615,8 @@ var moveRocket = func (myNodeName, elem, index, lastIndex, timeInc)
 	setprop (rp ~ "/position/longitude-deg", fpath[index].lon);
 	setprop (rp ~ "/position/latitude-deg", fpath[index].lat);
 	setprop (rp ~ "/position/altitude-ft", fpath[index].alt);
-
+	setprop (rp ~ "/orientation/pitch-deg", fpath[index].pitch);
+	setprop (rp ~ "/orientation/true-heading-deg", fpath[index].heading);
 
 	var nextIndex = index + 1;
 	if (nextIndex < lastIndex) settimer ( func{ moveRocket (myNodeName, elem, nextIndex, lastIndex, timeInc)}, timeInc );
@@ -9319,7 +9321,7 @@ var weapons_init_func = func(myNodeName) {
 		rocketCount = 0; #index of first rocket for AI aircraft
 		}
 
-	var wayPoint = {lon:0, lat:0, alt:0}; # template
+	var wayPoint = {lon:0, lat:0, alt:0, pitch:0, heading:0}; # template
 	var new_wayPoint = func {
 		return {parents:[wayPoint] };
 		}
