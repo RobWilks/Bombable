@@ -6347,7 +6347,7 @@ var guideRocket = func
 
 	var distance_m = vectorModulus (targetDispRefFrame);
 
-
+	
 
 
 	# find newDir the direction required for a missile travelling at missileSpeed (constant over journey)
@@ -6383,6 +6383,12 @@ var guideRocket = func
 		var interceptDirRefFrame = vectorDivide(targetDispRefFrame, distance_m);
 	}
 
+	# ground avoidance
+	if ( aAlt_m - ground_Alt_m < -missileDir[2] * missileSpeed_mps * delta_t) 
+	{
+		#avoid ground
+		interceptDirRefFrame = [0, 0, 1];
+	}
 
 	debprint (
 		sprintf(
@@ -6422,16 +6428,16 @@ var guideRocket = func
 		}
 		else
 		{
-			cosOffset = 1.0; # delay turn til a turn radius away from target
+			cosOffset = 1.0; # delay til a turn radius away from target
 		}
 	}
 	# trap - if travelling opposite to the direction of the target then the direction to turn is ill-defined
 
 	if (cosOffset < maxTurn)
 	{		
-			nextTurn = math.acos( cosOffset ) - maxTurn_rad;
-			if (nextTurn > maxTurn_rad) nextTurn = maxTurn_rad;
-			cosOffset = maxTurn;
+		nextTurn = math.acos( cosOffset ) - maxTurn_rad;
+		if (nextTurn > maxTurn_rad) nextTurn = maxTurn_rad;
+		cosOffset = maxTurn;
 	}
 
 
