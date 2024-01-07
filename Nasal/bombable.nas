@@ -6314,7 +6314,7 @@ var guideRocket = func
 
 			return (0);
 		}
-		elsif (closestApproach < 3.0 * attributes[myNodeName2].dimensions.crashRadius_m)
+		elsif (closestApproach < 4.0 * attributes[myNodeName2].dimensions.crashRadius_m)
 		{
 			var msg = "Near miss from " ~ 
 			weaps[elem].name ~ " fired from " ~ 
@@ -6386,8 +6386,14 @@ var guideRocket = func
 	# ground avoidance
 	if ( aAlt_m - ground_Alt_m < -missileDir[2] * missileSpeed_mps * delta_t) 
 	{
-		#avoid ground
 		interceptDirRefFrame = [0, 0, 1];
+		debprint (
+			sprintf(
+				"Bombable: ground avoidance: AGL =%8.1f Vertical speed =%8.1f mps",
+				aAlt_m - ground_Alt_m,
+				missileDir[2] * missileSpeed_mps * delta_t 
+			)
+		);	
 	}
 
 	debprint (
