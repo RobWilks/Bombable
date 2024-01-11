@@ -5995,7 +5995,7 @@ var weapons_loop = func (id, myNodeName1 = "", myNodeName2 = "", targetSize_m = 
 				weaponsOrientationPositionUpdate(myNodeName1, elem);
 				if (callCheckAim == 2)
 					{
-						if (rand() < (weaponSkill * weaponSkill)) launchRocket(myNodeName1, elem);
+						if (rand() < (weaponSkill * weaponSkill)) launchRocket(myNodeName1, elem, loopTime);
 						continue; # if not launched then assume pHit = 0
 					}
 				}				
@@ -6087,7 +6087,7 @@ var weapons_loop = func (id, myNodeName1 = "", myNodeName2 = "", targetSize_m = 
 # FUNCTION set flags, send message
 # create flare on launch pad
 
-var launchRocket = func (myNodeName, elem)
+var launchRocket = func (myNodeName, elem, delta_t)
 {
 	var weaps = attributes[myNodeName].weapons;
 
@@ -6150,6 +6150,13 @@ var launchRocket = func (myNodeName, elem)
 			vVert * math.cos ( launchPadPitch * D2R )
 			]		
 		);
+
+
+
+	pidControllerInit (myNodeName, elem, delta_t);
+	getprop ("" ~ myNodeName ~ "/" ~ elem ~ "/Kp"); # for testing
+	getprop ("" ~ myNodeName ~ "/" ~ elem ~ "/Ki"); # for testing
+	getprop ("" ~ myNodeName ~ "/" ~ elem ~ "/Kd"); # for testing
 		
 		
 
@@ -6255,6 +6262,7 @@ var guideRocket = func
 	# and the main AC or target is at < deltaX,deltaY,deltaAlt > in relation to it.
 
 	var deltaY_m = deltaLat_deg * m_per_deg_lat;
+
 	var deltaX_m = deltaLon_deg * m_per_deg_lon;
 	var deltaAlt_m = mAlt_m - aAlt_m;
 	# m_per_deg_lat/lon are bombable general variables
@@ -6433,6 +6441,17 @@ var guideRocket = func
 	# calculate angular offset between direction of missile and direction of target
 	var cosOffset = dotProduct(missileDir, interceptDirRefFrame);
 
+	var turn_rad = math.acos(cosOffset);
+	if ( missileDir[0] * interceptDirRefFrame[1] < missileDir[1] * interceptDirRefFrame[0] ) turn_rad = -turn_rad;
+	turn = pidController (myNodeName1, elem, 0, turn_rad);
+	debprint (
+		sprintf(
+			"Bombable: pid: output =%8.1f previous error =%8.1f previous measurement =%8.1f",
+			turn,
+			weaps[elem].pid.prevError,
+			weaps[elem].pid.prevMeasurement
+		)
+	);
 	# calculate whether to turn left (-1) or right (+1) - not needed
 	# var turnDirection = ( missileDir[0] * interceptDir[1] < missileDir[1] * interceptDir[0] ) ? 1 : -1;
 
@@ -6601,25 +6620,54 @@ var newVelocity = func (myNodeName, elem, missileSpeed_mps, missileDir, intercep
 {
 	var weaps = attributes[myNodeName].weapons;
 	var maxSpeed= weaps[elem].maxMissileSpeed_mps;
-	var newDir = missileDir;
+	if (theta > 0) missileDir = vectorRotate (missileDir, interceptDir, theta);
 
-	# acceleration from thrust and deceleration due to drag - g term because T = W / (L/D) for level flight
+	# acceleration from thrust and deceleration due to drag
 	# gotFuel provides thrust
-	var deltaSpd = weaps[elem].missileAcceleration_mpss * ( gotFuel - missileSpeed_mps * missileSpeed_mps / maxSpeed / maxSpeed) * delta_t;
 
-	var newSpd = missileSpeed_mps + deltaSpd;
+	var dragTerm = missileSpeed_mps * missileSpeed_mps / maxSpeed / maxSpeed;
+	# thrust - drag
+	var thrust_drag = vectorMultiply( 
+		missileDir, 
+		weaps[elem].missileAcceleration_mpss * ( gotFuel - dragTerm)
+	);
+
+	# lift - weight
+	var hdg = math.atan2 ( missileDir[0], missileDir[1]);
+	var sinHdg = math.sin (hdg);
+	var lift_weight = vectorMultiply(
+		[
+			- missileDir[2] * sinHdg,
+			- missileDir[2] * math.cos (hdg),
+			missileDir[0] / sinHdg - grav_mpss # lift is always upwards
+		],
+		weaps[elem].missileAcceleration_mpss * dragTerm * weaps[elem].liftDragRatio
+	);
+	var deltaV = 
+	vectorMultiply(
+		vectorSum(
+			thrust_drag,
+			lift_weight
+		),
+		delta_t
+	);
+
+	var newV =
+	vectorSum(
+		vectorMultiply(
+			missileDir,
+			missileSpeed_mps
+		),
+		deltaV
+	);
 
 	
 	# reduce speed according to rate of turn
 	# approximation of dv / v = exp (-theta / dragLiftRatio )
-	newSpd = newSpd * ( 1.0 - theta / weaps[elem].liftDragRatio );
-
-	if (theta > 0) newDir = vectorRotate (missileDir, interceptDir, theta);
-
-	var newV = vectorMultiply( newDir, newSpd); 
-
-	# acceration due to gravity
-	newV[2] -= grav_mpss * delta_t;
+	newV = vectorMultiply(
+		newV,
+		1.0 - theta / weaps[elem].liftDragRatio 
+		);
 
 	debprint (
 		sprintf(
@@ -6688,6 +6736,91 @@ var killRocket = func (myNodeName, elem)
 		, 4.0
 	);
 }
+
+############################ pidControllerInit ##############################
+var pidControllerInit = func(myNodeName, elem, delta_t) {
+
+	# Clear controller variables 
+	var pid = attributes[myNodeName].weapons[pid];
+	
+	pid.integrator = 0.0;
+	pid.prevError  = 0.0;
+
+	pid.differentiator  = 0.0;
+	pid.prevMeasurement = 0.0;
+
+	pid.out = 0.0;
+
+	pid.delta_t = delta_t;
+
+	pid.tau = pid.delta_t * 3.0;
+
+}
+
+############################ pidController ##############################
+# proportional - integral - differentiation controller on rocket direction	
+# theta the angle between the missile direction and the intercept direction is the measurement
+# theta can have negative values - turn to the left vs turn to the right
+# code adapted from https://github.com/pms67/PID
+
+var pidController = func (myNodeName, elem, setpoint, measurement)
+{
+
+	# pointer into hash containing PID data
+	var pid = attributes[myNodeName].weapons[pid];
+
+	# Error signal
+	var error = setpoint - measurement;
+
+	# Proportional
+    var proportional = pid.Kp * error;
+
+
+	# Integral
+    pid.integrator = pid.integrator + 0.5f * pid.Ki * pid.delta_t * (error + pid.prevError);
+
+	# Anti-wind-up via integrator clamping 
+    if (pid.integrator > pid.limMaxInt) {
+        pid.integrator = pid.limMaxInt;
+    } else if (pid.integrator < pid.limMinInt) {
+        pid.integrator = pid.limMinInt;
+    }
+
+
+	# Derivative (band-limited differentiator)
+    pid.differentiator = -(2.0 * pid.Kd * (measurement - pid.prevMeasurement)	# Note: derivative on measurement, therefore minus sign in front of equation! 
+                        + (2.0 * pid.tau - pid.delta_t) * pid.differentiator)
+                        / (2.0 * pid.tau + pid.delta_t);
+
+
+	# Compute output and apply limits
+    pid.out = proportional + pid.integrator + pid.differentiator;
+
+    if (pid.out > pid.limMax) {
+        pid.out = pid.limMax;
+    } else if (pid.out < pid.limMin) {
+        pid.out = pid.limMin;
+    }
+
+	# Store error and measurement for later use 
+    pid.prevError       = error;
+    pid.prevMeasurement = measurement;
+
+	# Return controller output 
+    return (pid.out);
+
+}
+
+
+
+
+
+
+
+
+
+
+
 
 ##########################################################
 # CLASS stores
@@ -9370,6 +9503,23 @@ var weapons_init_func = func(myNodeName) {
 
 	forindex(var i; fp)
 		fp[i] = new_wayPoint(); # flight pathvector used to store intermediate rocket location
+
+	var pid = {
+		Kp: 0.2,
+		Ki: 1.0,
+		Kd: 1.0,
+		limMaxInt: math.pi / 18.0 * 3.0 , # Integrator limits
+		limMinInt: -limMaxInt ,
+		tau: 0.25 , # Derivative low-pass filter time constant secs
+		limMax: math.pi / 18.0 ,
+		limMin: -limMax ,
+		differentiator: 0.0 ,
+		integrator: 0.0 ,
+		prevError: 0.0 ,
+		prevMeasurement: 0.0 ,
+		out: 0.0	
+	}; # template
+
 		
 	foreach (elem;keys (weaps) ) 
 	{
@@ -9432,6 +9582,11 @@ var weapons_init_func = func(myNodeName) {
 			attributes[myNodeName].weapons[elem]["rocketsIndex"] = rocketCount;
 
 			attributes[myNodeName].weapons[elem]["flightPath"] = fp;
+
+			attributes[myNodeName].weapons[elem]["pid"] = pid; # variables for PID controller for missile direction
+			setprop ("" ~ myNodeName ~ "/" ~ elem ~ "/Kp", weaps[elem].pid.Kp); # for testing
+			setprop ("" ~ myNodeName ~ "/" ~ elem ~ "/Ki", weaps[elem].pid.Ki); # for testing
+			setprop ("" ~ myNodeName ~ "/" ~ elem ~ "/Kd", weaps[elem].pid.Kd); # for testing
 
 			attributes[myNodeName].weapons[elem]["atomic"] = 0; # flag to control access
 
