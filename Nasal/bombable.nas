@@ -6331,7 +6331,7 @@ var guideRocket = func
 			newAim.pHit = 1;
 
 			# run missile on to target
-			var steps_to_target = (dp > 0) ? math.floor ( dp / a_delta_dist ) : 0;
+			var steps_to_target = (dp > 0) ? math.ceil ( dp / step  ) : 0;
 			deltaXYZ = vectorMultiply (missileDir, step);
 
 
@@ -10512,6 +10512,7 @@ var findRoots = func(a, b, c)
 ########################## findIntercept ###########################
 # calculate intercept vector given:
 # speed of interceptor, displacement vector between aircraft1 and aircraft2
+# dist_m is the magnitude of the displacement vector
 # returns hash of time to intercept and velocity vector of interceptor
 var findIntercept = func (myNodeName1, myNodeName2, displacement, dist_m, interceptSpeed)
 {
@@ -10548,7 +10549,7 @@ var findIntercept = func (myNodeName1, myNodeName2, displacement, dist_m, interc
 					velocity2[2] - velocity1[2]
 					];
 	var deltaV = dotProduct(velocity21, velocity21) - interceptSpeed * interceptSpeed;
-	if (deltaV == 0) return ({time:-1, vector:[0, 0, 0]}); # no intercept possible
+	if (deltaV * deltaV < 1e-10) return ({time:-1, vector:[0, 0, 0]});
 	var time_sec = findRoots(
 		deltaV,
 		2 * dotProduct(displacement, velocity21),
@@ -10602,7 +10603,17 @@ var findIntercept2 = func (myNodeName1, myNodeName2, displacement, dist_m, veloc
 					velocity2[2] - velocity1[2]
 					];
 	var deltaV = dotProduct(velocity21, velocity21) - interceptSpeed * interceptSpeed;
-	if (deltaV == 0) return ({time:-1, vector:[0, 0, 0]});
+	if (deltaV * deltaV < 1e-10) 
+	{
+		if ( interceptSpeed > 0)
+		{ 
+			return ({time : dist_m / interceptSpeed, vector : vectorMultiply ( displacement, interceptSpeed / dist_m ) });
+		}
+		else
+		{
+			return ({time:-1, vector:[0, 0, 0]}); 
+		}
+	}
 	var time_sec = findRoots(
 		deltaV,
 		2 * dotProduct(displacement, velocity21),
