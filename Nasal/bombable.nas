@@ -6136,7 +6136,7 @@ var launchRocket = func (myNodeName, elem, delta_t)
 	# from ships or groundvehicles rockets are launched from tubes creating an initial vertical velocity
 
 	var lengthTube = 6.5; # 1.5 x length
-	var vVert = math.sqrt(2.0 * weaps[elem].missileAcceleration_mpss * lengthTube); # v^2 = u^2 + 2*a*s
+	var vVert = math.sqrt(2.0 * weaps[elem].missileAcceleration1_mpss * lengthTube); # v^2 = u^2 + 2*a*s
 	weaps[elem].initialVelocity = vectorSum 
 		(
 			[
@@ -6249,16 +6249,18 @@ var guideRocket = func
 		return(0); # abort rocket				
 	}
 
-	var gotFuel = 1 - stores.reduceWeaponsCount (myNodeName1, elem, delta_t);
-	if (gotFuel == 0)
-	{
-		var msg = weaps[elem].name ~ " fired from " ~ 
-		getprop ("" ~ myNodeName1 ~ "/name") ~ 
-		" out of fuel";
+	if ( flightTime + delta_t > weaps[elem].totalBurnTime) 
+		{
+			if ( flightTime < weaps[elem].totalBurnTime )
+			{
+				var msg = weaps[elem].name ~ " fired from " ~ 
+				getprop ("" ~ myNodeName1 ~ "/name") ~ 
+				" out of fuel";
 
-		targetStatusPopupTip (msg, 20);
-		# reduce thrust to zero to make the rocket fall out of the sky, rather than abort mid-air
-	}
+				targetStatusPopupTip (msg, 20);
+				# reduce thrust to zero to make the rocket fall out of the sky, rather than abort mid-air
+			}
+		}
 
 	# calculate targetDispRefFrame, the displacement vector from node1 (AI) to node2 (mainAC) in a lon-lat-alt (x-y-z) frame of reference aka 'reference frame'
 	# the AI model is at < 0,0,0 > 
@@ -6491,7 +6493,7 @@ var guideRocket = func
 	# newMissileDir changes each time increment
 
 	var theta = (flightTime > 1.0) ? turn : 0 ; # no turn in early part of flight
-	var newV = newVelocity(myNodeName1, elem, missileSpeed_mps, missileDir, interceptDirRefFrame, theta, delta_t, gotFuel);
+	var newV = newVelocity(myNodeName1, elem, missileSpeed_mps, missileDir, interceptDirRefFrame, theta, delta_t, flightTime);
 	newV = vectorSum ( newV, weaps[elem].initialVelocity);
 	weaps[elem].initialVelocity = [0, 0, 0]; # feeds in velocity of launchpad
 	var newMissileSpeed_mps = vectorModulus (newV);
@@ -6572,7 +6574,7 @@ var guideRocket = func
 
 
 
-	if (rand() < 1.0)
+	if (rand() < 0.3)
 	{
 		var msg = "AI rocket from " ~ 
 		getprop ("" ~ myNodeName1 ~ "/name") ~ 
@@ -6591,7 +6593,7 @@ var guideRocket = func
 # the rotation for the next turn and the new missile direction and speed
 
 	theta = nextTurn / nSteps;
-	newV = newVelocity(myNodeName1, elem, newMissileSpeed_mps, newMissileDir, interceptDirRefFrame, theta, delta_t, gotFuel);
+	newV = newVelocity(myNodeName1, elem, newMissileSpeed_mps, newMissileDir, interceptDirRefFrame, theta, delta_t, flightTime);
 	deltaV = vectorDivide(
 		vectorSubtract(newV , v),
 		nSteps);
@@ -6618,20 +6620,30 @@ var guideRocket = func
 # rotates missle in direction of interceptDir
 # returns new velocity
 
-var newVelocity = func (myNodeName, elem, missileSpeed_mps, missileDir, interceptDir, theta, delta_t, gotFuel)
+var newVelocity = func (myNodeName, elem, missileSpeed_mps, missileDir, interceptDir, theta, delta_t, flight_time)
 {
 	var weaps = attributes[myNodeName].weapons;
-	var maxSpeed= weaps[elem].maxMissileSpeed_mps;
+
 	if (theta > 0) missileDir = vectorRotate (missileDir, interceptDir, theta);
 
-	# acceleration from thrust and deceleration due to drag
-	# gotFuel provides thrust
 
+	var acc = 0.0; # acceleration from thrust
+	if ( flight_time < weaps[elem].burn1 )
+	{ 
+		acc = weaps[elem].missileAcceleration1_mpss;
+	}
+	elsif ( flight_time < weaps[elem].burn2 )
+	{
+		acc = weaps[elem].missileAcceleration2_mpss; # second stage of rocket
+	}
+
+	var maxSpeed= weaps[elem].maxMissileSpeed_mps;
 	var dragTerm = missileSpeed_mps * missileSpeed_mps / maxSpeed / maxSpeed;
+
 	# thrust - drag
 	var thrust_drag = vectorMultiply( 
 		missileDir, 
-		weaps[elem].missileAcceleration_mpss * ( gotFuel - dragTerm)
+		acc * ( 1.0 - dragTerm)
 	);
 
 	# lift - weight
@@ -6643,10 +6655,11 @@ var newVelocity = func (myNodeName, elem, missileSpeed_mps, missileDir, intercep
 			- missileDir[2] * math.cos (hdg),
 			missileDir[0] / sinHdg # lift is always upwards
 		],
-		weaps[elem].missileAcceleration_mpss * dragTerm * weaps[elem].liftDragRatio
+		acc * dragTerm * weaps[elem].liftDragRatio
 	); # acceleration vector combining lift and weight forces
 	lift_weight[2] -= grav_mpss; # adding weight
 
+	# calculate resultant acceleration and change in velocity over delta_t
 	var deltaV = 
 	vectorMultiply(
 		vectorSum(
@@ -9545,17 +9558,25 @@ var weapons_init_func = func(myNodeName) {
 
 		if (attributes[myNodeName].weapons[elem]["maxMissileSpeed_mps"] == nil) attributes[myNodeName].weapons[elem]["maxMissileSpeed_mps"] = 300;
 		
-		if (attributes[myNodeName].weapons[elem]["missileAcceleration_mpss"] == nil) attributes[myNodeName].weapons[elem]["missileAcceleration_mpss"] = 3 * grav_mpss;
+		if (attributes[myNodeName].weapons[elem]["missileAcceleration1_mpss"] == nil) attributes[myNodeName].weapons[elem]["missileAcceleration1_mpss"] = 3 * grav_mpss;
 		# acceleration of missile during flight - units m per sec per sec
+
+		if (attributes[myNodeName].weapons[elem]["burn1"] == nil) attributes[myNodeName].weapons[elem]["burn1"] = 2.0;
+		# burn time of first rocket stage in sec 
+
+		if (attributes[myNodeName].weapons[elem]["missileAcceleration2_mpss"] == nil) attributes[myNodeName].weapons[elem]["missileAcceleration2_mpss"] = 1.5 * grav_mpss;
+		# second stage
+
+		if (attributes[myNodeName].weapons[elem]["burn2"] == nil) attributes[myNodeName].weapons[elem]["burn2"] = 12.0;
+		# burn time of second rocket stage in sec 
+
+		attributes[myNodeName].weapons[elem]["totalBurnTime"] = attributes[myNodeName].weapons[elem]["burn1"] + attributes[myNodeName].weapons[elem]["burn2"];
 
 		if (attributes[myNodeName].weapons[elem]["rateOfTurn_degps"] == nil) attributes[myNodeName].weapons[elem]["rateOfTurn_degps"] = 40.0;
 
 		if (attributes[myNodeName].weapons[elem]["initialVelocity"] == nil) attributes[myNodeName].weapons[elem]["initialVelocity"] = [0,0,0];
 
 		if (attributes[myNodeName].weapons[elem]["liftDragRatio"] == nil) attributes[myNodeName].weapons[elem]["liftDragRatio"] = 1.33;
-
-		if (attributes[myNodeName].weapons[elem]["ammo_seconds"] == nil) attributes[myNodeName].weapons[elem]["ammo_seconds"] = 6000;
-		# used to fill weapon store 
 
 		if (attributes[myNodeName].weapons[elem]["weaponType"] == 1) 
 		{
