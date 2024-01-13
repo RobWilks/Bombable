@@ -1,26 +1,26 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
-<!-- This should produce nice sort transparent exhaust for a slightly dirty-burning engine objects. -->
-
+<!-- This should produce nice flames and smoke for burning objects. -->
 <PropertyList>
+		
 	<particlesystem>
-		<name>smoke</name>
+		<name>fire</name>
 		<texture>smoke.png</texture>
 		<emissive>false</emissive>
-		<lighting>true</lighting>
+		<lighting>false</lighting>
 		<type>normal</type>
 		<align>billboard</align>
 		<attach>world</attach>
 		
 		<offsets>
-			<x-m>0</x-m>
-			<y-m>0</y-m>
-			<z-m>0</z-m>
+			<x-m>0.0</x-m>
+			<y-m>0.0</y-m>
+			<z-m>0.0</z-m>
 			<pitch-deg>0.0</pitch-deg>
 		</offsets>
 		
 		<condition>
-				<property>/bombable/menusettings/fire-particles/skywriting-trigger</property>
+			<property>/bombable/menusettings/fire-particles/fire-trigger</property>
 		</condition>
 	
 		<placer>
@@ -31,7 +31,7 @@
 		
 		<counter>
 			<particles-per-sec>
-				<value>20</value>
+				<value>30</value>
 				<spread>0</spread>
 			</particles-per-sec>
 		</counter>
@@ -40,56 +40,53 @@
 			<start>
 				<color>
 					<red>
-						<value>0.7</value>
+						<value>1.0</value>
 					</red>
 					<green>
-						<value>0.75</value>
+						<value>0.1</value>
 					</green>
 					<blue>
-						<value>0.65</value>
+						<value>0.1</value>
 					</blue>
 					<alpha>
-						<value>0.8</value>
+						<value>.9</value>
 					</alpha>
 				</color>
 				<size>
-					<value>7</value>
-					
+					<value>3</value>
 				</size>
 			</start>
 			<end>
 				<color>
 					<red>
-						<value>0.50</value>
+						<value>1.0</value>
 					</red>
 					<green>
-						<value>0.55</value>
+						<value>0.95</value>
 					</green>
 					<blue>
-						<value>0.45</value>
+						<value>0.75</value>
 					</blue>
 					<alpha>
-						<value>0.1</value>
+						<value>0.6</value>
 					</alpha>
 				</color>
 				<size>
-					<value>23</value>
+					<value>7</value><!-- equal to start-size of smoke -->
 				</size>
 			</end>
 			<life-sec>
-				<property>/bombable/fire-particles/skywriting-life-sec</property>
+				<value>1</value>
 			</life-sec>
-			<mass-kg>1.204</mass-kg><!-- Air density: 1,204Kg/m3 at 20°C ??? WRONG should be 1.204 kg / m3 -->
-			<radius-m>0.605</radius-m>
+			<mass-kg>2500</mass-kg><!-- Air density: 1,204Kg/m3 at 20°C -->
+			<radius-m>10</radius-m>
 		</particle>
 		
 		<program>
 			<fluid>air</fluid>
-			<!--  because this is exhaust we'll just let it hang there, no gravity-->
 			<gravity type="bool">true</gravity>
-			<wind type="bool">false</wind>
+			<wind type="bool">true</wind>
 		</program>
 	</particlesystem>
 	
-
 </PropertyList>
