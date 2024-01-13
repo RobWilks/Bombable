@@ -2192,7 +2192,7 @@ var setupBombableMenu = func {
 	["pistonexhaust", 15, -1],
 	["damagedengine",  55, -1],
 	["flare",66,3600],
-	["skywriting",11,-1],
+	["skywriting",55,-1],
 	["blaze",13,-1],
 	] ) {
 				
@@ -6221,8 +6221,8 @@ var guideRocket = func
 	var mlat_deg = getprop("" ~ myNodeName2 ~ "/position/latitude-deg"); # main AC
 	var mlon_deg = getprop("" ~ myNodeName2 ~ "/position/longitude-deg");
 	var mAlt_m = getprop("" ~ myNodeName2 ~ "/position/altitude-ft") * FT2M;
-	var mPitch = getprop("" ~ myNodeName2 ~ "/orientation/pitch-deg"); # main AC
-	var mHeading = getprop("" ~ myNodeName2 ~ "orientation/true-heading-deg"); 
+	var mPitch = getprop("" ~ myNodeName2 ~ "/orientation/pitch-deg") * D2R; # main AC
+	var mHeading = getprop("" ~ myNodeName2 ~ "orientation/true-heading-deg") * D2R; 
 	var mSpeed = getprop("" ~ myNodeName2 ~ "/velocities/airspeed-kt") * KT2MPS;
 	var m_delta_dist = mSpeed * delta_t;
 
@@ -6272,6 +6272,13 @@ var guideRocket = func
 
 	var targetDispRefFrame = [deltaX_m, deltaY_m, deltaAlt_m];
 	var distance_m = vectorModulus (targetDispRefFrame);
+	
+	# debprint (
+	# 	sprintf(
+	# 		"Bombable: distance vector to target =[%8.2f, %8.2f, %8.2f]",
+	# 		deltaX_m, deltaY_m, deltaAlt_m 
+	# 	)
+	# );
 
 
 	if (distance_m < attributes[myNodeName2].dimensions.crashRadius_m){
@@ -6310,9 +6317,11 @@ var guideRocket = func
 			);
 
 		debprint (
-		"Bombable: closest approach for ",  
-		myNodeName1 , "/" , elem , 
-		sprintf("is %8.3f", closestApproach)
+			sprintf(
+			"Bombable: closest approach for %s is %8.3f", 
+			myNodeName1 ~ "/" ~ elem ,
+			closestApproach
+			)
 		);
 		# debprint ("Bombable: crash radius for ",  myNodeName2 , " is ", attributes[myNodeName2].dimensions.crashRadius_m);
 
@@ -6343,13 +6352,15 @@ var guideRocket = func
 
 			return (0);
 		}
-		elsif (closestApproach < 4.0 * attributes[myNodeName2].dimensions.crashRadius_m)
+		elsif (closestApproach < (4.0 * attributes[myNodeName2].dimensions.crashRadius_m ))
 		{
 			var msg = "Near miss from " ~ 
 			weaps[elem].name ~ " fired from " ~ 
 			getprop ("" ~ myNodeName1 ~ "/name")			;
 
 			targetStatusPopupTip (msg, 20);
+
+			debprint (msg);
 		}
 	}
 
@@ -6359,9 +6370,9 @@ var guideRocket = func
 
 	var deltaXYZ_AC = vectorMultiply(
 		[
-		math.cos ( mPitch * D2R ) * math.sin( mHeading * D2R ),
-		math.cos ( mPitch * D2R ) * math.cos( mHeading * D2R ),
-		math.sin ( mPitch * D2R )
+		math.cos ( mPitch ) * math.sin( mHeading ),
+		math.cos ( mPitch ) * math.cos( mHeading ),
+		math.sin ( mPitch )
 		],
 		m_delta_dist
 	);
@@ -6389,7 +6400,6 @@ var guideRocket = func
 		myNodeName1, myNodeName2, 
 		targetDispRefFrame,
 		distance_m,
-		missileSpeed_mps,
 		newAim.nextVelocity
 	);
 
@@ -6404,14 +6414,21 @@ var guideRocket = func
 		newAim.interceptSpeed = vectorModulus(intercept.vector);
 		newAim.interceptTime = intercept.time;
 
-		var interceptDirRefFrame = vectorDivide(intercept.vector, newAim.interceptSpeed);
+		var interceptDirRefFrame = vectorMultiply( intercept.vector, 1.0 / newAim.interceptSpeed );
 	}
 	else
 	# no intercept - at start of flight it is not possible to calculate an intercept because the speed is too low 
 	{
-		var interceptDirRefFrame = vectorDivide(targetDispRefFrame, distance_m);
+		var interceptDirRefFrame = vectorMultiply( targetDispRefFrame, 1.0 / distance_m );
 	}
 
+	debprint (
+		sprintf(
+			"Bombable: intercept time =%8.1f Intercept vector =[%8.3f, %8.3f, %8.3f]",
+			newAim.interceptTime, interceptDirRefFrame[0], interceptDirRefFrame[1], interceptDirRefFrame[2] 
+		)
+	);
+	
 	# ground avoidance
 	if ( aAlt_m - ground_Alt_m < -missileDir[2] * missileSpeed_mps * delta_t) 
 	{
@@ -6425,20 +6442,6 @@ var guideRocket = func
 		);	
 	}
 
-	debprint (
-		sprintf(
-			"Bombable: intercept time =%8.1f Intercept vector =[%8.3f, %8.3f, %8.3f]",
-			newAim.interceptTime, interceptDirRefFrame[0], interceptDirRefFrame[1], interceptDirRefFrame[2] 
-		)
-	);
-	
-	
-	# debprint (
-	# 	sprintf(
-	# 		"Bombable: distance vector to target =[%8.2f, %8.2f, %8.2f]",
-	# 		deltaX_m, deltaY_m, deltaAlt_m 
-	# 	)
-	# );
 
 
 	#rotate up to 10 degrees to the target direction
@@ -6479,7 +6482,7 @@ var guideRocket = func
 	);
 
 	nextTurn = math.abs(turn + turnMeasured);
-	# if (nextTurn > maxTurn_rad) nextTurn = maxTurn_rad;
+	if (nextTurn > maxTurn_rad) nextTurn = maxTurn_rad;
 	turn = math.abs(turn);
 
 
@@ -6601,8 +6604,8 @@ var guideRocket = func
 		nextPos = vectorSum(nextPos, deltaXYZ);
 	}
 
-	weaps[elem].aim.newPosition = nextPos;
-	weaps[elem].aim.newVelocity = newV;
+	weaps[elem].aim.nextPosition = nextPos;
+	weaps[elem].aim.nextVelocity = newV;
 	setprop ("" ~ myNodeName1 ~ "/" ~ elem ~ "/flightTime", flightTime + delta_t );
 
 
@@ -6670,12 +6673,12 @@ var newVelocity = func (myNodeName, elem, missileSpeed_mps, missileDir, intercep
 		1.0 - theta / weaps[elem].liftDragRatio 
 		);
 
-	# debprint (
-	# 	sprintf(
-	# 		"Bombable: new velocity vector =[%8.3f, %8.3f, %8.3f]",
-	# 		newV[0], newV[1], newV[2] 
-	# 	)
-	# );
+	debprint (
+		sprintf(
+			"Bombable: new velocity vector =[%8.3f, %8.3f, %8.3f]",
+			newV[0], newV[1], newV[2] 
+		)
+	);
 
 	return(newV);
 	}
@@ -10574,8 +10577,11 @@ var findIntercept = func (myNodeName1, myNodeName2, displacement, dist_m, interc
 
 ########################## findIntercept2 ###########################
 # as findIntercept except velocity1 supplied as argument
-var findIntercept2 = func (myNodeName1, myNodeName2, displacement, dist_m, interceptSpeed, velocity1)
+# and speed of intercept is given by the mod of velocity1
+
+var findIntercept2 = func (myNodeName1, myNodeName2, displacement, dist_m, velocity1)
 {
+	var interceptSpeed = vectorModulus( velocity1 );
 	var speed2 = getprop(""~myNodeName2~"/velocities/airspeed-kt") * KT2MPS; # main AC
 	var speedVert2 = getprop(""~myNodeName2~"/velocities/vertical-speed-fps") * FT2M;
 	var heading2 = getprop(""~myNodeName2~"/orientation/heading-deg") * D2R;
