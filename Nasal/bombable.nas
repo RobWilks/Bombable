@@ -6154,12 +6154,12 @@ var launchRocket = func (myNodeName, elem, delta_t)
 
 
 	pidControllerInit (myNodeName, elem, delta_t);
-	thisWeapon.pid.Kp =
-	getprop ("" ~ myNodeName ~ "/" ~ elem ~ "/Kp"); # for testing
-	thisWeapon.pid.Ki =
-	getprop ("" ~ myNodeName ~ "/" ~ elem ~ "/Ki"); # for testing
-	thisWeapon.pid.Kd =
-	getprop ("" ~ myNodeName ~ "/" ~ elem ~ "/Kd"); # for testing
+	# thisWeapon.pid.Kp =
+	# getprop ("" ~ myNodeName ~ "/" ~ elem ~ "/Kp"); # for testing
+	# thisWeapon.pid.Ki =
+	# getprop ("" ~ myNodeName ~ "/" ~ elem ~ "/Ki"); # for testing
+	# thisWeapon.pid.Kd =
+	# getprop ("" ~ myNodeName ~ "/" ~ elem ~ "/Kd"); # for testing
 		
 		
 
@@ -6183,7 +6183,7 @@ var launchRocket = func (myNodeName, elem, delta_t)
 		, 2.0
 	);
 		
-
+	thisWeapon.counter = 0;
 
 }
 
@@ -6492,7 +6492,7 @@ var guideRocket = func
 	# incremental change in position given by vector newMissileDir * time_inc
 	# newMissileDir changes each time increment
 
-	var theta = (flightTime > 1.0) ? turn : 0 ; # no turn in early part of flight
+	var theta = (flightTime > 2.0) ? turn : 0 ; # no turn in early part of flight
 	var newV = newVelocity(myNodeName1, elem, missileSpeed_mps, missileDir, interceptDirRefFrame, theta, delta_t, flightTime);
 	newV = vectorSum ( newV, thisWeapon.initialVelocity);
 	thisWeapon.initialVelocity = [0, 0, 0]; # feeds in velocity of launchpad
@@ -6572,9 +6572,9 @@ var guideRocket = func
 	# setprop (rp ~ "/controls/flight/target-hdg", newHeading);
 
 
+	thisWeapon.counter += 1;
 
-
-	if (rand() < 0.1)
+	if ( math.mod(thisWeapon.counter, 8) == 0 )
 	{
 		var msg = "AI rocket from " ~ 
 		getprop ("" ~ myNodeName1 ~ "/name") ~ 
@@ -9540,6 +9540,8 @@ var weapons_init_func = func(myNodeName) {
 
 	foreach (elem;keys (weaps) ) 
 	{
+		var thisWeapon = attributes[myNodeName].weapons[elem]; # a pointer into the attributes hash
+		
 		# the weapon long lat and altitude should be set before tie-ing the fire particle to the aircraft
 		# these are calculated in checkAim
 		put_tied_weapon
@@ -9547,12 +9549,12 @@ var weapons_init_func = func(myNodeName) {
 				myNodeName, elem,
 				"AI/Aircraft/Fire-Particles/projectile-tracer/projectile-tracer-" ~ count ~ ".xml"
 			);
-		setprop ("/bombable/fire-particles/projectile-tracer[" ~ count ~ "]/projectile-startsize", weaps[elem].weaponSize_m.start);
-		setprop ("/bombable/fire-particles/projectile-tracer[" ~ count ~ "]/projectile-endsize", weaps[elem].weaponSize_m.end);
+		setprop ("/bombable/fire-particles/projectile-tracer[" ~ count ~ "]/projectile-startsize", thisWeapon.weaponSize_m.start);
+		setprop ("/bombable/fire-particles/projectile-tracer[" ~ count ~ "]/projectile-endsize", thisWeapon.weaponSize_m.end);
 		setprop ("/bombable/fire-particles/projectile-tracer[" ~ count ~ "]/ai-weapon-firing", 0); 
 		
 		# form vector for weapon direction, weapDir
-		var weapAngles = attributes[myNodeName].weapons[elem].weaponAngle_deg;
+		var weapAngles = thisWeapon.weaponAngle_deg;
 		var cosWeapElev = cos(weapAngles.elevation);
 		var weapDir = [
 			cosWeapElev * sin(weapAngles.heading),
@@ -9568,8 +9570,6 @@ var weapons_init_func = func(myNodeName) {
 		props.globals.getNode("" ~ myNodeName ~ "/" ~ elem ~ "/destroyed", 1).setBoolValue(0);
 		# setprop ("" ~ myNodeName ~ "/" ~ elem ~ "/destroyed", 0); 
 
-		var thisWeapon = attributes[myNodeName].weapons[elem]; # a pointer into the attributes hash
-		
 		thisWeapon["aim"] = newAim; #add hash used to record direction weapon is pointing
 		# used to translate weapon position and orientation from frame of reference of model to the frame of reference of the scene
 		
@@ -9580,78 +9580,83 @@ var weapons_init_func = func(myNodeName) {
 		# new key to allow inclusion of new types of weapons such as rockets. Note weaponType used in other functions
 
 		if (thisWeapon["maxMissileSpeed_mps"] == nil) thisWeapon["maxMissileSpeed_mps"] = 300;
-		
-		if (thisWeapon["missileAcceleration1_mpss"] == nil) thisWeapon["missileAcceleration1_mpss"] = 1.1 * grav_mpss;
-		# acceleration of missile during flight - units m per sec per sec
-
-		if (thisWeapon["burn1"] == nil) thisWeapon["burn1"] = 2.0;
-		# burn time of first rocket stage in sec 
-
-		if (thisWeapon["missileAcceleration2_mpss"] == nil) thisWeapon["missileAcceleration2_mpss"] = 1.1 * grav_mpss;
-		# second stage
-
-		if (thisWeapon["burn2"] == nil) thisWeapon["burn2"] = 0.0;
-		# burn time of second rocket stage in sec 
-
-		thisWeapon["totalBurnTime"] = thisWeapon["burn1"] + thisWeapon["burn2"];
-
-		thisWeapon["dragTerm"] = thisWeapon["missileAcceleration2_mpss"] / thisWeapon["maxMissileSpeed_mps"] / thisWeapon["maxMissileSpeed_mps"]; # drag force = dragTerm * speed^2
-
-		if (thisWeapon["rateOfTurn_degps"] == nil) thisWeapon["rateOfTurn_degps"] = 40.0;
-
-		if (thisWeapon["initialVelocity"] == nil) thisWeapon["initialVelocity"] = [0,0,0];
-
-		if (thisWeapon["liftDragRatio"] == nil) thisWeapon["liftDragRatio"] = 1.33;
-
-		if (thisWeapon["weaponType"] == 1) 
-		{
-			props.globals.getNode("" ~ myNodeName ~ "/" ~ elem ~ "/launched", 1).setBoolValue(0);
-			# enable sky-writing to show weapon trajectory
-			thisWeapon["rocketsIndex"] = rocketCount;
-
-		# set-up buffer to store intermediate positions of rocket
-		var wayPoint = {lon:0, lat:0, alt:0, pitch:0, heading:0}; # template
-		var new_wayPoint = func {
-			return {parents:[wayPoint] };
-			}
-
-		var NUM_ELEMENTS = 5;
-		var fp = [];
-		setsize(fp, NUM_ELEMENTS);
-
-		forindex(var i; fp)
-			fp[i] = new_wayPoint(); # flight pathvector used to store intermediate rocket locations
-
 			
-		thisWeapon["flightPath"] = fp;
+		if (thisWeapon["ammo_seconds"] == nil) thisWeapon["ammo_seconds"] = 6000; # time a weapon can fire til out of ammo 
+			
+		if (thisWeapon["weaponType"] == 1) 
 
-		# set-up parameters for PID controller - PID values are reset on rocket launch
-		var pid = {
-			Kp: 0.5,
-			Ki: 0.005,
-			Kd: 0.0,
-			limMaxInt: 0.0 , # Integrator limits to be set below
-			limMinInt: 0.0 ,
-			tau: 0.25 , # Derivative low-pass filter time constant secs
-			limMax: LOOP_TIME * weaps[elem].rateOfTurn_degps * D2R , # maxRate turn
-			limMin: 0.0 ,
-			differentiator: 0.0 ,
-			integrator: 0.0 ,
-			prevError: 0.0 ,
-			prevMeasurement: 0.0 ,
-			out: 0.0	
-		}; # template
+		{
+			if (thisWeapon["missileAcceleration1_mpss"] == nil) thisWeapon["missileAcceleration1_mpss"] = 1.1 * grav_mpss;
+			# acceleration of missile during flight - units m per sec per sec
+
+			if (thisWeapon["burn1"] == nil) thisWeapon["burn1"] = 2.0;
+			# burn time of first rocket stage in sec 
+
+			if (thisWeapon["missileAcceleration2_mpss"] == nil) thisWeapon["missileAcceleration2_mpss"] = 1.1 * grav_mpss;
+			# second stage
+
+			if (thisWeapon["burn2"] == nil) thisWeapon["burn2"] = 0.0;
+			# burn time of second rocket stage in sec 
+
+			thisWeapon["totalBurnTime"] = thisWeapon["burn1"] + thisWeapon["burn2"];
+
+			thisWeapon["dragTerm"] = thisWeapon["missileAcceleration2_mpss"] / thisWeapon["maxMissileSpeed_mps"] / thisWeapon["maxMissileSpeed_mps"]; # drag force = dragTerm * speed^2
+
+			if (thisWeapon["rateOfTurn_degps"] == nil) thisWeapon["rateOfTurn_degps"] = 40.0;
+
+			if (thisWeapon["initialVelocity"] == nil) thisWeapon["initialVelocity"] = [0,0,0];
+
+			if (thisWeapon["liftDragRatio"] == nil) thisWeapon["liftDragRatio"] = 1.33;
+
+			props.globals.getNode("" ~ myNodeName ~ "/" ~ elem ~ "/launched", 1).setBoolValue(0); # boolean to allow quick toggle from GUI
+
+			# set-up buffer to store intermediate positions of rocket
+			var wayPoint = {lon:0, lat:0, alt:0, pitch:0, heading:0}; # template
+			var new_wayPoint = func {
+				return {parents:[wayPoint] };
+				}
+
+			var NUM_ELEMENTS = 5;
+			var fp = [];
+			setsize(fp, NUM_ELEMENTS);
+
+			forindex(var i; fp)
+				fp[i] = new_wayPoint(); # flight pathvector used to store intermediate rocket locations
+
+				
+			thisWeapon["flightPath"] = fp;
+
+			# set-up parameters for PID controller - PID values are reset on rocket launch
+			var pid = {
+				Kp: 0.5,
+				Ki: 0.005,
+				Kd: 0.0,
+				limMaxInt: 0.0 , # Integrator limits to be set below
+				limMinInt: 0.0 ,
+				tau: 0.25 , # Derivative low-pass filter time constant secs
+				limMax: LOOP_TIME * thisWeapon.rateOfTurn_degps * D2R , # maxRate turn
+				limMin: 0.0 ,
+				differentiator: 0.0 ,
+				integrator: 0.0 ,
+				prevError: 0.0 ,
+				prevMeasurement: 0.0 ,
+				out: 0.0	
+			}; # template
 
 			pid.limMin = - pid.limMax;
 			pid.limMaxInt = pid.limMax * 0.75;
 			pid.limMinInt = - pid.limMaxInt;
 
 			thisWeapon["pid"] = pid; # variables for PID controller for missile direction
-			setprop ("" ~ myNodeName ~ "/" ~ elem ~ "/Kp", weaps[elem].pid.Kp); # for testing
-			setprop ("" ~ myNodeName ~ "/" ~ elem ~ "/Ki", weaps[elem].pid.Ki); # for testing
-			setprop ("" ~ myNodeName ~ "/" ~ elem ~ "/Kd", weaps[elem].pid.Kd); # for testing
+			# setprop ("" ~ myNodeName ~ "/" ~ elem ~ "/Kp", thisWeapon.pid.Kp); # for testing
+			# setprop ("" ~ myNodeName ~ "/" ~ elem ~ "/Ki", thisWeapon.pid.Ki); # for testing
+			# setprop ("" ~ myNodeName ~ "/" ~ elem ~ "/Kd", thisWeapon.pid.Kd); # for testing
 
 			thisWeapon["atomic"] = 0; # flag to control access
+
+			thisWeapon["rocketsIndex"] = rocketCount;
+
+			thisWeapon["counter"] = 0; # counts calls to guideRocket
 
 			rocketCount += 1;
 			# each rocket is a separate weapon with a separate AI model - not tied to the parent AC/ship
