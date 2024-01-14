@@ -6627,23 +6627,22 @@ var newVelocity = func (myNodeName, elem, missileSpeed_mps, missileDir, intercep
 	if (theta > 0) missileDir = vectorRotate (missileDir, interceptDir, theta);
 
 
-	var acc = 0.0; # acceleration from thrust
+	var thrust = 0.0; # acceleration from thrust
 	if ( flight_time < weaps[elem].burn1 )
 	{ 
-		acc = weaps[elem].missileAcceleration1_mpss;
+		thrust = weaps[elem].missileAcceleration1_mpss;
 	}
-	elsif ( flight_time < weaps[elem].burn2 )
+	elsif ( flight_time < weaps[elem].totalBurnTime )
 	{
-		acc = weaps[elem].missileAcceleration2_mpss; # second stage of rocket
+		thrust = weaps[elem].missileAcceleration2_mpss; # second stage of rocket
 	}
 
-	var maxSpeed= weaps[elem].maxMissileSpeed_mps;
-	var dragTerm = missileSpeed_mps * missileSpeed_mps / maxSpeed / maxSpeed;
+	var drag = missileSpeed_mps * missileSpeed_mps * weaps[elem].dragTerm;
 
 	# thrust - drag
 	var thrust_drag = vectorMultiply( 
 		missileDir, 
-		acc * ( 1.0 - dragTerm)
+		thrust - drag
 	);
 
 	# lift - weight
@@ -6834,15 +6833,38 @@ var pidController = func (myNodeName, elem, setpoint, measurement)
     return (pid.out);
 
 }
+############################ calculateDrag ##############################
+# function to calculate the rocket drag factor from the maximum speed of the rocket
+# TW: value of thrust to weight e.g. from rocket engine
+# vMax: maximum velocity of rocket measured when flying at a constant speed horizontally at a angle of attack alpha to the horizontal
+# drag term is cos (alpha) / vMax^2 / (cL/cD) and assumed constant 
+# assume lift force = drag force * cL/cD
+# assume thrust force acts anti-parallel to drag force
 
+var calculateDrag = func(thrustByWeight, cLbycD, vMax)
+{
+	var LD = cLbycD;
+	var TW = thrustByWeight;
+	var a = 1.0 + 1.0 / LD / LD ;
+	var b = 2.0 * TW ;
+	var c = TW * TW - 1.0 / LD / LD ;
+	var result =  findRoots(a,b,c);
+	print (
+		sprintf(
+		"root1 = %8.3f root2 = %8.3f isReal = %i",
+		math.asin(-result.x1) * R2D, 
+		math.asin(-result.x2) * R2D, 
+		result.isReal
+		)
+	);
+	var alpha = math.asin(-result.x2);
+	var dragTerm = math.cos(alpha) / cLbycD / vMax / vMax;
 
+	print (sprintf("thrustByWeight = %8.3f dragTerm = %9.3e", thrustByWeight, dragTerm)) ;
 
+	return({pitch : alpha, drag : dragTerm});
 
-
-
-
-
-
+} 
 
 
 
@@ -9545,44 +9567,47 @@ var weapons_init_func = func(myNodeName) {
 		# use rather than setprop to allow flag to be set as boolean type  
 		props.globals.getNode("" ~ myNodeName ~ "/" ~ elem ~ "/destroyed", 1).setBoolValue(0);
 		# setprop ("" ~ myNodeName ~ "/" ~ elem ~ "/destroyed", 0); 
+
+		var thisWeapon = attributes[myNodeName].weapons[elem]; # a pointer into the attributes hash
 		
-		
-		attributes[myNodeName].weapons[elem].aim = newAim; #add hash used to record direction weapon is pointing
+		thisWeapon["aim"] = newAim; #add hash used to record direction weapon is pointing
 		# used to translate weapon position and orientation from frame of reference of model to the frame of reference of the scene
 		
-		attributes[myNodeName].weapons[elem]["fireParticle"] = count;
+		thisWeapon["fireParticle"] = count;
 		# new key to link the weapon to a fire particle
 
-		if (attributes[myNodeName].weapons[elem]["weaponType"] == nil) attributes[myNodeName].weapons[elem]["weaponType"] = 0;
+		if (thisWeapon["weaponType"] == nil) thisWeapon["weaponType"] = 0;
 		# new key to allow inclusion of new types of weapons such as rockets. Note weaponType used in other functions
 
-		if (attributes[myNodeName].weapons[elem]["maxMissileSpeed_mps"] == nil) attributes[myNodeName].weapons[elem]["maxMissileSpeed_mps"] = 300;
+		if (thisWeapon["maxMissileSpeed_mps"] == nil) thisWeapon["maxMissileSpeed_mps"] = 300;
 		
-		if (attributes[myNodeName].weapons[elem]["missileAcceleration1_mpss"] == nil) attributes[myNodeName].weapons[elem]["missileAcceleration1_mpss"] = 3 * grav_mpss;
+		if (thisWeapon["missileAcceleration1_mpss"] == nil) thisWeapon["missileAcceleration1_mpss"] = 1.1 * grav_mpss;
 		# acceleration of missile during flight - units m per sec per sec
 
-		if (attributes[myNodeName].weapons[elem]["burn1"] == nil) attributes[myNodeName].weapons[elem]["burn1"] = 2.0;
+		if (thisWeapon["burn1"] == nil) thisWeapon["burn1"] = 2.0;
 		# burn time of first rocket stage in sec 
 
-		if (attributes[myNodeName].weapons[elem]["missileAcceleration2_mpss"] == nil) attributes[myNodeName].weapons[elem]["missileAcceleration2_mpss"] = 1.5 * grav_mpss;
+		if (thisWeapon["missileAcceleration2_mpss"] == nil) thisWeapon["missileAcceleration2_mpss"] = 1.1 * grav_mpss;
 		# second stage
 
-		if (attributes[myNodeName].weapons[elem]["burn2"] == nil) attributes[myNodeName].weapons[elem]["burn2"] = 12.0;
+		if (thisWeapon["burn2"] == nil) thisWeapon["burn2"] = 0.0;
 		# burn time of second rocket stage in sec 
 
-		attributes[myNodeName].weapons[elem]["totalBurnTime"] = attributes[myNodeName].weapons[elem]["burn1"] + attributes[myNodeName].weapons[elem]["burn2"];
+		thisWeapon["totalBurnTime"] = thisWeapon["burn1"] + thisWeapon["burn2"];
 
-		if (attributes[myNodeName].weapons[elem]["rateOfTurn_degps"] == nil) attributes[myNodeName].weapons[elem]["rateOfTurn_degps"] = 40.0;
+		thisWeapon["dragTerm"] = thisWeapon["missileAcceleration2_mpss"] / thisWeapon["maxMissileSpeed_mps"] / thisWeapon["maxMissileSpeed_mps"]; # drag force = dragTerm * speed^2
 
-		if (attributes[myNodeName].weapons[elem]["initialVelocity"] == nil) attributes[myNodeName].weapons[elem]["initialVelocity"] = [0,0,0];
+		if (thisWeapon["rateOfTurn_degps"] == nil) thisWeapon["rateOfTurn_degps"] = 40.0;
 
-		if (attributes[myNodeName].weapons[elem]["liftDragRatio"] == nil) attributes[myNodeName].weapons[elem]["liftDragRatio"] = 1.33;
+		if (thisWeapon["initialVelocity"] == nil) thisWeapon["initialVelocity"] = [0,0,0];
 
-		if (attributes[myNodeName].weapons[elem]["weaponType"] == 1) 
+		if (thisWeapon["liftDragRatio"] == nil) thisWeapon["liftDragRatio"] = 1.33;
+
+		if (thisWeapon["weaponType"] == 1) 
 		{
 			props.globals.getNode("" ~ myNodeName ~ "/" ~ elem ~ "/launched", 1).setBoolValue(0);
 			# enable sky-writing to show weapon trajectory
-			attributes[myNodeName].weapons[elem]["rocketsIndex"] = rocketCount;
+			thisWeapon["rocketsIndex"] = rocketCount;
 
 		# set-up buffer to store intermediate positions of rocket
 		var wayPoint = {lon:0, lat:0, alt:0, pitch:0, heading:0}; # template
@@ -9598,7 +9623,7 @@ var weapons_init_func = func(myNodeName) {
 			fp[i] = new_wayPoint(); # flight pathvector used to store intermediate rocket locations
 
 			
-		attributes[myNodeName].weapons[elem]["flightPath"] = fp;
+		thisWeapon["flightPath"] = fp;
 
 		# set-up parameters for PID controller - PID values are reset on rocket launch
 		var pid = {
@@ -9621,18 +9646,18 @@ var weapons_init_func = func(myNodeName) {
 			pid.limMaxInt = pid.limMax * 0.75;
 			pid.limMinInt = - pid.limMaxInt;
 
-			attributes[myNodeName].weapons[elem]["pid"] = pid; # variables for PID controller for missile direction
+			thisWeapon["pid"] = pid; # variables for PID controller for missile direction
 			setprop ("" ~ myNodeName ~ "/" ~ elem ~ "/Kp", weaps[elem].pid.Kp); # for testing
 			setprop ("" ~ myNodeName ~ "/" ~ elem ~ "/Ki", weaps[elem].pid.Ki); # for testing
 			setprop ("" ~ myNodeName ~ "/" ~ elem ~ "/Kd", weaps[elem].pid.Kd); # for testing
 
-			attributes[myNodeName].weapons[elem]["atomic"] = 0; # flag to control access
+			thisWeapon["atomic"] = 0; # flag to control access
 
 			rocketCount += 1;
 			# each rocket is a separate weapon with a separate AI model - not tied to the parent AC/ship
 		}
 	
-		debprint ("Weaps: ", myNodeName, " initialized ", attributes[myNodeName].weapons[elem].name);
+		debprint ("Weaps: ", myNodeName, " initialized ", thisWeapon.name);
 		count += 1;
 	}
 	
