@@ -6089,7 +6089,7 @@ var weapons_loop = func (id, myNodeName1 = "", myNodeName2 = "", targetSize_m = 
 
 var launchRocket = func (myNodeName, elem, delta_t)
 {
-	var weaps = attributes[myNodeName].weapons;
+	var thisWeapon = attributes[myNodeName].weapons[elem];
 
 	# get speed and orientation of launchpad or pylon
 	setprop ("" ~ myNodeName ~ "/" ~ elem ~ "/launched", 1);
@@ -6102,14 +6102,14 @@ var launchRocket = func (myNodeName, elem, delta_t)
 	getprop ("" ~ myNodeName ~ "/orientation/true-heading-deg");
 
 
-	var msg = weaps[elem].name ~ " launched from " ~ 
+	var msg = thisWeapon.name ~ " launched from " ~ 
 	getprop ("" ~ myNodeName ~ "/name") ~ 
 	" intercept time ~" ~ round(newAim.interceptTime) ~ "s" ~ 
 	" intercept speed ~" ~ round(newAim.interceptSpeed) ~ " mps";
 
 	targetStatusPopupTip (msg, 20);
 
-	debprint ("Bombable: " ~ msg ~ " " ~ myNodeName ~ ", " ~ weaps[elem].name ~ " " ~ elem);
+	debprint ("Bombable: " ~ msg ~ " " ~ myNodeName ~ ", " ~ thisWeapon.name ~ " " ~ elem);
 
 
 	var alat_deg = getprop("" ~ myNodeName ~ "/" ~ elem ~ "/position/latitude-deg"); # AI
@@ -6120,9 +6120,9 @@ var launchRocket = func (myNodeName, elem, delta_t)
 
 
 	# rocket initiated by moving it from {lat, lon} {0, 0} to location of AC / ship
-	var rp = "ai/models/static[" ~ weaps[elem].rocketsIndex ~ "]";
-	var pitch = math.asin(weaps[elem].aim.weaponDirRefFrame[2]) * R2D; # orientation of rocket vs AC - use weaponDirRefFrame?
-	var heading = math.atan2(weaps[elem].aim.weaponDirRefFrame[0], weaps[elem].aim.weaponDirRefFrame[1]) * R2D;
+	var rp = "ai/models/static[" ~ thisWeapon.rocketsIndex ~ "]";
+	var pitch = math.asin(thisWeapon.aim.weaponDirRefFrame[2]) * R2D; # orientation of rocket vs AC - use weaponDirRefFrame?
+	var heading = math.atan2(thisWeapon.aim.weaponDirRefFrame[0], thisWeapon.aim.weaponDirRefFrame[1]) * R2D;
 
 	setprop (rp ~ "/position/latitude-deg", alat_deg);
 	setprop (rp ~ "/position/longitude-deg", alon_deg);
@@ -6136,8 +6136,8 @@ var launchRocket = func (myNodeName, elem, delta_t)
 	# from ships or groundvehicles rockets are launched from tubes creating an initial vertical velocity
 
 	var lengthTube = 6.5; # 1.5 x length
-	var vVert = math.sqrt(2.0 * weaps[elem].missileAcceleration1_mpss * lengthTube); # v^2 = u^2 + 2*a*s
-	weaps[elem].initialVelocity = vectorSum 
+	var vVert = math.sqrt(2.0 * thisWeapon.missileAcceleration1_mpss * lengthTube); # v^2 = u^2 + 2*a*s
+	thisWeapon.initialVelocity = vectorSum 
 		(
 			[
 			launchPadSpeed * math.cos ( launchPadPitch * D2R ) * math.sin( launchPadHeading * D2R ),
@@ -6154,11 +6154,11 @@ var launchRocket = func (myNodeName, elem, delta_t)
 
 
 	pidControllerInit (myNodeName, elem, delta_t);
-	weaps[elem].pid.Kp =
+	thisWeapon.pid.Kp =
 	getprop ("" ~ myNodeName ~ "/" ~ elem ~ "/Kp"); # for testing
-	weaps[elem].pid.Ki =
+	thisWeapon.pid.Ki =
 	getprop ("" ~ myNodeName ~ "/" ~ elem ~ "/Ki"); # for testing
-	weaps[elem].pid.Kd =
+	thisWeapon.pid.Kd =
 	getprop ("" ~ myNodeName ~ "/" ~ elem ~ "/Kd"); # for testing
 		
 		
@@ -6206,15 +6206,15 @@ var guideRocket = func
 	damageValue = 0, delta_t = 0.25
 )
 {
-	var weaps = attributes[myNodeName1].weapons;
+	var thisWeapon = attributes[myNodeName1].weapons[elem];
 	var flightTime = getprop ("" ~ myNodeName1 ~ "/" ~ elem ~ "/flightTime");
-	newAim = weaps[elem].aim; 
+	newAim = thisWeapon.aim; 
 	newAim.pHit = 0;
 
 	var alat_deg = getprop("" ~ myNodeName1 ~ "/" ~ elem ~ "/position/latitude-deg"); # AI
 	var alon_deg = getprop("" ~ myNodeName1 ~ "/" ~ elem ~ "/position/longitude-deg");
 	var aAlt_m = getprop("" ~ myNodeName1 ~ "/" ~ elem ~ "/position/altitude-ft") * FT2M;
-	var missileDir = weaps[elem].aim.weaponDirRefFrame;
+	var missileDir = thisWeapon.aim.weaponDirRefFrame;
 	var missileSpeed_mps = getprop("" ~ myNodeName1 ~ "/" ~ elem ~ "/velocities/true-airspeed-kt") * KT2MPS;
 	var a_delta_dist = missileSpeed_mps * delta_t; #distance missile travels over this stage which is divided into nSteps
 
@@ -6239,7 +6239,7 @@ var guideRocket = func
 	deltaLat_deg = mlat_deg - alat_deg;
 	deltaLon_deg = mlon_deg - alon_deg ;
 
-	if (targetSize_m == nil or targetSize_m.horz <= 0 or targetSize_m.vert <= 0 or weaps[elem].maxDamageDistance_m <= 0) 
+	if (targetSize_m == nil or targetSize_m.horz <= 0 or targetSize_m.vert <= 0 or thisWeapon.maxDamageDistance_m <= 0) 
 	{
 		var msg = elem ~ " rocket from " ~ 
 		getprop ("" ~ myNodeName1 ~ "/name") ~ 
@@ -6249,15 +6249,15 @@ var guideRocket = func
 		return(0); # abort rocket				
 	}
 
-	if ( flightTime + delta_t > weaps[elem].totalBurnTime) 
+	if ( flightTime + delta_t > thisWeapon.totalBurnTime) 
 		{
-			if ( flightTime < weaps[elem].totalBurnTime )
+			if ( flightTime < thisWeapon.totalBurnTime )
 			{
-				var msg = weaps[elem].name ~ " fired from " ~ 
+				var msg = thisWeapon.name ~ " fired from " ~ 
 				getprop ("" ~ myNodeName1 ~ "/name") ~ 
 				" out of fuel";
 
-				targetStatusPopupTip (msg, 20);
+				targetStatusPopupTip (msg, 10);
 				# reduce thrust to zero to make the rocket fall out of the sky, rather than abort mid-air
 			}
 		}
@@ -6297,7 +6297,7 @@ var guideRocket = func
 	{
 		debprint ("Bombable: checkAGL for ",  myNodeName1 , "/" , elem , "deltaAlt = ", ground_Alt_m - aAlt_m);
 
-		var msg = weaps[elem].name ~ " from " ~ 
+		var msg = thisWeapon.name ~ " from " ~ 
 		getprop ("" ~ myNodeName1 ~ "/name") ~ 
 		" hit ground and destroyed";
 		targetStatusPopupTip (msg, 20);						
@@ -6337,7 +6337,7 @@ var guideRocket = func
 			deltaXYZ = vectorMultiply (missileDir, step);
 
 
-			weaps[elem].atomic = 1; #to lock access
+			thisWeapon.atomic = 1; #to lock access
 			for (var i = 0; i < nSteps; i = i + 1) 
 			{
 				if (i < steps_to_target)
@@ -6346,18 +6346,18 @@ var guideRocket = func
 					deltaLat = deltaLat + deltaXYZ[1] / m_per_deg_lat;
 					deltaAlt = deltaAlt + deltaXYZ[2];
 				}
-				weaps[elem].flightPath[i].lon = alon_deg + deltaLon;
-				weaps[elem].flightPath[i].lat = alat_deg + deltaLat;
-				weaps[elem].flightPath[i].alt = ( aAlt_m + deltaAlt ) * M2FT;
+				thisWeapon.flightPath[i].lon = alon_deg + deltaLon;
+				thisWeapon.flightPath[i].lat = alat_deg + deltaLat;
+				thisWeapon.flightPath[i].alt = ( aAlt_m + deltaAlt ) * M2FT;
 			}
-			weaps[elem].atomic = 0; #to unlock access
+			thisWeapon.atomic = 0; #to unlock access
 
 			return (0);
 		}
 		elsif (closestApproach < (4.0 * attributes[myNodeName2].dimensions.crashRadius_m ))
 		{
 			var msg = "Near miss from " ~ 
-			weaps[elem].name ~ " fired from " ~ 
+			thisWeapon.name ~ " fired from " ~ 
 			getprop ("" ~ myNodeName1 ~ "/name")			;
 
 			targetStatusPopupTip (msg, 20);
@@ -6447,7 +6447,7 @@ var guideRocket = func
 
 
 	#rotate up to 10 degrees to the target direction
-	var maxTurn_rad = delta_t * weaps[elem].rateOfTurn_degps * D2R; 
+	var maxTurn_rad = delta_t * thisWeapon.rateOfTurn_degps * D2R; 
 	var maxTurn = math.cos(maxTurn_rad); 
 	var nextTurn = 0;
 	var minTurn = 0.9999; # equivalent to 1 deg
@@ -6478,8 +6478,8 @@ var guideRocket = func
 		sprintf(
 			"Bombable: pid: output =%8.3f integrator =%8.3f previous measurement =%8.3f",
 			turn,
-			weaps[elem].pid.integrator,
-			weaps[elem].pid.prevMeasurement
+			thisWeapon.pid.integrator,
+			thisWeapon.pid.prevMeasurement
 		)
 	);
 
@@ -6494,8 +6494,8 @@ var guideRocket = func
 
 	var theta = (flightTime > 1.0) ? turn : 0 ; # no turn in early part of flight
 	var newV = newVelocity(myNodeName1, elem, missileSpeed_mps, missileDir, interceptDirRefFrame, theta, delta_t, flightTime);
-	newV = vectorSum ( newV, weaps[elem].initialVelocity);
-	weaps[elem].initialVelocity = [0, 0, 0]; # feeds in velocity of launchpad
+	newV = vectorSum ( newV, thisWeapon.initialVelocity);
+	thisWeapon.initialVelocity = [0, 0, 0]; # feeds in velocity of launchpad
 	var newMissileSpeed_mps = vectorModulus (newV);
 	var newMissileDir = vectorDivide ( newV, newMissileSpeed_mps );
 	
@@ -6506,7 +6506,7 @@ var guideRocket = func
 		vectorSubtract(newV , v),
 		nSteps); # velocity increments
 
-	weaps[elem].atomic = 1; #to lock access
+	thisWeapon.atomic = 1; #to lock access
 	for (var i = 0; i < nSteps; i = i + 1) 
 	{
 		deltaXYZ = vectorMultiply (v, time_inc);
@@ -6514,13 +6514,13 @@ var guideRocket = func
 		deltaLon = deltaLon + deltaXYZ[0] / m_per_deg_lon;
 		deltaLat = deltaLat + deltaXYZ[1] / m_per_deg_lat;
 		deltaAlt = deltaAlt + deltaXYZ[2];
-		weaps[elem].flightPath[i].lon = alon_deg + deltaLon;
-		weaps[elem].flightPath[i].lat = alat_deg + deltaLat;
-		weaps[elem].flightPath[i].alt = ( aAlt_m + deltaAlt ) * M2FT;
-		weaps[elem].flightPath[i].pitch = math.asin( v[2] / vectorModulus(v) ) * R2D;
-		weaps[elem].flightPath[i].heading = math.atan2( v[0], v[1] ) * R2D;;
+		thisWeapon.flightPath[i].lon = alon_deg + deltaLon;
+		thisWeapon.flightPath[i].lat = alat_deg + deltaLat;
+		thisWeapon.flightPath[i].alt = ( aAlt_m + deltaAlt ) * M2FT;
+		thisWeapon.flightPath[i].pitch = math.asin( v[2] / vectorModulus(v) ) * R2D;
+		thisWeapon.flightPath[i].heading = math.atan2( v[0], v[1] ) * R2D;;
 	}
-	weaps[elem].atomic = 0; #to unlock access
+	thisWeapon.atomic = 0; #to unlock access
 
 	settimer ( func{ moveRocket (myNodeName1, elem, 0, nSteps, time_inc )}, 0 ); # first step called immediately
 
@@ -6564,7 +6564,7 @@ var guideRocket = func
 		)
 	);
 
-	var rp = "ai/models/static[" ~ weaps[elem].rocketsIndex ~ "]";
+	var rp = "ai/models/static[" ~ thisWeapon.rocketsIndex ~ "]";
 
 	setprop (rp ~ "/velocities/true-airspeed-kt", newMissileSpeed_mps * MPS2KT);
 	# setprop (rp ~ "/controls/flight/target-spd", newMissileSpeed_mps * MPS2KT);
@@ -6574,7 +6574,7 @@ var guideRocket = func
 
 
 
-	if (rand() < 0.3)
+	if (rand() < 0.1)
 	{
 		var msg = "AI rocket from " ~ 
 		getprop ("" ~ myNodeName1 ~ "/name") ~ 
@@ -6606,8 +6606,8 @@ var guideRocket = func
 		nextPos = vectorSum(nextPos, deltaXYZ);
 	}
 
-	weaps[elem].aim.nextPosition = nextPos;
-	weaps[elem].aim.nextVelocity = newV;
+	thisWeapon.aim.nextPosition = nextPos;
+	thisWeapon.aim.nextVelocity = newV;
 	setprop ("" ~ myNodeName1 ~ "/" ~ elem ~ "/flightTime", flightTime + delta_t );
 
 
@@ -6622,22 +6622,22 @@ var guideRocket = func
 
 var newVelocity = func (myNodeName, elem, missileSpeed_mps, missileDir, interceptDir, theta, delta_t, flight_time)
 {
-	var weaps = attributes[myNodeName].weapons;
+	var thisWeapon = attributes[myNodeName].weapons[elem];
 
 	if (theta > 0) missileDir = vectorRotate (missileDir, interceptDir, theta);
 
 
 	var thrust = 0.0; # acceleration from thrust
-	if ( flight_time < weaps[elem].burn1 )
+	if ( flight_time < thisWeapon.burn1 )
 	{ 
-		thrust = weaps[elem].missileAcceleration1_mpss;
+		thrust = thisWeapon.missileAcceleration1_mpss;
 	}
-	elsif ( flight_time < weaps[elem].totalBurnTime )
+	elsif ( flight_time < thisWeapon.totalBurnTime )
 	{
-		thrust = weaps[elem].missileAcceleration2_mpss; # second stage of rocket
+		thrust = thisWeapon.missileAcceleration2_mpss; # second stage of rocket
 	}
 
-	var drag = missileSpeed_mps * missileSpeed_mps * weaps[elem].dragTerm;
+	var drag = missileSpeed_mps * missileSpeed_mps * thisWeapon.dragTerm;
 
 	# thrust - drag
 	var thrust_drag = vectorMultiply( 
@@ -6654,7 +6654,7 @@ var newVelocity = func (myNodeName, elem, missileSpeed_mps, missileDir, intercep
 			- missileDir[2] * math.cos (hdg),
 			missileDir[0] / sinHdg # lift is always upwards
 		],
-		acc * dragTerm * weaps[elem].liftDragRatio
+		drag * thisWeapon.liftDragRatio # lift is a fixed multiple of drag
 	); # acceleration vector combining lift and weight forces
 	lift_weight[2] -= grav_mpss; # adding weight
 
@@ -6682,7 +6682,7 @@ var newVelocity = func (myNodeName, elem, missileSpeed_mps, missileDir, intercep
 	# approximation of dv / v = exp (-theta / dragLiftRatio )
 	newV = vectorMultiply(
 		newV,
-		1.0 - theta / weaps[elem].liftDragRatio 
+		1.0 - theta / thisWeapon.liftDragRatio 
 		);
 
 	debprint (
@@ -6707,12 +6707,12 @@ var moveRocket = func (myNodeName, elem, index, lastIndex, timeInc)
 
 	#get flighpath waypoint
 
-	var weaps = attributes[myNodeName].weapons;
-	var fpath = weaps[elem].flightPath;
+	var thisWeapon = attributes[myNodeName].weapons[elem];
+	var fpath = thisWeapon.flightPath;
 
-	var rp = "ai/models/static[" ~ weaps[elem].rocketsIndex ~ "]";
+	var rp = "ai/models/static[" ~ thisWeapon.rocketsIndex ~ "]";
 
-	if (weaps[elem].atomic == 1) return (0);
+	if (thisWeapon.atomic == 1) return (0);
 
 	setprop (rp ~ "/position/longitude-deg", fpath[index].lon);
 	setprop (rp ~ "/position/latitude-deg", fpath[index].lat);
@@ -6734,8 +6734,8 @@ var moveRocket = func (myNodeName, elem, index, lastIndex, timeInc)
 
 var killRocket = func (myNodeName, elem)
 {
-	var weaps = attributes[myNodeName].weapons;
-	var rp = "ai/models/static[" ~ weaps[elem].rocketsIndex ~ "]";	
+	var thisWeapon = attributes[myNodeName].weapons[elem];
+	var rp = "ai/models/static[" ~ thisWeapon.rocketsIndex ~ "]";	
 
 	deleteSmoke ("skywriting", rp);
 	startSmoke ("flare", rp, "AI/Aircraft/Fire-Particles/large-explosion-particles.xml" ); 
@@ -9384,8 +9384,8 @@ var weaponsOrientationPositionUpdate = func (myNodeName, elem) {
 	# if (rand() < damageValue) return;
 	# this acts to delay model update for damaged AI
 
-	var weaps = attributes[myNodeName].weapons;
-	var aim = weaps[elem].aim;
+	var thisWeapon = attributes[myNodeName].weapons[elem];
+	var aim = thisWeapon.aim;
 
 	# first, point the weapon.  The first frame is relative to the model, 
 	# the second is lon-lat-alt (x-y-z), aka 'reference frame'
@@ -9393,8 +9393,8 @@ var weaponsOrientationPositionUpdate = func (myNodeName, elem) {
 	var newHeading = math.atan2(aim.weaponDirModelFrame[0], aim.weaponDirModelFrame[1]) * R2D;
 	var newElev_ref = math.asin(aim.weaponDirRefFrame[2]) * R2D;
 	var newHeading_ref = math.atan2(aim.weaponDirRefFrame[0], aim.weaponDirRefFrame[1]) * R2D;
-	weaps[elem].weaponAngle_deg.heading = newHeading; #weaps is local to this function so these lines have no effect!!!
-	weaps[elem].weaponAngle_deg.elevation = newElev;
+	thisWeapon.weaponAngle_deg.heading = newHeading; #weaps is local to this function so these lines have no effect!!!
+	thisWeapon.weaponAngle_deg.elevation = newElev;
 	# see https://wiki.flightgear.org/Object_Oriented_Programming_with_Nasal#Hashes
 
 	setprop("" ~ myNodeName ~ "/" ~ elem ~ "/cannon-elev-deg" , newElev);
