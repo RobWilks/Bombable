@@ -5995,7 +5995,10 @@ var weapons_loop = func (id, myNodeName1 = "", myNodeName2 = "", targetSize_m = 
 				weaponsOrientationPositionUpdate(myNodeName1, elem);
 				if (callCheckAim == 2)
 					{
-						if (rand() < (weaponSkill * weaponSkill)) launchRocket(myNodeName1, elem, loopTime);
+						if ( rand() < (weaponSkill * weaponSkill) / (attributes[myNodeName1].attacks["rocketsInAir"] + 1) ) 
+						{
+							launchRocket(myNodeName1, elem, loopTime);
+						}
 						continue; # if not launched then assume pHit = 0
 					}
 				}				
@@ -6184,6 +6187,8 @@ var launchRocket = func (myNodeName, elem, delta_t)
 	);
 		
 	thisWeapon.counter = 0;
+
+	attributes[myNodeName].attacks["rocketsInAir"] += 1;
 
 }
 
@@ -6751,6 +6756,8 @@ var killRocket = func (myNodeName, elem)
 			}
 		, 4.0
 	);
+
+	attributes[myNodeName].attacks["rocketsInAir"] -= 1;
 }
 
 ############################ pidControllerInit ##############################
@@ -6833,39 +6840,6 @@ var pidController = func (myNodeName, elem, setpoint, measurement)
     return (pid.out);
 
 }
-############################ calculateDrag ##############################
-# function to calculate the rocket drag factor from the maximum speed of the rocket
-# TW: value of thrust to weight e.g. from rocket engine
-# vMax: maximum velocity of rocket measured when flying at a constant speed horizontally at a angle of attack alpha to the horizontal
-# drag term is cos (alpha) / vMax^2 / (cL/cD) and assumed constant 
-# assume lift force = drag force * cL/cD
-# assume thrust force acts anti-parallel to drag force
-
-var calculateDrag = func(thrustByWeight, cLbycD, vMax)
-{
-	var LD = cLbycD;
-	var TW = thrustByWeight;
-	var a = 1.0 + 1.0 / LD / LD ;
-	var b = 2.0 * TW ;
-	var c = TW * TW - 1.0 / LD / LD ;
-	var result =  findRoots(a,b,c);
-	print (
-		sprintf(
-		"root1 = %8.3f root2 = %8.3f isReal = %i",
-		math.asin(-result.x1) * R2D, 
-		math.asin(-result.x2) * R2D, 
-		result.isReal
-		)
-	);
-	var alpha = math.asin(-result.x2);
-	var dragTerm = math.cos(alpha) / cLbycD / vMax / vMax;
-
-	print (sprintf("thrustByWeight = %8.3f dragTerm = %9.3e", thrustByWeight, dragTerm)) ;
-
-	return({pitch : alpha, drag : dragTerm});
-
-} 
-
 
 
 ##########################################################
@@ -9586,79 +9560,10 @@ var weapons_init_func = func(myNodeName) {
 		if (thisWeapon["weaponType"] == 1) 
 
 		{
-			if (thisWeapon["missileAcceleration1_mpss"] == nil) thisWeapon["missileAcceleration1_mpss"] = 1.1 * grav_mpss;
-			# acceleration of missile during flight - units m per sec per sec
-
-			if (thisWeapon["burn1"] == nil) thisWeapon["burn1"] = 2.0;
-			# burn time of first rocket stage in sec 
-
-			if (thisWeapon["missileAcceleration2_mpss"] == nil) thisWeapon["missileAcceleration2_mpss"] = 1.1 * grav_mpss;
-			# second stage
-
-			if (thisWeapon["burn2"] == nil) thisWeapon["burn2"] = 0.0;
-			# burn time of second rocket stage in sec 
-
-			thisWeapon["totalBurnTime"] = thisWeapon["burn1"] + thisWeapon["burn2"];
-
-			thisWeapon["dragTerm"] = thisWeapon["missileAcceleration2_mpss"] / thisWeapon["maxMissileSpeed_mps"] / thisWeapon["maxMissileSpeed_mps"]; # drag force = dragTerm * speed^2
-
-			if (thisWeapon["rateOfTurn_degps"] == nil) thisWeapon["rateOfTurn_degps"] = 40.0;
-
-			if (thisWeapon["initialVelocity"] == nil) thisWeapon["initialVelocity"] = [0,0,0];
-
-			if (thisWeapon["liftDragRatio"] == nil) thisWeapon["liftDragRatio"] = 1.33;
-
-			props.globals.getNode("" ~ myNodeName ~ "/" ~ elem ~ "/launched", 1).setBoolValue(0); # boolean to allow quick toggle from GUI
-
-			# set-up buffer to store intermediate positions of rocket
-			var wayPoint = {lon:0, lat:0, alt:0, pitch:0, heading:0}; # template
-			var new_wayPoint = func {
-				return {parents:[wayPoint] };
-				}
-
-			var NUM_ELEMENTS = 5;
-			var fp = [];
-			setsize(fp, NUM_ELEMENTS);
-
-			forindex(var i; fp)
-				fp[i] = new_wayPoint(); # flight pathvector used to store intermediate rocket locations
-
-				
-			thisWeapon["flightPath"] = fp;
-
-			# set-up parameters for PID controller - PID values are reset on rocket launch
-			var pid = {
-				Kp: 0.5,
-				Ki: 0.005,
-				Kd: 0.0,
-				limMaxInt: 0.0 , # Integrator limits to be set below
-				limMinInt: 0.0 ,
-				tau: 0.25 , # Derivative low-pass filter time constant secs
-				limMax: LOOP_TIME * thisWeapon.rateOfTurn_degps * D2R , # maxRate turn
-				limMin: 0.0 ,
-				differentiator: 0.0 ,
-				integrator: 0.0 ,
-				prevError: 0.0 ,
-				prevMeasurement: 0.0 ,
-				out: 0.0	
-			}; # template
-
-			pid.limMin = - pid.limMax;
-			pid.limMaxInt = pid.limMax * 0.75;
-			pid.limMinInt = - pid.limMaxInt;
-
-			thisWeapon["pid"] = pid; # variables for PID controller for missile direction
-			# setprop ("" ~ myNodeName ~ "/" ~ elem ~ "/Kp", thisWeapon.pid.Kp); # for testing
-			# setprop ("" ~ myNodeName ~ "/" ~ elem ~ "/Ki", thisWeapon.pid.Ki); # for testing
-			# setprop ("" ~ myNodeName ~ "/" ~ elem ~ "/Kd", thisWeapon.pid.Kd); # for testing
-
-			thisWeapon["atomic"] = 0; # flag to control access
-
-			thisWeapon["rocketsIndex"] = rocketCount;
-
-			thisWeapon["counter"] = 0; # counts calls to guideRocket
-
+			rocket_init_func (thisWeapon, rocketCount);
 			rocketCount += 1;
+			attributes[myNodeName].attacks["rocketsInAir"] = 0; # used to trigger rocket launch 
+			props.globals.getNode("" ~ myNodeName ~ "/" ~ elem ~ "/launched", 1).setBoolValue(0); # boolean to allow quick toggle from GUI
 			# each rocket is a separate weapon with a separate AI model - not tied to the parent AC/ship
 		}
 	
@@ -9668,7 +9573,7 @@ var weapons_init_func = func(myNodeName) {
 	
 	setprop ("/bombable/fire-particles/index" , count) ; #next unassigned fire particle
 	setprop ("/bombable/rockets/index" , rocketCount) ; #next unassigned rocket
-
+	
 	#append(listenerids, listenerid);
 	#props.globals.getNode(""~myNodeName~"/bombable/weapons/listenerids",1).setValues({listenerids: listenerids});
 
@@ -9727,6 +9632,82 @@ var weapons_init_func = func(myNodeName) {
 	debprint ("Bombable: Effect * weapons * loaded for ", myNodeName);
 						
 						
+}
+############################## rocket_init_func ##############################
+# rockets are a special type of weapon (type = 1) requiring extra initialisation
+# thisWeapon is a pointer to the attributes hash
+
+var rocket_init_func = func (thisWeapon, rocketCount)
+{
+			if (thisWeapon["missileAcceleration1_mpss"] == nil) thisWeapon["missileAcceleration1_mpss"] = 1.1 * grav_mpss;
+			# acceleration of missile during flight - units m per sec per sec
+
+			if (thisWeapon["burn1"] == nil) thisWeapon["burn1"] = 2.0;
+			# burn time of first rocket stage in sec 
+
+			if (thisWeapon["missileAcceleration2_mpss"] == nil) thisWeapon["missileAcceleration2_mpss"] = 1.1 * grav_mpss;
+			# second stage
+
+			if (thisWeapon["burn2"] == nil) thisWeapon["burn2"] = 0.0;
+			# burn time of second rocket stage in sec 
+
+			thisWeapon["totalBurnTime"] = thisWeapon["burn1"] + thisWeapon["burn2"];
+
+			thisWeapon["dragTerm"] = thisWeapon["missileAcceleration2_mpss"] / thisWeapon["maxMissileSpeed_mps"] / thisWeapon["maxMissileSpeed_mps"]; # drag force = dragTerm * speed^2
+
+			if (thisWeapon["rateOfTurn_degps"] == nil) thisWeapon["rateOfTurn_degps"] = 40.0;
+
+			if (thisWeapon["initialVelocity"] == nil) thisWeapon["initialVelocity"] = [0,0,0];
+
+			if (thisWeapon["liftDragRatio"] == nil) thisWeapon["liftDragRatio"] = 1.33;
+
+			# set-up buffer to store intermediate positions of rocket
+			var wayPoint = {lon:0, lat:0, alt:0, pitch:0, heading:0}; # template
+			var new_wayPoint = func {
+				return {parents:[wayPoint] };
+				}
+
+			var NUM_ELEMENTS = 5;
+			var fp = [];
+			setsize(fp, NUM_ELEMENTS);
+
+			forindex(var i; fp)
+				fp[i] = new_wayPoint(); # flight pathvector used to store intermediate rocket locations
+
+				
+			thisWeapon["flightPath"] = fp;
+
+			# set-up parameters for PID controller - PID values are reset on rocket launch
+			var pid = {
+				Kp: 0.5,
+				Ki: 0.005,
+				Kd: 0.0,
+				limMaxInt: 0.0 , # Integrator limits to be set below
+				limMinInt: 0.0 ,
+				tau: 0.25 , # Derivative low-pass filter time constant secs
+				limMax: LOOP_TIME * thisWeapon.rateOfTurn_degps * D2R , # maxRate turn
+				limMin: 0.0 ,
+				differentiator: 0.0 ,
+				integrator: 0.0 ,
+				prevError: 0.0 ,
+				prevMeasurement: 0.0 ,
+				out: 0.0	
+			}; # template
+
+			pid.limMin = - pid.limMax;
+			pid.limMaxInt = pid.limMax * 0.75;
+			pid.limMinInt = - pid.limMaxInt;
+
+			thisWeapon["pid"] = pid; # variables for PID controller for missile direction
+			# setprop ("" ~ myNodeName ~ "/" ~ elem ~ "/Kp", thisWeapon.pid.Kp); # for testing
+			# setprop ("" ~ myNodeName ~ "/" ~ elem ~ "/Ki", thisWeapon.pid.Ki); # for testing
+			# setprop ("" ~ myNodeName ~ "/" ~ elem ~ "/Kd", thisWeapon.pid.Kd); # for testing
+
+			thisWeapon["atomic"] = 0; # flag to control access
+
+			thisWeapon["rocketsIndex"] = rocketCount;
+
+			thisWeapon["counter"] = 0; # counts calls to guideRocket
 }
 
 
@@ -10775,53 +10756,5 @@ var vectorRotate = func(v1, v2, alpha)
 	var v4 = vectorMultiply (v2, sinAbymagK );
 	return (vectorSum (v3, v4));
 }
-########################## vectorRotate_ ###########################
-# rotate unit vector v1 by alpha, in the direction of unit vector v2 
-# using rotation axis defined by cross product k = v1 ^ v2
-# algorithm from https://en.wikipedia.org/wiki/Rodrigues%27_rotation_formula
-# returns rotated unit vector
-# using full vector cross product
-
-var vectorRotate_ = func(v1, v2, alpha)
-{
-	var k = crossProduct (v1, v2);
-	var unitK = normalize(k);
-	var v3 = vectorMultiply ( v1, math.cos( alpha) );
-	var v4 = vectorMultiply ( crossProduct ( unitK, v1), math.sin (alpha));
-	return (vectorSum (v3, v4));
-}
-########################## vectorRotateSmall ###########################
-# rotate unit vector v1 by alpha, in the direction of unit vector v2 
-# using rotation axis defined by cross product k = v1 ^ v2
-# algorithm from https://en.wikipedia.org/wiki/Rodrigues%27_rotation_formula
-# returns rotated unit vector
-# assume alpha is small
-
-
-var vectorRotateSmall = func(v1, v2, alpha)
-{
-	var v1v2 = dotProduct (v1, v2);
-	# trap for math.acos errors not needed is screen out small turns
-	# if (v1v2 > 1.0) 
-	# {
-	# 	v1v2 = 1.0;
-	# }
-	# elsif (v1v2 < -1.0) 
-	# {
-	# 	v1v2 = -1.0;
-	# }
-	var magnitude_k = math.abs (math.sin (math.acos (v1v2)));
-	# abs needed since angles between 90 and 180 or -180 and -90 will otherwise give magnitude < 0
-	var sinAbymagK = alpha / magnitude_k;
-	var v3 = vectorMultiply (v1, ( 1.0 - alpha * alpha / 2.0 - v1v2 * sinAbymagK ));
-	var v4 = vectorMultiply (v2, sinAbymagK );
-	return (vectorSum (v3, v4));
-}	
-
-
-
-
-
-
 
 ########################## END ###########################
