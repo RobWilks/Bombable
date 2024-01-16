@@ -5620,22 +5620,17 @@ var vertAngle_deg = func (geocoord1, geocoord2) {
 
 #rjw modified pHit to return the probability of aircraft hit given the 
 #overlap of the solid angle subtended by the target and a cone of 1/12 radian subtended by the shooter
-#function updates global hash variable newAim with weapon direction vectors in model and reference frames
+#function updates thisWeapon.aim with weapon direction vectors in model and reference frames
 			
 
-var checkAim = func (myNodeName1 = "", myNodeName2 = "",
-targetSize_m = nil,  weaponSkill = 1, 
-maxDistance_m = 100, 
-weaponAngle_deg = nil, 
-weaponOffset_m = nil, 
-damageValue = 0, 
-missileSpeed = 500) {
-	#Note weaponAngle is a hash with components heading and elevation
-	#Function called only by main weapons_loop
-	#rjw modified to return a hash
+var checkAim = func ( thisWeapon, myNodeName1 = "", myNodeName2 = "",
+					targetSize_m = nil,  weaponSkill = 1, 
+					damageValue = 0) 
+{
+	# Note weaponAngle is a hash with components heading and elevation
+	# Function called only by main weapons_loop
 
-	newAim = {pHit:0, weaponDirModelFrame:[0,0,0], weaponOffsetRefFrame:[0,0,0], weaponDirRefFrame:[0,0,0], 
-	interceptSpeed:0, interceptTime:0, nextPosition:[0,0,0], nextVelocity:[0,0,0]}; #reset global variable
+	thisWeapon.aim.pHit = 0;
 
 	var weaponAimed = 0; #flag true if weapon aimed successfully
 				
@@ -5657,24 +5652,24 @@ missileSpeed = 500) {
 	# m_per_deg_lat/lon are bombable general variables
 	
 	deltaLat_deg = mlat_deg - alat_deg;
-	if (abs(deltaLat_deg) > maxDistance_m / m_per_deg_lat ) {
+	if (abs(deltaLat_deg) > thisWeapon.maxDamageDistance_m / m_per_deg_lat ) {
 		#debprint ("Aim: Not close in lat.");
 		return (weaponAimed);
 	}
 				
 	deltaLon_deg = mlon_deg - alon_deg ;
-	if (abs(deltaLon_deg) > maxDistance_m / m_per_deg_lon )  {
+	if (abs(deltaLon_deg) > thisWeapon.maxDamageDistance_m / m_per_deg_lon )  {
 		#debprint ("Aim: Not close in lon.");
 		return (weaponAimed);
 	}
 
 				
-	if (targetSize_m == nil or targetSize_m.horz <= 0 or targetSize_m.vert <= 0 or maxDistance_m <= 0) return (weaponAimed);				
-	if (weaponAngle_deg == nil )
+	if (targetSize_m == nil or targetSize_m.horz <= 0 or targetSize_m.vert <= 0 or thisWeapon.maxDamageDistance_m <= 0) return (weaponAimed);				
+	if (thisWeapon.weaponAngle_deg == nil )
 	{ 
-		weaponAngle_deg = {heading:0, elevation:0, headingMin:-60, headingMax:60, elevationMin:-20, elevationMax:20, track:0}; 
+		thisWeapon.weaponAngle_deg = {heading:0, elevation:0, headingMin:-60, headingMax:60, elevationMin:-20, elevationMax:20, track:0}; 
 	} #note definition of value for each key of hash
-	if (weaponOffset_m == nil ){ weaponOffset_m = {x:0,y:0,z:0}; }
+	if (thisWeapon.weaponOffset_m == nil ) thisWeapon.weaponOffset_m = {x:0,y:0,z:0}; 
 				
 	
 				
@@ -5695,7 +5690,7 @@ missileSpeed = 500) {
 				
 	# debprint ("Bombable: AI weapons, distance: ", distance_m, " for ", myNodeName1);
 				
-	if (distance_m > maxDistance_m ) return (weaponAimed);
+	if (distance_m > thisWeapon.maxDamageDistance_m ) return (weaponAimed);
 	
 	
 	
@@ -5706,7 +5701,7 @@ missileSpeed = 500) {
 		add_damage(1, myNodeName1, "collision"); # causes nil error in records class, ballisticMass not defined
 		msg = sprintf("You collided! Damage added %1.0f%%", 100 );
 		selfStatusPopupTip (msg, 10);
-		newAim.pHit = 1;
+		thisWeapon.aim.pHit = 1;
 		return (weaponAimed);
 		
 		#rjw with the return above the following code in the block is unused
@@ -5736,7 +5731,7 @@ missileSpeed = 500) {
 					
 		msg = sprintf("You collided! Damage added %1.0f%%", retDam * 100 );
 		selfStatusPopupTip (msg, 10);
-		newAim.pHit = retDam;
+		thisWeapon.aim.pHit = retDam;
 		return (weaponAimed);
 	}
 
@@ -5750,14 +5745,14 @@ missileSpeed = 500) {
 	if (ground_Alt_m > mid_Alt_m) 
 	{
 		# debprint ("Bombable: checkLoS for ",  myNodeName1, "deltaAlt at mid point = ", ground_Alt_m - mid_Alt_m);
-		newAim.pHit = -1; #flag for no line of sight
+		thisWeapon.aim.pHit = -1; #flag for no line of sight
 		return(weaponAimed);
 	}
 	
 
 	
 	# correct targetDispRefFrame for weapon offset
-	# find newDir the direction required for a missile travelling at missileSpeed (constant over journey) to intercept the target 
+	# find newDir the direction required for a missile travelling at a constant speed to intercept the target 
 	# given the relative velocities of node1 and node2
 	# calculate the angle between the direction in which the weapon is aimed and newDir
 	# use this angle and the solid angle subtended by the mainAC to determine pHit
@@ -5778,14 +5773,14 @@ missileSpeed = 500) {
 	# weaponOffset is given in model co-ords; weaponOffsetRefFrame in the ground frame
 
 	# calculate the offset of the weapon in the ground reference frame
-	newAim.weaponOffsetRefFrame = rotate_zxy([
-		weaponOffset_m.y,
-		-weaponOffset_m.x,
-		weaponOffset_m.z
+	thisWeapon.aim.weaponOffsetRefFrame = rotate_zxy([
+		thisWeapon.weaponOffset_m.y,
+		-thisWeapon.weaponOffset_m.x,
+		thisWeapon.weaponOffset_m.z
 	], -pitch_deg, -roll_deg, myHeading_deg);
 
 	
-	targetDispRefFrame = vectorSubtract(targetDispRefFrame, newAim.weaponOffsetRefFrame);
+	targetDispRefFrame = vectorSubtract(targetDispRefFrame, thisWeapon.aim.weaponOffsetRefFrame);
 	
 	#recalculate distance
 	distance_m = vectorModulus(targetDispRefFrame); #correct the distance for weapon displacement relative to AC origin	
@@ -5794,15 +5789,15 @@ missileSpeed = 500) {
 		myNodeName1, myNodeName2, 
 		targetDispRefFrame,
 		distance_m,
-		missileSpeed
+		thisWeapon.maxMissileSpeed_mps
 	);
 
 	if (intercept.time == -1) return(weaponAimed);
 	weaponAimed = 1;
-	newAim.interceptSpeed = vectorModulus(intercept.vector);
-	newAim.interceptTime = intercept.time;
+	thisWeapon.aim.interceptSpeed = vectorModulus(intercept.vector);
+	thisWeapon.aim.interceptTime = intercept.time;
 	
-	var interceptDirRefFrame = vectorDivide(intercept.vector, newAim.interceptSpeed);
+	var interceptDirRefFrame = vectorDivide(intercept.vector, thisWeapon.aim.interceptSpeed);
 	
 	# debprint (
 		# sprintf(
@@ -5816,11 +5811,11 @@ missileSpeed = 500) {
 	
 		
 	#form vector for the current direction of weapon, weapDir, in the reference frame of the model
-	var cosWeapElev = cos(weaponAngle_deg.elevation);
+	var cosWeapElev = cos(thisWeapon.weaponAngle_deg.elevation);
 	weapDir = [
-		cosWeapElev * sin(weaponAngle_deg.heading),
-		cosWeapElev * cos(weaponAngle_deg.heading),
-		sin(weaponAngle_deg.elevation)
+		cosWeapElev * sin(thisWeapon.weaponAngle_deg.heading),
+		cosWeapElev * cos(thisWeapon.weaponAngle_deg.heading),
+		sin(thisWeapon.weaponAngle_deg.elevation)
 	];
 	
 	#calculate angular offset
@@ -5851,14 +5846,14 @@ missileSpeed = 500) {
 		var weapSDev = 1/12; # spray vs sharpshooter
 		if ( targetSize_rad > targetOffset_rad ) 
 		{				
-			newAim.pHit = erf((targetSize_rad + targetOffset_rad) / weapSDev) +  erf((targetSize_rad - targetOffset_rad) / weapSDev);
+			thisWeapon.aim.pHit = erf((targetSize_rad + targetOffset_rad) / weapSDev) +  erf((targetSize_rad - targetOffset_rad) / weapSDev);
 		}
 		else
 		{
-			newAim.pHit = 0.5 - erf((targetOffset_rad - targetSize_rad) / weapSDev);
+			thisWeapon.aim.pHit = 0.5 - erf((targetOffset_rad - targetSize_rad) / weapSDev);
 		}
 		# debprint ("Bombable: hit ", myNodeName1,
-		# " newAim.pHit = ", newAim.pHit);
+		# " thisWeapon.aim.pHit = ", thisWeapon.aim.pHit);
 	}
 
 	if ( rand() < weaponSkill) {
@@ -5867,11 +5862,14 @@ missileSpeed = 500) {
 		var newHeading = math.atan2(newDir[0], newDir[1]) * R2D;
 		var changes = 2;
 
-		if (newElev < weaponAngle_deg.elevationMin) newElev = weaponAngle_deg.elevationMin;
-		elsif (newElev > weaponAngle_deg.elevationMax) newElev = weaponAngle_deg.elevationMax;
-		else changes -= 1;
+		if (newElev < thisWeapon.weaponAngle_deg.elevationMin)
+			newElev = thisWeapon.weaponAngle_deg.elevationMin;
+		elsif (newElev > thisWeapon.weaponAngle_deg.elevationMax)
+			newElev = thisWeapon.weaponAngle_deg.elevationMax;
+		else
+			changes -= 1;
 
-		var headingVal = keepInsideRange(weaponAngle_deg.headingMin, weaponAngle_deg.headingMax, newHeading);
+		var headingVal = keepInsideRange(thisWeapon.weaponAngle_deg.headingMin, thisWeapon.weaponAngle_deg.headingMax, newHeading);
 		if (headingVal.insideRange)
 		{
 			changes -= 1;
@@ -5900,8 +5898,8 @@ missileSpeed = 500) {
 		newDir = weapDir;
 	}
 	# change aim of weapon by setting weapon direction to intercept direction
-	newAim.weaponDirModelFrame = newDir;
-	newAim.weaponDirRefFrame = rotate_zxy(newDir, -pitch_deg, -roll_deg, myHeading_deg);
+	thisWeapon.aim.weaponDirModelFrame = newDir;
+	thisWeapon.aim.weaponDirRefFrame = rotate_zxy(newDir, -pitch_deg, -roll_deg, myHeading_deg);
 	return (weaponAimed); 	
 }
 
@@ -5984,17 +5982,15 @@ var weapons_loop = func (id, myNodeName1 = "", myNodeName2 = "", targetSize_m = 
 
 		if (callCheckAim != 0) 
 		{
-			 var foundTarget = checkAim (myNodeName1, myNodeName2, 
-				targetSize_m, weaponSkill,
-				thisWeapon.maxDamageDistance_m, 
-				thisWeapon.weaponAngle_deg,
-				thisWeapon.weaponOffset_m, 
-				damageValue,
-				thisWeapon.maxMissileSpeed_mps / callCheckAim # estimate of average speed over trajectory
+			 var foundTarget = checkAim
+				(
+					thisWeapon, # pass pointer to weapon parameters
+					myNodeName1, myNodeName2, 
+					targetSize_m, weaponSkill,
+					damageValue
 				);
 			 if ( foundTarget ) 
 				{
-				thisWeapon.aim = newAim;
 				weaponsOrientationPositionUpdate(myNodeName1, elem);
 				if (callCheckAim == 2)
 					{
@@ -6013,11 +6009,7 @@ var weapons_loop = func (id, myNodeName1 = "", myNodeName2 = "", targetSize_m = 
 				elem,
 				targetSize_m,  weaponSkill, 
 				damageValue, loopTime
-				) == 1)
-				{
-					thisWeapon.aim = newAim;
-				}
-			else
+				) != 1)
 				{
 					# props.globals.getNode("" ~ myNodeName ~ "/" ~ elem ~ "/destroyed", 0).setBoolValue(0);
 					setprop ("" ~ myNodeName1 ~ "/" ~ elem ~ "/destroyed", 1);
@@ -6026,30 +6018,30 @@ var weapons_loop = func (id, myNodeName1 = "", myNodeName2 = "", targetSize_m = 
 
 		}
 
-		# debprint ("Bombable: Weapons_loop ", myNodeName1, " weaponSkill = ",weaponSkill, " weaponPower = ", weaponPower, " newAim.pHit = ", newAim.pHit);
+		# debprint ("Bombable: Weapons_loop ", myNodeName1, " weaponSkill = ",weaponSkill, " weaponPower = ", weaponPower, " thisWeapon.aim.pHit = ", thisWeapon.aim.pHit);
 		# debprint (
 			# "Bombable: Weapons_loop " ~ myNodeName1 ~ " " ~ elem, 
 			# " heading = ", thisWeapon.weaponAngle_deg.heading, 
 			# " elevation = ", thisWeapon.weaponAngle_deg.elevation
 		# );
 		
-		if (newAim.pHit == -1) break; #flag for no line of sight; assume none of the gunners can see the target so abort loop
+		if (thisWeapon.aim.pHit == -1) break; #flag for no line of sight; assume none of the gunners can see the target so abort loop
 
 		
 		#debprint ("aim-check weapon");
-		if (newAim.pHit > (0.01 * weaponSkill))
+		if (thisWeapon.aim.pHit > (0.01 * weaponSkill))
 		# a skilled gunner will fire at 1% pHit; an unskilled one 0.1%
 		{
 			if (thisWeapon.weaponType == 0)
 			{
 				# debprint ("Bombable: AI aircraft aimed at main aircraft, ",
 				# myNodeName1, " ", thisWeapon.name, " ", elem,
-				# " accuracy ", round(newAim.pHit * 100 ),"%",
-				# " interceptSpeed", round(newAim.interceptSpeed), " mps");
+				# " accuracy ", round(thisWeapon.aim.pHit * 100 ),"%",
+				# " interceptSpeed", round(thisWeapon.aim.interceptSpeed), " mps");
 				
 				#fire weapons for visual effect
 				#whenever we're within maxDistance & aimed approximately in the right direction
-				fireAIWeapon(loopTime * 3, myNodeName1, thisWeapon, newAim.interceptSpeed);
+				fireAIWeapon(loopTime * 3, myNodeName1, thisWeapon, thisWeapon.aim.interceptSpeed);
 			}
 						
 
@@ -6069,15 +6061,15 @@ var weapons_loop = func (id, myNodeName1 = "", myNodeName2 = "", targetSize_m = 
 			# There is a smaller chance of doing a fairly high level of damage (up to 3X the regular max),
 			# and the better/closer the hit, the greater chance of doing that significant damage.
 			var r = rand();
-			if (r < newAim.pHit) {
+			if (r < thisWeapon.aim.pHit) {
 
 				var ai_callsign = getCallSign (myNodeName1);
 							
-				var damageAdd = newAim.pHit * weaponPower;
+				var damageAdd = thisWeapon.aim.pHit * weaponPower;
 				if (damageAdd > thisWeapon.maxDamage_percent / 100) damageAdd = thisWeapon.maxDamage_percent / 100;
 							
 				# Some chance of doing more damage (and a higher chance the closer the hit)
-				# if (r < newAim.pHit / 5 ) damageAdd  *=  3 * rand(); # rjw omitted
+				# if (r < thisWeapon.aim.pHit / 5 ) damageAdd  *=  3 * rand(); # rjw omitted
 							
 				weaponName = thisWeapon.name;
 				if (weaponName == nil) weaponName = "Main Weapon";
@@ -6110,8 +6102,8 @@ var launchRocket = func (myNodeName, elem, delta_t)
 
 	var msg = thisWeapon.name ~ " launched from " ~ 
 	getprop ("" ~ myNodeName ~ "/name") ~ 
-	" intercept time ~" ~ round(newAim.interceptTime) ~ "s" ~ 
-	" intercept speed ~" ~ round(newAim.interceptSpeed) ~ " mps";
+	" intercept time ~" ~ round(thisWeapon.aim.interceptTime) ~ "s" ~ 
+	" intercept speed ~" ~ round(thisWeapon.aim.interceptSpeed) ~ " mps";
 
 	targetStatusPopupTip (msg, 20);
 
@@ -6217,8 +6209,7 @@ var guideRocket = func
 {
 	var thisWeapon = attributes[myNodeName1].weapons[elem];
 	var flightTime = getprop ("" ~ myNodeName1 ~ "/" ~ elem ~ "/flightTime");
-	newAim = thisWeapon.aim; 
-	newAim.pHit = 0;
+	thisWeapon.aim.pHit = 0;
 
 	var alat_deg = getprop("" ~ myNodeName1 ~ "/" ~ elem ~ "/position/latitude-deg"); # AI
 	var alon_deg = getprop("" ~ myNodeName1 ~ "/" ~ elem ~ "/position/longitude-deg");
@@ -6279,11 +6270,12 @@ var guideRocket = func
 	# );
 
 
-	if (distance_m < attributes[myNodeName2].dimensions.crashRadius_m){
-		newAim.pHit = 1; 
-		# message rocket hit from weapons_loop
-		return (0);
-	}
+	# if (distance_m < attributes[myNodeName2].dimensions.crashRadius_m){
+	# 	thisWeapon.aim.pHit = 1; 
+	# 	# message rocket hit from weapons_loop
+	# 	return (0);
+	# }
+	# use closest approach calculation instead
 
 	# check above ground level
 	var GeoCoord = geo.Coord.new();
@@ -6321,12 +6313,11 @@ var guideRocket = func
 			closestApproach
 			)
 		);
-		# debprint ("Bombable: crash radius for ",  myNodeName2 , " is ", attributes[myNodeName2].dimensions.crashRadius_m);
 
-		if (closestApproach < attributes[myNodeName2].dimensions.crashRadius_m)
+		if (closestApproach < attributes[myNodeName2].dimensions.damageRadius_m)
 		{
 			# message rocket hit from weapons_loop
-			newAim.pHit = 1.0 - closestApproach / attributes[myNodeName2].dimensions.crashRadius_m;
+			thisWeapon.aim.pHit = 1.0 - closestApproach / attributes[myNodeName2].dimensions.damageRadius_m;
 
 			# run missile on to target
 			var steps_to_target = (dp > 0) ? math.ceil ( dp / step  ) : 0;
@@ -6364,7 +6355,7 @@ var guideRocket = func
 
 	# look ahead by assessing relative positions at next up date 
 
-	var deltaXYZ_weap = newAim.nextPosition;
+	var deltaXYZ_weap = thisWeapon.aim.nextPosition;
 
 	var deltaXYZ_AC = vectorMultiply(
 		[
@@ -6398,7 +6389,7 @@ var guideRocket = func
 		myNodeName1, myNodeName2, 
 		targetDispRefFrame,
 		distance_m,
-		newAim.nextVelocity
+		thisWeapon.aim.nextVelocity
 	);
 
 	if (intercept.time != -1) 
@@ -6409,10 +6400,10 @@ var guideRocket = func
 		# 		intercept.vector[0], intercept.vector[1], intercept.vector[2] 
 		# 	)
 		# );
-		newAim.interceptSpeed = vectorModulus(intercept.vector);
-		newAim.interceptTime = intercept.time;
+		thisWeapon.aim.interceptSpeed = vectorModulus(intercept.vector);
+		thisWeapon.aim.interceptTime = intercept.time;
 
-		var interceptDirRefFrame = vectorMultiply( intercept.vector, 1.0 / newAim.interceptSpeed );
+		var interceptDirRefFrame = vectorMultiply( intercept.vector, 1.0 / thisWeapon.aim.interceptSpeed );
 	}
 	else
 	# no intercept - at start of flight it is not possible to calculate an intercept because the speed is too low 
@@ -6423,7 +6414,7 @@ var guideRocket = func
 	debprint (
 		sprintf(
 			"Bombable: intercept time =%8.1f Intercept vector =[%8.3f, %8.3f, %8.3f]",
-			newAim.interceptTime, interceptDirRefFrame[0], interceptDirRefFrame[1], interceptDirRefFrame[2] 
+			thisWeapon.aim.interceptTime, interceptDirRefFrame[0], interceptDirRefFrame[1], interceptDirRefFrame[2] 
 		)
 	);
 	
@@ -6495,7 +6486,7 @@ var guideRocket = func
 	var newMissileSpeed_mps = vectorModulus (newV);
 	var newMissileDir = vectorDivide ( newV, newMissileSpeed_mps );
 	
-	newAim.weaponDirRefFrame = newMissileDir;
+	thisWeapon.aim.weaponDirRefFrame = newMissileDir;
 	
 	var v = vectorMultiply(missileDir, missileSpeed_mps); # current velocity
 	var deltaV = vectorDivide(
@@ -6576,7 +6567,7 @@ var guideRocket = func
 		getprop ("" ~ myNodeName1 ~ "/name") ~ 
 		sprintf(
 		" intercept time %8.1fs, heading %8.1f deg, pitch %8.1f deg",
-		newAim.interceptTime,
+		thisWeapon.aim.interceptTime,
 		newHeading,
 		newPitch
 		);
