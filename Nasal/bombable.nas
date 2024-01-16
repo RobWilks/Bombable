@@ -5652,19 +5652,19 @@ var checkAim = func ( thisWeapon, myNodeName1 = "", myNodeName2 = "",
 	# m_per_deg_lat/lon are bombable general variables
 	
 	deltaLat_deg = mlat_deg - alat_deg;
-	if (abs(deltaLat_deg) > thisWeapon.maxDistance_m / m_per_deg_lat ) {
+	if (abs(deltaLat_deg) > thisWeapon.maxDamageDistance_m / m_per_deg_lat ) {
 		#debprint ("Aim: Not close in lat.");
 		return (weaponAimed);
 	}
 				
 	deltaLon_deg = mlon_deg - alon_deg ;
-	if (abs(deltaLon_deg) > thisWeapon.maxDistance_m / m_per_deg_lon )  {
+	if (abs(deltaLon_deg) > thisWeapon.maxDamageDistance_m / m_per_deg_lon )  {
 		#debprint ("Aim: Not close in lon.");
 		return (weaponAimed);
 	}
 
 				
-	if (targetSize_m == nil or targetSize_m.horz <= 0 or targetSize_m.vert <= 0 or thisWeapon.maxDistance_m <= 0) return (weaponAimed);				
+	if (targetSize_m == nil or targetSize_m.horz <= 0 or targetSize_m.vert <= 0 or thisWeapon.maxDamageDistance_m <= 0) return (weaponAimed);				
 	if (thisWeapon.weaponAngle_deg == nil )
 	{ 
 		thisWeapon.weaponAngle_deg = {heading:0, elevation:0, headingMin:-60, headingMax:60, elevationMin:-20, elevationMax:20, track:0}; 
@@ -5690,7 +5690,7 @@ var checkAim = func ( thisWeapon, myNodeName1 = "", myNodeName2 = "",
 				
 	# debprint ("Bombable: AI weapons, distance: ", distance_m, " for ", myNodeName1);
 				
-	if (distance_m > thisWeapon.maxDistance_m ) return (weaponAimed);
+	if (distance_m > thisWeapon.maxDamageDistance_m ) return (weaponAimed);
 	
 	
 	
@@ -6021,8 +6021,8 @@ var weapons_loop = func (id, myNodeName1 = "", myNodeName2 = "", targetSize_m = 
 		# debprint ("Bombable: Weapons_loop ", myNodeName1, " weaponSkill = ",weaponSkill, " weaponPower = ", weaponPower, " thisWeapon.aim.pHit = ", thisWeapon.aim.pHit);
 		# debprint (
 			# "Bombable: Weapons_loop " ~ myNodeName1 ~ " " ~ elem, 
-			# " heading = ", thisWeapon.thisWeapon.weaponAngle_deg.heading, 
-			# " elevation = ", thisWeapon.thisWeapon.weaponAngle_deg.elevation
+			# " heading = ", thisWeapon.weaponAngle_deg.heading, 
+			# " elevation = ", thisWeapon.weaponAngle_deg.elevation
 		# );
 		
 		if (thisWeapon.aim.pHit == -1) break; #flag for no line of sight; assume none of the gunners can see the target so abort loop
