@@ -5670,7 +5670,10 @@ missileSpeed = 500) {
 
 				
 	if (targetSize_m == nil or targetSize_m.horz <= 0 or targetSize_m.vert <= 0 or maxDistance_m <= 0) return (weaponAimed);				
-	if (weaponAngle_deg == nil ){ weaponAngle_deg = {heading:0, elevation:0, headingMin:-60, headingMax:60, elevationMin:-20, elevationMax:20, track:0}; } #note definition of value for each key of hash
+	if (weaponAngle_deg == nil )
+	{ 
+		weaponAngle_deg = {heading:0, elevation:0, headingMin:-60, headingMax:60, elevationMin:-20, elevationMax:20, track:0}; 
+	} #note definition of value for each key of hash
 	if (weaponOffset_m == nil ){ weaponOffset_m = {x:0,y:0,z:0}; }
 				
 	
@@ -5937,7 +5940,6 @@ var weapons_loop = func (id, myNodeName1 = "", myNodeName2 = "", targetSize_m = 
 	#if no weapons set up for this Object then just return
 	if (! getprop(""~myNodeName1~"/bombable/initializers/weapons-initialized")) return;
 				
-	var weaps = attributes[myNodeName1].weapons;
 	#debprint ("aim-check damage");
 	#If damage = 100% we're going to assume the weapons won't work.
 	var damageValue = getprop(""~myNodeName1~"/bombable/attributes/damage");
@@ -5958,11 +5960,12 @@ var weapons_loop = func (id, myNodeName1 = "", myNodeName2 = "", targetSize_m = 
 	
 	
 				
-	foreach (elem;keys (weaps) ) 
-	{
+	foreach (elem; keys (attributes[myNodeName1].weapons) ) 
+	{	
 		if (getprop("" ~ myNodeName1 ~ "/" ~ elem ~ "/destroyed") == 1) continue; #skip this weapon if destroyed
+		var thisWeapon = attributes[myNodeName1].weapons[elem];
 		
-		mDD_m = weaps[elem].maxDamageDistance_m;
+		mDD_m = thisWeapon.maxDamageDistance_m;
 		if (mDD_m == nil or mDD_m == 0) mDD_m = 100;
 
 		
@@ -5970,7 +5973,7 @@ var weapons_loop = func (id, myNodeName1 = "", myNodeName2 = "", targetSize_m = 
 
 		# Could also check weaponSkill here. However skill of gunner not simply correlated with how frequently they fire
 
-		if (weaps[elem].weaponType == 0) 
+		if (thisWeapon.weaponType == 0) 
 		{
 			var callCheckAim = 1;
 		}
@@ -5983,15 +5986,15 @@ var weapons_loop = func (id, myNodeName1 = "", myNodeName2 = "", targetSize_m = 
 		{
 			 var foundTarget = checkAim (myNodeName1, myNodeName2, 
 				targetSize_m, weaponSkill,
-				weaps[elem].maxDamageDistance_m, 
-				weaps[elem].weaponAngle_deg,
-				weaps[elem].weaponOffset_m, 
+				thisWeapon.maxDamageDistance_m, 
+				thisWeapon.weaponAngle_deg,
+				thisWeapon.weaponOffset_m, 
 				damageValue,
-				weaps[elem].maxMissileSpeed_mps / callCheckAim # estimate of average speed over trajectory
+				thisWeapon.maxMissileSpeed_mps / callCheckAim # estimate of average speed over trajectory
 				);
 			 if ( foundTarget ) 
 				{
-				weaps[elem].aim = newAim;
+				thisWeapon.aim = newAim;
 				weaponsOrientationPositionUpdate(myNodeName1, elem);
 				if (callCheckAim == 2)
 					{
@@ -6012,7 +6015,7 @@ var weapons_loop = func (id, myNodeName1 = "", myNodeName2 = "", targetSize_m = 
 				damageValue, loopTime
 				) == 1)
 				{
-					weaps[elem].aim = newAim;
+					thisWeapon.aim = newAim;
 				}
 			else
 				{
@@ -6026,8 +6029,8 @@ var weapons_loop = func (id, myNodeName1 = "", myNodeName2 = "", targetSize_m = 
 		# debprint ("Bombable: Weapons_loop ", myNodeName1, " weaponSkill = ",weaponSkill, " weaponPower = ", weaponPower, " newAim.pHit = ", newAim.pHit);
 		# debprint (
 			# "Bombable: Weapons_loop " ~ myNodeName1 ~ " " ~ elem, 
-			# " heading = ", weaps[elem].weaponAngle_deg.heading, 
-			# " elevation = ", weaps[elem].weaponAngle_deg.elevation
+			# " heading = ", thisWeapon.weaponAngle_deg.heading, 
+			# " elevation = ", thisWeapon.weaponAngle_deg.elevation
 		# );
 		
 		if (newAim.pHit == -1) break; #flag for no line of sight; assume none of the gunners can see the target so abort loop
@@ -6037,23 +6040,23 @@ var weapons_loop = func (id, myNodeName1 = "", myNodeName2 = "", targetSize_m = 
 		if (newAim.pHit > (0.01 * weaponSkill))
 		# a skilled gunner will fire at 1% pHit; an unskilled one 0.1%
 		{
-			if (weaps[elem].weaponType == 0)
+			if (thisWeapon.weaponType == 0)
 			{
 				# debprint ("Bombable: AI aircraft aimed at main aircraft, ",
-				# myNodeName1, " ", weaps[elem].name, " ", elem,
+				# myNodeName1, " ", thisWeapon.name, " ", elem,
 				# " accuracy ", round(newAim.pHit * 100 ),"%",
 				# " interceptSpeed", round(newAim.interceptSpeed), " mps");
 				
 				#fire weapons for visual effect
 				#whenever we're within maxDistance & aimed approximately in the right direction
-				fireAIWeapon(loopTime * 3, myNodeName1, weaps[elem], newAim.interceptSpeed);
+				fireAIWeapon(loopTime * 3, myNodeName1, thisWeapon, newAim.interceptSpeed);
 			}
 						
 
 			#reduce ammo count; bad pilots waste more ammo; weaponSkill ranges 0 to 1
 			if (stores.reduceWeaponsCount (myNodeName1, elem, loopTime * (2 + 2 * weaponSkill)) == 1)
 			{
-				var msg = weaps[elem].name ~ " on " ~ 
+				var msg = thisWeapon.name ~ " on " ~ 
 				getprop ("" ~ myNodeName1 ~ "/name") ~ 
 				" out of ammo";
 
@@ -6071,12 +6074,12 @@ var weapons_loop = func (id, myNodeName1 = "", myNodeName2 = "", targetSize_m = 
 				var ai_callsign = getCallSign (myNodeName1);
 							
 				var damageAdd = newAim.pHit * weaponPower;
-				if (damageAdd > weaps[elem].maxDamage_percent / 100) damageAdd = weaps[elem].maxDamage_percent / 100;
+				if (damageAdd > thisWeapon.maxDamage_percent / 100) damageAdd = thisWeapon.maxDamage_percent / 100;
 							
 				# Some chance of doing more damage (and a higher chance the closer the hit)
 				# if (r < newAim.pHit / 5 ) damageAdd  *=  3 * rand(); # rjw omitted
 							
-				weaponName = weaps[elem].name;
+				weaponName = thisWeapon.name;
 				if (weaponName == nil) weaponName = "Main Weapon";
 							
 				mainAC_add_damage ( damageAdd, 0, "weapons",
@@ -6323,7 +6326,7 @@ var guideRocket = func
 		if (closestApproach < attributes[myNodeName2].dimensions.crashRadius_m)
 		{
 			# message rocket hit from weapons_loop
-			newAim.pHit = 1;
+			newAim.pHit = 1.0 - closestApproach / attributes[myNodeName2].dimensions.crashRadius_m;
 
 			# run missile on to target
 			var steps_to_target = (dp > 0) ? math.ceil ( dp / step  ) : 0;
