@@ -6192,7 +6192,6 @@ var launchRocket = func (myNodeName, elem, delta_t)
 # FUNCTION check if run out of fuel, check collision with main AC, direction of main AC,
 # change direction, calculate position after time delta_t, trigger messages and effects
 # derived from checkAim
-# hash newAim returns results
 # hash aim in attributes[node].weapons[elem] holds results of the previous calculation of rocket direction 
 # it contains: weaponDirRefFrame, the current direction of the rocket in the ground frame of reference
 # weaponDirRefFrame is updated with the new direction, the new position is recorded in the property tree
@@ -9536,13 +9535,22 @@ var weapons_init_func = func(myNodeName) {
 		setprop ("" ~ myNodeName ~ "/" ~ elem ~ "/turret-pos-deg", weapAngles.heading);
 		setprop ("" ~ myNodeName ~ "/" ~ elem ~ "/cannon-elev-deg", weapAngles.elevation);
 			
-		# needed? Could also deplete stores to zero to indicate destroyed
-		# use rather than setprop to allow flag to be set as boolean type  
 		props.globals.getNode("" ~ myNodeName ~ "/" ~ elem ~ "/destroyed", 1).setBoolValue(0);
-		# setprop ("" ~ myNodeName ~ "/" ~ elem ~ "/destroyed", 0); 
+		# use rather than setprop to allow flag to be set as boolean type  
+		# needed? Could also deplete stores to zero to indicate destroyed
 
-		thisWeapon["aim"] = newAim; #add hash used to record direction weapon is pointing
-		# used to translate weapon position and orientation from frame of reference of model to the frame of reference of the scene
+		thisWeapon["aim"] = {
+			pHit:0, 
+			weaponDirModelFrame:[0,0,0], 
+			weaponOffsetRefFrame:[0,0,0], 
+			weaponDirRefFrame:[0,0,0], 
+			interceptSpeed:0, 
+			interceptTime:0, 
+			nextPosition:[0,0,0], 
+			nextVelocity:[0,0,0]
+			}; 
+		# new hash used to record direction weapon is pointing
+		# in the frame of reference of model and the frame of reference of the scene
 		
 		thisWeapon["fireParticle"] = count;
 		# new key to link the weapon to a fire particle
@@ -9939,7 +9947,6 @@ var m_per_deg_lon = 111321.5 * math.cos (aLat_rad);
 #where we'll save the attributes for each AI object & the main aircraft, too
 var attributes = {};
 #global variable used for sighting weapons
-var newAim = {pHit:0, weaponDirModelFrame:[0,0,0], weaponOffsetRefFrame:[0,0,0], weaponDirRefFrame:[0,0,0], interceptSpeed:0, interceptTime:0, nextPosition:[0,0,0], nextVelocity:[0,0,0]}; 
 var LOOP_TIME = 0.25; # timing of weapons loop and guide rocket
 
 # List of nodes that listeners will use when checking for impact damage.
