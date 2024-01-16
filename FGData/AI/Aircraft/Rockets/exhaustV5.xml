@@ -1,0 +1,19 @@
+
+<PropertyList>
+
+ <path>exhaustV5.ac</path>
+ 
+ 	 <animation>
+        <type>noshadow</type>
+    </animation>
+
+    <animation>
+        <type>alpha-test</type>
+        <alpha-factor>0.01</alpha-factor>
+    </animation>
+
+
+	
+	
+ 
+</PropertyList>

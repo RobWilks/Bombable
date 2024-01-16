@@ -1,0 +1,31 @@
+
+<PropertyList>
+
+ <path>aster-30_shiny_red.ac</path>
+ 
+ 	<model>
+		<path>exhaustV5.xml</path>
+		<name>exhaust</name>
+		<offsets>
+			<x-m>1.62</x-m>
+			<y-m>0</y-m>
+			<z-m>0</z-m>
+			<heading-deg>0</heading-deg>
+		</offsets>
+	</model>
+	
+
+	<animation>
+		<type>select</type>
+		<object-name>exhaust</object-name>
+		<condition>
+			<equals>
+			 <property>controls/engine</property>
+			 <value>1</value>
+			</equals>
+		</condition>
+	</animation>
+	
+	
+ 
+</PropertyList>

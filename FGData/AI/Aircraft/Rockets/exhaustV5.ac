@@ -1,0 +1,55 @@
+AC3Db
+MATERIAL "RocketExhaust.002" rgb 1.000 1.000 1.000  amb 1.000 1.000 1.000  emis 1.000 1.000 1.000  spec 0.200 0.200 0.200  shi 64 trans 0.000
+OBJECT world
+name "Blender_exporter_v3.3__exhaustV5.ac"
+kids 2
+OBJECT poly
+name "RocketExhaust"
+data 22
+RocketExhaust.mesh.002
+crease 40.0
+texture "exhaustV5.png"
+numvert 4
+-0.30642 -1.44006 0.00091
+10.1841 1.36201 0.00001
+10.18358 -1.44199 0.00001
+-0.3059 1.36394 0.00091
+numsurf 2
+SURF 0X30
+mat 0
+refs 3
+0 1.0151 1.0047
+1 0.0161 0.0056
+2 1.0151 0.0056
+SURF 0X30
+mat 0
+refs 3
+1 0.0161 0.0056
+0 1.0151 1.0047
+3 0.0161 1.0047
+kids 0
+OBJECT poly
+name "RocketExhaust.001"
+data 22
+RocketExhaust.mesh.003
+crease 40.0
+texture "exhaustV5.png"
+numvert 4
+-0.30642 -0.04742 1.40004
+10.1841 -0.03164 -1.40199
+10.18358 -0.04833 1.40196
+-0.3059 -0.03073 -1.40391
+numsurf 2
+SURF 0X30
+mat 0
+refs 3
+0 1.0151 1.0047
+1 0.0161 0.0056
+2 1.0151 0.0056
+SURF 0X30
+mat 0
+refs 3
+1 0.0161 0.0056
+0 1.0151 1.0047
+3 0.0161 1.0047
+kids 0
