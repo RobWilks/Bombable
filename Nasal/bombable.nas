@@ -6091,52 +6091,27 @@ var launchRocket = func (myNodeName, elem, delta_t)
 
 	# get speed and orientation of launchpad or pylon
 	setprop ("" ~ myNodeName ~ "/" ~ elem ~ "/launched", 1);
-	setprop ("" ~ myNodeName ~ "/" ~ elem ~ "/flightTime", 0);
 	var launchPadSpeed = 
 	getprop ("" ~ myNodeName ~ "/velocities/true-airspeed-kt");
 	var launchPadPitch = 
 	getprop ("" ~ myNodeName ~ "/orientation/pitch-deg");
 	var launchPadHeading = 
 	getprop ("" ~ myNodeName ~ "/orientation/true-heading-deg");
-
-
-	var msg = thisWeapon.name ~ " launched from " ~ 
-	getprop ("" ~ myNodeName ~ "/name") ~ 
-	" intercept time ~" ~ round(thisWeapon.aim.interceptTime) ~ "s" ~ 
-	" intercept speed ~" ~ round(thisWeapon.aim.interceptSpeed) ~ " mps";
-
-	targetStatusPopupTip (msg, 20);
-
-	debprint ("Bombable: " ~ msg ~ " " ~ myNodeName ~ ", " ~ thisWeapon.name ~ " " ~ elem);
-
-
-	var alat_deg = getprop("" ~ myNodeName ~ "/" ~ elem ~ "/position/latitude-deg"); # AI
-	var alon_deg = getprop("" ~ myNodeName ~ "/" ~ elem ~ "/position/longitude-deg");
-	var alt_ft = getprop("" ~ myNodeName ~ "/" ~ elem ~ "/position/altitude-ft");
-
-	setprop("" ~ myNodeName ~ "/" ~ elem ~ "/velocities/true-airspeed-kt", 0); # change this when switch to velocity vector in attributes
-
-
-	# rocket initiated by moving it from {lat, lon} {0, 0} to location of AC / ship
-	var rp = "ai/models/static[" ~ thisWeapon.rocketsIndex ~ "]";
-	var pitch = math.asin(thisWeapon.aim.weaponDirRefFrame[2]) * R2D; # orientation of rocket vs AC - use weaponDirRefFrame?
-	var heading = math.atan2(thisWeapon.aim.weaponDirRefFrame[0], thisWeapon.aim.weaponDirRefFrame[1]) * R2D;
-
-	setprop (rp ~ "/position/latitude-deg", alat_deg);
-	setprop (rp ~ "/position/longitude-deg", alon_deg);
-	setprop (rp ~ "/position/altitude-ft", alt_ft);
-	setprop (rp ~ "/velocities/true-airspeed-kt", 0 ); # speed and target speed kept to zero to override AI model control
-	setprop (rp ~ "/orientation/pitch-deg", pitch);
-	setprop (rp ~ "/orientation/true-heading-deg", heading);
-	setprop (rp ~ "/controls/engine", 1);
+	var alat_deg = 
+	getprop("" ~ myNodeName ~ "/" ~ elem ~ "/position/latitude-deg"); 
+	var alon_deg = 
+	getprop("" ~ myNodeName ~ "/" ~ elem ~ "/position/longitude-deg");
+	var alt_ft = 
+	getprop("" ~ myNodeName ~ "/" ~ elem ~ "/position/altitude-ft");
 
 	# the launchPad velocity is used to set the initial velocity of the missile
 	# at launch the missile is not oriented with the direction of travel
 	# from ships or groundvehicles rockets are launched from tubes creating an initial vertical velocity
 
-	var lengthTube = 6.5; # 1.5 x length
+	var lengthTube = 6.5; # 1.5 x length of rocket
 	var vVert = math.sqrt(2.0 * thisWeapon.missileAcceleration1_mpss * lengthTube); # v^2 = u^2 + 2*a*s
-	thisWeapon.initialVelocity = vectorSum 
+	
+	thisWeapon.aim.velocity = vectorSum 
 		(
 			[
 			launchPadSpeed * math.cos ( launchPadPitch * D2R ) * math.sin( launchPadHeading * D2R ),
@@ -6150,7 +6125,19 @@ var launchRocket = func (myNodeName, elem, delta_t)
 			]		
 		);
 
+	# rocket initiated by moving it from {lat, lon} {0, 0} to location of AC / ship
+	var rp = "ai/models/static[" ~ thisWeapon.rocketsIndex ~ "]";
+	var pitch = math.asin(thisWeapon.aim.weaponDirRefFrame[2]) * R2D; # orientation of rocket
+	var heading = math.atan2(thisWeapon.aim.weaponDirRefFrame[0], thisWeapon.aim.weaponDirRefFrame[1]) * R2D;
 
+	setprop (rp ~ "/position/latitude-deg", alat_deg);
+	setprop (rp ~ "/position/longitude-deg", alon_deg);
+	setprop (rp ~ "/position/altitude-ft", alt_ft);
+	setprop (rp ~ "/velocities/true-airspeed-kt", vectorModulus ( thisWeapon.aim.velocity ) * MPS2KT ); # speed and target speed kept to zero to override AI model control
+	setprop (rp ~ "/orientation/pitch-deg", pitch);
+	setprop (rp ~ "/orientation/true-heading-deg", heading);
+	setprop (rp ~ "/controls/flightTime", 0);
+	setprop (rp ~ "/controls/engine", 1);
 
 	pidControllerInit (myNodeName, elem, delta_t);
 	# thisWeapon.pid.Kp =
@@ -6160,10 +6147,7 @@ var launchRocket = func (myNodeName, elem, delta_t)
 	# thisWeapon.pid.Kd =
 	# getprop ("" ~ myNodeName ~ "/" ~ elem ~ "/Kd"); # for testing
 		
-		
-
 	# put extra smoke / flash on launch pad
-
 	startSmoke ("blaze", rp, "AI/Aircraft/Fire-Particles/blaze-particles.xml" ); 
 	settimer (
 		func {
@@ -6172,9 +6156,7 @@ var launchRocket = func (myNodeName, elem, delta_t)
 		, 2.0
 	);
 
-
 	# add contrail to AI rocket
-
 	settimer (
 		func {
 			startSmoke("skywriting", rp, model = "AI/Aircraft/Fire-Particles/skywriting-particles.xml");
@@ -6186,15 +6168,23 @@ var launchRocket = func (myNodeName, elem, delta_t)
 
 	attributes[myNodeName].attacks["rocketsInAir"] += 1;
 
+	var msg = thisWeapon.name ~ " launched from " ~ 
+	getprop ("" ~ myNodeName ~ "/name") ~ 
+	" intercept time ~" ~ round(thisWeapon.aim.interceptTime) ~ "s" ~ 
+	" intercept speed ~" ~ round(thisWeapon.aim.interceptSpeed) ~ " mps";
+
+	targetStatusPopupTip (msg, 20);
+
+	debprint ("Bombable: " ~ msg ~ " " ~ myNodeName ~ ", " ~ thisWeapon.name ~ " " ~ elem);
 }
 
 ############################ guideRocket ##############################
 # FUNCTION check if run out of fuel, check collision with main AC, direction of main AC,
 # change direction, calculate position after time delta_t, trigger messages and effects
 # derived from checkAim
-# hash aim in attributes[node].weapons[elem] holds results of the previous calculation of rocket direction 
-# it contains: weaponDirRefFrame, the current direction of the rocket in the ground frame of reference
-# weaponDirRefFrame is updated with the new direction, the new position is recorded in the property tree
+# thisWeapon points to the attributes hash which holds results of the previous calculation of rocket velocity and speed 
+# it is updated with the new velocity and the estimated velocity and position at the next calculation
+# the new position is recorded in the property tree
 # node 1 is AI, node 2 is main AC
 # return rocket status 1 = in flight or 0 = destroyed
 
@@ -6207,14 +6197,16 @@ var guideRocket = func
 )
 {
 	var thisWeapon = attributes[myNodeName1].weapons[elem];
-	var flightTime = getprop ("" ~ myNodeName1 ~ "/" ~ elem ~ "/flightTime");
-	thisWeapon.aim.pHit = 0;
+	var rp = "ai/models/static[" ~ thisWeapon.rocketsIndex ~ "]"; # static model for rocket
 
-	var alat_deg = getprop("" ~ myNodeName1 ~ "/" ~ elem ~ "/position/latitude-deg"); # AI
-	var alon_deg = getprop("" ~ myNodeName1 ~ "/" ~ elem ~ "/position/longitude-deg");
-	var aAlt_m = getprop("" ~ myNodeName1 ~ "/" ~ elem ~ "/position/altitude-ft") * FT2M;
-	var missileDir = thisWeapon.aim.weaponDirRefFrame;
-	var missileSpeed_mps = getprop("" ~ myNodeName1 ~ "/" ~ elem ~ "/velocities/true-airspeed-kt") * KT2MPS;
+	thisWeapon.aim.pHit = 0;
+	var flightTime = getprop (rp ~ "/controls/flightTime");
+
+	var alat_deg = getprop(rp ~ "/position/latitude-deg"); # AI
+	var alon_deg = getprop(rp ~ "/position/longitude-deg");
+	var aAlt_m = getprop(rp ~ "/position/altitude-ft") * FT2M;
+	var missileSpeed_mps = getprop(rp ~ "/velocities/true-airspeed-kt") * KT2MPS;
+	var missileDir = vectorDivide ( thisWeapon.aim.velocity, missileSpeed_mps );
 	var a_delta_dist = missileSpeed_mps * delta_t; #distance missile travels over this stage which is divided into nSteps
 
 	var mlat_deg = getprop("" ~ myNodeName2 ~ "/position/latitude-deg"); # main AC
@@ -6479,13 +6471,11 @@ var guideRocket = func
 	# newMissileDir changes each time increment
 
 	var theta = (flightTime > 2.0) ? turn : 0 ; # no turn in early part of flight
-	var newV = newVelocity(myNodeName1, elem, missileSpeed_mps, missileDir, interceptDirRefFrame, theta, delta_t, flightTime);
-	newV = vectorSum ( newV, thisWeapon.initialVelocity);
-	thisWeapon.initialVelocity = [0, 0, 0]; # feeds in velocity of launchpad
+	var newV = newVelocity( thisWeapon, missileSpeed_mps, missileDir, interceptDirRefFrame, theta, delta_t, flightTime );
 	var newMissileSpeed_mps = vectorModulus (newV);
 	var newMissileDir = vectorDivide ( newV, newMissileSpeed_mps );
 	
-	thisWeapon.aim.weaponDirRefFrame = newMissileDir;
+	thisWeapon.aim.velocity = newV;
 	
 	var v = vectorMultiply(missileDir, missileSpeed_mps); # current velocity
 	var deltaV = vectorDivide(
@@ -6519,20 +6509,6 @@ var guideRocket = func
 
 	var newAlt_ft = ( aAlt_m + deltaAlt ) * M2FT;
 
-	# update co-ords for calculation of rocket flightpath - no longer needed if use flightPath in attributes
-	setprop("" ~ myNodeName1 ~ "/" ~ elem ~ "/position/longitude-deg",
-	alon_deg + deltaLon);
-
-	setprop("" ~ myNodeName1 ~ "/" ~ elem ~ "/position/latitude-deg",
-	alat_deg + deltaLat); 
-
-	setprop("" ~ myNodeName1 ~ "/" ~ elem ~ "/position/altitude-ft",
-	newAlt_ft);
-
-	setprop("" ~ myNodeName1 ~ "/" ~ elem ~ "/velocities/true-airspeed-kt", 
-	newMissileSpeed_mps  * MPS2KT);
-
-
 	# updates speed and orientation of AI model of rocket
 	# pitch and heading are updated to their final positions on this section
 	# the rocket position and orientation are forced to follow the calculated rocket flightpath
@@ -6549,8 +6525,6 @@ var guideRocket = func
 		theta / delta_t * R2D
 		)
 	);
-
-	var rp = "ai/models/static[" ~ thisWeapon.rocketsIndex ~ "]";
 
 	setprop (rp ~ "/velocities/true-airspeed-kt", newMissileSpeed_mps * MPS2KT);
 	# setprop (rp ~ "/controls/flight/target-spd", newMissileSpeed_mps * MPS2KT);
@@ -6579,7 +6553,7 @@ var guideRocket = func
 # the rotation for the next turn and the new missile direction and speed
 
 	theta = nextTurn / nSteps;
-	newV = newVelocity(myNodeName1, elem, newMissileSpeed_mps, newMissileDir, interceptDirRefFrame, theta, delta_t, flightTime);
+	newV = newVelocity( thisWeapon, newMissileSpeed_mps, newMissileDir, interceptDirRefFrame, theta, delta_t, flightTime );
 	deltaV = vectorDivide(
 		vectorSubtract(newV , v),
 		nSteps);
@@ -6595,7 +6569,7 @@ var guideRocket = func
 	thisWeapon.aim.nextPosition = nextPos;
 	thisWeapon.aim.nextVelocity = newV;
 
-	setprop ("" ~ myNodeName1 ~ "/" ~ elem ~ "/flightTime", flightTime + delta_t );
+	setprop (rp ~ "/controls/flightTime", flightTime + delta_t );
 	if ( flightTime + delta_t > thisWeapon.totalBurnTime) 
 		{
 			if ( flightTime < thisWeapon.totalBurnTime )
@@ -6620,10 +6594,8 @@ var guideRocket = func
 # rotates missle in direction of interceptDir
 # returns new velocity
 
-var newVelocity = func (myNodeName, elem, missileSpeed_mps, missileDir, interceptDir, theta, delta_t, flight_time)
+var newVelocity = func (thisWeapon, missileSpeed_mps, missileDir, interceptDir, theta, delta_t, flight_time)
 {
-	var thisWeapon = attributes[myNodeName].weapons[elem];
-
 	if (theta > 0) missileDir = vectorRotate (missileDir, interceptDir, theta);
 
 
@@ -9546,6 +9518,7 @@ var weapons_init_func = func(myNodeName) {
 			weaponDirRefFrame:[0,0,0], 
 			interceptSpeed:0, 
 			interceptTime:0, 
+			velocity:[0,0,0],
 			nextPosition:[0,0,0], 
 			nextVelocity:[0,0,0]
 			}; 
@@ -9662,7 +9635,7 @@ var rocket_init_func = func (thisWeapon, rocketCount)
 
 			if (thisWeapon["rateOfTurn_degps"] == nil) thisWeapon["rateOfTurn_degps"] = 40.0;
 
-			if (thisWeapon["initialVelocity"] == nil) thisWeapon["initialVelocity"] = [0,0,0];
+			if (thisWeapon["velocity"] == nil) thisWeapon["velocity"] = [0,0,0];
 
 			if (thisWeapon["liftDragRatio"] == nil) thisWeapon["liftDragRatio"] = 1.33;
 
