@@ -5623,19 +5623,13 @@ var vertAngle_deg = func (geocoord1, geocoord2) {
 #function updates thisWeapon.aim with weapon direction vectors in model and reference frames
 			
 
-var checkAim = func (myNodeName1 = "", myNodeName2 = "",
-targetSize_m = nil,  weaponSkill = 1, 
-maxDistance_m = 100, 
-weaponAngle_deg = nil, 
-weaponOffset_m = nil, 
-damageValue = 0, 
-missileSpeed = 500, thisWeapon) {
-	#Note weaponAngle is a hash with components heading and elevation
-	#Function called only by main weapons_loop
-	#rjw modified to return a hash
+var checkAim = func ( thisWeapon, myNodeName1 = "", myNodeName2 = "",
+					targetSize_m = nil,  weaponSkill = 1, 
+					damageValue = 0) 
+{
+	# Note weaponAngle is a hash with components heading and elevation
+	# Function called only by main weapons_loop
 
-	# newAim = {pHit:0, weaponDirModelFrame:[0,0,0], weaponOffsetRefFrame:[0,0,0], weaponDirRefFrame:[0,0,0], 
-	# interceptSpeed:0, interceptTime:0, nextPosition:[0,0,0], nextVelocity:[0,0,0]}; #reset global variable
 	thisWeapon.aim.pHit = 0;
 
 	var weaponAimed = 0; #flag true if weapon aimed successfully
@@ -5658,24 +5652,24 @@ missileSpeed = 500, thisWeapon) {
 	# m_per_deg_lat/lon are bombable general variables
 	
 	deltaLat_deg = mlat_deg - alat_deg;
-	if (abs(deltaLat_deg) > maxDistance_m / m_per_deg_lat ) {
+	if (abs(deltaLat_deg) > thisWeapon.maxDistance_m / m_per_deg_lat ) {
 		#debprint ("Aim: Not close in lat.");
 		return (weaponAimed);
 	}
 				
 	deltaLon_deg = mlon_deg - alon_deg ;
-	if (abs(deltaLon_deg) > maxDistance_m / m_per_deg_lon )  {
+	if (abs(deltaLon_deg) > thisWeapon.maxDistance_m / m_per_deg_lon )  {
 		#debprint ("Aim: Not close in lon.");
 		return (weaponAimed);
 	}
 
 				
-	if (targetSize_m == nil or targetSize_m.horz <= 0 or targetSize_m.vert <= 0 or maxDistance_m <= 0) return (weaponAimed);				
-	if (weaponAngle_deg == nil )
+	if (targetSize_m == nil or targetSize_m.horz <= 0 or targetSize_m.vert <= 0 or thisWeapon.maxDistance_m <= 0) return (weaponAimed);				
+	if (thisWeapon.weaponAngle_deg == nil )
 	{ 
-		weaponAngle_deg = {heading:0, elevation:0, headingMin:-60, headingMax:60, elevationMin:-20, elevationMax:20, track:0}; 
+		thisWeapon.weaponAngle_deg = {heading:0, elevation:0, headingMin:-60, headingMax:60, elevationMin:-20, elevationMax:20, track:0}; 
 	} #note definition of value for each key of hash
-	if (weaponOffset_m == nil ){ weaponOffset_m = {x:0,y:0,z:0}; }
+	if (thisWeapon.weaponOffset_m == nil ) thisWeapon.weaponOffset_m = {x:0,y:0,z:0}; 
 				
 	
 				
@@ -5696,7 +5690,7 @@ missileSpeed = 500, thisWeapon) {
 				
 	# debprint ("Bombable: AI weapons, distance: ", distance_m, " for ", myNodeName1);
 				
-	if (distance_m > maxDistance_m ) return (weaponAimed);
+	if (distance_m > thisWeapon.maxDistance_m ) return (weaponAimed);
 	
 	
 	
@@ -5758,7 +5752,7 @@ missileSpeed = 500, thisWeapon) {
 
 	
 	# correct targetDispRefFrame for weapon offset
-	# find newDir the direction required for a missile travelling at missileSpeed (constant over journey) to intercept the target 
+	# find newDir the direction required for a missile travelling at a constant speed to intercept the target 
 	# given the relative velocities of node1 and node2
 	# calculate the angle between the direction in which the weapon is aimed and newDir
 	# use this angle and the solid angle subtended by the mainAC to determine pHit
@@ -5780,9 +5774,9 @@ missileSpeed = 500, thisWeapon) {
 
 	# calculate the offset of the weapon in the ground reference frame
 	thisWeapon.aim.weaponOffsetRefFrame = rotate_zxy([
-		weaponOffset_m.y,
-		-weaponOffset_m.x,
-		weaponOffset_m.z
+		thisWeapon.weaponOffset_m.y,
+		-thisWeapon.weaponOffset_m.x,
+		thisWeapon.weaponOffset_m.z
 	], -pitch_deg, -roll_deg, myHeading_deg);
 
 	
@@ -5795,7 +5789,7 @@ missileSpeed = 500, thisWeapon) {
 		myNodeName1, myNodeName2, 
 		targetDispRefFrame,
 		distance_m,
-		missileSpeed
+		thisWeapon.maxMissileSpeed_mps
 	);
 
 	if (intercept.time == -1) return(weaponAimed);
@@ -5817,11 +5811,11 @@ missileSpeed = 500, thisWeapon) {
 	
 		
 	#form vector for the current direction of weapon, weapDir, in the reference frame of the model
-	var cosWeapElev = cos(weaponAngle_deg.elevation);
+	var cosWeapElev = cos(thisWeapon.weaponAngle_deg.elevation);
 	weapDir = [
-		cosWeapElev * sin(weaponAngle_deg.heading),
-		cosWeapElev * cos(weaponAngle_deg.heading),
-		sin(weaponAngle_deg.elevation)
+		cosWeapElev * sin(thisWeapon.weaponAngle_deg.heading),
+		cosWeapElev * cos(thisWeapon.weaponAngle_deg.heading),
+		sin(thisWeapon.weaponAngle_deg.elevation)
 	];
 	
 	#calculate angular offset
@@ -5868,11 +5862,14 @@ missileSpeed = 500, thisWeapon) {
 		var newHeading = math.atan2(newDir[0], newDir[1]) * R2D;
 		var changes = 2;
 
-		if (newElev < weaponAngle_deg.elevationMin) newElev = weaponAngle_deg.elevationMin;
-		elsif (newElev > weaponAngle_deg.elevationMax) newElev = weaponAngle_deg.elevationMax;
-		else changes -= 1;
+		if (newElev < thisWeapon.weaponAngle_deg.elevationMin)
+			newElev = thisWeapon.weaponAngle_deg.elevationMin;
+		elsif (newElev > thisWeapon.weaponAngle_deg.elevationMax)
+			newElev = thisWeapon.weaponAngle_deg.elevationMax;
+		else
+			changes -= 1;
 
-		var headingVal = keepInsideRange(weaponAngle_deg.headingMin, weaponAngle_deg.headingMax, newHeading);
+		var headingVal = keepInsideRange(thisWeapon.weaponAngle_deg.headingMin, thisWeapon.weaponAngle_deg.headingMax, newHeading);
 		if (headingVal.insideRange)
 		{
 			changes -= 1;
@@ -5985,14 +5982,12 @@ var weapons_loop = func (id, myNodeName1 = "", myNodeName2 = "", targetSize_m = 
 
 		if (callCheckAim != 0) 
 		{
-			 var foundTarget = checkAim (myNodeName1, myNodeName2, 
-				targetSize_m, weaponSkill,
-				thisWeapon.maxDamageDistance_m, 
-				thisWeapon.weaponAngle_deg,
-				thisWeapon.weaponOffset_m, 
-				damageValue,
-				thisWeapon.maxMissileSpeed_mps / callCheckAim, # estimate of average speed over trajectory
-				thisWeapon # pass pointer to weapon parameters
+			 var foundTarget = checkAim
+				(
+					thisWeapon, # pass pointer to weapon parameters
+					myNodeName1, myNodeName2, 
+					targetSize_m, weaponSkill,
+					damageValue
 				);
 			 if ( foundTarget ) 
 				{
@@ -6026,8 +6021,8 @@ var weapons_loop = func (id, myNodeName1 = "", myNodeName2 = "", targetSize_m = 
 		# debprint ("Bombable: Weapons_loop ", myNodeName1, " weaponSkill = ",weaponSkill, " weaponPower = ", weaponPower, " thisWeapon.aim.pHit = ", thisWeapon.aim.pHit);
 		# debprint (
 			# "Bombable: Weapons_loop " ~ myNodeName1 ~ " " ~ elem, 
-			# " heading = ", thisWeapon.weaponAngle_deg.heading, 
-			# " elevation = ", thisWeapon.weaponAngle_deg.elevation
+			# " heading = ", thisWeapon.thisWeapon.weaponAngle_deg.heading, 
+			# " elevation = ", thisWeapon.thisWeapon.weaponAngle_deg.elevation
 		# );
 		
 		if (thisWeapon.aim.pHit == -1) break; #flag for no line of sight; assume none of the gunners can see the target so abort loop
