@@ -6133,6 +6133,7 @@ var launchRocket = func (myNodeName, elem, delta_t)
 	setprop (rp ~ "/velocities/true-airspeed-kt", 0 ); # speed and target speed kept to zero to override AI model control
 	setprop (rp ~ "/orientation/pitch-deg", pitch);
 	setprop (rp ~ "/orientation/true-heading-deg", heading);
+	setprop (rp ~ "/controls/engine", 1);
 
 	# the launchPad velocity is used to set the initial velocity of the missile
 	# at launch the missile is not oriented with the direction of travel
@@ -6253,19 +6254,6 @@ var guideRocket = func
 
 		return(0); # abort rocket				
 	}
-
-	if ( flightTime + delta_t > thisWeapon.totalBurnTime) 
-		{
-			if ( flightTime < thisWeapon.totalBurnTime )
-			{
-				var msg = thisWeapon.name ~ " fired from " ~ 
-				getprop ("" ~ myNodeName1 ~ "/name") ~ 
-				" out of fuel";
-
-				targetStatusPopupTip (msg, 10);
-				# reduce thrust to zero to make the rocket fall out of the sky, rather than abort mid-air
-			}
-		}
 
 	# calculate targetDispRefFrame, the displacement vector from node1 (AI) to node2 (mainAC) in a lon-lat-alt (x-y-z) frame of reference aka 'reference frame'
 	# the AI model is at < 0,0,0 > 
@@ -6613,8 +6601,22 @@ var guideRocket = func
 
 	thisWeapon.aim.nextPosition = nextPos;
 	thisWeapon.aim.nextVelocity = newV;
-	setprop ("" ~ myNodeName1 ~ "/" ~ elem ~ "/flightTime", flightTime + delta_t );
 
+	setprop ("" ~ myNodeName1 ~ "/" ~ elem ~ "/flightTime", flightTime + delta_t );
+	if ( flightTime + delta_t > thisWeapon.totalBurnTime) 
+		{
+			if ( flightTime < thisWeapon.totalBurnTime )
+			{
+				var msg = thisWeapon.name ~ " fired from " ~ 
+				getprop ("" ~ myNodeName1 ~ "/name") ~ 
+				" out of fuel";
+
+				targetStatusPopupTip (msg, 10);
+				# reduce thrust to zero to make the rocket fall out of the sky, rather than abort mid-air
+				setprop (rp ~ "/controls/engine", 0);
+
+			}
+		}
 
 	return (1);
 }
@@ -6742,6 +6744,7 @@ var killRocket = func (myNodeName, elem)
 	var thisWeapon = attributes[myNodeName].weapons[elem];
 	var rp = "ai/models/static[" ~ thisWeapon.rocketsIndex ~ "]";	
 
+	setprop (rp ~ "/controls/engine", 0);
 	deleteSmoke ("skywriting", rp);
 	startSmoke ("flare", rp, "AI/Aircraft/Fire-Particles/large-explosion-particles.xml" ); 
 	settimer (
