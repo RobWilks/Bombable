@@ -5926,7 +5926,8 @@ var weapons_loop = func (id, myNodeName1 = "", myNodeName2 = "", targetSize_m = 
 	id == loopid or return;
 	#debprint ("aim-timer");
 				
-	var loopTime = LOOP_TIME * (15/16 + rand()/8);
+	# var loopTime = LOOP_TIME * (15/16 + rand()/8);
+	var loopTime = LOOP_TIME ;
 	settimer (  func { weapons_loop (id, myNodeName1, myNodeName2, targetSize_m )}, loopTime);
 
 	#debprint ("weapons_loop starting");
@@ -6207,20 +6208,20 @@ var guideRocket = func
 	var aAlt_m = getprop(rp ~ "/position/altitude-ft") * FT2M;
 	var missileSpeed_mps = getprop(rp ~ "/velocities/true-airspeed-kt") * KT2MPS;
 	var missileDir = vectorDivide ( thisWeapon.aim.velocity, missileSpeed_mps );
-	var a_delta_dist = missileSpeed_mps * delta_t; #distance missile travels over this stage which is divided into nSteps
+	var a_delta_dist = missileSpeed_mps * delta_t; #distance missile travels over this stage which is divided into N_STEPS
 
 	var mlat_deg = getprop("" ~ myNodeName2 ~ "/position/latitude-deg"); # main AC
 	var mlon_deg = getprop("" ~ myNodeName2 ~ "/position/longitude-deg");
 	var mAlt_m = getprop("" ~ myNodeName2 ~ "/position/altitude-ft") * FT2M;
-	var mPitch = getprop("" ~ myNodeName2 ~ "/orientation/pitch-deg") * D2R; # main AC
-	var mHeading = getprop("" ~ myNodeName2 ~ "orientation/true-heading-deg") * D2R; 
-	var mSpeed = getprop("" ~ myNodeName2 ~ "/velocities/airspeed-kt") * KT2MPS;
+	var mPitch = getprop("" ~ myNodeName2 ~ "/orientation/pitch-deg") * D2R;
+	var addTrue = (TARGET_NODE == "") ? "" : "true-";
+	var mHeading = getprop(""~myNodeName2~"/orientation/"~addTrue~"heading-deg") * D2R;
+	var mSpeed = getprop(""~myNodeName2~"/velocities/"~addTrue~"airspeed-kt") * KT2MPS;
 	var m_delta_dist = mSpeed * delta_t;
 
 	# variables used to calculate the new positions
-	var nSteps = 5;
-	var step = a_delta_dist / nSteps;
-	var time_inc = delta_t / nSteps;
+	var step = a_delta_dist / N_STEPS;
+	var time_inc = delta_t / N_STEPS;
 	var deltaXYZ = [0, 0, 0];
 	var deltaLat = 0;
 	var deltaLon = 0;
@@ -6316,7 +6317,7 @@ var guideRocket = func
 
 
 			thisWeapon.atomic = 1; #to lock access
-			for (var i = 0; i < nSteps; i = i + 1) 
+			for (var i = 0; i < N_STEPS; i = i + 1) 
 			{
 				if (i < steps_to_target)
 				{
@@ -6480,10 +6481,10 @@ var guideRocket = func
 	var v = vectorMultiply(missileDir, missileSpeed_mps); # current velocity
 	var deltaV = vectorDivide(
 		vectorSubtract(newV , v),
-		nSteps); # velocity increments
+		N_STEPS); # velocity increments
 
 	thisWeapon.atomic = 1; #to lock access
-	for (var i = 0; i < nSteps; i = i + 1) 
+	for (var i = 0; i < N_STEPS; i = i + 1) 
 	{
 		deltaXYZ = vectorMultiply (v, time_inc);
 		v = vectorSum(v, deltaV);
@@ -6498,7 +6499,7 @@ var guideRocket = func
 	}
 	thisWeapon.atomic = 0; #to unlock access
 
-	settimer ( func{ moveRocket (myNodeName1, elem, 0, nSteps, time_inc )}, 0 ); # first step called immediately
+	settimer ( func{ moveRocket (myNodeName1, elem, 0, N_STEPS, time_inc )}, 0 ); # first step called immediately
 
 	# debprint (
 	# 	sprintf(
@@ -6552,14 +6553,14 @@ var guideRocket = func
 # calculate the (x,y,z) offset to the nextPosition by calculating 
 # the rotation for the next turn and the new missile direction and speed
 
-	theta = nextTurn / nSteps;
+	theta = nextTurn / N_STEPS;
 	newV = newVelocity( thisWeapon, newMissileSpeed_mps, newMissileDir, interceptDirRefFrame, theta, delta_t, flightTime );
 	deltaV = vectorDivide(
 		vectorSubtract(newV , v),
-		nSteps);
+		N_STEPS);
 	var nextPos = [0, 0, 0];
 
-	for (var i = 0; i < nSteps; i = i + 1) 
+	for (var i = 0; i < N_STEPS; i = i + 1) 
 	{
 		deltaXYZ = vectorMultiply (v, time_inc);
 		v = vectorSum(v, deltaV);
@@ -9603,8 +9604,8 @@ var weapons_init_func = func(myNodeName) {
 		#we increment this each time we are inited or de-inited
 		#when the loopid is changed it kills the timer loops that have that id
 		var loopid = inc_loopid (myNodeName, "weapons");
-							
-		settimer (  func { weapons_loop (loopid, myNodeName, "", mainAircraftSize_m)}, 5 + rand());
+
+		settimer (  func { weapons_loop (loopid, myNodeName, TARGET_NODE, mainAircraftSize_m)}, 5 + rand());
 	}
 						
 	debprint ("Bombable: Effect * weapons * loaded for ", myNodeName);
@@ -9635,8 +9636,6 @@ var rocket_init_func = func (thisWeapon, rocketCount)
 
 			if (thisWeapon["rateOfTurn_degps"] == nil) thisWeapon["rateOfTurn_degps"] = 40.0;
 
-			if (thisWeapon["velocity"] == nil) thisWeapon["velocity"] = [0,0,0];
-
 			if (thisWeapon["liftDragRatio"] == nil) thisWeapon["liftDragRatio"] = 1.33;
 
 			# set-up buffer to store intermediate positions of rocket
@@ -9645,9 +9644,8 @@ var rocket_init_func = func (thisWeapon, rocketCount)
 				return {parents:[wayPoint] };
 				}
 
-			var NUM_ELEMENTS = 5;
 			var fp = [];
-			setsize(fp, NUM_ELEMENTS);
+			setsize(fp, N_STEPS);
 
 			forindex(var i; fp)
 				fp[i] = new_wayPoint(); # flight pathvector used to store intermediate rocket locations
@@ -9920,7 +9918,10 @@ var m_per_deg_lon = 111321.5 * math.cos (aLat_rad);
 #where we'll save the attributes for each AI object & the main aircraft, too
 var attributes = {};
 #global variable used for sighting weapons
-var LOOP_TIME = 0.25; # timing of weapons loop and guide rocket
+var LOOP_TIME = 0.5; # timing of weapons loop and guide rocket
+var N_STEPS = 5; # resolution of flight path calculation
+var TARGET_NODE = "/ai/models/aircraft" ;
+
 
 # List of nodes that listeners will use when checking for impact damage.
 # FG aircraft use a wide variety of nodes to report impact of armament
@@ -10528,9 +10529,10 @@ var findIntercept = func (myNodeName1, myNodeName2, displacement, dist_m, interc
 	var speed1 = getprop(""~myNodeName1~"/velocities/true-airspeed-kt") * KT2MPS; # AI
 	var speedVert1 = getprop(""~myNodeName1~"/velocities/vertical-speed-fps") * FT2M;
 	var heading1 = getprop(""~myNodeName1~"/orientation/true-heading-deg") * D2R;
-	var speed2 = getprop(""~myNodeName2~"/velocities/airspeed-kt") * KT2MPS; # main AC
+	var addTrue = (TARGET_NODE == "") ? "" : "true-";
+	var speed2 = getprop(""~myNodeName2~"/velocities/"~addTrue~"airspeed-kt") * KT2MPS; # main AC
 	var speedVert2 = getprop(""~myNodeName2~"/velocities/vertical-speed-fps") * FT2M;
-	var heading2 = getprop(""~myNodeName2~"/orientation/heading-deg") * D2R;
+	var heading2 = getprop(""~myNodeName2~"/orientation/"~addTrue~"heading-deg") * D2R;
 	var vxy1 = 0;
 	if (speed1 > math.abs(speedVert1)) {
 		var glideAngle1 = math.asin(speedVert1 / speed1);
@@ -10592,9 +10594,10 @@ var findIntercept = func (myNodeName1, myNodeName2, displacement, dist_m, interc
 var findIntercept2 = func (myNodeName1, myNodeName2, displacement, dist_m, velocity1)
 {
 	var interceptSpeed = vectorModulus( velocity1 );
-	var speed2 = getprop(""~myNodeName2~"/velocities/airspeed-kt") * KT2MPS; # main AC
+	var addTrue = (TARGET_NODE == "") ? "" : "true-";
+	var speed2 = getprop(""~myNodeName2~"/velocities/"~addTrue~"airspeed-kt") * KT2MPS; # main AC
 	var speedVert2 = getprop(""~myNodeName2~"/velocities/vertical-speed-fps") * FT2M;
-	var heading2 = getprop(""~myNodeName2~"/orientation/heading-deg") * D2R;
+	var heading2 = getprop(""~myNodeName2~"/orientation/"~addTrue~"heading-deg") * D2R;
 	var vxy2 = 0;
 	if (speed2 > math.abs(speedVert2)) {
 		# debprint(speedVert2," ",speed2);
