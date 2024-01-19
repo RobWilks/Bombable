@@ -6472,6 +6472,19 @@ var guideRocket = func
 	# newMissileDir changes each time increment
 
 	var theta = (flightTime > 2.0) ? turn : 0 ; # no turn in early part of flight
+	# theta = missileSpeed_mps * ( 1.0 + approxTanh ( 1.0 - thisWeapon.minTurnSpeed_mps) / missileSpeed_mps ) ; # no turn in early part of flight
+	var speedFactor = thisWeapon.minTurnSpeed_mps / missileSpeed_mps;
+	if (speedFactor < 1.0) 
+	{
+		if (speedFactor < 0.5) 
+		{
+			theta = 0;
+		}
+		else
+		{
+			theta = theta * (speedFactor * 2.0 - 1.0) ; 
+		}
+	}
 	var newV = newVelocity( thisWeapon, missileSpeed_mps, missileDir, interceptDirRefFrame, theta, delta_t, flightTime );
 	var newMissileSpeed_mps = vectorModulus (newV);
 	var newMissileDir = vectorDivide ( newV, newMissileSpeed_mps );
@@ -9604,8 +9617,10 @@ var weapons_init_func = func(myNodeName) {
 		#we increment this each time we are inited or de-inited
 		#when the loopid is changed it kills the timer loops that have that id
 		var loopid = inc_loopid (myNodeName, "weapons");
-
-		settimer (  func { weapons_loop (loopid, myNodeName, TARGET_NODE, mainAircraftSize_m)}, 5 + rand());
+		if (myNodeName != TARGET_NODE)
+		{
+			settimer (  func { weapons_loop (loopid, myNodeName, TARGET_NODE, mainAircraftSize_m)}, 5 + rand());
+		}
 	}
 						
 	debprint ("Bombable: Effect * weapons * loaded for ", myNodeName);
@@ -9635,6 +9650,8 @@ var rocket_init_func = func (thisWeapon, rocketCount)
 			thisWeapon["dragTerm"] = thisWeapon["missileAcceleration2_mpss"] / thisWeapon["maxMissileSpeed_mps"] / thisWeapon["maxMissileSpeed_mps"]; # drag force = dragTerm * speed^2
 
 			if (thisWeapon["rateOfTurn_degps"] == nil) thisWeapon["rateOfTurn_degps"] = 40.0;
+
+			if (thisWeapon["minTurnSpeed_mps"] == nil) thisWeapon["minTurnSpeed_mps"] = 200.0 * KT2MPS;
 
 			if (thisWeapon["liftDragRatio"] == nil) thisWeapon["liftDragRatio"] = 1.33;
 
@@ -10735,6 +10752,38 @@ var vectorRotate = func(v1, v2, alpha)
 	var v3 = vectorMultiply (v1, ( math.cos(alpha) - v1v2 * sinAbymagK ));
 	var v4 = vectorMultiply (v2, sinAbymagK );
 	return (vectorSum (v3, v4));
+}
+
+########################## approxTanh ###########################
+# coarse approximation of tanh function for values of x between 0 and 3
+
+var approxTanh = func(x)
+{
+	var MAX = 3.0;
+	var NUM_ELEMENTS = 10 ;
+	var lookup =
+	[
+		0,
+		0.291312612,
+		0.537049567,
+		0.71629787,
+		0.833654607,
+		0.905148254,
+		0.946806013,
+		0.970451937,
+		0.983674858,
+		0.991007454,
+		0.995054754
+	];
+	var sign = (x < 0.0) ? -1.0 : 1.0 ;
+	var absScaleX = x * NUM_ELEMENTS / MAX * sign ;
+	if (x >= NUM_ELEMENTS) return ( sign ) ;
+	var smallest = math.floor ( absScaleX ) ;
+	var mod = absScaleX - smallest ;
+	return( 
+		sign * 
+		( lookup[ smallest ] * ( 1.0 - mod ) + lookup[ smallest + 1 ] * mod )
+	);
 }
 
 ########################## END ###########################
