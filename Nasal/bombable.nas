@@ -6473,12 +6473,12 @@ var guideRocket = func
 
 	var theta = (flightTime > 2.0) ? turn : 0 ; # no turn in early part of flight
 	# theta = missileSpeed_mps * ( 1.0 + approxTanh ( 1.0 - thisWeapon.minTurnSpeed_mps) / missileSpeed_mps ) ; # no turn in early part of flight
-	var speedFactor = thisWeapon.minTurnSpeed_mps / missileSpeed_mps;
+	var speedFactor = missileSpeed_mps / thisWeapon.minTurnSpeed_mps ;
 	if (speedFactor < 1.0) 
 	{
 		if (speedFactor < 0.5) 
 		{
-			theta = 0;
+			theta = 0.0 ;
 		}
 		else
 		{
