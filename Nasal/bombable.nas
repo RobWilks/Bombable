@@ -6126,7 +6126,7 @@ var launchRocket = func (myNodeName, elem, delta_t)
 			]		
 		);
 
-	thisWeapon.aim.thrust = [0, 0, thisWeapon.missileAcceleration1_mpss];
+	thisWeapon.aim.thrustDir = [0, 0, 1];
 
 	# rocket initiated by moving it from {lat, lon} {0, 0} to location of AC / ship
 	var rp = "ai/models/static[" ~ thisWeapon.rocketsIndex ~ "]";
@@ -6487,7 +6487,7 @@ var guideRocket = func
 			theta = theta * (speedFactor * 2.0 - 1.0) ; 
 		}
 	}
-	var newV = newVelocity( thisWeapon, missileSpeed_mps, missileDir, thisWeapon.thrustDir, interceptDirRefFrame, theta, delta_t, flightTime );
+	var newV = newVelocity( thisWeapon, missileSpeed_mps, missileDir, interceptDirRefFrame, theta, delta_t, flightTime );
 	var newMissileSpeed_mps = vectorModulus (newV);
 	var newMissileDir = vectorDivide ( newV, newMissileSpeed_mps );
 	
@@ -6569,7 +6569,7 @@ var guideRocket = func
 # the rotation for the next turn and the new missile direction and speed
 
 	theta = nextTurn / N_STEPS;
-	newV = newVelocity( thisWeapon, newMissileSpeed_mps, newMissileDir, thisWeapon.thrustDir, interceptDirRefFrame, theta, delta_t, flightTime );
+	newV = newVelocity( thisWeapon, newMissileSpeed_mps, newMissileDir, interceptDirRefFrame, theta, delta_t, flightTime );
 	deltaV = vectorDivide(
 		vectorSubtract(newV , v),
 		N_STEPS);
@@ -6612,9 +6612,9 @@ var guideRocket = func
 # it may not be aligned with the thrust vector
 # func returns new velocity
 
-var newVelocity = func (thisWeapon, missileSpeed_mps, missileDir, thrustDir, interceptDir, theta, delta_t, flight_time)
+var newVelocity = func (thisWeapon, missileSpeed_mps, missileDir, interceptDir, theta, delta_t, flight_time)
 {
-	if (theta > 0) thrustDir = vectorRotate (thrustDir, interceptDir, theta);
+	if (theta > 0) thisWeapon.aim.thrustDir = vectorRotate (thisWeapon.aim.thrustDir, interceptDir, theta);
 
 
 	var thrust = 0.0; # acceleration from thrust
@@ -6634,7 +6634,7 @@ var newVelocity = func (thisWeapon, missileSpeed_mps, missileDir, thrustDir, int
 	(
 		vectorMultiply
 		( 
-		thrustDir, 
+		thisWeapon.aim.thrustDir, 
 		thrust
 		),
 		vectorMultiply
@@ -9532,7 +9532,7 @@ var weapons_init_func = func(myNodeName) {
 			weaponDirRefFrame:[0,0,0], 
 			interceptSpeed:0, 
 			interceptTime:0, 
-			thrust:[0,0,0],
+			thrustDir:[0,0,0],
 			velocity:[0,0,0],
 			nextPosition:[0,0,0], 
 			nextVelocity:[0,0,0]
