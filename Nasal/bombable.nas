@@ -6126,6 +6126,8 @@ var launchRocket = func (myNodeName, elem, delta_t)
 			]		
 		);
 
+	thisWeapon.aim.thrust = [0, 0, thisWeapon.missileAcceleration1_mpss];
+
 	# rocket initiated by moving it from {lat, lon} {0, 0} to location of AC / ship
 	var rp = "ai/models/static[" ~ thisWeapon.rocketsIndex ~ "]";
 	var pitch = math.asin(thisWeapon.aim.weaponDirRefFrame[2]) * R2D; # orientation of rocket
@@ -6485,7 +6487,7 @@ var guideRocket = func
 			theta = theta * (speedFactor * 2.0 - 1.0) ; 
 		}
 	}
-	var newV = newVelocity( thisWeapon, missileSpeed_mps, missileDir, interceptDirRefFrame, theta, delta_t, flightTime );
+	var newV = newVelocity( thisWeapon, missileSpeed_mps, missileDir, thisWeapon.thrustDir, interceptDirRefFrame, theta, delta_t, flightTime );
 	var newMissileSpeed_mps = vectorModulus (newV);
 	var newMissileDir = vectorDivide ( newV, newMissileSpeed_mps );
 	
@@ -6507,7 +6509,7 @@ var guideRocket = func
 		thisWeapon.flightPath[i].lon = alon_deg + deltaLon;
 		thisWeapon.flightPath[i].lat = alat_deg + deltaLat;
 		thisWeapon.flightPath[i].alt = ( aAlt_m + deltaAlt ) * M2FT;
-		thisWeapon.flightPath[i].pitch = math.asin( v[2] / vectorModulus(v) ) * R2D;
+		thisWeapon.flightPath[i].pitch = math.asin( v[2] / vectorModulus(v) ) * R2D; #CHANGE to the direction of the thrust vector
 		thisWeapon.flightPath[i].heading = math.atan2( v[0], v[1] ) * R2D;;
 	}
 	thisWeapon.atomic = 0; #to unlock access
@@ -6567,7 +6569,7 @@ var guideRocket = func
 # the rotation for the next turn and the new missile direction and speed
 
 	theta = nextTurn / N_STEPS;
-	newV = newVelocity( thisWeapon, newMissileSpeed_mps, newMissileDir, interceptDirRefFrame, theta, delta_t, flightTime );
+	newV = newVelocity( thisWeapon, newMissileSpeed_mps, newMissileDir, thisWeapon.thrustDir, interceptDirRefFrame, theta, delta_t, flightTime );
 	deltaV = vectorDivide(
 		vectorSubtract(newV , v),
 		N_STEPS);
@@ -6606,11 +6608,13 @@ var guideRocket = func
 # calculates velocity of rocket after delta_t accounting for:
 # gravity, skin drag, turn drag
 # rotates missle in direction of interceptDir
-# returns new velocity
+# missileDir is the direction of the velocity vector 
+# it may not be aligned with the thrust vector
+# func returns new velocity
 
-var newVelocity = func (thisWeapon, missileSpeed_mps, missileDir, interceptDir, theta, delta_t, flight_time)
+var newVelocity = func (thisWeapon, missileSpeed_mps, missileDir, thrustDir, interceptDir, theta, delta_t, flight_time)
 {
-	if (theta > 0) missileDir = vectorRotate (missileDir, interceptDir, theta);
+	if (theta > 0) thrustDir = vectorRotate (thrustDir, interceptDir, theta);
 
 
 	var thrust = 0.0; # acceleration from thrust
@@ -6625,32 +6629,28 @@ var newVelocity = func (thisWeapon, missileSpeed_mps, missileDir, interceptDir, 
 
 	var drag = missileSpeed_mps * missileSpeed_mps * thisWeapon.dragTerm;
 
-	# thrust - drag
-	var thrust_drag = vectorMultiply( 
+	# thrust minus drag
+	var force = vectorSum
+	(
+		vectorMultiply
+		( 
+		thrustDir, 
+		thrust
+		),
+		vectorMultiply
+		( 
 		missileDir, 
-		thrust - drag
+		-drag
+		)
 	);
 
-	# lift - weight
-	var hdg = math.atan2 ( missileDir[0], missileDir[1]);
-	var sinHdg = math.sin (hdg);
-	var lift_weight = vectorMultiply(
-		[
-			- missileDir[2] * sinHdg,
-			- missileDir[2] * math.cos (hdg),
-			missileDir[0] / sinHdg # lift is always upwards
-		],
-		drag * thisWeapon.liftDragRatio # lift is a fixed multiple of drag
-	); # acceleration vector combining lift and weight forces
-	lift_weight[2] -= grav_mpss; # adding weight
+	# minus weight
+	force[2] -= grav_mpss; # adding weight
 
 	# calculate resultant acceleration and change in velocity over delta_t
 	var deltaV = 
 	vectorMultiply(
-		vectorSum(
-			thrust_drag,
-			lift_weight
-		),
+		force,
 		delta_t
 	);
 
@@ -9532,6 +9532,7 @@ var weapons_init_func = func(myNodeName) {
 			weaponDirRefFrame:[0,0,0], 
 			interceptSpeed:0, 
 			interceptTime:0, 
+			thrust:[0,0,0],
 			velocity:[0,0,0],
 			nextPosition:[0,0,0], 
 			nextVelocity:[0,0,0]
