@@ -6526,7 +6526,7 @@ var guideRocket = func
 		newPitch,
 		newHeading,
 		newMissileSpeed_mps * MPS2KT,
-		theta / delta_t * R2D
+		deltaPhi / delta_t * R2D
 		)
 	);
 
@@ -6557,7 +6557,7 @@ var guideRocket = func
 # the rotation for the next turn and the new missile direction and speed
 
 	# theta = nextTurn / N_STEPS;
-	# newV = newVelocity( thisWeapon, newMissileSpeed_mps, newMissileDir, interceptDirRefFrame, theta, delta_t, flightTime );
+	# newV = newVelocity( thisWeapon, newMissileSpeed_mps, newMissileDir, interceptDirRefFrame, deltaPhi, delta_t, flightTime );
 	# deltaV = vectorDivide(
 	# 	vectorSubtract(newV , v),
 	# 	N_STEPS);
@@ -6597,20 +6597,34 @@ var guideRocket = func
 # uses theta and phi (pitch and heading)
 # changes direction of thrust assumed to act along the axis of the rocket 
 # does not change velocity directly
+# returns change in heading
 
 var changeDirection = func (thisWeapon, missileDir, interceptDir)
 {
 	var theta1 = math.asin(missileDir[2]);
 	var theta2 = math.asin(interceptDir[2]);
 	thetaNew = pidController (thisWeapon, "theta", theta2, theta1);
+
+	# thrust theta needs to exceed velocity theta to provide sufficient lift  
+	var thrustTheta = math.asin(thisWeapon.aim.thrustDir[2]) + thetaNew - thisWeapon.pidData.theta.prevMeasurement;
+	if (thrustTheta > PIBYTWO) 
+	{
+		thrustTheta = PIBYTWO;
+	}
+	elsif (thrustTheta < -PIBYTWO) 
+	{
+		thrustTheta = -PIBYTWO;
+	}
 	debprint (
 		sprintf(
-			"Bombable: pid: theta =%8.3f integrator =%8.3f previous measurement =%8.3f",
+			"Bombable: pid: theta =%8.3f integrator =%8.3f previous measurement =%8.3f thrust theta =%8.1f",
 			thetaNew,
 			thisWeapon.pidData.theta.integrator,
-			thisWeapon.pidData.theta.prevMeasurement
+			thisWeapon.pidData.theta.prevMeasurement,
+			thrustTheta
 		)
 	);
+
 
 	var phi1 = math.atan2(thisWeapon.aim.thrustDir[0], thisWeapon.aim.thrustDir[1]);
 	var phi2 = math.atan2(interceptDir[0], interceptDir[1]);
@@ -6624,20 +6638,11 @@ var changeDirection = func (thisWeapon, missileDir, interceptDir)
 		)
 	);
 
-	thrustTheta = math.asin(thrust[2]) + thetaNew - thisWeapon.pidData.theta.prevMeasurement;
-	if (thrustTheta > PIBYTWO) 
-	{
-		thrustTheta = PIBYTWO;
-	}
-	elsif (thrustTheta < -PIBYTWO) 
-	{
-		thrustTheta = -PIBYTWO;
-	}
 	thisWeapon.aim.thrustDir[0] = math.cos(thrustTheta) * math.sin(phiNew);
 	thisWeapon.aim.thrustDir[1] = math.cos(thrustTheta) * math.cos(phiNew);
 	thisWeapon.aim.thrustDir[2] = math.sin(thrustTheta);
 
-	
+	return (phiNew - thisWeapon.pidData.phi.prevMeasurement);
 }
 
 ############################ newVelocity ##############################
@@ -6648,7 +6653,7 @@ var changeDirection = func (thisWeapon, missileDir, interceptDir)
 # it may not be aligned with the thrust vector
 # func returns new velocity
 
-var newVelocity = func (thisWeapon, missileSpeed_mps, missileDir, interceptDir, theta, delta_t, flight_time)
+var newVelocity = func (thisWeapon, missileSpeed_mps, missileDir, interceptDir, deltaPhi, delta_t, flight_time)
 {
 
 
@@ -6700,10 +6705,10 @@ var newVelocity = func (thisWeapon, missileSpeed_mps, missileDir, interceptDir, 
 
 	
 	# reduce speed according to rate of turn
-	# approximation of dv / v = exp (-theta / dragLiftRatio )
+	# approximation of dv / v = exp (-deltaPhi / dragLiftRatio )
 	newV = vectorMultiply(
 		newV,
-		1.0 - theta / thisWeapon.liftDragRatio 
+		1.0 - math.abs(deltaPhi) / thisWeapon.liftDragRatio 
 		);
 
 	debprint (
@@ -6799,8 +6804,7 @@ var pidControllerInit = func(thisWeapon, angle, delta_t) {
 
 ############################ pidController ##############################
 # proportional - integral - differentiation controller on rocket direction	
-# theta the angle between the missile direction and the intercept direction is the measurement
-# theta can have negative values - turn to the left vs turn to the right
+# the angle of the velocity vector to the horizontal is the measurement
 # code adapted from https://github.com/pms67/PID
 # differentiator not used
 
@@ -9778,9 +9782,9 @@ var rocket_init_func = func (thisWeapon, rocketCount)
 				out: 0.0	
 			}; # template
 
-			pid.limMin = - pid.limMax;
-			pid.limMaxInt = pid.limMax * 0.75;
-			pid.limMinInt = - pid.limMaxInt;
+			pidVals.limMin = - pidVals.limMax;
+			pidVals.limMaxInt = pidVals.limMax * 0.75;
+			pidVals.limMinInt = - pidVals.limMaxInt;
 
 			thisWeapon["pidData"] = 
 				{
