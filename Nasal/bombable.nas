@@ -6142,7 +6142,8 @@ var launchRocket = func (myNodeName, elem, delta_t)
 	setprop (rp ~ "/controls/flightTime", 0);
 	setprop (rp ~ "/controls/engine", 1);
 
-	pidControllerInit (myNodeName, elem, delta_t);
+	pidControllerInit (thisWeapon, "phi", delta_t);
+	pidControllerInit (thisWeapon, "theta", delta_t);
 	# thisWeapon.pid.Kp =
 	# getprop ("" ~ myNodeName ~ "/" ~ elem ~ "/Kp"); # for testing
 	# thisWeapon.pid.Ki =
@@ -6233,23 +6234,12 @@ var guideRocket = func
 	deltaLat_deg = mlat_deg - alat_deg;
 	deltaLon_deg = mlon_deg - alon_deg ;
 
-	if (targetSize_m == nil or targetSize_m.horz <= 0 or targetSize_m.vert <= 0 or thisWeapon.maxDamageDistance_m <= 0) 
-	{
-		var msg = elem ~ " rocket from " ~ 
-		getprop ("" ~ myNodeName1 ~ "/name") ~ 
-		" aborted - no target";
-		targetStatusPopupTip (msg, 20);						
-
-		return(0); # abort rocket				
-	}
-
 	# calculate targetDispRefFrame, the displacement vector from node1 (AI) to node2 (mainAC) in a lon-lat-alt (x-y-z) frame of reference aka 'reference frame'
 	# the AI model is at < 0,0,0 > 
 	# and the main AC or target is at < deltaX,deltaY,deltaAlt > in relation to it.
 
-	var deltaY_m = deltaLat_deg * m_per_deg_lat;
-
 	var deltaX_m = deltaLon_deg * m_per_deg_lon;
+	var deltaY_m = deltaLat_deg * m_per_deg_lat;
 	var deltaAlt_m = mAlt_m - aAlt_m;
 	# m_per_deg_lat/lon are bombable general variables
 
@@ -6262,14 +6252,6 @@ var guideRocket = func
 	# 		deltaX_m, deltaY_m, deltaAlt_m 
 	# 	)
 	# );
-
-
-	# if (distance_m < attributes[myNodeName2].dimensions.crashRadius_m){
-	# 	thisWeapon.aim.pHit = 1; 
-	# 	# message rocket hit from weapons_loop
-	# 	return (0);
-	# }
-	# use closest approach calculation instead
 
 	# check above ground level
 	var GeoCoord = geo.Coord.new();
@@ -6349,7 +6331,10 @@ var guideRocket = func
 
 	# look ahead by assessing relative positions at next up date 
 
-	var deltaXYZ_weap = thisWeapon.aim.nextPosition;
+	var deltaXYZ_weap = vectorMultiply(
+		missileDir,
+		a_delta_dist
+	);
 
 	var deltaXYZ_AC = vectorMultiply(
 		[
@@ -6383,7 +6368,7 @@ var guideRocket = func
 		myNodeName1, myNodeName2, 
 		targetDispRefFrame,
 		distance_m,
-		thisWeapon.aim.nextVelocity
+		thisWeapon.aim.velocity
 	);
 
 	if (intercept.time != -1) 
@@ -6427,65 +6412,70 @@ var guideRocket = func
 
 
 
-	#rotate up to 10 degrees to the target direction
-	var maxTurn_rad = delta_t * thisWeapon.rateOfTurn_degps * D2R; 
-	var maxTurn = math.cos(maxTurn_rad); 
-	var nextTurn = 0;
-	var minTurn = 0.9999; # equivalent to 1 deg
+	# #rotate up to 10 degrees to the target direction
+	# var maxTurn_rad = delta_t * thisWeapon.rateOfTurn_degps * D2R; 
+	# var maxTurn = math.cos(maxTurn_rad); 
+	# var nextTurn = 0;
+	# var minTurn = 0.9999; # equivalent to 1 deg
 
-	# calculate angular offset between direction of missile and direction of target
-	var cosOffset = dotProduct(missileDir, interceptDirRefFrame);
-	if (cosOffset > minTurn) cosOffset = 1.0; # get math.acos errors if dotproduct ~ 1
+	# # calculate angular offset between direction of missile and direction of target
+	# var cosOffset = dotProduct(missileDir, interceptDirRefFrame);
+	# if (cosOffset > minTurn) cosOffset = 1.0; # get math.acos errors if dotproduct ~ 1
 
-	if (cosOffset < -maxTurn) {
-		if (distance_m > missileSpeed_mps / maxTurn_rad * delta_t)
-		{
-			interceptDirRefFrame = rotate_round_z_axis ( interceptDirRefFrame, (1.0 - 2.0 * (rand() > 0.5)) * math.pi/12 );# +/- 15 degree rotation about z-axis
-			debprint ("Bombable: vectorRotate trap");
-		}
-		else
-		{
-			cosOffset = 1.0; # delay til a turn radius away from target
-		}
+	# # trap - if travelling opposite to the direction of the target then the direction to turn is ill-defined
+	# if (cosOffset < -maxTurn) {
+	# 	if (distance_m > missileSpeed_mps / maxTurn_rad * delta_t)
+	# 	{
+	# 		interceptDirRefFrame = rotate_round_z_axis ( interceptDirRefFrame, (1.0 - 2.0 * (rand() > 0.5)) * math.pi/12 );# +/- 15 degree rotation about z-axis
+	# 		debprint ("Bombable: vectorRotate trap");
+	# 	}
+	# 	else
+	# 	{
+	# 		cosOffset = 1.0; # delay til a turn radius away from target
+	# 	}
+	# }
+
+	# var turnMeasured = math.acos(cosOffset);
+	# # calculate whether to turn left (-1) or right (+1) - not needed
+	# # var turnDirection = ( missileDir[0] * interceptDir[1] < missileDir[1] * interceptDir[0] ) ? 1 : -1;
+	# if ( missileDir[0] * interceptDirRefFrame[1] < missileDir[1] * interceptDirRefFrame[0] ) turnMeasured = -turnMeasured;
+	# turn = pidController (myNodeName1, elem, 0, turnMeasured);
+	# debprint (
+	# 	sprintf(
+	# 		"Bombable: pid: output =%8.3f integrator =%8.3f previous measurement =%8.3f",
+	# 		turn,
+	# 		thisWeapon.pid.integrator,
+	# 		thisWeapon.pid.prevMeasurement
+	# 	)
+	# );
+
+	# nextTurn = -turn - turnMeasured;
+	# if (nextTurn > maxTurn_rad) nextTurn = maxTurn_rad;
+	# if (nextTurn < -maxTurn_rad) nextTurn = -maxTurn_rad;
+
+	# change direction but no turn in early part of flight
+	if (flightTime > 2.0) 
+	{
+		changeDirection(thisWeapon, missileDir, interceptDirRefFrame) ; 
 	}
-	# trap - if travelling opposite to the direction of the target then the direction to turn is ill-defined
 
-	var turnMeasured = math.acos(cosOffset);
-	# calculate whether to turn left (-1) or right (+1) - not needed
-	# var turnDirection = ( missileDir[0] * interceptDir[1] < missileDir[1] * interceptDir[0] ) ? 1 : -1;
-	if ( missileDir[0] * interceptDirRefFrame[1] < missileDir[1] * interceptDirRefFrame[0] ) turnMeasured = -turnMeasured;
-	turn = pidController (myNodeName1, elem, 0, turnMeasured);
-	debprint (
-		sprintf(
-			"Bombable: pid: output =%8.3f integrator =%8.3f previous measurement =%8.3f",
-			turn,
-			thisWeapon.pid.integrator,
-			thisWeapon.pid.prevMeasurement
-		)
-	);
-
-	nextTurn = -turn - turnMeasured;
-	if (nextTurn > maxTurn_rad) nextTurn = maxTurn_rad;
-	if (nextTurn < -maxTurn_rad) nextTurn = -maxTurn_rad;
-
+	# # only turn if speed sufficient
+	# var speedFactor = missileSpeed_mps / thisWeapon.minTurnSpeed_mps ;
+	# if (speedFactor < 1.0) 
+	# {
+	# 	if (speedFactor < 0.5) 
+	# 	{
+	# 		theta = 0.0 ;
+	# 	}
+	# 	else
+	# 	{
+	# 		theta = theta * (speedFactor * 2.0 - 1.0) ; 
+	# 	}
+	# }
+	
 	# creates set of intermediate positions in wayPoint hash
 	# incremental change in position given by vector newMissileDir * time_inc
 	# newMissileDir changes each time increment
-
-	var theta = (flightTime > 2.0) ? turn : 0 ; # no turn in early part of flight
-	# theta = missileSpeed_mps * ( 1.0 + approxTanh ( 1.0 - thisWeapon.minTurnSpeed_mps) / missileSpeed_mps ) ; # no turn in early part of flight
-	var speedFactor = missileSpeed_mps / thisWeapon.minTurnSpeed_mps ;
-	if (speedFactor < 1.0) 
-	{
-		if (speedFactor < 0.5) 
-		{
-			theta = 0.0 ;
-		}
-		else
-		{
-			theta = theta * (speedFactor * 2.0 - 1.0) ; 
-		}
-	}
 	var newV = newVelocity( thisWeapon, missileSpeed_mps, missileDir, interceptDirRefFrame, theta, delta_t, flightTime );
 	var newMissileSpeed_mps = vectorModulus (newV);
 	var newMissileDir = vectorDivide ( newV, newMissileSpeed_mps );
@@ -6525,9 +6515,8 @@ var guideRocket = func
 	var newAlt_ft = ( aAlt_m + deltaAlt ) * M2FT;
 
 	# updates speed and orientation of AI model of rocket
-	# pitch and heading are updated to their final positions on this section
+	# pitch and heading are updated to their final positions in this section
 	# the rocket position and orientation are forced to follow the calculated rocket flightpath
-	# the AI controls are used to provide continuous interpolation between the calculated points 
 
 	var newPitch = math.asin(newMissileDir[2]) * R2D;
 	var newHeading = math.atan2(newMissileDir[0], newMissileDir[1]) * R2D;
@@ -6567,22 +6556,22 @@ var guideRocket = func
 # calculate the (x,y,z) offset to the nextPosition by calculating 
 # the rotation for the next turn and the new missile direction and speed
 
-	theta = nextTurn / N_STEPS;
-	newV = newVelocity( thisWeapon, newMissileSpeed_mps, newMissileDir, interceptDirRefFrame, theta, delta_t, flightTime );
-	deltaV = vectorDivide(
-		vectorSubtract(newV , v),
-		N_STEPS);
-	var nextPos = [0, 0, 0];
+	# theta = nextTurn / N_STEPS;
+	# newV = newVelocity( thisWeapon, newMissileSpeed_mps, newMissileDir, interceptDirRefFrame, theta, delta_t, flightTime );
+	# deltaV = vectorDivide(
+	# 	vectorSubtract(newV , v),
+	# 	N_STEPS);
+	# var nextPos = [0, 0, 0];
 
-	for (var i = 0; i < N_STEPS; i = i + 1) 
-	{
-		deltaXYZ = vectorMultiply (v, time_inc);
-		v = vectorSum(v, deltaV);
-		nextPos = vectorSum(nextPos, deltaXYZ);
-	}
+	# for (var i = 0; i < N_STEPS; i = i + 1) 
+	# {
+	# 	deltaXYZ = vectorMultiply (v, time_inc);
+	# 	v = vectorSum(v, deltaV);
+	# 	nextPos = vectorSum(nextPos, deltaXYZ);
+	# }
 
-	thisWeapon.aim.nextPosition = nextPos;
-	thisWeapon.aim.nextVelocity = newV;
+	# thisWeapon.aim.nextPosition = nextPos;
+	# thisWeapon.aim.nextVelocity = newV;
 
 	setprop (rp ~ "/controls/flightTime", flightTime + delta_t );
 	if ( flightTime + delta_t > thisWeapon.totalBurnTime) 
@@ -6603,6 +6592,54 @@ var guideRocket = func
 	return (1);
 }
 
+############################ changeDirection ##############################
+# changes the direction the rocket is pointing:
+# uses theta and phi (pitch and heading)
+# changes direction of thrust assumed to act along the axis of the rocket 
+# does not change velocity directly
+
+var changeDirection = func (thisWeapon, missileDir, interceptDir)
+{
+	var theta1 = math.asin(missileDir[2]);
+	var theta2 = math.asin(interceptDir[2]);
+	thetaNew = pidController (thisWeapon, "theta", theta2, theta1);
+	debprint (
+		sprintf(
+			"Bombable: pid: theta =%8.3f integrator =%8.3f previous measurement =%8.3f",
+			thetaNew,
+			thisWeapon.pidData.theta.integrator,
+			thisWeapon.pidData.theta.prevMeasurement
+		)
+	);
+
+	var phi1 = math.atan2(thisWeapon.aim.thrustDir[0], thisWeapon.aim.thrustDir[1]);
+	var phi2 = math.atan2(interceptDir[0], interceptDir[1]);
+	phiNew = pidControllerCircular (thisWeapon, "phi", phi2, phi1);
+	debprint (
+		sprintf(
+			"Bombable: pid: phi =%8.3f integrator =%8.3f previous measurement =%8.3f",
+			phiNew,
+			thisWeapon.pidData.phi.integrator,
+			thisWeapon.pidData.phi.prevMeasurement
+		)
+	);
+
+	thrustTheta = math.asin(thrust[2]) + thetaNew - thisWeapon.pidData.theta.prevMeasurement;
+	if (thrustTheta > PIBYTWO) 
+	{
+		thrustTheta = PIBYTWO;
+	}
+	elsif (thrustTheta < -PIBYTWO) 
+	{
+		thrustTheta = -PIBYTWO;
+	}
+	thisWeapon.aim.thrustDir[0] = math.cos(thrustTheta) * math.sin(phiNew);
+	thisWeapon.aim.thrustDir[1] = math.cos(thrustTheta) * math.cos(phiNew);
+	thisWeapon.aim.thrustDir[2] = math.sin(thrustTheta);
+
+	
+}
+
 ############################ newVelocity ##############################
 # calculates velocity of rocket after delta_t accounting for:
 # gravity, skin drag, turn drag
@@ -6613,7 +6650,6 @@ var guideRocket = func
 
 var newVelocity = func (thisWeapon, missileSpeed_mps, missileDir, interceptDir, theta, delta_t, flight_time)
 {
-	if (theta != 0) thisWeapon.aim.thrustDir = vectorRotate (thisWeapon.aim.thrustDir, interceptDir, theta);
 
 
 	var thrust = 0.0; # acceleration from thrust
@@ -6742,10 +6778,10 @@ var killRocket = func (myNodeName, elem)
 }
 
 ############################ pidControllerInit ##############################
-var pidControllerInit = func(myNodeName, elem, delta_t) {
+var pidControllerInit = func(thisWeapon, angle, delta_t) {
 
 	# Clear controller variables 
-	var pid = attributes[myNodeName].weapons[elem].pid;
+	var pid = thisWeapon.pidData[angle];
 	
 	pid.integrator = 0.0;
 	pid.prevError  = 0.0;
@@ -6768,11 +6804,11 @@ var pidControllerInit = func(myNodeName, elem, delta_t) {
 # code adapted from https://github.com/pms67/PID
 # differentiator not used
 
-var pidController = func (myNodeName, elem, setpoint, measurement)
+var pidController = func (thisWeapon, angle, setpoint, measurement)
 {
 
 	# pointer into hash containing PID data
-	var pid = attributes[myNodeName].weapons[elem].pid;
+	var pid = thisWeapon.pidData[angle];
 
 	# Error signal
 	var error = setpoint - measurement;
@@ -6821,8 +6857,65 @@ var pidController = func (myNodeName, elem, setpoint, measurement)
     return (pid.out);
 
 }
+############################ range ##############################
+# helper func to manage circular variables
+ var range = func(angle)
+ {
+	if (angle <= -PI) return (angle + TWOPI);
+	if (angle > PI) return (angle - TWOPI);
+	return (angle);
+ }
 
 
+
+############################ pidControllerCircular ##############################
+# PID for circular variables
+
+var pidControllerCircular = func (thisWeapon, angle, setpoint, measurement)
+{
+
+	# pointer into hash containing PID data
+	var pid = thisWeapon.pidData[angle];
+
+	# Error signal
+	var error = range ( setpoint - measurement );
+
+	# Proportional
+    var proportional = pid.Kp * error;
+
+
+	# Integral
+    pid.integrator = pid.integrator + 0.5 * pid.Ki * pid.delta_t * ( error + pid.prevError );
+	pid.integrator = range (pid.integrator);
+
+	# Anti-wind-up via integrator clamping 
+    if (pid.integrator > pid.limMaxInt) 
+	{
+        pid.integrator = pid.limMaxInt;
+    } 
+	elsif (pid.integrator < pid.limMinInt) 
+	{
+        pid.integrator = pid.limMinInt;
+    }
+
+
+	# Derivative (band-limited differentiator)
+    # pid.differentiator = -(2.0 * pid.Kd * (measurement - pid.prevMeasurement)	# Note: derivative on measurement, therefore minus sign in front of equation! 
+    #                     + (2.0 * pid.tau - pid.delta_t) * pid.differentiator)
+    #                     / (2.0 * pid.tau + pid.delta_t);
+
+
+	# Compute output and apply limits
+    pid.out = range ( proportional + pid.integrator + pid.differentiator );
+
+	# Store error and measurement for later use 
+    pid.prevError       = error;
+    pid.prevMeasurement = measurement;
+
+	# Return controller output 
+    return (pid.out);
+
+}
 ##########################################################
 # CLASS stores
 # singleton class to hold methods for filling, depleting,
@@ -9532,9 +9625,7 @@ var weapons_init_func = func(myNodeName) {
 			interceptSpeed:0, 
 			interceptTime:0, 
 			thrustDir:[0,0,0],
-			velocity:[0,0,0],
-			nextPosition:[0,0,0], 
-			nextVelocity:[0,0,0]
+			velocity:[0,0,0]
 			}; 
 		# new hash used to record direction weapon is pointing
 		# in the frame of reference of model and the frame of reference of the scene
@@ -9671,7 +9762,7 @@ var rocket_init_func = func (thisWeapon, rocketCount)
 			thisWeapon["flightPath"] = fp;
 
 			# set-up parameters for PID controller - PID values are reset on rocket launch
-			var pid = {
+			var pidVals = {
 				Kp: 0.5,
 				Ki: 0.005,
 				Kd: 0.0,
@@ -9691,7 +9782,11 @@ var rocket_init_func = func (thisWeapon, rocketCount)
 			pid.limMaxInt = pid.limMax * 0.75;
 			pid.limMinInt = - pid.limMaxInt;
 
-			thisWeapon["pid"] = pid; # variables for PID controller for missile direction
+			thisWeapon["pidData"] = 
+				{
+					phi: pidVals,
+					theta: pidVals
+				}; # variables for PID controller for missile direction
 			# setprop ("" ~ myNodeName ~ "/" ~ elem ~ "/Kp", thisWeapon.pid.Kp); # for testing
 			# setprop ("" ~ myNodeName ~ "/" ~ elem ~ "/Ki", thisWeapon.pid.Ki); # for testing
 			# setprop ("" ~ myNodeName ~ "/" ~ elem ~ "/Kd", thisWeapon.pid.Kd); # for testing
@@ -9892,6 +9987,9 @@ var knots2mps = knots2fps * feet2meters;
 var fps2knots = 1/knots2fps;
 var grav_fpss = 32.174;
 var grav_mpss = grav_fpss * feet2meters;
+var PIBYTWO = math.pi / 2.0;
+var TWOPI = math.pi * 2.0;
+var PI = math.pi;
 var bomb_menu_pp = "/bombable/menusettings/";
 var bombable_settings_file = getprop("/sim/fg-home") ~ "/state/bombable-startup-settings.xml";
 
