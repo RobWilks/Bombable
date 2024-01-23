@@ -6464,10 +6464,9 @@ var guideRocket = func
 		)
 	);
 
-	nextTurn = math.abs(turn + turnMeasured);
+	nextTurn = -turn - turnMeasured;
 	if (nextTurn > maxTurn_rad) nextTurn = maxTurn_rad;
-	turn = math.abs(turn);
-
+	if (nextTurn < -maxTurn_rad) nextTurn = -maxTurn_rad;
 
 	# creates set of intermediate positions in wayPoint hash
 	# incremental change in position given by vector newMissileDir * time_inc
@@ -6614,7 +6613,7 @@ var guideRocket = func
 
 var newVelocity = func (thisWeapon, missileSpeed_mps, missileDir, interceptDir, theta, delta_t, flight_time)
 {
-	if (theta > 0) thisWeapon.aim.thrustDir = vectorRotate (thisWeapon.aim.thrustDir, interceptDir, theta);
+	if (theta != 0) thisWeapon.aim.thrustDir = vectorRotate (thisWeapon.aim.thrustDir, interceptDir, theta);
 
 
 	var thrust = 0.0; # acceleration from thrust
@@ -9938,7 +9937,8 @@ var attributes = {};
 #global variable used for sighting weapons
 var LOOP_TIME = 0.5; # timing of weapons loop and guide rocket
 var N_STEPS = 5; # resolution of flight path calculation
-var TARGET_NODE = "/ai/models/aircraft" ;
+# var TARGET_NODE = "/ai/models/aircraft" ;
+var TARGET_NODE = "" ;
 
 
 # List of nodes that listeners will use when checking for impact damage.
