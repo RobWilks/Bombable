@@ -6205,7 +6205,7 @@ var guideRocket = func
 
 	thisWeapon.aim.pHit = 0;
 	var flightTime = getprop (rp ~ "/controls/flightTime");
-	var AoA = 10.0 * D2R;
+	var AoA = 15.0 * D2R;
 
 	var alat_deg = getprop(rp ~ "/position/latitude-deg"); # AI
 	var alon_deg = getprop(rp ~ "/position/longitude-deg");
@@ -6230,7 +6230,6 @@ var guideRocket = func
 	var deltaLat = 0;
 	var deltaLon = 0;
 	var deltaAlt = 0;
-	var deltaPhi = 0;
 	var newMissileDir = missileDir;
 
 	deltaLat_deg = mlat_deg - alat_deg;
@@ -6470,7 +6469,8 @@ var guideRocket = func
 	# if (nextTurn > maxTurn_rad) nextTurn = maxTurn_rad;
 	# if (nextTurn < -maxTurn_rad) nextTurn = -maxTurn_rad;
 
-	deltaPhi = changeDirection(thisWeapon, missileDir, interceptDirRefFrame, flightTime, AoA) ; 
+	var newDir = changeDirection(thisWeapon, missileDir, interceptDirRefFrame, flightTime, AoA) ; 
+	var turnRad = math.acos (dotProduct (newDir , missileDir));
 
 	# # only turn if speed sufficient
 	# var speedFactor = missileSpeed_mps / thisWeapon.minTurnSpeed_mps ;
@@ -6489,7 +6489,7 @@ var guideRocket = func
 	# creates set of intermediate positions in wayPoint hash
 	# incremental change in position given by vector newMissileDir * time_inc
 	# newMissileDir changes each time increment
-	var newV = newVelocity( thisWeapon, missileSpeed_mps, missileDir, interceptDirRefFrame, deltaPhi, delta_t, flightTime );
+	var newV = newVelocity( thisWeapon, missileSpeed_mps, newDir, interceptDirRefFrame, turnRad, delta_t, flightTime );
 	var newMissileSpeed_mps = vectorModulus (newV);
 	var newMissileDir = vectorDivide ( newV, newMissileSpeed_mps );
 	
@@ -6539,7 +6539,7 @@ var guideRocket = func
 		newPitch,
 		newHeading,
 		newMissileSpeed_mps * MPS2KT,
-		deltaPhi / delta_t * R2D
+		turnRad / delta_t * R2D
 		)
 	);
 
@@ -6566,26 +6566,6 @@ var guideRocket = func
 		targetStatusPopupTip (msg, 5);
 	}
 
-# calculate the (x,y,z) offset to the nextPosition by calculating 
-# the rotation for the next turn and the new missile direction and speed
-
-	# theta = nextTurn / N_STEPS;
-	# newV = newVelocity( thisWeapon, newMissileSpeed_mps, newMissileDir, interceptDirRefFrame, deltaPhi, delta_t, flightTime );
-	# deltaV = vectorDivide(
-	# 	vectorSubtract(newV , v),
-	# 	N_STEPS);
-	# var nextPos = [0, 0, 0];
-
-	# for (var i = 0; i < N_STEPS; i = i + 1) 
-	# {
-	# 	deltaXYZ = vectorMultiply (v, time_inc);
-	# 	v = vectorSum(v, deltaV);
-	# 	nextPos = vectorSum(nextPos, deltaXYZ);
-	# }
-
-	# thisWeapon.aim.nextPosition = nextPos;
-	# thisWeapon.aim.nextVelocity = newV;
-
 	setprop (rp ~ "/controls/flightTime", flightTime + delta_t );
 	if ( flightTime + delta_t > thisWeapon.totalBurnTime) 
 		{
@@ -6609,8 +6589,8 @@ var guideRocket = func
 # changes the direction the rocket is pointing:
 # uses theta and phi (pitch and heading)
 # changes direction of thrust assumed to act along the axis of the rocket 
-# does not change velocity directly
-# returns change in heading
+# returns new direction of velocity vector
+# using only the thrust to change the velocity vector did not give sufficient control
 
 var changeDirection = func (thisWeapon, missileDir, interceptDir, flightTime, AoA)
 {
@@ -6618,7 +6598,7 @@ var changeDirection = func (thisWeapon, missileDir, interceptDir, flightTime, Ao
 	var theta2 = math.asin(interceptDir[2]);
 	var thetaNew = pidController (thisWeapon, "theta", theta2, theta1) + theta1;
 
-	# thrust theta needs to exceed velocity theta to provide sufficient lift  
+	# need an angle of attack to provide sufficient lift - thrust theta needs to exceed velocity theta  
 	var thrustTheta = thetaNew + AoA;
 	if (thrustTheta > PIBYTWO) 
 	{
@@ -6630,38 +6610,47 @@ var changeDirection = func (thisWeapon, missileDir, interceptDir, flightTime, Ao
 	}
 
 
-	var phi1 = math.atan2(thisWeapon.aim.thrustDir[0], thisWeapon.aim.thrustDir[1]);
+	var phi1 = math.atan2(missileDir[0], missileDir[1]);
 	var phi2 = math.atan2(interceptDir[0], interceptDir[1]);
-	var phiDelta = pidControllerCircular (thisWeapon, "phi", phi2, phi1);
-	var phiNew = phiDelta + phi1;
+	var deltaPhi = pidControllerCircular (thisWeapon, "phi", phi2, phi1);
+	var phiNew = deltaPhi + phi1;
 	debprint (
 		sprintf(
-			"Bombable: pid: theta =%8.3f integrator =%8.3f previous measurement =%8.3f thrust theta =%8.1f",
+			"Bombable: pid: theta =%8.3f int =%8.3f meas =%8.3f set =%8.3f err =%8.3f thrust theta =%8.3f",
 			thetaNew,
 			thisWeapon.pidData.theta.integrator,
 			thisWeapon.pidData.theta.prevMeasurement,
+			theta2,
+			thisWeapon.pidData.theta.prevError,
 			thrustTheta
 		)
 	);
 	debprint (
 		sprintf(
-			"Bombable: pid: phi =%8.3f int =%8.3f meas =%8.3f set =%8.3f err =%8.3f",
+			"Bombable: pid: phi =%8.3f int =%8.3f meas =%8.3f ",
 			phiNew,
 			thisWeapon.pidData.phi.integrator,
 			thisWeapon.pidData.phi.prevMeasurement,
 			phi2,
-			thisWeapon.pidData.phi.prevError
+			
 		)
 	);
 
 	# no turn in early part of flight
-	if (flightTime < 2.0) return (0);
+	if (flightTime < 2.0) return (missileDir);
 
 	thisWeapon.aim.thrustDir[0] = math.cos(thrustTheta) * math.sin(phiNew);
 	thisWeapon.aim.thrustDir[1] = math.cos(thrustTheta) * math.cos(phiNew);
 	thisWeapon.aim.thrustDir[2] = math.sin(thrustTheta);
 
-	return (phiDelta);
+	return
+	(
+		[ 
+			math.cos(thetaNew) * math.sin(phiNew),
+			math.cos(thetaNew) * math.cos(phiNew),
+			math.sin(thetaNew)		
+		]
+	);
 }
 
 ############################ newVelocity ##############################
@@ -6704,7 +6693,7 @@ var newVelocity = func (thisWeapon, missileSpeed_mps, missileDir, interceptDir, 
 	debprint (
 		sprintf(
 			"Bombable: lift vector =[%8.3f, %8.3f, %8.3f]",
-			lift[0], lift[1], lift[2] 
+			liftVector[0], liftVector[1], liftVector[2] 
 		)
 	);
 	# thrust minus drag plus lift
@@ -9801,41 +9790,70 @@ var rocket_init_func = func (thisWeapon, rocketCount)
 			# set-up parameters for PID controller - PID values are reset on rocket launch
 			var maxLimit = LOOP_TIME * thisWeapon.rateOfTurn_degps * D2R; # maxRate turn
 
+			var pidVals = 
+			{
+				Kp: 0.5,
+				Ki: 0.005,
+				Kd: 0.0,
+				limMaxInt: maxLimit * 0.75 , # Integrator limits to be set below
+				limMinInt: -maxLimit * 0.75 ,
+				tau: 0.25 , # Derivative low-pass filter time constant secs
+				limMax: maxLimit ,
+				limMin: -maxLimit ,
+				differentiator: 0.0 ,
+				integrator: 0.0 ,
+				prevError: 0.0 ,
+				prevMeasurement: 0.0 ,
+				out: 0.0 ,	
+			};
+			var new_pidVals = func 
+			{
+				return {parents:[pidVals] };
+			}
+
 			thisWeapon["pidData"] = 
 			{
-				phi:
-				{
-					Kp: 0.5,
-					Ki: 0.005,
-					Kd: 0.0,
-					limMaxInt: maxLimit * 0.75 , # Integrator limits to be set below
-					limMinInt: -maxLimit * 0.75 ,
-					tau: 0.25 , # Derivative low-pass filter time constant secs
-					limMax: maxLimit ,
-					limMin: -maxLimit ,
-					differentiator: 0.0 ,
-					integrator: 0.0 ,
-					prevError: 0.0 ,
-					prevMeasurement: 0.0 ,
-					out: 0.0 ,	
-				} ,
-				theta:
-				{
-					Kp: 0.5,
-					Ki: 0.005,
-					Kd: 0.0,
-					limMaxInt: maxLimit * 0.75 , # Integrator limits to be set below
-					limMinInt: -maxLimit * 0.75 ,
-					tau: 0.25 , # Derivative low-pass filter time constant secs
-					limMax: maxLimit ,
-					limMin: -maxLimit ,
-					differentiator: 0.0 ,
-					integrator: 0.0 ,
-					prevError: 0.0 ,
-					prevMeasurement: 0.0 ,
-					out: 0.0 ,	
-				} ,
+				phi: [], 
+				theta: [],
 			};
+			thisWeapon.pidData.theta = new_pidVals();
+			thisWeapon.pidData.phi = new_pidVals();
+
+			# thisWeapon["pidData"] = 
+			# {
+			# 	phi:
+			# 	{
+			# 		Kp: 0.5,
+			# 		Ki: 0.005,
+			# 		Kd: 0.0,
+			# 		limMaxInt: maxLimit * 0.75 , # Integrator limits to be set below
+			# 		limMinInt: -maxLimit * 0.75 ,
+			# 		tau: 0.25 , # Derivative low-pass filter time constant secs
+			# 		limMax: maxLimit ,
+			# 		limMin: -maxLimit ,
+			# 		differentiator: 0.0 ,
+			# 		integrator: 0.0 ,
+			# 		prevError: 0.0 ,
+			# 		prevMeasurement: 0.0 ,
+			# 		out: 0.0 ,	
+			# 	} ,
+			# 	theta:
+			# 	{
+			# 		Kp: 0.5,
+			# 		Ki: 0.005,
+			# 		Kd: 0.0,
+			# 		limMaxInt: maxLimit * 0.75 , # Integrator limits to be set below
+			# 		limMinInt: -maxLimit * 0.75 ,
+			# 		tau: 0.25 , # Derivative low-pass filter time constant secs
+			# 		limMax: maxLimit ,
+			# 		limMin: -maxLimit ,
+			# 		differentiator: 0.0 ,
+			# 		integrator: 0.0 ,
+			# 		prevError: 0.0 ,
+			# 		prevMeasurement: 0.0 ,
+			# 		out: 0.0 ,	
+			# 	} ,
+			# };
 			
 			# setprop ("" ~ myNodeName ~ "/" ~ elem ~ "/Kp", thisWeapon.pid.Kp); # for testing
 			# setprop ("" ~ myNodeName ~ "/" ~ elem ~ "/Ki", thisWeapon.pid.Ki); # for testing
