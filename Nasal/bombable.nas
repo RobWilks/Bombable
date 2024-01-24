@@ -6205,6 +6205,7 @@ var guideRocket = func
 
 	thisWeapon.aim.pHit = 0;
 	var flightTime = getprop (rp ~ "/controls/flightTime");
+	var AoA = 10.0 * D2R;
 
 	var alat_deg = getprop(rp ~ "/position/latitude-deg"); # AI
 	var alon_deg = getprop(rp ~ "/position/longitude-deg");
@@ -6229,6 +6230,7 @@ var guideRocket = func
 	var deltaLat = 0;
 	var deltaLon = 0;
 	var deltaAlt = 0;
+	var deltaPhi = 0;
 	var newMissileDir = missileDir;
 
 	deltaLat_deg = mlat_deg - alat_deg;
@@ -6396,6 +6398,21 @@ var guideRocket = func
 			thisWeapon.aim.interceptTime, interceptDirRefFrame[0], interceptDirRefFrame[1], interceptDirRefFrame[2] 
 		)
 	);
+
+	debprint (
+		sprintf(
+			"Bombable: thrust direction =[%8.3f, %8.3f, %8.3f]",
+			thisWeapon.aim.thrustDir[0], thisWeapon.aim.thrustDir[1], thisWeapon.aim.thrustDir[2] 
+		)
+	);
+
+	debprint (
+		sprintf(
+			"Bombable: missile direction =[%8.3f, %8.3f, %8.3f]",
+			missileDir[0], missileDir[1], missileDir[2] 
+		)
+	);
+
 	
 	# ground avoidance
 	if ( aAlt_m - ground_Alt_m < -missileDir[2] * missileSpeed_mps * delta_t) 
@@ -6453,11 +6470,7 @@ var guideRocket = func
 	# if (nextTurn > maxTurn_rad) nextTurn = maxTurn_rad;
 	# if (nextTurn < -maxTurn_rad) nextTurn = -maxTurn_rad;
 
-	# change direction but no turn in early part of flight
-	if (flightTime > 2.0) 
-	{
-		changeDirection(thisWeapon, missileDir, interceptDirRefFrame) ; 
-	}
+	deltaPhi = changeDirection(thisWeapon, missileDir, interceptDirRefFrame, flightTime, AoA) ; 
 
 	# # only turn if speed sufficient
 	# var speedFactor = missileSpeed_mps / thisWeapon.minTurnSpeed_mps ;
@@ -6476,7 +6489,7 @@ var guideRocket = func
 	# creates set of intermediate positions in wayPoint hash
 	# incremental change in position given by vector newMissileDir * time_inc
 	# newMissileDir changes each time increment
-	var newV = newVelocity( thisWeapon, missileSpeed_mps, missileDir, interceptDirRefFrame, theta, delta_t, flightTime );
+	var newV = newVelocity( thisWeapon, missileSpeed_mps, missileDir, interceptDirRefFrame, deltaPhi, delta_t, flightTime );
 	var newMissileSpeed_mps = vectorModulus (newV);
 	var newMissileDir = vectorDivide ( newV, newMissileSpeed_mps );
 	
@@ -6505,12 +6518,12 @@ var guideRocket = func
 
 	settimer ( func{ moveRocket (myNodeName1, elem, 0, N_STEPS, time_inc )}, 0 ); # first step called immediately
 
-	# debprint (
-	# 	sprintf(
-	# 		"Bombable: newMissileDir vector =[%8.3f, %8.3f, %8.3f]",
-	# 		newMissileDir[0], newMissileDir[1], newMissileDir[2] 
-	# 	)
-	# );
+	debprint (
+		sprintf(
+			"Bombable: newMissileDir vector =[%8.3f, %8.3f, %8.3f]",
+			newMissileDir[0], newMissileDir[1], newMissileDir[2] 
+		)
+	);
 
 	var newAlt_ft = ( aAlt_m + deltaAlt ) * M2FT;
 
@@ -6599,14 +6612,14 @@ var guideRocket = func
 # does not change velocity directly
 # returns change in heading
 
-var changeDirection = func (thisWeapon, missileDir, interceptDir)
+var changeDirection = func (thisWeapon, missileDir, interceptDir, flightTime, AoA)
 {
 	var theta1 = math.asin(missileDir[2]);
 	var theta2 = math.asin(interceptDir[2]);
-	thetaNew = pidController (thisWeapon, "theta", theta2, theta1);
+	var thetaNew = pidController (thisWeapon, "theta", theta2, theta1) + theta1;
 
 	# thrust theta needs to exceed velocity theta to provide sufficient lift  
-	var thrustTheta = math.asin(thisWeapon.aim.thrustDir[2]) + thetaNew - thisWeapon.pidData.theta.prevMeasurement;
+	var thrustTheta = thetaNew + AoA;
 	if (thrustTheta > PIBYTWO) 
 	{
 		thrustTheta = PIBYTWO;
@@ -6615,6 +6628,12 @@ var changeDirection = func (thisWeapon, missileDir, interceptDir)
 	{
 		thrustTheta = -PIBYTWO;
 	}
+
+
+	var phi1 = math.atan2(thisWeapon.aim.thrustDir[0], thisWeapon.aim.thrustDir[1]);
+	var phi2 = math.atan2(interceptDir[0], interceptDir[1]);
+	var phiDelta = pidControllerCircular (thisWeapon, "phi", phi2, phi1);
+	var phiNew = phiDelta + phi1;
 	debprint (
 		sprintf(
 			"Bombable: pid: theta =%8.3f integrator =%8.3f previous measurement =%8.3f thrust theta =%8.1f",
@@ -6624,25 +6643,25 @@ var changeDirection = func (thisWeapon, missileDir, interceptDir)
 			thrustTheta
 		)
 	);
-
-
-	var phi1 = math.atan2(thisWeapon.aim.thrustDir[0], thisWeapon.aim.thrustDir[1]);
-	var phi2 = math.atan2(interceptDir[0], interceptDir[1]);
-	phiNew = pidControllerCircular (thisWeapon, "phi", phi2, phi1);
 	debprint (
 		sprintf(
-			"Bombable: pid: phi =%8.3f integrator =%8.3f previous measurement =%8.3f",
+			"Bombable: pid: phi =%8.3f int =%8.3f meas =%8.3f set =%8.3f err =%8.3f",
 			phiNew,
 			thisWeapon.pidData.phi.integrator,
-			thisWeapon.pidData.phi.prevMeasurement
+			thisWeapon.pidData.phi.prevMeasurement,
+			phi2,
+			thisWeapon.pidData.phi.prevError
 		)
 	);
+
+	# no turn in early part of flight
+	if (flightTime < 2.0) return (0);
 
 	thisWeapon.aim.thrustDir[0] = math.cos(thrustTheta) * math.sin(phiNew);
 	thisWeapon.aim.thrustDir[1] = math.cos(thrustTheta) * math.cos(phiNew);
 	thisWeapon.aim.thrustDir[2] = math.sin(thrustTheta);
 
-	return (phiNew - thisWeapon.pidData.phi.prevMeasurement);
+	return (phiDelta);
 }
 
 ############################ newVelocity ##############################
@@ -6656,7 +6675,6 @@ var changeDirection = func (thisWeapon, missileDir, interceptDir)
 var newVelocity = func (thisWeapon, missileSpeed_mps, missileDir, interceptDir, deltaPhi, delta_t, flight_time)
 {
 
-
 	var thrust = 0.0; # acceleration from thrust
 	if ( flight_time < thisWeapon.burn1 )
 	{ 
@@ -6669,19 +6687,35 @@ var newVelocity = func (thisWeapon, missileSpeed_mps, missileDir, interceptDir, 
 
 	var drag = missileSpeed_mps * missileSpeed_mps * thisWeapon.dragTerm;
 
-	# thrust minus drag
+	var cosAngleOfAttack = math.abs( dotProduct ( missileDir, thisWeapon.aim.thrustDir ));
+	var cosStallAngle = math.cos( 30.0 * D2R);
+	var lift = (cosAngleOfAttack > cosStallAngle) ? drag * thisWeapon.liftDragRatio : 0.0; # lift is a fixed multiple of drag within stall angles
+
+	var hdg = math.atan2 ( thisWeapon.aim.thrustDir[0], thisWeapon.aim.thrustDir[1] );
+	var liftVector = vectorMultiply(
+		[
+			- thisWeapon.aim.thrustDir[2] * math.sin (hdg),
+			- thisWeapon.aim.thrustDir[2] * math.cos (hdg),
+			math.cos ( math.asin(thisWeapon.aim.thrustDir[2]) ) # lift is always upwards
+		],
+		drag * thisWeapon.liftDragRatio # lift is a fixed multiple of drag
+	); 
+
+	debprint (
+		sprintf(
+			"Bombable: lift vector =[%8.3f, %8.3f, %8.3f]",
+			lift[0], lift[1], lift[2] 
+		)
+	);
+	# thrust minus drag plus lift
 	var force = vectorSum
 	(
 		vectorMultiply
 		( 
 		thisWeapon.aim.thrustDir, 
-		thrust
+		thrust - drag
 		),
-		vectorMultiply
-		( 
-		missileDir, 
-		-drag
-		)
+		liftVector
 	);
 
 	# minus weight
@@ -6703,7 +6737,6 @@ var newVelocity = func (thisWeapon, missileSpeed_mps, missileDir, interceptDir, 
 		deltaV
 	);
 
-	
 	# reduce speed according to rate of turn
 	# approximation of dv / v = exp (-deltaPhi / dragLiftRatio )
 	newV = vectorMultiply(
@@ -6861,9 +6894,9 @@ var pidController = func (thisWeapon, angle, setpoint, measurement)
     return (pid.out);
 
 }
-############################ range ##############################
+############################ normaliseAngle ##############################
 # helper func to manage circular variables
- var range = func(angle)
+ var normaliseAngle = func(angle)
  {
 	if (angle <= -PI) return (angle + TWOPI);
 	if (angle > PI) return (angle - TWOPI);
@@ -6882,7 +6915,7 @@ var pidControllerCircular = func (thisWeapon, angle, setpoint, measurement)
 	var pid = thisWeapon.pidData[angle];
 
 	# Error signal
-	var error = range ( setpoint - measurement );
+	var error = normaliseAngle ( setpoint - measurement );
 
 	# Proportional
     var proportional = pid.Kp * error;
@@ -6890,7 +6923,7 @@ var pidControllerCircular = func (thisWeapon, angle, setpoint, measurement)
 
 	# Integral
     pid.integrator = pid.integrator + 0.5 * pid.Ki * pid.delta_t * ( error + pid.prevError );
-	pid.integrator = range (pid.integrator);
+	pid.integrator = normaliseAngle (pid.integrator);
 
 	# Anti-wind-up via integrator clamping 
     if (pid.integrator > pid.limMaxInt) 
@@ -6910,7 +6943,7 @@ var pidControllerCircular = func (thisWeapon, angle, setpoint, measurement)
 
 
 	# Compute output and apply limits
-    pid.out = range ( proportional + pid.integrator + pid.differentiator );
+    pid.out = normaliseAngle ( proportional + pid.integrator + pid.differentiator );
 
 	# Store error and measurement for later use 
     pid.prevError       = error;
@@ -9766,31 +9799,44 @@ var rocket_init_func = func (thisWeapon, rocketCount)
 			thisWeapon["flightPath"] = fp;
 
 			# set-up parameters for PID controller - PID values are reset on rocket launch
-			var pidVals = {
-				Kp: 0.5,
-				Ki: 0.005,
-				Kd: 0.0,
-				limMaxInt: 0.0 , # Integrator limits to be set below
-				limMinInt: 0.0 ,
-				tau: 0.25 , # Derivative low-pass filter time constant secs
-				limMax: LOOP_TIME * thisWeapon.rateOfTurn_degps * D2R , # maxRate turn
-				limMin: 0.0 ,
-				differentiator: 0.0 ,
-				integrator: 0.0 ,
-				prevError: 0.0 ,
-				prevMeasurement: 0.0 ,
-				out: 0.0	
-			}; # template
-
-			pidVals.limMin = - pidVals.limMax;
-			pidVals.limMaxInt = pidVals.limMax * 0.75;
-			pidVals.limMinInt = - pidVals.limMaxInt;
+			var maxLimit = LOOP_TIME * thisWeapon.rateOfTurn_degps * D2R; # maxRate turn
 
 			thisWeapon["pidData"] = 
+			{
+				phi:
 				{
-					phi: pidVals,
-					theta: pidVals
-				}; # variables for PID controller for missile direction
+					Kp: 0.5,
+					Ki: 0.005,
+					Kd: 0.0,
+					limMaxInt: maxLimit * 0.75 , # Integrator limits to be set below
+					limMinInt: -maxLimit * 0.75 ,
+					tau: 0.25 , # Derivative low-pass filter time constant secs
+					limMax: maxLimit ,
+					limMin: -maxLimit ,
+					differentiator: 0.0 ,
+					integrator: 0.0 ,
+					prevError: 0.0 ,
+					prevMeasurement: 0.0 ,
+					out: 0.0 ,	
+				} ,
+				theta:
+				{
+					Kp: 0.5,
+					Ki: 0.005,
+					Kd: 0.0,
+					limMaxInt: maxLimit * 0.75 , # Integrator limits to be set below
+					limMinInt: -maxLimit * 0.75 ,
+					tau: 0.25 , # Derivative low-pass filter time constant secs
+					limMax: maxLimit ,
+					limMin: -maxLimit ,
+					differentiator: 0.0 ,
+					integrator: 0.0 ,
+					prevError: 0.0 ,
+					prevMeasurement: 0.0 ,
+					out: 0.0 ,	
+				} ,
+			};
+			
 			# setprop ("" ~ myNodeName ~ "/" ~ elem ~ "/Kp", thisWeapon.pid.Kp); # for testing
 			# setprop ("" ~ myNodeName ~ "/" ~ elem ~ "/Ki", thisWeapon.pid.Ki); # for testing
 			# setprop ("" ~ myNodeName ~ "/" ~ elem ~ "/Kd", thisWeapon.pid.Kd); # for testing
