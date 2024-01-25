@@ -6444,31 +6444,40 @@ var guideRocket = func
 	# 	}
 	# }
 
+
+	# low speed turns are limited by control surfaces; high speed turns by max allowed G force
+	var maxTurnRate = 0.7; # rad per sec
+
 	var noTurn = 0;
-	# no turn if too soon or too slow 
+	# no turn if too soon 
 	if ( flightTime < 1.5 ) noTurn = 1;
 	
 	# update pid controller limits on turn rate
 	var speedFactor = missileSpeed_mps / thisWeapon.minTurnSpeed_mps ;
+	var speedX = 4.0; # multiple of minimum missile speed at which reach the maxTurnRate
 	if (speedFactor < 1.0) 
 	{
 		noTurn = 1;
 	}
-	elsif (speedFactor < 2.0) 
+	elsif (speedFactor < speedX) 
 	{
-		thisWeapon.pidData.phi.maxLimit = thisWeapon.maxG / thisWeapon.minTurnSpeed_mps * (speedFactor - 1.0) * LOOP_TIME ; 
-		thisWeapon.pidData.phi.minLimit = -thisWeapon.pidData.phi.maxLimit;
+		thisWeapon.pidData.phi.limMax = maxTurnRate * (speedFactor - 1.0) / (speedX - 1.0) * delta_t ; 
+		thisWeapon.pidData.phi.limMin = -thisWeapon.pidData.phi.limMax;
+	}
+	elsif (maxTurnRate * missileSpeed_mps < thisWeapon.maxG)
+	{
+		thisWeapon.pidData.phi.limMax = maxTurnRate * delta_t;
+		thisWeapon.pidData.phi.limMin = -thisWeapon.pidData.phi.limMax;
 	}
 	else
 	{
-		thisWeapon.pidData.phi.maxLimit = thisWeapon.maxG / newMissileSpeed_mps * LOOP_TIME;
-		thisWeapon.pidData.phi.minLimit = -thisWeapon.pidData.phi.maxLimit;
+		thisWeapon.pidData.phi.limMax = thisWeapon.maxG / missileSpeed_mps * delta_t;
+		thisWeapon.pidData.phi.limMin = -thisWeapon.pidData.phi.limMax;
 	}
 
-	var newDir = changeDirection(thisWeapon, missileDir, interceptDirRefFrame, flightTime, missileSpeed_mps, noTurn ) ; 
+	var newDir = changeDirection( thisWeapon, missileDir, interceptDirRefFrame, flightTime, missileSpeed_mps, noTurn ) ; 
 	# var turnRad = math.acos (dotProduct (newDir , missileDir));
 	var turnRad = (noTurn) ? 0 : thisWeapon.pidData.phi.out;
-
 
 	# creates set of intermediate positions in wayPoint hash
 	# incremental change in position given by vector newMissileDir * time_inc
@@ -6519,10 +6528,10 @@ var guideRocket = func
 	var newHeading = math.atan2(newMissileDir[0], newMissileDir[1]) * R2D;
 	debprint(
 		sprintf(
-		"Pitch = %8.3f Heading_ = %8.3f Speed_ = %8.3f rate of turn = %8.3f",
+		"Pitch = %8.3f Heading = %8.3f Spd_mps = %8.3f rate of turn = %8.3f",
 		newPitch,
 		newHeading,
-		newMissileSpeed_mps * MPS2KT,
+		newMissileSpeed_mps,
 		turnRad / delta_t * R2D
 		)
 	);
@@ -6921,6 +6930,15 @@ var pidControllerCircular = func (thisWeapon, angle, setpoint, measurement)
 
 	# Compute output and apply limits
     pid.out = normaliseAngle ( proportional + pid.integrator + pid.differentiator );
+
+	if (pid.out > pid.limMax) 
+	{
+        pid.out = pid.limMax;
+    } 
+	elsif (pid.out < pid.limMin) 
+	{
+        pid.out = pid.limMin;
+    }
 
 	# Store error and measurement for later use 
     pid.prevError       = error;
