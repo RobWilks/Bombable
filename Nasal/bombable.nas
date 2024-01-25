@@ -104,7 +104,7 @@ var debprint = func {
 }
 
 
-###############################
+############## round #################
 # returns round to nearest whole number
 var round = func (a ) return int (a+0.5);
 
@@ -120,7 +120,7 @@ var normdeg180 = func(angle) {
 	return angle;
 }
 
-###########################################################
+############################ check_overall_initialized ###############################
 # Checks whether nodeName has been overall-initialized yet
 # if so, returns 1
 # if not, returns 0 and sets nodeName ~ /bombable/overall-initialized to true
@@ -6144,12 +6144,6 @@ var launchRocket = func (myNodeName, elem, delta_t)
 
 	pidControllerInit (thisWeapon, "phi", delta_t);
 	pidControllerInit (thisWeapon, "theta", delta_t);
-	# thisWeapon.pid.Kp =
-	# getprop ("" ~ myNodeName ~ "/" ~ elem ~ "/Kp"); # for testing
-	# thisWeapon.pid.Ki =
-	# getprop ("" ~ myNodeName ~ "/" ~ elem ~ "/Ki"); # for testing
-	# thisWeapon.pid.Kd =
-	# getprop ("" ~ myNodeName ~ "/" ~ elem ~ "/Kd"); # for testing
 		
 	# put extra smoke / flash on launch pad
 	startSmoke ("blaze", rp, "AI/Aircraft/Fire-Particles/blaze-particles.xml" ); 
@@ -6205,7 +6199,6 @@ var guideRocket = func
 
 	thisWeapon.aim.pHit = 0;
 	var flightTime = getprop (rp ~ "/controls/flightTime");
-	var AoA = 15.0 * D2R;
 
 	var alat_deg = getprop(rp ~ "/position/latitude-deg"); # AI
 	var alon_deg = getprop(rp ~ "/position/longitude-deg");
@@ -6469,7 +6462,7 @@ var guideRocket = func
 	# if (nextTurn > maxTurn_rad) nextTurn = maxTurn_rad;
 	# if (nextTurn < -maxTurn_rad) nextTurn = -maxTurn_rad;
 
-	var newDir = changeDirection(thisWeapon, missileDir, interceptDirRefFrame, flightTime, AoA) ; 
+	var newDir = changeDirection(thisWeapon, missileDir, interceptDirRefFrame, flightTime) ; 
 	var turnRad = math.acos (dotProduct (newDir , missileDir));
 
 	# # only turn if speed sufficient
@@ -6551,6 +6544,13 @@ var guideRocket = func
 
 	thisWeapon.counter += 1;
 
+	# update pid control of turn rate
+	if ( math.mod(thisWeapon.counter, 5) == 0 )
+	{
+		thisWeapon.pidData.phi.maxLimit = thisWeapon.maxG / newMissileSpeed_mps * LOOP_TIME;
+		thisWeapon.pidData.phi.minLimit = -thisWeapon.pidData.phi.maxLimit;
+	}
+
 	if ( math.mod(thisWeapon.counter, 8) == 0 )
 	{
 		var msg = "AI rocket from " ~ 
@@ -6592,28 +6592,17 @@ var guideRocket = func
 # returns new direction of velocity vector
 # using only the thrust to change the velocity vector did not give sufficient control
 
-var changeDirection = func (thisWeapon, missileDir, interceptDir, flightTime, AoA)
+var changeDirection = func (thisWeapon, missileDir, interceptDir, flightTime)
 {
 	var theta1 = math.asin(missileDir[2]);
 	var theta2 = math.asin(interceptDir[2]);
 	var thetaNew = pidController (thisWeapon, "theta", theta2, theta1) + theta1;
 
-	# need an angle of attack to provide sufficient lift - thrust theta needs to exceed velocity theta  
-	var thrustTheta = thetaNew + AoA;
-	if (thrustTheta > PIBYTWO) 
-	{
-		thrustTheta = PIBYTWO;
-	}
-	elsif (thrustTheta < -PIBYTWO) 
-	{
-		thrustTheta = -PIBYTWO;
-	}
-
-
 	var phi1 = math.atan2(missileDir[0], missileDir[1]);
 	var phi2 = math.atan2(interceptDir[0], interceptDir[1]);
 	var deltaPhi = pidControllerCircular (thisWeapon, "phi", phi2, phi1);
 	var phiNew = deltaPhi + phi1;
+
 	debprint (
 		sprintf(
 			"Bombable: pid: theta =%8.3f int =%8.3f meas =%8.3f set =%8.3f err =%8.3f thrust theta =%8.3f",
@@ -6627,30 +6616,44 @@ var changeDirection = func (thisWeapon, missileDir, interceptDir, flightTime, Ao
 	);
 	debprint (
 		sprintf(
-			"Bombable: pid: phi =%8.3f int =%8.3f meas =%8.3f ",
+			"Bombable: pid: phi =%8.3f int =%8.3f meas =%8.3f set =%8.3f err =%8.3f",
 			phiNew,
 			thisWeapon.pidData.phi.integrator,
 			thisWeapon.pidData.phi.prevMeasurement,
 			phi2,
-			
+			thisWeapon.pidData.phi.prevError			
 		)
 	);
 
 	# no turn in early part of flight
 	if (flightTime < 2.0) return (missileDir);
 
-	thisWeapon.aim.thrustDir[0] = math.cos(thrustTheta) * math.sin(phiNew);
-	thisWeapon.aim.thrustDir[1] = math.cos(thrustTheta) * math.cos(phiNew);
-	thisWeapon.aim.thrustDir[2] = math.sin(thrustTheta);
-
-	return
-	(
+	var newDir =
 		[ 
 			math.cos(thetaNew) * math.sin(phiNew),
 			math.cos(thetaNew) * math.cos(phiNew),
 			math.sin(thetaNew)		
-		]
-	);
+		];
+
+	# if need to fly up add an angle of attack to provide lift  
+	if (theta2 > -PIBYSIX)
+	{
+		var thrustTheta = thetaNew + thisWeapon.AoA;
+		if (thrustTheta > PIBYTWO) 
+		{
+			thrustTheta = PIBYTWO;
+		}
+		thisWeapon.aim.thrustDir[0] = math.cos(thrustTheta) * math.sin(phiNew);
+		thisWeapon.aim.thrustDir[1] = math.cos(thrustTheta) * math.cos(phiNew);
+		thisWeapon.aim.thrustDir[2] = math.sin(thrustTheta);
+	}
+	else
+	{
+		thisWeapon.aim.thrustDir = newDir;
+	}
+
+
+	return ( newDir );
 }
 
 ############################ newVelocity ##############################
@@ -9744,6 +9747,18 @@ var weapons_init_func = func(myNodeName) {
 						
 						
 }
+
+############################## clamp ##############################
+# clamps value of a between minA and maxA
+# returns clamped value
+
+var clamp = func(a, minA, maxA)
+{
+	if (a < minA) return (minA) ;
+	if (a > maxA) return (maxA) ;
+	return (a) ;
+}
+
 ############################## rocket_init_func ##############################
 # rockets are a special type of weapon (type = 1) requiring extra initialisation
 # thisWeapon is a pointer to the attributes hash
@@ -9766,11 +9781,17 @@ var rocket_init_func = func (thisWeapon, rocketCount)
 
 			thisWeapon["dragTerm"] = thisWeapon["missileAcceleration2_mpss"] / thisWeapon["maxMissileSpeed_mps"] / thisWeapon["maxMissileSpeed_mps"]; # drag force = dragTerm * speed^2
 
-			if (thisWeapon["rateOfTurn_degps"] == nil) thisWeapon["rateOfTurn_degps"] = 40.0;
-
+			if (thisWeapon["maxG"] == nil) thisWeapon["maxG"] = 400.0;
+			thisWeapon.maxG = clamp (thisWeapon.maxG, 200.0, 400.0);
+			
+			if (thisWeapon["AoA"] == nil) thisWeapon["AoA"] = 15.0 * D2R; # angle of attack to maximise lift, typically between 10 and 15 degrees
+			thisWeapon.AoA = clamp (thisWeapon.AoA, 0.0, 15.0 * D2R);
+			
 			if (thisWeapon["minTurnSpeed_mps"] == nil) thisWeapon["minTurnSpeed_mps"] = 200.0 * KT2MPS;
+			thisWeapon.minTurnSpeed_mps = clamp (thisWeapon.minTurnSpeed_mps, 50.0, 100.0);
 
 			if (thisWeapon["liftDragRatio"] == nil) thisWeapon["liftDragRatio"] = 1.33;
+			thisWeapon.liftDragRatio = clamp (thisWeapon.liftDragRatio, 0.8, 1.5);
 
 			# set-up buffer to store intermediate positions of rocket
 			var wayPoint = {lon:0, lat:0, alt:0, pitch:0, heading:0}; # template
@@ -9780,16 +9801,15 @@ var rocket_init_func = func (thisWeapon, rocketCount)
 
 			var fp = [];
 			setsize(fp, N_STEPS);
-
 			forindex(var i; fp)
 				fp[i] = new_wayPoint(); # flight pathvector used to store intermediate rocket locations
 
 				
 			thisWeapon["flightPath"] = fp;
 
-			# set-up parameters for PID controller - PID values are reset on rocket launch
-			var maxLimit = LOOP_TIME * thisWeapon.rateOfTurn_degps * D2R; # maxRate turn
+			var maxLimit = LOOP_TIME * 40.0 * D2R; # initial value for maxRate turn 
 
+			# set-up parameters for PID controller - PID values are reset on rocket launch
 			var pidVals = 
 			{
 				Kp: 0.5,
@@ -9818,46 +9838,6 @@ var rocket_init_func = func (thisWeapon, rocketCount)
 			};
 			thisWeapon.pidData.theta = new_pidVals();
 			thisWeapon.pidData.phi = new_pidVals();
-
-			# thisWeapon["pidData"] = 
-			# {
-			# 	phi:
-			# 	{
-			# 		Kp: 0.5,
-			# 		Ki: 0.005,
-			# 		Kd: 0.0,
-			# 		limMaxInt: maxLimit * 0.75 , # Integrator limits to be set below
-			# 		limMinInt: -maxLimit * 0.75 ,
-			# 		tau: 0.25 , # Derivative low-pass filter time constant secs
-			# 		limMax: maxLimit ,
-			# 		limMin: -maxLimit ,
-			# 		differentiator: 0.0 ,
-			# 		integrator: 0.0 ,
-			# 		prevError: 0.0 ,
-			# 		prevMeasurement: 0.0 ,
-			# 		out: 0.0 ,	
-			# 	} ,
-			# 	theta:
-			# 	{
-			# 		Kp: 0.5,
-			# 		Ki: 0.005,
-			# 		Kd: 0.0,
-			# 		limMaxInt: maxLimit * 0.75 , # Integrator limits to be set below
-			# 		limMinInt: -maxLimit * 0.75 ,
-			# 		tau: 0.25 , # Derivative low-pass filter time constant secs
-			# 		limMax: maxLimit ,
-			# 		limMin: -maxLimit ,
-			# 		differentiator: 0.0 ,
-			# 		integrator: 0.0 ,
-			# 		prevError: 0.0 ,
-			# 		prevMeasurement: 0.0 ,
-			# 		out: 0.0 ,	
-			# 	} ,
-			# };
-			
-			# setprop ("" ~ myNodeName ~ "/" ~ elem ~ "/Kp", thisWeapon.pid.Kp); # for testing
-			# setprop ("" ~ myNodeName ~ "/" ~ elem ~ "/Ki", thisWeapon.pid.Ki); # for testing
-			# setprop ("" ~ myNodeName ~ "/" ~ elem ~ "/Kd", thisWeapon.pid.Kd); # for testing
 
 			thisWeapon["atomic"] = 0; # flag to control access
 
@@ -10056,6 +10036,7 @@ var fps2knots = 1/knots2fps;
 var grav_fpss = 32.174;
 var grav_mpss = grav_fpss * feet2meters;
 var PIBYTWO = math.pi / 2.0;
+var PIBYSIX = math.pi / 6.0;
 var TWOPI = math.pi * 2.0;
 var PI = math.pi;
 var bomb_menu_pp = "/bombable/menusettings/";
