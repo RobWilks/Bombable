@@ -2919,7 +2919,7 @@ var ground_loop = func( id, myNodeName ) {
 			setprop(""~myNodeName~"/velocities/true-airspeed-kt", 0);
 			setprop(""~myNodeName~"/velocities/vertical-speed-fps", 0);
 			if (type == "groundvehicle") deleteSmoke("pistonexhaust", myNodeName); # could set a timer here; smoke from ship?
-			debprint("Bombable:  Ground loop terminated for ",myNodeName);
+			debprint("Bombable: Ground loop terminated for ",myNodeName);
 			
 			return;
 		}
@@ -6109,8 +6109,7 @@ var launchRocket = func (myNodeName, elem, delta_t)
 	# at launch the missile is not oriented with the direction of travel
 	# from ships or groundvehicles rockets are launched from tubes creating an initial vertical velocity
 
-	var lengthTube = 6.5; # 1.5 x length of rocket
-	var vVert = math.sqrt(2.0 * thisWeapon.missileAcceleration1_mpss * lengthTube); # v^2 = u^2 + 2*a*s
+	var vVert = math.sqrt(2.0 * thisWeapon.missileAcceleration1_mpss * thisWeapon.lengthTube); # v^2 = u^2 + 2*a*s
 	
 	thisWeapon.aim.velocity = vectorSum 
 		(
@@ -6126,7 +6125,7 @@ var launchRocket = func (myNodeName, elem, delta_t)
 			]		
 		);
 
-	thisWeapon.aim.thrustDir = [0, 0, 1];
+	thisWeapon.aim.thrustDir = thisWeapon.aim.weaponDirRefFrame;
 
 	# rocket initiated by moving it from {lat, lon} {0, 0} to location of AC / ship
 	var rp = "ai/models/static[" ~ thisWeapon.rocketsIndex ~ "]";
@@ -6445,35 +6444,44 @@ var guideRocket = func
 	# }
 
 
-	# low speed turns are limited by control surfaces; high speed turns by max allowed G force
-	var maxTurnRate = 0.7; # rad per sec
 
 	var noTurn = 0;
+	var turnRate = 0.0;
 	# no turn if too soon 
-	if ( flightTime < 1.5 ) noTurn = 1;
-	
-	# update pid controller limits on turn rate
-	var speedFactor = missileSpeed_mps / thisWeapon.minTurnSpeed_mps ;
-	var speedX = 4.0; # multiple of minimum missile speed at which reach the maxTurnRate
-	if (speedFactor < 1.0) 
+	if ( flightTime < thisWeapon.timeNoTurn ) 
 	{
 		noTurn = 1;
 	}
-	elsif (speedFactor < speedX) 
-	{
-		thisWeapon.pidData.phi.limMax = maxTurnRate * (speedFactor - 1.0) / (speedX - 1.0) * delta_t ; 
-		thisWeapon.pidData.phi.limMin = -thisWeapon.pidData.phi.limMax;
-	}
-	elsif (maxTurnRate * missileSpeed_mps < thisWeapon.maxG)
-	{
-		thisWeapon.pidData.phi.limMax = maxTurnRate * delta_t;
-		thisWeapon.pidData.phi.limMin = -thisWeapon.pidData.phi.limMax;
-	}
 	else
-	{
-		thisWeapon.pidData.phi.limMax = thisWeapon.maxG / missileSpeed_mps * delta_t;
-		thisWeapon.pidData.phi.limMin = -thisWeapon.pidData.phi.limMax;
+	{	
+		var speedFactor = missileSpeed_mps / thisWeapon.minTurnSpeed_mps ;
+		if (speedFactor < 1.0) 
+		{
+			noTurn = 1;
+		}
+		else
+		{
+			if (speedFactor < thisWeapon.speedX) 
+			{
+				turnRate = thisWeapon.maxTurnRate * (speedFactor - 1.0) / (thisWeapon.speedX - 1.0) * delta_t ; 
+			}
+			else
+			{
+				turnRate = thisWeapon.maxTurnRate;
+			}
+			
+			if (turnRate * missileSpeed_mps > thisWeapon.maxG)
+			{
+				tunrRate = thisWeapon.maxG / missileSpeed_mps;
+			}
+		}
 	}
+
+	# update pid controller limits on turn rate
+	thisWeapon.pidData.phi.limMax = turnRate * delta_t;
+	thisWeapon.pidData.phi.limMin = -thisWeapon.pidData.phi.limMax;
+	thisWeapon.pidData.theta.limMax = thisWeapon.pidData.phi.limMax / 2.0; # vertical turn rate is half the horizontal one
+	thisWeapon.pidData.theta.limMin = -thisWeapon.pidData.theta.limMax; # and symmetric
 
 	var newDir = changeDirection( thisWeapon, missileDir, interceptDirRefFrame, flightTime, missileSpeed_mps, noTurn ) ; 
 	# var turnRad = math.acos (dotProduct (newDir , missileDir));
@@ -9762,91 +9770,117 @@ var clamp = func(a, minA, maxA)
 	return (a) ;
 }
 
+############################## rocketParmCheck ##############################
+# checks rocket parameters supplied by user in include file for AI object carrying rockets
+# low speed turns are limited by control surfaces; high speed turns by max allowed G force
+
+var rocketParmCheck = func( thisWeapon )
+{
+	var weaponVars =
+	[
+		{name: "missileAcceleration1_mpss",			default: 15.0,		lowerBound: 11.0,		upperBound: 30.0		}, # thrust per unit mass stage 1 - units m per sec per sec
+		{name: "burn1",								default: 2.0,		lowerBound: 1.0,		upperBound: 20.0		}, # burn time of first rocket stage in sec
+		{name: "missileAcceleration2_mpss",			default: 0.0,		lowerBound: 0.0,		upperBound: 3600.0		}, # thrust per unit mass stage 2 - second stage optional
+		{name: "burn2",								default: 0.0,		lowerBound: 0.0,		upperBound: 3600.0		}, # burn time of second rocket stage in sec
+		{name: "maxMissileSpeed_mps",				default: 330.0,		lowerBound: 300.0,		upperBound: 1200.0		}, # determines drag factor
+		{name: "minTurnSpeed_mps",					default: 30.0,		lowerBound: 25.0,		upperBound: 50.0		}, # turn disabled below this speed - regime I
+		{name: "speedX",							default: 4.0,		lowerBound: 2.0,		upperBound: 10.0		}, # multiple of minTurnSpeed when maxTurnRate achieved - turn rate increases linearly with speed in regime II
+		{name: "maxTurnRate",						default: 30.0*D2R,	lowerBound: 20.0*D2R,	upperBound: 45.0*D2R	}, # turn rate is constant in regime III
+		{name: "maxG",								default: 300.0,		lowerBound: 200.0,		upperBound: 400.0		}, # maximum G force the missile can withstand in mps limiting turn rate at high speeds - turn rate varies inversely with speed in regime IV
+		{name: "AoA",								default: 13.0*D2R,	lowerBound: 10.0*D2R,	upperBound: 15.0*D2R	}, # angle of attack to maximise lift, typically between 10 and 15 degrees turn disabled below this speed - dependent on whether missile has vectored thrust
+		{name: "liftDragRatio",						default: 1.0,		lowerBound: 0.8,		upperBound: 1.5			},
+		{name: "timeNoTurn",						default: 1.5,		lowerBound: 0.0,		upperBound: 3.0			}, # seconds after launch when not possible to turn
+		{name: "lengthTube",						default: 3.0,		lowerBound: 0.0,		upperBound: 10.0		}, # length of launch tube or guide rail
+	];
+
+	print("init rocket now");
+	forindex(i; weaponVars) 
+	{
+		if (thisWeapon[weaponVars[i].name] == nil) 
+		{
+			thisWeapon[weaponVars[i].name] = weaponVars[i].default;
+			debprint ("Bombable: " ~ thisWeapon.name ~ weaponVars[i].name ~ " set to " ~ weaponVars[i].default);
+		}
+		thisWeapon[weaponVars[i].name] = clamp
+		(
+			thisWeapon[weaponVars[i].name],
+			weaponVars[i].lowerBound,
+			weaponVars[i].upperBound			
+		);
+		print(weaponVars[i].name, thisWeapon[weaponVars[i].name]);
+	}
+
+	return () ;
+}
+
+
 ############################## rocket_init_func ##############################
 # rockets are a special type of weapon (type = 1) requiring extra initialisation
 # thisWeapon is a pointer to the attributes hash
+# two sets of parameters:  user supplied and internal
 
 var rocket_init_func = func (thisWeapon, rocketCount)
-{
-			if (thisWeapon["missileAcceleration1_mpss"] == nil) thisWeapon["missileAcceleration1_mpss"] = 1.1 * grav_mpss;
-			# acceleration of missile during flight - units m per sec per sec
+{			
+	# check parameters supplied by user
+	rocketParmCheck( thisWeapon ); 
 
-			if (thisWeapon["burn1"] == nil) thisWeapon["burn1"] = 2.0;
-			# burn time of first rocket stage in sec 
+	# set-up internal parameters
 
-			if (thisWeapon["missileAcceleration2_mpss"] == nil) thisWeapon["missileAcceleration2_mpss"] = 1.1 * grav_mpss;
-			# second stage
+	thisWeapon["totalBurnTime"] = thisWeapon["burn1"] + thisWeapon["burn2"];
 
-			if (thisWeapon["burn2"] == nil) thisWeapon["burn2"] = 0.0;
-			# burn time of second rocket stage in sec 
+	thisWeapon["dragTerm"] = thisWeapon["missileAcceleration2_mpss"] / thisWeapon["maxMissileSpeed_mps"] / thisWeapon["maxMissileSpeed_mps"]; # drag force = dragTerm * speed^2
+	
+	# set-up buffer to store intermediate positions of rocket
+	var wayPoint = {lon:0, lat:0, alt:0, pitch:0, heading:0}; # template
+	var new_wayPoint = func {
+		return {parents:[wayPoint] };
+		}
 
-			thisWeapon["totalBurnTime"] = thisWeapon["burn1"] + thisWeapon["burn2"];
+	var fp = [];
+	setsize(fp, N_STEPS);
+	forindex(var i; fp)
+		fp[i] = new_wayPoint(); # flight pathvector used to store intermediate rocket locations
 
-			thisWeapon["dragTerm"] = thisWeapon["missileAcceleration2_mpss"] / thisWeapon["maxMissileSpeed_mps"] / thisWeapon["maxMissileSpeed_mps"]; # drag force = dragTerm * speed^2
+		
+	thisWeapon["flightPath"] = fp;
 
-			if (thisWeapon["maxG"] == nil) thisWeapon["maxG"] = 400.0;
-			thisWeapon.maxG = clamp (thisWeapon.maxG, 200.0, 400.0);
-			
-			if (thisWeapon["AoA"] == nil) thisWeapon["AoA"] = 15.0 * D2R; # angle of attack to maximise lift, typically between 10 and 15 degrees
-			thisWeapon.AoA = clamp (thisWeapon.AoA, 0.0, 15.0 * D2R);
-			
-			if (thisWeapon["minTurnSpeed_mps"] == nil) thisWeapon["minTurnSpeed_mps"] = 150.0;
-			thisWeapon.minTurnSpeed_mps = clamp (thisWeapon.minTurnSpeed_mps, 50.0, 200.0);
+	var maxLimit = LOOP_TIME * 40.0 * D2R; # initial value for maxRate turn 
 
-			if (thisWeapon["liftDragRatio"] == nil) thisWeapon["liftDragRatio"] = 1.33;
-			thisWeapon.liftDragRatio = clamp (thisWeapon.liftDragRatio, 0.8, 1.5);
+	# set-up parameters for PID controller - PID values are reset on rocket launch
+	var pidVals = 
+	{
+		Kp: 0.5,
+		Ki: 0.005,
+		Kd: 0.0,
+		limMaxInt: maxLimit * 0.75 , # Integrator limits to be set below
+		limMinInt: -maxLimit * 0.75 ,
+		tau: 0.25 , # Derivative low-pass filter time constant secs
+		limMax: maxLimit ,
+		limMin: -maxLimit ,
+		differentiator: 0.0 ,
+		integrator: 0.0 ,
+		prevError: 0.0 ,
+		prevMeasurement: 0.0 ,
+		out: 0.0 ,	
+	};
+	var new_pidVals = func 
+	{
+		return {parents:[pidVals] };
+	}
 
-			# set-up buffer to store intermediate positions of rocket
-			var wayPoint = {lon:0, lat:0, alt:0, pitch:0, heading:0}; # template
-			var new_wayPoint = func {
-				return {parents:[wayPoint] };
-				}
+	thisWeapon["pidData"] = 
+	{
+		phi: [], 
+		theta: [],
+	};
+	thisWeapon.pidData.theta = new_pidVals();
+	thisWeapon.pidData.phi = new_pidVals();
 
-			var fp = [];
-			setsize(fp, N_STEPS);
-			forindex(var i; fp)
-				fp[i] = new_wayPoint(); # flight pathvector used to store intermediate rocket locations
+	thisWeapon["atomic"] = 0; # flag to control access
 
-				
-			thisWeapon["flightPath"] = fp;
+	thisWeapon["rocketsIndex"] = rocketCount;
 
-			var maxLimit = LOOP_TIME * 40.0 * D2R; # initial value for maxRate turn 
-
-			# set-up parameters for PID controller - PID values are reset on rocket launch
-			var pidVals = 
-			{
-				Kp: 0.5,
-				Ki: 0.005,
-				Kd: 0.0,
-				limMaxInt: maxLimit * 0.75 , # Integrator limits to be set below
-				limMinInt: -maxLimit * 0.75 ,
-				tau: 0.25 , # Derivative low-pass filter time constant secs
-				limMax: maxLimit ,
-				limMin: -maxLimit ,
-				differentiator: 0.0 ,
-				integrator: 0.0 ,
-				prevError: 0.0 ,
-				prevMeasurement: 0.0 ,
-				out: 0.0 ,	
-			};
-			var new_pidVals = func 
-			{
-				return {parents:[pidVals] };
-			}
-
-			thisWeapon["pidData"] = 
-			{
-				phi: [], 
-				theta: [],
-			};
-			thisWeapon.pidData.theta = new_pidVals();
-			thisWeapon.pidData.phi = new_pidVals();
-
-			thisWeapon["atomic"] = 0; # flag to control access
-
-			thisWeapon["rocketsIndex"] = rocketCount;
-
-			thisWeapon["counter"] = 0; # counts calls to guideRocket
+	thisWeapon["counter"] = 0; # counts calls to guideRocket
 }
 
 
