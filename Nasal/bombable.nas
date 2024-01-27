@@ -6310,7 +6310,7 @@ var guideRocket = func
 
 			return (0);
 		}
-		elsif (closestApproach < (4.0 * attributes[myNodeName2].dimensions.crashRadius_m ))
+		elsif (closestApproach < (4.0 * attributes[myNodeName2].dimensions.damageRadius_m ))
 		{
 			var msg = "Near miss from " ~ 
 			thisWeapon.name ~ " fired from " ~ 
@@ -6351,7 +6351,7 @@ var guideRocket = func
 	
 
 
-	# find newDir the direction required for a missile travelling at missileSpeed (constant over journey)
+	# find the direction required for a missile travelling at missileSpeed (constant over journey)
 	# to intercept the target given the relative velocities of node1 and node2
 	# calculate the angle between the direction in which the rocket is travelling and newDir
 
@@ -6405,61 +6405,20 @@ var guideRocket = func
 	);
 
 	
-	# ground avoidance
-	if ( aAlt_m - ground_Alt_m < -missileDir[2] * missileSpeed_mps * delta_t) 
-	{
-		interceptDirRefFrame = [0, 0, 1];
-		debprint (
-			sprintf(
-				"Bombable: ground avoidance: AGL =%8.1f Vertical speed =%8.1f mps",
-				aAlt_m - ground_Alt_m,
-				missileDir[2] * missileSpeed_mps * delta_t 
-			)
-		);	
-	}
 
 
 
-	# #rotate up to 10 degrees to the target direction
-	# var maxTurn_rad = delta_t * thisWeapon.rateOfTurn_degps * D2R; 
-	# var maxTurn = math.cos(maxTurn_rad); 
-	# var nextTurn = 0;
-	# var minTurn = 0.9999; # equivalent to 1 deg
-
-	# # calculate angular offset between direction of missile and direction of target
-	# var cosOffset = dotProduct(missileDir, interceptDirRefFrame);
-	# if (cosOffset > minTurn) cosOffset = 1.0; # get math.acos errors if dotproduct ~ 1
-
-	# # trap - if travelling opposite to the direction of the target then the direction to turn is ill-defined
-	# if (cosOffset < -maxTurn) {
-	# 	if (distance_m > missileSpeed_mps / maxTurn_rad * delta_t)
-	# 	{
-	# 		interceptDirRefFrame = rotate_round_z_axis ( interceptDirRefFrame, (1.0 - 2.0 * (rand() > 0.5)) * math.pi/12 );# +/- 15 degree rotation about z-axis
-	# 		debprint ("Bombable: vectorRotate trap");
-	# 	}
-	# 	else
-	# 	{
-	# 		cosOffset = 1.0; # delay til a turn radius away from target
-	# 	}
-	# }
+	# calculate angular offset between direction of missile and direction of target
 
 
 
-	var noTurn = 0;
 	var turnRate = 0.0;
-	# no turn if too soon 
-	if ( flightTime < thisWeapon.timeNoTurn ) 
-	{
-		noTurn = 1;
-	}
-	else
+# no turn if too soon 
+	if ( flightTime > thisWeapon.timeNoTurn ) 
 	{	
+		# only turn if above minimum speed 
 		var speedFactor = missileSpeed_mps / thisWeapon.minTurnSpeed_mps ;
-		if (speedFactor < 1.0) 
-		{
-			noTurn = 1;
-		}
-		else
+		if (speedFactor > 1.0) 
 		{
 			if (speedFactor < thisWeapon.speedX) 
 			{
@@ -6472,7 +6431,37 @@ var guideRocket = func
 			
 			if (turnRate * missileSpeed_mps > thisWeapon.maxG)
 			{
-				tunrRate = thisWeapon.maxG / missileSpeed_mps;
+				turnRate = thisWeapon.maxG / missileSpeed_mps;
+			}
+
+			# ground avoidance
+			if ( aAlt_m - ground_Alt_m < -2.0 * missileDir[2] * missileSpeed_mps * delta_t) 
+			{
+				interceptDirRefFrame = [0, 0, 1];
+				debprint (
+					sprintf(
+						"Bombable: ground avoidance: AGL =%8.1f Vertical speed =%8.1f mps",
+						aAlt_m - ground_Alt_m,
+						missileDir[2] * missileSpeed_mps * delta_t 
+					)
+				);	
+			}
+			else
+			# if travelling opposite to the direction of the target then delay the turn to avoid encircling the target
+			{
+			var cosOffset = dotProduct(missileDir, interceptDirRefFrame);
+			if (cosOffset < -0.95) # 162 deg
+				{
+					if (distance_m * turnRate > 4.0 * missileSpeed_mps)
+					{
+						interceptDirRefFrame = rotate_round_z_axis ( interceptDirRefFrame, (1.0 - 2.0 * (rand() > 0.5)) * math.pi/12 );# +/- 15 degree rotation about z-axis
+						debprint ("Bombable: vectorRotate trap");
+					}
+					else
+					{
+						turnRate = 0.0; # no turn if too close to the target
+					}
+				}
 			}
 		}
 	}
@@ -6480,12 +6469,13 @@ var guideRocket = func
 	# update pid controller limits on turn rate
 	thisWeapon.pidData.phi.limMax = turnRate * delta_t;
 	thisWeapon.pidData.phi.limMin = -thisWeapon.pidData.phi.limMax;
-	thisWeapon.pidData.theta.limMax = thisWeapon.pidData.phi.limMax / 2.0; # vertical turn rate is half the horizontal one
+	thisWeapon.pidData.theta.limMax = thisWeapon.pidData.phi.limMax * 0.75; # vertical turn rate is smaller than the horizontal one
 	thisWeapon.pidData.theta.limMin = -thisWeapon.pidData.theta.limMax; # and symmetric
 
-	var newDir = changeDirection( thisWeapon, missileDir, interceptDirRefFrame, flightTime, missileSpeed_mps, noTurn ) ; 
+	# convoluted only call changeDirection if turnRate > 0?
+	var newDir = changeDirection( thisWeapon, missileDir, interceptDirRefFrame, flightTime, missileSpeed_mps, turnRate ) ; 
 	# var turnRad = math.acos (dotProduct (newDir , missileDir));
-	var turnRad = (noTurn) ? 0 : thisWeapon.pidData.phi.out;
+	var turnRad = (turnRate == 0) ? 0 : thisWeapon.pidData.phi.out;
 
 	# creates set of intermediate positions in wayPoint hash
 	# incremental change in position given by vector newMissileDir * time_inc
@@ -6595,7 +6585,7 @@ var guideRocket = func
 # using only the thrust to change the velocity vector did not give sufficient control
 # noTurn is a flag to allow the PID to init early in flight when no turn permitted
 
-var changeDirection = func ( thisWeapon, missileDir, interceptDir, flightTime, missileSpeed_mps, noTurn )
+var changeDirection = func ( thisWeapon, missileDir, interceptDir, flightTime, missileSpeed_mps, turnRate )
 {
 	var theta1 = math.asin(missileDir[2]);
 	var theta2 = math.asin(interceptDir[2]);
@@ -6627,8 +6617,7 @@ var changeDirection = func ( thisWeapon, missileDir, interceptDir, flightTime, m
 		)
 	);
 
-	# no turn in early part of flight
-	if ( noTurn ) return (missileDir);
+	if ( turnRate == 0 ) return (missileDir);
 
 	var newDir =
 		[ 
@@ -9793,13 +9782,12 @@ var rocketParmCheck = func( thisWeapon )
 		{name: "lengthTube",						default: 3.0,		lowerBound: 0.0,		upperBound: 10.0		}, # length of launch tube or guide rail
 	];
 
-	print("init rocket now");
 	forindex(i; weaponVars) 
 	{
 		if (thisWeapon[weaponVars[i].name] == nil) 
 		{
 			thisWeapon[weaponVars[i].name] = weaponVars[i].default;
-			debprint ("Bombable: " ~ thisWeapon.name ~ weaponVars[i].name ~ " set to " ~ weaponVars[i].default);
+			debprint ("Bombable: " ~ thisWeapon.name ~ " " ~ weaponVars[i].name ~ " set to " ~ weaponVars[i].default);
 		}
 		thisWeapon[weaponVars[i].name] = clamp
 		(
@@ -9807,7 +9795,6 @@ var rocketParmCheck = func( thisWeapon )
 			weaponVars[i].lowerBound,
 			weaponVars[i].upperBound			
 		);
-		print(weaponVars[i].name, thisWeapon[weaponVars[i].name]);
 	}
 
 	return () ;
@@ -9849,8 +9836,8 @@ var rocket_init_func = func (thisWeapon, rocketCount)
 	# set-up parameters for PID controller - PID values are reset on rocket launch
 	var pidVals = 
 	{
-		Kp: 0.5,
-		Ki: 0.005,
+		Kp: 0.7,
+		Ki: 0.002,
 		Kd: 0.0,
 		limMaxInt: maxLimit * 0.75 , # Integrator limits to be set below
 		limMinInt: -maxLimit * 0.75 ,
