@@ -6109,7 +6109,7 @@ var launchRocket = func (myNodeName, elem, delta_t)
 	# at launch the missile is not oriented with the direction of travel
 	# from ships or groundvehicles rockets are launched from tubes creating an initial vertical velocity
 
-	var vVert = math.sqrt(2.0 * thisWeapon.missileAcceleration1_mpss * thisWeapon.lengthTube); # v^2 = u^2 + 2*a*s
+	var vVert = math.sqrt(2.0 * thisWeapon.thrust1_N * thisWeapon.lengthTube / thisWeapon.mass); # v^2 = u^2 + 2*a*s
 	
 	thisWeapon.aim.velocity = vectorSum 
 		(
@@ -6143,6 +6143,9 @@ var launchRocket = func (myNodeName, elem, delta_t)
 
 	pidControllerInit (thisWeapon, "phi", delta_t);
 	pidControllerInit (thisWeapon, "theta", delta_t);
+
+	# initialise air density at rocket altitude
+	updateAirDensity (thisWeapon, alt_ft);
 		
 	# put extra smoke / flash on launch pad
 	startSmoke ("blaze", rp, "AI/Aircraft/Fire-Particles/blaze-particles.xml" ); 
@@ -6204,7 +6207,9 @@ var guideRocket = func
 	var aAlt_m = getprop(rp ~ "/position/altitude-ft") * FT2M;
 	var missileSpeed_mps = getprop(rp ~ "/velocities/true-airspeed-kt") * KT2MPS;
 	var missileDir = vectorDivide ( thisWeapon.aim.velocity, missileSpeed_mps );
-	var a_delta_dist = missileSpeed_mps * delta_t; #distance missile travels over this stage which is divided into N_STEPS
+	var a_delta_dist = missileSpeed_mps * delta_t; # distance missile travels over this stage which is divided into N_STEPS
+
+	if (math.abs (aAlt_m - thisWeapon.lastAlt_m) > 200.0) updateAirDensity (thisWeapon, aAlt_m);
 
 	var mlat_deg = getprop("" ~ myNodeName2 ~ "/position/latitude-deg"); # main AC
 	var mlon_deg = getprop("" ~ myNodeName2 ~ "/position/longitude-deg");
@@ -6480,7 +6485,7 @@ var guideRocket = func
 	# creates set of intermediate positions in wayPoint hash
 	# incremental change in position given by vector newMissileDir * time_inc
 	# newMissileDir changes each time increment
-	var newV = newVelocity( thisWeapon, missileSpeed_mps, newDir, interceptDirRefFrame, turnRad, delta_t, flightTime );
+	var newV = newVelocity( thisWeapon, missileSpeed_mps, newDir, interceptDirRefFrame, turnRad, delta_t, flightTime, aAlt_m );
 	var newMissileSpeed_mps = vectorModulus (newV);
 	var newMissileDir = vectorDivide ( newV, newMissileSpeed_mps );
 	
@@ -6655,60 +6660,59 @@ var changeDirection = func ( thisWeapon, missileDir, interceptDir, flightTime, m
 # it may not be aligned with the thrust vector
 # func returns new velocity
 
-var newVelocity = func (thisWeapon, missileSpeed_mps, missileDir, interceptDir, deltaPhi, delta_t, flight_time)
+var newVelocity = func (thisWeapon, missileSpeed_mps, missileDir, interceptDir, deltaPhi, delta_t, flight_time, alt_m )
 {
 
-	var thrust = 0.0; # acceleration from thrust
+	var thrust = 0.0;
 	if ( flight_time < thisWeapon.burn1 )
 	{ 
-		thrust = thisWeapon.missileAcceleration1_mpss;
+		thrust = thisWeapon.thrust1_N;
 	}
 	elsif ( flight_time < thisWeapon.totalBurnTime )
 	{
-		thrust = thisWeapon.missileAcceleration2_mpss; # second stage of rocket
+		thrust = thisWeapon.thrust2_N; # second stage of rocket
 	}
 
-	var drag = missileSpeed_mps * missileSpeed_mps * thisWeapon.dragTerm;
+	var cD0 = zeroLiftDrag (thisWeapon, flight_time, alt_m, missileSpeed_mps);
+	var axialForce = thisWeapon.rhoAby2 * cD0 * missileSpeed_mps * missileSpeed_mps; # component of drag acting along the missile axis
+	var normalForce = axialForce * thisWeapon.cN / cD0; # magnitude of force acting at 90 degrees to missile axis
 
-	var cosAngleOfAttack = math.abs( dotProduct ( missileDir, thisWeapon.aim.thrustDir ));
-	var cosStallAngle = math.cos( 30.0 * D2R);
-	var lift = (cosAngleOfAttack > cosStallAngle) ? drag * thisWeapon.liftDragRatio : 0.0; # lift is a fixed multiple of drag within stall angles
-
+	# calculate net force
 	var hdg = math.atan2 ( thisWeapon.aim.thrustDir[0], thisWeapon.aim.thrustDir[1] );
-	var liftVector = vectorMultiply(
+	var normalForceVector = vectorMultiply(
 		[
 			- thisWeapon.aim.thrustDir[2] * math.sin (hdg),
 			- thisWeapon.aim.thrustDir[2] * math.cos (hdg),
-			math.cos ( math.asin(thisWeapon.aim.thrustDir[2]) ) # lift is always upwards
+			math.cos ( math.asin(thisWeapon.aim.thrustDir[2]) )
 		],
-		drag * thisWeapon.liftDragRatio # lift is a fixed multiple of drag
+		normalForce
 	); 
 
 	debprint (
 		sprintf(
 			"Bombable: lift vector =[%8.3f, %8.3f, %8.3f]",
-			liftVector[0], liftVector[1], liftVector[2] 
+			normalForceVector[0], normalForceVector[1], normalForceVector[2] 
 		)
 	);
 	# thrust minus drag plus lift
-	var force = vectorSum
+	var netForce = vectorSum
 	(
 		vectorMultiply
 		( 
 		thisWeapon.aim.thrustDir, 
-		thrust - drag
+		thrust - axialForce
 		),
-		liftVector
+		normalForceVector
 	);
 
 	# minus weight
-	force[2] -= grav_mpss; # adding weight
+	netForce[2] -= thisWeapon.mass * grav_mpss; # adding weight
 
 	# calculate resultant acceleration and change in velocity over delta_t
 	var deltaV = 
 	vectorMultiply(
-		force,
-		delta_t
+		netForce,
+		delta_t / thisWeapon.mass
 	);
 
 	var newV =
@@ -6720,11 +6724,12 @@ var newVelocity = func (thisWeapon, missileSpeed_mps, missileDir, interceptDir, 
 		deltaV
 	);
 
+	var liftDragRatio = (cN - cD0 * thisWeapon.AoA) / (cN * thisWeapon.AoA + cD0); # small angle approximation for AoA
 	# reduce speed according to rate of turn
 	# approximation of dv / v = exp (-deltaPhi / dragLiftRatio )
 	newV = vectorMultiply(
 		newV,
-		1.0 - math.abs(deltaPhi) / thisWeapon.liftDragRatio 
+		1.0 - math.abs(deltaPhi) / liftDragRatio 
 		);
 
 	debprint (
@@ -6945,6 +6950,151 @@ var pidControllerCircular = func (thisWeapon, angle, setpoint, measurement)
     return (pid.out);
 
 }
+############################ air density ##############################
+# FUNCTION return air density in kg m^-3 at rocket altitude
+# from https://eng.libretexts.org/Bookshelves/Aerospace_Engineering/Fundamentals_of_Aerospace_Engineering_(Arnedo)/02%3A_Generalities/2.03%3A_Standard_atmosphere/2.3.03%3A_ISA_equations
+# altitude (h) is in metres above sea level
+# two regimes 0 < h < 11000m the troposphere and
+# 11000m <= h < 20000m the near stratosphere
+
+var airDensity = func (h)
+{
+	if (h < 11000)
+	{
+		return
+		(
+			1.225 * math.pow( 1 - 22.558e-6 * h, 4.2559)
+		);
+	}
+	else
+	{
+		return
+		(
+			0.3639 * math.exp(-157.69e-6 * (h - 11000))
+
+		);
+	}
+}
+
+############################ update air density ##############################
+# FUNCTION updates air density for a weapon given its height above sea level in ft
+# the calculated air density is then used to update the drag/lift term 0.5 * rho * Aeff
+# at zero lift the drag is equal to the axial force
+
+var updateAirDensity = func (thisWeapon, alt_m)
+{
+	thisWeapon.airDensity = airDensity ( alt_m );
+	thisWeapon.lastAlt_m = alt_m;
+	thisWeapon.rhoAby2 = 0.5 * thisWeapon.airDensity * thisWeapon.area;
+	return();
+}
+
+############################ speed sound ##############################
+# FUNCTION return speed of sound in mps at rocket altitude
+# see https://en.wikipedia.org/wiki/Speed_of_sound
+
+var speedSound = func (h)
+{
+	var speedSoundSeaLevel = 340; # mps
+	var speedSound11000m = 295; # mps
+	if (h < 11000)
+	{
+		return
+		(
+			speedSoundSeaLevel + h / 11000 * (speedSound11000m - speedSoundSeaLevel)
+		);
+	}
+	else
+	{
+		return ( speedSound11000m );
+	}
+}
+
+############################ zeroLiftDrag ##############################
+# FUNCTION return zero lift drag coefficient at rocket Mach number
+# accounts for reduction of drag caused by rocket plume 
+# zero lift data from Khalil et al
+# DOI: 10.1177/0954410018797882
+# Mach number calculated from speed of sound at missile altitude
+
+var zeroLiftDrag = func (thisWeapon, flight_time, alt_m, missileSpeed_mps)
+{
+	var intervalData = 0.2;
+
+	if (flight_time > thisWeapon.totalBurnTime)
+	{
+		var cD_data =
+			[
+			0.4009,
+			0.3878,
+			0.3691,
+			0.3597,
+			0.4,
+			0.6803,
+			0.6822,
+			0.6316,
+			0.5791,
+			0.5416,
+			0.5106,
+			0.4853,
+			0.4591,
+			0.4403,
+			0.4216,
+			0.4084
+			];
+	}
+	else
+	{
+		var cD_data =
+			[
+			0.3222,
+			0.3091,
+			0.2884,
+			0.2809,
+			0.3409,
+			0.5997,
+			0.6016,
+			0.5547,
+			0.5097,
+			0.4759,
+			0.4497,
+			0.4272,
+			0.4103,
+			0.3953,
+			0.3803,
+			0.3653
+			];
+	}
+	var sizeData = size(cD_data) - 1;
+	var maxVal = sizeData * intervalData;
+	var mach = missileSpeed_mps / speedSound (alt_m);
+	if (mach > maxVal) mach = maxVal; # could extrapolate here
+	var index = math.floor (mach / intervalData);
+	var delta = mach - index;
+	return
+	(
+		(cD_data[index] * (intervalData - delta) + cD_data[index+1] * delta) / intervalData;
+	);
+
+}
+
+############################ cN ##############################
+# FUNCTION calculate coefficient of normal force
+# given an angle of attack
+# from Eugene Fleeman, Tactical Missile Design
+
+var cN = func( thisWeapon )
+{
+	var length = 13.0; # multiple of diameter for missile used in Khalil ref
+	var diameter = 1.0;
+	var alpha = thisWeapon.AoA;
+	return
+	(
+		math.sin(2.0*alpha) * math.cos(alpha/2.0) + 2.0 * length / diameter * math.sin(alpha) * math.sin(alpha)
+	);
+}
+
+
 ##########################################################
 # CLASS stores
 # singleton class to hold methods for filling, depleting,
@@ -9767,19 +9917,20 @@ var rocketParmCheck = func( thisWeapon )
 {
 	var weaponVars =
 	[
-		{name: "missileAcceleration1_mpss",			default: 15.0,		lowerBound: 11.0,		upperBound: 30.0		}, # thrust per unit mass stage 1 - units m per sec per sec
+		{name: "thrust1_N",							default: 20000,		lowerBound: 15000,		upperBound: 30000		}, # thrust in Newtons stage 1
 		{name: "burn1",								default: 2.0,		lowerBound: 1.0,		upperBound: 20.0		}, # burn time of first rocket stage in sec
-		{name: "missileAcceleration2_mpss",			default: 0.0,		lowerBound: 0.0,		upperBound: 3600.0		}, # thrust per unit mass stage 2 - second stage optional
+		{name: "thrust2_N",							default: 5000,		lowerBound: 2000,		upperBound: 10000		}, # thrust in Newtons stage 2 - second stage optional
 		{name: "burn2",								default: 0.0,		lowerBound: 0.0,		upperBound: 3600.0		}, # burn time of second rocket stage in sec
+		{name: "mass",								default: 500.0,		lowerBound: 200.0,		upperBound: 1000.0		}, # burn time of second rocket stage in sec
 		{name: "maxMissileSpeed_mps",				default: 330.0,		lowerBound: 300.0,		upperBound: 1200.0		}, # determines drag factor
 		{name: "minTurnSpeed_mps",					default: 30.0,		lowerBound: 25.0,		upperBound: 50.0		}, # turn disabled below this speed - regime I
 		{name: "speedX",							default: 4.0,		lowerBound: 2.0,		upperBound: 10.0		}, # multiple of minTurnSpeed when maxTurnRate achieved - turn rate increases linearly with speed in regime II
 		{name: "maxTurnRate",						default: 30.0*D2R,	lowerBound: 20.0*D2R,	upperBound: 45.0*D2R	}, # turn rate is constant in regime III
 		{name: "maxG",								default: 300.0,		lowerBound: 200.0,		upperBound: 400.0		}, # maximum G force the missile can withstand in mps limiting turn rate at high speeds - turn rate varies inversely with speed in regime IV
 		{name: "AoA",								default: 13.0*D2R,	lowerBound: 10.0*D2R,	upperBound: 15.0*D2R	}, # angle of attack to maximise lift, typically between 10 and 15 degrees turn disabled below this speed - dependent on whether missile has vectored thrust
-		{name: "liftDragRatio",						default: 1.0,		lowerBound: 0.8,		upperBound: 1.5			},
 		{name: "timeNoTurn",						default: 1.5,		lowerBound: 0.0,		upperBound: 3.0			}, # seconds after launch when not possible to turn
 		{name: "lengthTube",						default: 3.0,		lowerBound: 0.0,		upperBound: 10.0		}, # length of launch tube or guide rail
+		{name: "area",								default: 0.04,		lowerBound: 0.0225,		upperBound: 0.09		}, # effective area of rocket in metres squared; note length to diameter is fixed
 	];
 
 	forindex(i; weaponVars) 
@@ -9815,8 +9966,8 @@ var rocket_init_func = func (thisWeapon, rocketCount)
 
 	thisWeapon["totalBurnTime"] = thisWeapon["burn1"] + thisWeapon["burn2"];
 
-	thisWeapon["dragTerm"] = thisWeapon["missileAcceleration2_mpss"] / thisWeapon["maxMissileSpeed_mps"] / thisWeapon["maxMissileSpeed_mps"]; # drag force = dragTerm * speed^2
-	
+	# init rho
+
 	# set-up buffer to store intermediate positions of rocket
 	var wayPoint = {lon:0, lat:0, alt:0, pitch:0, heading:0}; # template
 	var new_wayPoint = func {
