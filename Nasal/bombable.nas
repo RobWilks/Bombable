@@ -216,7 +216,6 @@ var mpreceive = func (mpMessageNode) {
 
 var put_ballistic_model = func(myNodeName = "/ai/models/aircraft", path = "AI/Aircraft/Fire-Particles/fast-particles.xml") {
 
-	#debprint ("Bombable: setprop 149");
 	# "environment" means the main aircraft
 	#if (myNodeName == "/environment" or myNodeName == "environment") myNodeName = "";
 
@@ -359,7 +358,6 @@ var start_terrain_fire = func ( lat_deg, lon_deg, alt_m = 0, ballisticMass_lb = 
 
 var put_tied_model = func(myNodeName = "", path = "AI/Aircraft/Fire-Particles/Fire-Particles.xml ") {
 
-	#debprint ("Bombable: setprop 174");
 	# "environment" means the main aircraft
 	#if (myNodeName == "/environment" or myNodeName == "environment") myNodeName = "";
 
@@ -2639,7 +2637,6 @@ var addAltitude_ft = func  (myNodeName, altAdd_ft = 40 , time = 1 ) {
 	elapsed = getprop(""~myNodeName~"/position/addAltitude_elapsed");
 	if (elapsed == nil) elapsed = 0;
 	elapsed +=  loopTime;
-	#debprint ("Bombable: setprop 4257");
 	setprop(""~myNodeName~"/position/addAltitude_elapsed", elapsed);
 			
 			
@@ -2649,10 +2646,8 @@ var addAltitude_ft = func  (myNodeName, altAdd_ft = 40 , time = 1 ) {
 	#if (elapsed == 0) setprop (""~myNodeName~"/position/addAltitude_starting_alt_ft", currAlt_ft )
 	#else var startAlt_ft = getprop (""~myNodeName~"/position/addAltitude_starting_alt_ft");
 			
-	#debprint ("Bombable: setprop 1284");
 	setprop (""~myNodeName~"/position/altitude-ft", currAlt_ft+altAdd_ft * loopTime/time);
 			
-	#debprint ("Bombable: setprop 1287");
 	if (elapsed < time) settimer (func { addAltitude_ft (myNodeName,altAdd_ft,time)}, loopTime);
 			
 	else setprop(""~myNodeName~"/position/addAltitude_elapsed", 0 );
@@ -6257,7 +6252,7 @@ var guideRocket = func
 	var ground_Alt_m = elev (GeoCoord.lat(), GeoCoord.lon()) * FT2M; 
 	if (ground_Alt_m > aAlt_m) 
 	{
-		debprint ("Bombable: checkAGL for ",  myNodeName1 , "/" , elem , "deltaAlt = ", ground_Alt_m - aAlt_m);
+		# debprint ("Bombable: checkAGL for ",  myNodeName1 , "/" , elem , "deltaAlt = ", ground_Alt_m - aAlt_m);
 
 		var msg = thisWeapon.name ~ " from " ~ 
 		getprop ("" ~ myNodeName1 ~ "/name") ~ 
@@ -6388,34 +6383,7 @@ var guideRocket = func
 		var interceptDirRefFrame = vectorMultiply( targetDispRefFrame, 1.0 / distance_m );
 	}
 
-	debprint (
-		sprintf(
-			"Bombable: intercept time =%8.1f Intercept vector =[%8.3f, %8.3f, %8.3f]",
-			thisWeapon.aim.interceptTime, interceptDirRefFrame[0], interceptDirRefFrame[1], interceptDirRefFrame[2] 
-		)
-	);
-
-	debprint (
-		sprintf(
-			"Bombable: thrust direction =[%8.3f, %8.3f, %8.3f]",
-			thisWeapon.aim.thrustDir[0], thisWeapon.aim.thrustDir[1], thisWeapon.aim.thrustDir[2] 
-		)
-	);
-
-	debprint (
-		sprintf(
-			"Bombable: missile direction =[%8.3f, %8.3f, %8.3f]",
-			missileDir[0], missileDir[1], missileDir[2] 
-		)
-	);
-
-	
-
-
-
 	# calculate angular offset between direction of missile and direction of target
-
-
 
 	var turnRate = 0.0;
 # no turn if too soon 
@@ -6443,13 +6411,13 @@ var guideRocket = func
 			if ( aAlt_m - ground_Alt_m < -2.0 * missileDir[2] * missileSpeed_mps * delta_t) 
 			{
 				interceptDirRefFrame = [0, 0, 1];
-				debprint (
-					sprintf(
-						"Bombable: ground avoidance: AGL =%8.1f Vertical speed =%8.1f mps",
-						aAlt_m - ground_Alt_m,
-						missileDir[2] * missileSpeed_mps * delta_t 
-					)
-				);	
+				# debprint (
+				# 	sprintf(
+				# 		"Bombable: ground avoidance: AGL =%8.1f Vertical speed =%8.1f mps",
+				# 		aAlt_m - ground_Alt_m,
+				# 		missileDir[2] * missileSpeed_mps * delta_t 
+				# 	)
+				# );	
 			}
 			else
 			# if travelling opposite to the direction of the target then delay the turn to avoid encircling the target
@@ -6460,7 +6428,7 @@ var guideRocket = func
 					if (distance_m * turnRate > 4.0 * missileSpeed_mps)
 					{
 						interceptDirRefFrame = rotate_round_z_axis ( interceptDirRefFrame, (1.0 - 2.0 * (rand() > 0.5)) * math.pi/12 );# +/- 15 degree rotation about z-axis
-						debprint ("Bombable: vectorRotate trap");
+						# debprint ("Bombable: vectorRotate trap");
 					}
 					else
 					{
@@ -6514,37 +6482,14 @@ var guideRocket = func
 
 	settimer ( func{ moveRocket (myNodeName1, elem, 0, N_STEPS, time_inc )}, 0 ); # first step called immediately
 
-	debprint (
-		sprintf(
-			"Bombable: newMissileDir vector =[%8.3f, %8.3f, %8.3f]",
-			newMissileDir[0], newMissileDir[1], newMissileDir[2] 
-		)
-	);
-
-	var newAlt_ft = ( aAlt_m + deltaAlt ) * M2FT;
-
 	# updates speed and orientation of AI model of rocket
 	# pitch and heading are updated to their final positions in this section
 	# the rocket position and orientation are forced to follow the calculated rocket flightpath
 
 	var newPitch = math.asin(newMissileDir[2]) * R2D;
 	var newHeading = math.atan2(newMissileDir[0], newMissileDir[1]) * R2D;
-	debprint(
-		sprintf(
-		"Pitch = %8.3f Heading = %8.3f Spd_mps = %8.3f rate of turn = %8.3f",
-		newPitch,
-		newHeading,
-		newMissileSpeed_mps,
-		turnRad / delta_t * R2D
-		)
-	);
 
 	setprop (rp ~ "/velocities/true-airspeed-kt", newMissileSpeed_mps * MPS2KT);
-	# setprop (rp ~ "/controls/flight/target-spd", newMissileSpeed_mps * MPS2KT);
-	# setprop (rp ~ "/controls/flight/target-alt", newAlt_ft);
-	# setprop (rp ~ "/controls/flight/target-hdg", newHeading);
-
-
 
 	if ( math.mod(thisWeapon.counter, 8) == 0 )
 	{
@@ -6578,7 +6523,50 @@ var guideRocket = func
 		}
 
 	thisWeapon.counter += 1;
-	
+
+	# section to print flight stats to fgfs.log in C:\Users\userName\AppData\Roaming\flightgear.org
+
+	debprint (
+		sprintf(
+			"Bombable: co-ords: lon = %8.3f lat = %8.3f alt = %8.3f",
+			alon_deg + deltaLon, alat_deg + deltaLat, aAlt_m + deltaAlt
+		)
+	);
+
+	debprint (
+		sprintf(
+			"Bombable: intercept vector  =[%8.3f, %8.3f, %8.3f] intercept time =%8.1f",
+			interceptDirRefFrame[0], interceptDirRefFrame[1], interceptDirRefFrame[2],
+			thisWeapon.aim.interceptTime
+		)
+	);
+
+	debprint (
+		sprintf(
+			"Bombable: thrust direction  =[%8.3f, %8.3f, %8.3f]",
+			thisWeapon.aim.thrustDir[0], thisWeapon.aim.thrustDir[1], thisWeapon.aim.thrustDir[2] 
+		)
+	);
+
+	debprint (
+		sprintf(
+			"Bombable: missile direction =[%8.3f, %8.3f, %8.3f]",
+			newMissileDir[0], newMissileDir[1], newMissileDir[2] 
+		)
+	);
+
+	debprint(
+		sprintf(
+			"Bombable: time = %6.1f pitch = %8.3f heading = %8.3f spd_mps = %8.3f machNo = %6.2f rate of turn = %8.3f",
+			flightTime,
+			newPitch,
+			newHeading,
+			newMissileSpeed_mps,
+			newMissileSpeed_mps / thisWeapon.speedSound,
+			turnRad / delta_t * R2D
+		)
+	);
+
 	return (1);
 }
 
@@ -6601,26 +6589,26 @@ var changeDirection = func ( thisWeapon, missileDir, interceptDir, flightTime, m
 	var deltaPhi = pidControllerCircular (thisWeapon, "phi", phi2, phi1);
 	var phiNew = deltaPhi + phi1;
 
-	debprint (
-		sprintf(
-			"Bombable: pid: theta =%8.3f int =%8.3f meas =%8.3f set =%8.3f err =%8.3f",
-			thetaNew,
-			thisWeapon.pidData.theta.integrator,
-			thisWeapon.pidData.theta.prevMeasurement,
-			theta2,
-			thisWeapon.pidData.theta.prevError
-		)
-	);
-	debprint (
-		sprintf(
-			"Bombable: pid: phi =%8.3f int =%8.3f meas =%8.3f set =%8.3f err =%8.3f",
-			phiNew,
-			thisWeapon.pidData.phi.integrator,
-			thisWeapon.pidData.phi.prevMeasurement,
-			phi2,
-			thisWeapon.pidData.phi.prevError			
-		)
-	);
+	# debprint (
+	# 	sprintf(
+	# 		"Bombable: pid: theta =%8.3f int =%8.3f meas =%8.3f set =%8.3f err =%8.3f",
+	# 		thetaNew,
+	# 		thisWeapon.pidData.theta.integrator,
+	# 		thisWeapon.pidData.theta.prevMeasurement,
+	# 		theta2,
+	# 		thisWeapon.pidData.theta.prevError
+	# 	)
+	# );
+	# debprint (
+	# 	sprintf(
+	# 		"Bombable: pid: phi =%8.3f int =%8.3f meas =%8.3f set =%8.3f err =%8.3f",
+	# 		phiNew,
+	# 		thisWeapon.pidData.phi.integrator,
+	# 		thisWeapon.pidData.phi.prevMeasurement,
+	# 		phi2,
+	# 		thisWeapon.pidData.phi.prevError			
+	# 	)
+	# );
 
 	if ( turnRate == 0 ) return (missileDir);
 
@@ -6689,12 +6677,12 @@ var newVelocity = func (thisWeapon, missileSpeed_mps, missileDir, interceptDir, 
 		normalForce
 	); 
 
-	debprint (
-		sprintf(
-			"Bombable: lift vector =[%8.3f, %8.3f, %8.3f]",
-			normalForceVector[0], normalForceVector[1], normalForceVector[2] 
-		)
-	);
+	# debprint (
+	# 	sprintf(
+	# 		"Bombable: normal force vector =[%8.3f, %8.3f, %8.3f]",
+	# 		normalForceVector[0], normalForceVector[1], normalForceVector[2] 
+	# 	)
+	# );
 	# thrust minus drag plus lift
 	var netForce = vectorSum
 	(
@@ -6733,15 +6721,8 @@ var newVelocity = func (thisWeapon, missileSpeed_mps, missileDir, interceptDir, 
 		1.0 - math.abs(deltaPhi) / liftDragRatio 
 		);
 
-	debprint (
-		sprintf(
-			"Bombable: new velocity vector =[%8.3f, %8.3f, %8.3f]",
-			newV[0], newV[1], newV[2] 
-		)
-	);
-
 	return(newV);
-	}
+}
 
 ############################ moveRocket ##############################
 # moveRocket updates the position of the AI model
@@ -6987,6 +6968,7 @@ var updateAirDensity = func (thisWeapon, alt_m)
 	thisWeapon.airDensity = airDensity ( alt_m );
 	thisWeapon.lastAlt_m = alt_m;
 	thisWeapon.rhoAby2 = 0.5 * thisWeapon.airDensity * thisWeapon.area;
+	thisWeapon.speedSound = speedSound (alt_m);
 	return();
 }
 
@@ -7068,11 +7050,12 @@ var zeroLiftDrag = func (thisWeapon, flight_time, alt_m, missileSpeed_mps)
 	}
 	var sizeData = size(cD_data) - 1;
 	var maxVal = sizeData * intervalData;
-	var mach = missileSpeed_mps / speedSound (alt_m);
+	var mach = missileSpeed_mps / thisWeapon.speedSound;
 	if (mach > maxVal) mach = maxVal; # could extrapolate here
-	var index = math.floor (mach / intervalData);
-	var delta = mach - index;
-	thisWeapon.cD0 = (cD_data[index] * (intervalData - delta) + cD_data[index+1] * delta) / intervalData;
+	var index = mach / intervalData;
+	var intIndex = math.floor (index);
+	var delta = index - intIndex;
+	thisWeapon.cD0 = (cD_data[intIndex] * (intervalData - delta) + cD_data[intIndex+1] * delta) / intervalData;
 	return (thisWeapon.cD0);
 
 }
@@ -7673,7 +7656,6 @@ var attack_loop = func (id, myNodeName, looptime) {
 				
 	aircraftSetVertSpeed (myNodeName, targetAlt_m - currAlt_m, "evas" );
 				
-	#debprint ("Bombable: setprop 4275");
 	setprop(""~myNodeName~"/bombable/attributes/altitudes/targetAGL_ft", targetAGL_m * M2FT);
 	setprop(""~myNodeName~"/bombable/attributes/altitudes/targetAGL_m", targetAGL_m);
 	aircraftTurnToHeading ( myNodeName, courseToTarget_deg, roll_deg, targetAlt_m, atts.rollMax_deg, favor);
@@ -7858,7 +7840,6 @@ var aircraftTurnToHeadingControl = func (myNodeName, id, targetdegrees = 0, roll
 
 
 				
-	#debprint ("Bombable: setprop 2937");
 	#debprint ("Bombable: Setting roll-deg for ", myNodeName , " to ", targetRoll_deg, " 3086");
 	setprop (""~myNodeName~ "/orientation/roll-deg", targetRoll_deg);
 	setprop (""~myNodeName~ "/orientation/roll-deg-bombable", targetRoll_deg);
@@ -7904,7 +7885,6 @@ var aircraftTurnToHeadingControl = func (myNodeName, id, targetdegrees = 0, roll
 					
 	}
 				
-	#debprint ("2672 ", getprop (""~myNodeName~"/controls/flight/target-alt")) ;
 				
 	#debprint("Bombable: RollControl: delta = ",delta_deg, " ",targetRoll_deg," ", myNodeName);
 	# Make it roll:
@@ -7919,7 +7899,6 @@ var aircraftTurnToHeadingControl = func (myNodeName, id, targetdegrees = 0, roll
 		setprop(""~myNodeName~ "/orientation/rollTimeElapsed", 0);
 		#debprint ("Bombable: Ending aircraft turn-to-heading routine");
 		#aircraftRoll(myNodeName, 0, rolltime, roll_limit_deg);
-		#debprint ("Bombable: setprop 3008");
 		setprop(""~myNodeName~"/controls/flight/target-hdg", targetdegrees);
 	}
 }
@@ -8013,7 +7992,6 @@ var aircraftRollControl = func (myNodeName, id, rolldegrees = -90, rolltime = 5,
 				
 	#if (math.abs (currRoll_deg - targetRoll_deg) > 5) debprint ("Bombable: Changing roll: ", currRoll_deg - targetRoll_deg, " ", myNodeName, " 3238");
 				
-	#debprint ("Bombable: setprop 3071");
 	#debprint ("Bombable: Setting roll-deg for ", myNodeName , " to ", targetRoll_deg, " 3240");
 	setprop (""~myNodeName~ "/orientation/roll-deg", targetRoll_deg);
 				
@@ -10022,6 +10000,7 @@ var rocket_init_func = func (thisWeapon, rocketCount)
 	thisWeapon["airDensity"] = 0.0;
 	thisWeapon["lastAlt_m"] = 0.0;
 	thisWeapon["rhoAby2"] = 0.0;
+	thisWeapon["speedSound"] =0.0;
 
 
 }
