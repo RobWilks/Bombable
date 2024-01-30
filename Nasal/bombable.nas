@@ -6673,9 +6673,10 @@ var newVelocity = func (thisWeapon, missileSpeed_mps, missileDir, interceptDir, 
 		thrust = thisWeapon.thrust2_N; # second stage of rocket
 	}
 
-	var cD0 = zeroLiftDrag (thisWeapon, flight_time, alt_m, missileSpeed_mps);
+	var cD0 = zeroLiftDrag (thisWeapon, flight_time, alt_m, missileSpeed_mps); # note cD0, cN stored in attributes for debugging
+	var cN = cN(thisWeapon);
 	var axialForce = thisWeapon.rhoAby2 * cD0 * missileSpeed_mps * missileSpeed_mps; # component of drag acting along the missile axis
-	var normalForce = axialForce * thisWeapon.cN / cD0; # magnitude of force acting at 90 degrees to missile axis
+	var normalForce = axialForce * cN / cD0; # magnitude of force acting at 90 degrees to missile axis
 
 	# calculate net force
 	var hdg = math.atan2 ( thisWeapon.aim.thrustDir[0], thisWeapon.aim.thrustDir[1] );
@@ -7071,10 +7072,8 @@ var zeroLiftDrag = func (thisWeapon, flight_time, alt_m, missileSpeed_mps)
 	if (mach > maxVal) mach = maxVal; # could extrapolate here
 	var index = math.floor (mach / intervalData);
 	var delta = mach - index;
-	return
-	(
-		(cD_data[index] * (intervalData - delta) + cD_data[index+1] * delta) / intervalData;
-	);
+	thisWeapon.cD0 = (cD_data[index] * (intervalData - delta) + cD_data[index+1] * delta) / intervalData;
+	return (thisWeapon.cD0);
 
 }
 
@@ -7088,10 +7087,8 @@ var cN = func( thisWeapon )
 	var length = 13.0; # multiple of diameter for missile used in Khalil ref
 	var diameter = 1.0;
 	var alpha = thisWeapon.AoA;
-	return
-	(
-		math.sin(2.0*alpha) * math.cos(alpha/2.0) + 2.0 * length / diameter * math.sin(alpha) * math.sin(alpha)
-	);
+	thisWeapon.cN = math.sin(2.0*alpha) * math.cos(alpha/2.0) + 2.0 * length / diameter * math.sin(alpha) * math.sin(alpha);
+	return(thisWeapon.cN);
 }
 
 
@@ -10019,6 +10016,14 @@ var rocket_init_func = func (thisWeapon, rocketCount)
 	thisWeapon["rocketsIndex"] = rocketCount;
 
 	thisWeapon["counter"] = 0; # counts calls to guideRocket
+
+	thisWeapon["cN"] = 0;
+	thisWeapon["cD0"] = 0;
+	thisWeapon["airDensity"] = 0.0;
+	thisWeapon["lastAlt_m"] = 0.0;
+	thisWeapon["rhoAby2"] = 0.0;
+
+
 }
 
 
