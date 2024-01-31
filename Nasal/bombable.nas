@@ -6269,62 +6269,85 @@ var guideRocket = func
 	}	
 
 	if (distance_m < a_delta_dist)
-	{
-		var dp = dotProduct( missileDir, targetDispRefFrame );
-		var closestApproach = vectorModulus (
-			vectorSum (
-				targetDispRefFrame,
-				vectorMultiply(
-					missileDir,
-					-dp
-					)		
+	{	
+		var t_intercept  = 0;
+		if (distance_m < attributes[myNodeName2].dimensions.damageRadius_m)
+		{
+			var dV = vectorSubtract (mVelocity, thisWeapon.aim.velocity);
+			var dVdotR = dotProduct (targetDispRefFrame, dV);
+			var dV2 = dotProduct (dV, dV);
+			t_intercept  = dVdotR / dV2;
+		}
+		debprint (
+			sprintf(
+			"Bombable: time to intercept %5.2f", 
+			t_intercept
+			)
+		);
+		if ((t_intercept >= 0) and (t_intercept < delta_t))
+		{
+			var closestApproach2 = math.pow(
+				distance_m * distance_m - t_intercept * dVdotR,
+				0.5
+			);
+
+			var dp = dotProduct( missileDir, targetDispRefFrame );
+			var closestApproach = vectorModulus (
+				vectorSum (
+					targetDispRefFrame,
+					vectorMultiply(
+						missileDir,
+						-dp
+						)		
+					)
+				);
+
+			debprint (
+				sprintf(
+				"Bombable: closest approach for %s is static:%6.1f or dynamic:%6.1f", 
+				myNodeName1 ~ "/" ~ elem ,
+				closestApproach,
+				closestApproach2
 				)
 			);
 
-		debprint (
-			sprintf(
-			"Bombable: closest approach for %s is %8.3f", 
-			myNodeName1 ~ "/" ~ elem ,
-			closestApproach
-			)
-		);
-
-		if (closestApproach < attributes[myNodeName2].dimensions.damageRadius_m)
-		{
-			# message rocket hit from weapons_loop
-			thisWeapon.aim.pHit = 1.0 - closestApproach / attributes[myNodeName2].dimensions.damageRadius_m;
-
-			# run missile on to target
-			var steps_to_target = (dp > 0) ? math.ceil ( dp / step  ) : 0;
-			deltaXYZ = vectorMultiply (missileDir, step);
-
-
-			thisWeapon.atomic = 1; #to lock access
-			for (var i = 0; i < N_STEPS; i = i + 1) 
+			if (closestApproach2 < attributes[myNodeName2].dimensions.damageRadius_m)
 			{
-				if (i < steps_to_target)
+				# message rocket hit from weapons_loop
+				thisWeapon.aim.pHit = 1.0 - closestApproach2 / attributes[myNodeName2].dimensions.damageRadius_m;
+
+				# run missile on to target
+				var steps_to_target = (dp > 0) ? math.ceil ( dp / step  ) : 0;
+				deltaXYZ = vectorMultiply (missileDir, step);
+
+
+				thisWeapon.atomic = 1; #to lock access
+				for (var i = 0; i < N_STEPS; i = i + 1) 
 				{
-					deltaLon = deltaLon + deltaXYZ[0] / m_per_deg_lon;
-					deltaLat = deltaLat + deltaXYZ[1] / m_per_deg_lat;
-					deltaAlt = deltaAlt + deltaXYZ[2];
+					if (i < steps_to_target)
+					{
+						deltaLon = deltaLon + deltaXYZ[0] / m_per_deg_lon;
+						deltaLat = deltaLat + deltaXYZ[1] / m_per_deg_lat;
+						deltaAlt = deltaAlt + deltaXYZ[2];
+					}
+					thisWeapon.flightPath[i].lon = alon_deg + deltaLon;
+					thisWeapon.flightPath[i].lat = alat_deg + deltaLat;
+					thisWeapon.flightPath[i].alt = ( aAlt_m + deltaAlt ) * M2FT;
 				}
-				thisWeapon.flightPath[i].lon = alon_deg + deltaLon;
-				thisWeapon.flightPath[i].lat = alat_deg + deltaLat;
-				thisWeapon.flightPath[i].alt = ( aAlt_m + deltaAlt ) * M2FT;
+				thisWeapon.atomic = 0; #to unlock access
+
+				return (0);
 			}
-			thisWeapon.atomic = 0; #to unlock access
+			elsif (closestApproach2 < (2.0 * attributes[myNodeName2].dimensions.damageRadius_m ))
+			{
+				var msg = "Near miss from " ~ 
+				thisWeapon.name ~ " fired from " ~ 
+				getprop ("" ~ myNodeName1 ~ "/name")			;
 
-			return (0);
-		}
-		elsif (closestApproach < (4.0 * attributes[myNodeName2].dimensions.damageRadius_m ))
-		{
-			var msg = "Near miss from " ~ 
-			thisWeapon.name ~ " fired from " ~ 
-			getprop ("" ~ myNodeName1 ~ "/name")			;
+				targetStatusPopupTip (msg, 20);
 
-			targetStatusPopupTip (msg, 20);
-
-			debprint (msg);
+				debprint (msg);
+			}
 		}
 	}
 
@@ -6357,8 +6380,6 @@ var guideRocket = func
 	# to intercept the target given the relative velocities of node1 and node2
 	# calculate the angle between the direction in which the rocket is travelling and newDir
 
-
-
 	var intercept = findIntercept2(
 		targetDispRefFrame,
 		distance_m,
@@ -6388,7 +6409,7 @@ var guideRocket = func
 	# calculate angular offset between direction of missile and direction of target
 
 	var turnRate = 0.0;
-# no turn if too soon 
+	# no turn if too soon in flight
 	if ( flightTime > thisWeapon.timeNoTurn ) 
 	{	
 		# only turn if above minimum speed 
@@ -6422,35 +6443,43 @@ var guideRocket = func
 				# );	
 			}
 			else
-			# if travelling opposite to the direction of the target then delay the turn to avoid encircling the target
+			# only turn if space to do so, otherwise waste energy
+			# TODO make this a smooth reduction in size of turn?
 			{
 			var cosOffset = dotProduct(missileDir, interceptDirRefFrame);
+			var allowedTurn = distance_m * turnRate / missileSpeed_mps;
 			if (cosOffset < -0.95) # 162 deg
 				{
-					if (distance_m * turnRate > 4.0 * missileSpeed_mps)
-					{
-						interceptDirRefFrame = rotate_round_z_axis ( interceptDirRefFrame, (1.0 - 2.0 * (rand() > 0.5)) * math.pi/12 );# +/- 15 degree rotation about z-axis
-						# debprint ("Bombable: vectorRotate trap");
-					}
-					else
-					{
-						turnRate = 0.0; # no turn if too close to the target
-					}
+					if (allowedTurn < TWOPI * 2.0) turnRate = 0.0; 
+				}
+				elsif (cosOffset < 0)
+				{
+					if  (allowedTurn < TWOPI) turnRate = 0.0;
+				}
+				elsif (cosOffset < 0.5)
+				{
+					if  (allowedTurn < PI) turnRate = 0.0;
 				}
 			}
 		}
 	}
 
-	# update pid controller limits on turn rate
+	# update pid controller limits on size of turn
 	thisWeapon.pidData.phi.limMax = turnRate * delta_t;
 	thisWeapon.pidData.phi.limMin = -thisWeapon.pidData.phi.limMax;
 	thisWeapon.pidData.theta.limMax = thisWeapon.pidData.phi.limMax * 0.75; # vertical turn rate is smaller than the horizontal one
 	thisWeapon.pidData.theta.limMin = -thisWeapon.pidData.theta.limMax; # and symmetric
 
-	# convoluted only call changeDirection if turnRate > 0?
-	var newDir = changeDirection( thisWeapon, missileDir, interceptDirRefFrame, flightTime, missileSpeed_mps, turnRate ) ; 
-	# var turnRad = math.acos (dotProduct (newDir , missileDir));
-	var turnRad = (turnRate == 0) ? 0 : thisWeapon.pidData.phi.out;
+	if (turnRate != 0) 
+	{
+		var newDir = changeDirection( thisWeapon, missileDir, interceptDirRefFrame, flightTime, missileSpeed_mps, turnRate ) ; 
+		var turnRad = thisWeapon.pidData.phi.out;
+	}
+	else
+	{
+		var newDir = missileDir;
+		var turnRad = 0;
+	}
 
 	# creates set of intermediate positions in wayPoint hash
 	# incremental change in position given by vector newMissileDir * time_inc
@@ -6559,7 +6588,7 @@ var guideRocket = func
 
 	debprint(
 		sprintf(
-			"Bombable: time = %6.1f pitch = %8.3f heading = %8.3f spd_mps = %8.3f machNo = %6.2f rate of turn = %8.3f",
+			"Bombable: t = %6.1f pitch = %8.2f hdg = %8.2f spd_mps = %8.3f mach = %6.2f turnRate = %8.3f",
 			flightTime,
 			newPitch,
 			newHeading,
