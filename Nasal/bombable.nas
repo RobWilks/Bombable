@@ -2849,8 +2849,8 @@ var ground_loop = func( id, myNodeName ) {
 				
 		target_alt_AGL_ft = initial_altitude_ft - alt_ft - alts.wheelsOnGroundAGL_ft; 
 				
-		debprint (sprintf("Bombable: Initial Altitude:%6.0f Target AGL:%6.0f Object = %s", initial_altitude_ft, target_alt_AGL_ft, myNodeName));
-		debprint ("Bombable: ", alt_ft, " ", toRightAlt_ft, " ",toLeftAlt_ft, " ",toFrontAlt_ft," ", toLeftAlt_ft, " ", alts.wheelsOnGroundAGL_ft);
+		# debprint (sprintf("Bombable: Initial Altitude:%6.0f Target AGL:%6.0f Object = %s", initial_altitude_ft, target_alt_AGL_ft, myNodeName));
+		# debprint ("Bombable: ", alt_ft, " ", toRightAlt_ft, " ",toLeftAlt_ft, " ",toFrontAlt_ft," ", toLeftAlt_ft, " ", alts.wheelsOnGroundAGL_ft);
 		
 		if (type != "aircraft") 
 		{
@@ -6214,6 +6214,12 @@ var guideRocket = func
 	var mHeading = getprop(""~myNodeName2~"/orientation/"~addTrue~"heading-deg") * D2R;
 	var mSpeed = getprop(""~myNodeName2~"/velocities/"~addTrue~"airspeed-kt") * KT2MPS;
 	var m_delta_dist = mSpeed * delta_t;
+	var mVelocity =
+		[
+		math.cos ( mPitch ) * math.sin( mHeading ) * mSpeed,
+		math.cos ( mPitch ) * math.cos( mHeading ) * mSpeed,
+		math.sin ( mPitch ) * mSpeed
+		];
 
 	# variables used to calculate the new positions
 	var step = a_delta_dist / N_STEPS;
@@ -6325,26 +6331,22 @@ var guideRocket = func
 	# look ahead by assessing relative positions at next up date 
 
 	var deltaXYZ_weap = vectorMultiply(
-		missileDir,
-		a_delta_dist
+		thisWeapon.aim.velocity,
+		delta_t
 	);
 
 	var deltaXYZ_AC = vectorMultiply(
-		[
-		math.cos ( mPitch ) * math.sin( mHeading ),
-		math.cos ( mPitch ) * math.cos( mHeading ),
-		math.sin ( mPitch )
-		],
-		m_delta_dist
+		mVelocity,
+		delta_t
 	);
-
-	targetDispRefFrame = vectorSum(
-		targetDispRefFrame,
-		deltaXYZ_AC);
 
 	targetDispRefFrame = vectorSubtract(
 		targetDispRefFrame,
 		deltaXYZ_weap);
+
+	targetDispRefFrame = vectorSum(
+		targetDispRefFrame,
+		deltaXYZ_AC);
 
 	var distance_m = vectorModulus (targetDispRefFrame);
 
@@ -6358,10 +6360,10 @@ var guideRocket = func
 
 
 	var intercept = findIntercept2(
-		myNodeName1, myNodeName2, 
 		targetDispRefFrame,
 		distance_m,
-		thisWeapon.aim.velocity
+		thisWeapon.aim.velocity,
+		mVelocity
 	);
 
 	if (intercept.time != -1) 
@@ -6528,7 +6530,7 @@ var guideRocket = func
 
 	debprint (
 		sprintf(
-			"Bombable: co-ords: lon = %8.3f lat = %8.3f alt = %8.3f",
+			"Bombable: co-ords: lon = %8.4f lat = %8.4f alt = %8.4f",
 			alon_deg + deltaLon, alat_deg + deltaLat, aAlt_m + deltaAlt
 		)
 	);
@@ -7050,8 +7052,18 @@ var zeroLiftDrag = func (thisWeapon, flight_time, alt_m, missileSpeed_mps)
 	}
 	var sizeData = size(cD_data) - 1;
 	var maxVal = sizeData * intervalData;
+	var minVal = 0;
 	var mach = missileSpeed_mps / thisWeapon.speedSound;
-	if (mach > maxVal) mach = maxVal; # could extrapolate here
+	if (mach >= maxVal) 
+	{
+		thisWeapon.cD0 = cD_data[sizeData];
+		return (thisWeapon.cD0);
+	}
+	if (mach <= minVal) 
+	{
+		thisWeapon.cD0 = cD_data[0];
+		return (thisWeapon.cD0);
+	}
 	var index = mach / intervalData;
 	var intIndex = math.floor (index);
 	var delta = index - intIndex;
@@ -10915,24 +10927,9 @@ var findIntercept = func (myNodeName1, myNodeName2, displacement, dist_m, interc
 # as findIntercept except velocity1 supplied as argument
 # and speed of intercept is given by the mod of velocity1
 
-var findIntercept2 = func (myNodeName1, myNodeName2, displacement, dist_m, velocity1)
+var findIntercept2 = func (displacement, dist_m, velocity1, velocity2)
 {
 	var interceptSpeed = vectorModulus( velocity1 );
-	var addTrue = (TARGET_NODE == "") ? "" : "true-";
-	var speed2 = getprop(""~myNodeName2~"/velocities/"~addTrue~"airspeed-kt") * KT2MPS; # main AC
-	var speedVert2 = getprop(""~myNodeName2~"/velocities/vertical-speed-fps") * FT2M;
-	var heading2 = getprop(""~myNodeName2~"/orientation/"~addTrue~"heading-deg") * D2R;
-	var vxy2 = 0;
-	if (speed2 > math.abs(speedVert2)) {
-		# debprint(speedVert2," ",speed2);
-		var glideAngle2 = math.asin(speedVert2 / speed2);
-		vxy2 = speed2 * math.cos(glideAngle2);
-	}	
-	var velocity2 = [
-					vxy2 * math.sin(heading2),
-					vxy2 * math.cos(heading2),
-					speedVert2
-					];
 	var velocity21 = [
 					velocity2[0] - velocity1[0],
 					velocity2[1] - velocity1[1],
