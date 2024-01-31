@@ -6270,14 +6270,12 @@ var guideRocket = func
 
 	if (distance_m < a_delta_dist)
 	{	
-		var t_intercept  = 0;
-		if (distance_m < attributes[myNodeName2].dimensions.damageRadius_m)
-		{
-			var dV = vectorSubtract (mVelocity, thisWeapon.aim.velocity);
-			var dVdotR = dotProduct (targetDispRefFrame, dV);
-			var dV2 = dotProduct (dV, dV);
-			t_intercept  = dVdotR / dV2;
-		}
+		var dV = vectorSubtract (mVelocity, thisWeapon.aim.velocity);
+		var dVdotR = dotProduct (targetDispRefFrame, dV);
+		var dV2 = dotProduct (dV, dV);
+		var t_intercept  = dVdotR / dV2;
+		if ((distance_m < attributes[myNodeName2].dimensions.damageRadius_m)
+			and (t_intercept <0)) t_intercept = 0; # already reached closest approach
 		debprint (
 			sprintf(
 			"Bombable: time to intercept %5.2f", 
@@ -6317,8 +6315,8 @@ var guideRocket = func
 				thisWeapon.aim.pHit = 1.0 - closestApproach2 / attributes[myNodeName2].dimensions.damageRadius_m;
 
 				# run missile on to target
-				var steps_to_target = (dp > 0) ? math.ceil ( dp / step  ) : 0;
-				deltaXYZ = vectorMultiply (missileDir, step);
+				var steps_to_target = (t_intercept > 0) ? math.ceil ( t_intercept / time_inc  ) : 0;
+				deltaXYZ = vectorMultiply (thisWeapon.aim.velocity, time_inc);
 
 
 				thisWeapon.atomic = 1; #to lock access
@@ -6450,15 +6448,15 @@ var guideRocket = func
 			var allowedTurn = distance_m * turnRate / missileSpeed_mps;
 			if (cosOffset < -0.95) # 162 deg
 				{
-					if (allowedTurn < TWOPI * 2.0) turnRate = 0.0; 
+					if (allowedTurn < PI) turnRate = 0.0; 
 				}
 				elsif (cosOffset < 0)
 				{
-					if  (allowedTurn < TWOPI) turnRate = 0.0;
+					if  (allowedTurn < PIBYTWO) turnRate = 0.0;
 				}
 				elsif (cosOffset < 0.5)
 				{
-					if  (allowedTurn < PI) turnRate = 0.0;
+					if  (allowedTurn < PIBYTHREE) turnRate = 0.0;
 				}
 			}
 		}
@@ -6588,7 +6586,7 @@ var guideRocket = func
 
 	debprint(
 		sprintf(
-			"Bombable: t = %6.1f pitch = %8.2f hdg = %8.2f spd_mps = %8.3f mach = %6.2f turnRate = %8.3f",
+			"Bombable: t = %6.1f pitch = %6.1f hdg = %6.1f spd_mps = %8.2f mach = %6.1f turnRate = %6.2f",
 			flightTime,
 			newPitch,
 			newHeading,
@@ -10236,9 +10234,10 @@ var fps2knots = 1/knots2fps;
 var grav_fpss = 32.174;
 var grav_mpss = grav_fpss * feet2meters;
 var PIBYTWO = math.pi / 2.0;
+var PIBYTHREE = math.pi / 3.0;
 var PIBYSIX = math.pi / 6.0;
-var TWOPI = math.pi * 2.0;
 var PI = math.pi;
+var TWOPI = math.pi * 2.0;
 var bomb_menu_pp = "/bombable/menusettings/";
 var bombable_settings_file = getprop("/sim/fg-home") ~ "/state/bombable-startup-settings.xml";
 
