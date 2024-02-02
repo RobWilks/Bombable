@@ -6351,6 +6351,14 @@ var guideRocket = func
 
 	# look ahead by assessing relative positions at next up date 
 
+
+	var nextTargetVelocity =
+		[
+			2.0 * mVelocity[0] - thisWeapon.aim.lastTargetVelocity[0],
+			2.0 * mVelocity[1] - thisWeapon.aim.lastTargetVelocity[1],
+			2.0 * mVelocity[2] - thisWeapon.aim.lastTargetVelocity[2],
+		]
+
 	var deltaXYZ_weap = vectorMultiply(
 		thisWeapon.aim.velocity,
 		delta_t
@@ -6369,8 +6377,9 @@ var guideRocket = func
 		targetDispRefFrame,
 		deltaXYZ_AC);
 
-	var distance_m = vectorModulus (targetDispRefFrame);
+	distance_m = vectorModulus (targetDispRefFrame);
 
+	thisWeapon.aim.lastTargetVelocity = mVelocity;
 	
 
 
@@ -6381,7 +6390,7 @@ var guideRocket = func
 	var intercept = findIntercept2(
 		targetDispRefFrame,
 		distance_m,
-		thisWeapon.aim.velocity,
+		missileSpeed_mps,
 		mVelocity
 	);
 
@@ -6452,11 +6461,11 @@ var guideRocket = func
 				}
 				elsif (cosOffset < 0)
 				{
-					if  (allowedTurn < PIBYTWO) turnRate = 0.0;
+					if  (allowedTurn < PIBYTHREE) turnRate = 0.0;
 				}
 				elsif (cosOffset < 0.5)
 				{
-					if  (allowedTurn < PIBYTHREE) turnRate = 0.0;
+					if  (allowedTurn < PIBYSIX) turnRate = 0.0;
 				}
 			}
 		}
@@ -9818,7 +9827,8 @@ var weapons_init_func = func(myNodeName) {
 			interceptSpeed:0, 
 			interceptTime:0, 
 			thrustDir:[0,0,0],
-			velocity:[0,0,0]
+			velocity:[0,0,0],
+			lastTargetVelocity:[0,0,0]
 			}; 
 		# new hash used to record direction weapon is pointing
 		# in the frame of reference of model and the frame of reference of the scene
@@ -10891,32 +10901,23 @@ var findRoots = func(a, b, c)
 var findIntercept = func (myNodeName1, myNodeName2, displacement, dist_m, interceptSpeed)
 {
 	var speed1 = getprop(""~myNodeName1~"/velocities/true-airspeed-kt") * KT2MPS; # AI
-	var speedVert1 = getprop(""~myNodeName1~"/velocities/vertical-speed-fps") * FT2M;
+	var pitch1 = getprop(""~myNodeName1~"/orientation/pitch-deg") * D2R;
 	var heading1 = getprop(""~myNodeName1~"/orientation/true-heading-deg") * D2R;
 	var addTrue = (TARGET_NODE == "") ? "" : "true-";
 	var speed2 = getprop(""~myNodeName2~"/velocities/"~addTrue~"airspeed-kt") * KT2MPS; # main AC
-	var speedVert2 = getprop(""~myNodeName2~"/velocities/vertical-speed-fps") * FT2M;
+	var pitch2 = getprop(""~myNodeName2~"/orientation/pitch-deg") * D2R;
 	var heading2 = getprop(""~myNodeName2~"/orientation/"~addTrue~"heading-deg") * D2R;
-	var vxy1 = 0;
-	if (speed1 > math.abs(speedVert1)) {
-		var glideAngle1 = math.asin(speedVert1 / speed1);
-		vxy1 = speed1 * math.cos(glideAngle1); # the projection of velocity1 in the x-y plane
-	}
-	var vxy2 = 0;
-	if (speed2 > math.abs(speedVert2)) {
-		# debprint(speedVert2," ",speed2);
-		var glideAngle2 = math.asin(speedVert2 / speed2);
-		vxy2 = speed2 * math.cos(glideAngle2);
-	}	
+	var vxy1 = math.cos(pitch1) * speed1;
+	var vxy2 = math.cos(pitch2) * speed2;
 	var velocity1 = [
 					vxy1 * math.sin(heading1),
 					vxy1 * math.cos(heading1),
-					speedVert1
+					math.sin(pitch1) * speed1
 					];
 	var velocity2 = [
 					vxy2 * math.sin(heading2),
 					vxy2 * math.cos(heading2),
-					speedVert2
+					math.sin(pitch2) * speed2
 					];
 	var velocity21 = [
 					velocity2[0] - velocity1[0],
@@ -10929,6 +10930,7 @@ var findIntercept = func (myNodeName1, myNodeName2, displacement, dist_m, interc
 		deltaV,
 		2 * dotProduct(displacement, velocity21),
 		dist_m * dist_m); # in reference frame of AC1
+	if (time_sec.isReal != 1) debprint ("not real");
 	if (time_sec.isReal != 1) return ({time:-1, vector:[0, 0, 0]});
 	# debprint(sprintf("Roots are %5.3f and %5.3f", time_sec.x1, time_sec.x2));
 	var chooseRoot = time_sec.x2;
@@ -10952,33 +10954,28 @@ var findIntercept = func (myNodeName1, myNodeName2, displacement, dist_m, interc
 }
 
 ########################## findIntercept2 ###########################
-# as findIntercept except velocity1 supplied as argument
-# and speed of intercept is given by the mod of velocity1
+# findIntercept without velocity of platform
+# returns velocity vector of node1 for an intercept
+# displacement is r2 - r1
 
-var findIntercept2 = func (displacement, dist_m, velocity1, velocity2)
+var findIntercept2 = func (r21, modr21, speed1, velocity2)
 {
-	var interceptSpeed = vectorModulus( velocity1 );
-	var velocity21 = [
-					velocity2[0] - velocity1[0],
-					velocity2[1] - velocity1[1],
-					velocity2[2] - velocity1[2]
-					];
-	var deltaV = dotProduct(velocity21, velocity21) - interceptSpeed * interceptSpeed;
-	if (deltaV * deltaV < 1e-10) 
-	{
-		if ( interceptSpeed > 0)
-		{ 
-			return ({time : dist_m / interceptSpeed, vector : vectorMultiply ( displacement, interceptSpeed / dist_m ) });
-		}
-		else
-		{
-			return ({time:-1, vector:[0, 0, 0]}); 
-		}
-	}
+	var deltaV = dotProduct(velocity2, velocity2) - speed1 * speed1;
+	# if (deltaV * deltaV < 1e-10) 
+	# {
+	# 	if ( speed1 > 0)
+	# 	{ 
+	# 		return ({time : modr21 / speed1, vector : vectorMultiply ( r21, speed1 / modr21 ) });
+	# 	}
+	# 	else
+	# 	{
+	# 		return ({time:-1, vector:[0, 0, 0]}); 
+	# 	}
+	# }
 	var time_sec = findRoots(
 		deltaV,
-		2 * dotProduct(displacement, velocity21),
-		dist_m * dist_m); # in reference frame of AC1
+		2 * dotProduct(r21, velocity2),
+		modr21 * modr21);
 	if (time_sec.isReal != 1) return ({time:-1, vector:[0, 0, 0]});
 	# debprint(sprintf("Roots are %5.3f and %5.3f", time_sec.x1, time_sec.x2));
 	var chooseRoot = time_sec.x2;
@@ -10994,9 +10991,9 @@ var findIntercept2 = func (displacement, dist_m, velocity1, velocity2)
 	{
 	time:chooseRoot, 
 	vector:[
-				displacement[0] / chooseRoot + velocity2[0], 
-				displacement[1] / chooseRoot + velocity2[1],
-				displacement[2] / chooseRoot + velocity2[2]
+				r21[0] / chooseRoot + velocity2[0], 
+				r21[1] / chooseRoot + velocity2[1],
+				r21[2] / chooseRoot + velocity2[2]
 				] 
 	}); # in earth reference frame
 }	
