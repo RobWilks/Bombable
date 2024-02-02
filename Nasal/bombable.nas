@@ -6161,6 +6161,8 @@ var launchRocket = func (myNodeName, elem, delta_t)
 		
 	thisWeapon.counter = 0;
 
+	thisWeapon.mass = thisWeapon.launchMass;
+
 	attributes[myNodeName].attacks["rocketsInAir"] += 1;
 
 	var msg = thisWeapon.name ~ " launched from " ~ 
@@ -6358,7 +6360,7 @@ var guideRocket = func
 			2.0 * mVelocity[1] - thisWeapon.aim.lastTargetVelocity[1],
 			2.0 * mVelocity[2] - thisWeapon.aim.lastTargetVelocity[2],
 		];
-	thisWeapon.aim.missileSpeed_mps = missileSpeed_mps;
+	thisWeapon.aim.lastMissileSpeed = missileSpeed_mps;
 	thisWeapon.aim.lastTargetVelocity = mVelocity;
 	
 
@@ -6692,10 +6694,12 @@ var newVelocity = func (thisWeapon, missileSpeed_mps, missileDir, interceptDir, 
 	if ( flight_time < thisWeapon.burn1 )
 	{ 
 		thrust = thisWeapon.thrust1;
+		thisWeapon.mass -= delta_t * thisWeapon.fuelRate1;
 	}
 	elsif ( flight_time < thisWeapon.totalBurnTime )
 	{
 		thrust = thisWeapon.thrust2; # second stage of rocket
+		thisWeapon.mass -= delta_t * thisWeapon.fuelRate2;
 	}
 
 	var cD0 = zeroLiftDrag (thisWeapon, flight_time, alt_m, missileSpeed_mps); # note cD0, cN stored in attributes for debugging
@@ -9953,11 +9957,11 @@ var rocketParmCheck = func( thisWeapon )
 		{name: "burn1",								default: 2.0,		lowerBound: 1.0,		upperBound: 20.0		}, # burn time of first rocket stage in sec
 		{name: "thrust2",							default: 5000,		lowerBound: 2000,		upperBound: 10000		}, # thrust in Newtons stage 2 - second stage optional
 		{name: "burn2",								default: 0.0,		lowerBound: 0.0,		upperBound: 3600.0		}, # burn time of second rocket stage in sec
-		{name: "massFuel_1",						default: 100.0,		lowerBound: 200.0,		upperBound: 1000.0		}, # kg fuel stage 1
-		{name: "massFuel_2",						default: 150.0,		lowerBound: 200.0,		upperBound: 1000.0		}, # kg fuel stage 2
+		{name: "massFuel_1",						default: 100.0,		lowerBound: 50.0,		upperBound: 1000.0		}, # kg fuel stage 1
+		{name: "massFuel_2",						default: 150.0,		lowerBound: 50.0,		upperBound: 1000.0		}, # kg fuel stage 2
 		{name: "specificImpulse1",					default: 250.0,		lowerBound: 200.0,		upperBound: 1000.0		}, # sec, measured per unit weight in N
 		{name: "specificImpulse2",					default: 400.0,		lowerBound: 200.0,		upperBound: 1000.0		}, # sec, measured per unit weight in N
-		{name: "mass",								default: 500.0,		lowerBound: 200.0,		upperBound: 1000.0		}, # burn time of second rocket stage in sec
+		{name: "launchMass",						default: 500.0,		lowerBound: 200.0,		upperBound: 1000.0		}, # burn time of second rocket stage in sec
 		{name: "maxMissileSpeed_mps",				default: 330.0,		lowerBound: 300.0,		upperBound: 1200.0		}, # determines drag factor
 		{name: "minTurnSpeed_mps",					default: 30.0,		lowerBound: 25.0,		upperBound: 50.0		}, # turn disabled below this speed - regime I
 		{name: "speedX",							default: 4.0,		lowerBound: 2.0,		upperBound: 10.0		}, # multiple of minTurnSpeed when maxTurnRate achieved - turn rate increases linearly with speed in regime II
@@ -9972,7 +9976,7 @@ var rocketParmCheck = func( thisWeapon )
 	var nThrust = 0;
 	var nBurn = 0;
 	var nSpecificImpulse = 0;
-	var nMassFuel
+	var nMassFuel = 0;
 	# check nThrust, nBurn, nMassFuel and nSpecificImpulse
 	forindex(i; weaponVars) 
 	{
@@ -10008,17 +10012,22 @@ var rocketParmCheck = func( thisWeapon )
 		);
 	}
 
-	var inputError = 1;
+	var rocketCheck = 0; # fail
+	if ((nThrust == 0) and (nBurn == 0)) 
+		debprint ("Bombable: error: specify thrust or burn time for at least one stage");
+
+	if ((nThrust > 0) and (nBurn > 0)) 
+		debprint ("Bombable: error: specify either thrust or burn time - not both");
+
 	if ((nThrust > 0) and (nBurn == 0)) 
 	{
-
 		if (thisWeapon.thrust1 != 0)
 		{
 			thisWeapon.burn1 = thisWeapon.massFuel_1 * grav_mpss * thisWeapon.specificImpulse1 / thisWeapon.thrust1;
 			debprint (
 			sprintf
 				(
-					"Bombable: %s stage 1 burn time %6.0fs calculated from thrust %6.0fN, fuel mass %6f.0kg and specific impulse %6.0fs",
+					"Bombable: %s stage 1 burn time %6.0fs calculated from thrust %6.0fN, fuel mass %6.0fkg and specific impulse %6.0fs",
 					thisWeapon.name,
 					thisWeapon.burn1,
 					thisWeapon.thrust1,
@@ -10032,7 +10041,7 @@ var rocketParmCheck = func( thisWeapon )
 				debprint (
 				sprintf
 					(
-						"Bombable: %s stage 2 burn time %6.0fs calculated from thrust %6.0fN, fuel mass %6f.0kg and specific impulse %6.0fs",
+						"Bombable: %s stage 2 burn time %6.0fs calculated from thrust %6.0fN, fuel mass %6.0fkg and specific impulse %6.0fs",
 						thisWeapon.name,
 						thisWeapon.burn2,
 						thisWeapon.thrust2,
@@ -10045,7 +10054,7 @@ var rocketParmCheck = func( thisWeapon )
 			{
 				thisWeapon.burn2 = 0;
 			}
-			inputError = 0;
+			rocketCheck = 1;
 		} 
 	} 
 
@@ -10057,7 +10066,7 @@ var rocketParmCheck = func( thisWeapon )
 			debprint (
 			sprintf
 				(
-					"Bombable: %s stage 1 thrust %6.0fs calculated from burn time %6.0fN, fuel mass %6f.0kg and specific impulse %6.0fs",
+					"Bombable: %s stage 1 thrust %6.0fs calculated from burn time %6.0fN, fuel mass %6.0fkg and specific impulse %6.0fs",
 					thisWeapon.name,
 					thisWeapon.thrust1,
 					thisWeapon.burn1,
@@ -10071,7 +10080,7 @@ var rocketParmCheck = func( thisWeapon )
 				debprint (
 				sprintf
 					(
-						"Bombable: %s stage 2 thrust %6.0fs calculated from burn time %6.0fN, fuel mass %6f.0kg and specific impulse %6.0fs",
+						"Bombable: %s stage 2 thrust %6.0fs calculated from burn time %6.0fN, fuel mass %6.0fkg and specific impulse %6.0fs",
 						thisWeapon.name,
 						thisWeapon.thrust2,
 						thisWeapon.burn2,
@@ -10084,18 +10093,17 @@ var rocketParmCheck = func( thisWeapon )
 			{
 				thisWeapon.thrust2 = 0;
 			}
-			inputError = 0;
+			rocketCheck = 1;
 		} 
 	} 
 
-	if (thisWeapon.mass < 2 * (thisWeapon.massFuel_1 + thisWeapon.massFuel_2))
+	if (thisWeapon.launchMass < 2 * (thisWeapon.massFuel_1 + thisWeapon.massFuel_2))
 	{
-		debprint ("Bombable: error rocket mass must be at least 2x fuel mass");
-		inputError = 1;
+		debprint ("Bombable: error: total launch mass must be at least 2x fuel mass");
+		rocketCheck = 0;
 	}
 
-
-	return (inputError) ;
+	return (rocketCheck) ;
 }
 
 
@@ -10107,73 +10115,80 @@ var rocketParmCheck = func( thisWeapon )
 var rocket_init_func = func (thisWeapon, rocketCount)
 {			
 	# check parameters supplied by user
-	if (rocketParmCheck( thisWeapon ) == 1)
-	{ 
-		# set-up internal parameters
+	if (!rocketParmCheck( thisWeapon )) return (0);
 
-		thisWeapon["totalBurnTime"] = thisWeapon["burn1"] + thisWeapon["burn2"];
+	# set-up internal parameters
 
-		# init rho
+	thisWeapon["totalBurnTime"] = thisWeapon["burn1"] + thisWeapon["burn2"];
+	
+	thisWeapon["mass"] = thisWeapon.launchMass;
 
-		# set-up buffer to store intermediate positions of rocket
-		var wayPoint = {lon:0, lat:0, alt:0, pitch:0, heading:0}; # template
-		var new_wayPoint = func {
-			return {parents:[wayPoint] };
-			}
+	thisWeapon["fuelRate1"] = thisWeapon.massFuel_1 / thisWeapon.burn1;
+	thisWeapon["fuelRate2"] = thisWeapon.massFuel_2 / thisWeapon.burn2;
 
-		var fp = [];
-		setsize(fp, N_STEPS);
-		forindex(var i; fp)
-			fp[i] = new_wayPoint(); # flight pathvector used to store intermediate rocket locations
 
-			
-		thisWeapon["flightPath"] = fp;
+	# init rho
 
-		var maxLimit = LOOP_TIME * 40.0 * D2R; # initial value for maxRate turn 
-
-		# set-up parameters for PID controller - PID values are reset on rocket launch
-		var pidVals = 
-		{
-			Kp: 0.7,
-			Ki: 0.002,
-			Kd: 0.0,
-			limMaxInt: maxLimit * 0.75 , # Integrator limits to be set below
-			limMinInt: -maxLimit * 0.75 ,
-			tau: 0.25 , # Derivative low-pass filter time constant secs
-			limMax: maxLimit ,
-			limMin: -maxLimit ,
-			differentiator: 0.0 ,
-			integrator: 0.0 ,
-			prevError: 0.0 ,
-			prevMeasurement: 0.0 ,
-			out: 0.0 ,	
-		};
-		var new_pidVals = func 
-		{
-			return {parents:[pidVals] };
+	# set-up buffer to store intermediate positions of rocket
+	var wayPoint = {lon:0, lat:0, alt:0, pitch:0, heading:0}; # template
+	var new_wayPoint = func {
+		return {parents:[wayPoint] };
 		}
 
-		thisWeapon["pidData"] = 
-		{
-			phi: [], 
-			theta: [],
-		};
-		thisWeapon.pidData.theta = new_pidVals();
-		thisWeapon.pidData.phi = new_pidVals();
+	var fp = [];
+	setsize(fp, N_STEPS);
+	forindex(var i; fp)
+		fp[i] = new_wayPoint(); # flight pathvector used to store intermediate rocket locations
 
-		thisWeapon["atomic"] = 0; # flag to control access
+		
+	thisWeapon["flightPath"] = fp;
 
-		thisWeapon["rocketsIndex"] = rocketCount;
+	var maxLimit = LOOP_TIME * 40.0 * D2R; # initial value for maxRate turn 
 
-		thisWeapon["counter"] = 0; # counts calls to guideRocket
-
-		thisWeapon["cN"] = 0;
-		thisWeapon["cD0"] = 0;
-		thisWeapon["airDensity"] = 0.0;
-		thisWeapon["lastAlt_m"] = 0.0;
-		thisWeapon["rhoAby2"] = 0.0;
-		thisWeapon["speedSound"] =0.0;
+	# set-up parameters for PID controller - PID values are reset on rocket launch
+	var pidVals = 
+	{
+		Kp: 0.7,
+		Ki: 0.002,
+		Kd: 0.0,
+		limMaxInt: maxLimit * 0.75 , # Integrator limits to be set below
+		limMinInt: -maxLimit * 0.75 ,
+		tau: 0.25 , # Derivative low-pass filter time constant secs
+		limMax: maxLimit ,
+		limMin: -maxLimit ,
+		differentiator: 0.0 ,
+		integrator: 0.0 ,
+		prevError: 0.0 ,
+		prevMeasurement: 0.0 ,
+		out: 0.0 ,	
+	};
+	var new_pidVals = func 
+	{
+		return {parents:[pidVals] };
 	}
+
+	thisWeapon["pidData"] = 
+	{
+		phi: [], 
+		theta: [],
+	};
+	thisWeapon.pidData.theta = new_pidVals();
+	thisWeapon.pidData.phi = new_pidVals();
+
+	thisWeapon["atomic"] = 0; # flag to control access
+
+	thisWeapon["rocketsIndex"] = rocketCount;
+
+	thisWeapon["counter"] = 0; # counts calls to guideRocket
+
+	thisWeapon["cN"] = 0;
+	thisWeapon["cD0"] = 0;
+	thisWeapon["airDensity"] = 0.0;
+	thisWeapon["lastAlt_m"] = 0.0;
+	thisWeapon["rhoAby2"] = 0.0;
+	thisWeapon["speedSound"] =0.0;
+
+	return(1);
 
 }
 
