@@ -6756,7 +6756,8 @@ var newVelocity = func (thisWeapon, missileSpeed_mps, missileDir, interceptDir, 
 
 	var liftDragRatio = (cN - cD0 * thisWeapon.AoA) / (cN * thisWeapon.AoA + cD0); # small angle approximation for AoA
 	# reduce speed according to rate of turn
-	# approximation of dv / v = exp (-deltaPhi / dragLiftRatio )
+	# approximation of (v - dv) / v = exp (-deltaPhi / liftDragRatio )
+	# https://therestlesstechnophile.com/2020/05/04/modelling-missiles-in-the-atmosphere/
 	newV = vectorMultiply(
 		newV,
 		1.0 - math.abs(deltaPhi) / liftDragRatio 
@@ -9047,7 +9048,7 @@ var initialize_func = func ( b ){
 		if (contains (b.velocities, "diveTerminalVelocities") and typeof (b.velocities.diveTerminalVelocities) == "hash") {
 			var ave = 0;
 			var count = 0;
-			var sum = 0;
+			var temp = 0;
 			var dTV = b.velocities.diveTerminalVelocities;
 			var sin = 0; var deltaV_kt = 0; var factor = 0;
 			foreach (k; keys (dTV) ) {
@@ -9077,7 +9078,7 @@ var initialize_func = func ( b ){
 		if (contains (b.velocities, "climbTerminalVelocities") and typeof (b.velocities.climbTerminalVelocities) == "hash") {
 			var ave = 0;
 			var count = 0;
-			var sum = 0;
+			var temp = 0;
 			var cTV = b.velocities.climbTerminalVelocities;
 			var sin = 0; var deltaV_kt = 0; var factor = 0;
 			foreach (k; keys (cTV) ) {
@@ -9930,7 +9931,7 @@ var weapons_init_func = func(myNodeName) {
 	}
 						
 	debprint ("Bombable: Effect * weapons * loaded for ", myNodeName);
-						
+
 						
 }
 
@@ -10647,6 +10648,7 @@ var bombableInit = func {
 	#};
 	#test_msg();
 
+
 }
 
 
@@ -10659,6 +10661,7 @@ var fdm_init_listener = _setlistener("/sim/signals/fdm-initialized", func {
 	print("Bombable initalized");
 
 });
+
 
 ########################## reduceRPM ###########################
 
