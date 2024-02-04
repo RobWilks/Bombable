@@ -6119,6 +6119,7 @@ var launchRocket = func (myNodeName, elem, delta_t)
 			vVert * math.cos ( launchPadPitch * D2R )
 			]		
 		);
+	var missileSpeed = vectorModulus ( thisWeapon.aim.velocity ) * MPS2KT;
 
 	thisWeapon.aim.thrustDir = thisWeapon.aim.weaponDirRefFrame;
 
@@ -6130,11 +6131,28 @@ var launchRocket = func (myNodeName, elem, delta_t)
 	setprop (rp ~ "/position/latitude-deg", alat_deg);
 	setprop (rp ~ "/position/longitude-deg", alon_deg);
 	setprop (rp ~ "/position/altitude-ft", alt_ft);
-	setprop (rp ~ "/velocities/true-airspeed-kt", vectorModulus ( thisWeapon.aim.velocity ) * MPS2KT ); # speed and target speed kept to zero to override AI model control
+	setprop (rp ~ "/velocities/true-airspeed-kt", missileSpeed );
 	setprop (rp ~ "/orientation/pitch-deg", pitch);
 	setprop (rp ~ "/orientation/true-heading-deg", heading);
 	setprop (rp ~ "/controls/flightTime", 0);
 	setprop (rp ~ "/controls/engine", 1);
+
+	if (!STATIC_MODEL)
+	{
+		var rp2 = "ai/models/aircraft[" ~ thisWeapon.rocketsIndex ~ "]";
+		setprop (rp2 ~ "/position/latitude-deg", alat_deg);
+		setprop (rp2 ~ "/position/longitude-deg", alon_deg);
+		setprop (rp2 ~ "/position/altitude-ft", alt_ft);
+		setprop (rp2 ~ "/velocities/true-airspeed-kt", missileSpeed );
+		setprop (rp2 ~ "/velocities/vertical-speed-fps", thisWeapon.aim.velocity[2] * M2FT );
+		setprop (rp2 ~ "/orientation/pitch-deg", pitch);
+		setprop (rp2 ~ "/orientation/true-heading-deg", heading);
+		setprop (rp2 ~ "/controls/flight/target-spd", missileSpeed );
+		setprop (rp2 ~ "/controls/flight/target-hdg", heading) ;
+		setprop (rp2 ~ "/controls/flight/lateral-mode", "hdg") ;
+		setprop (rp2 ~ "/controls/flight/vertical-mode", "alt") ;
+		setprop (rp2 ~ "/controls/flight/factor", 10.0);
+	}
 
 	pidControllerInit (thisWeapon, "phi", delta_t);
 	pidControllerInit (thisWeapon, "theta", delta_t);
@@ -6515,9 +6533,28 @@ var guideRocket = func
 		thisWeapon.flightPath[i].lat = alat_deg + deltaLat;
 		thisWeapon.flightPath[i].alt = ( aAlt_m + deltaAlt ) * M2FT;
 		thisWeapon.flightPath[i].pitch = math.asin( v[2] / vectorModulus(v) ) * R2D; #CHANGE to the direction of the thrust vector
-		thisWeapon.flightPath[i].heading = math.atan2( v[0], v[1] ) * R2D;;
+		thisWeapon.flightPath[i].heading = math.atan2( v[0], v[1] ) * R2D;
 	}
 	thisWeapon.atomic = 0; #to unlock access
+
+	if (!STATIC_MODEL)
+	{
+		var rp2 = "ai/models/aircraft[" ~ thisWeapon.rocketsIndex ~ "]";
+		var factor = getprop (rp2 ~ "/controls/flight/factor" );
+		setprop (rp2 ~ "/position/latitude-deg", alat_deg);
+		setprop (rp2 ~ "/position/longitude-deg", alon_deg);
+		setprop (rp2 ~ "/position/altitude-ft", aAlt_m * M2FT );
+		setprop (rp2 ~ "/controls/flight/target-alt", ( aAlt_m + deltaAlt * factor ) * M2FT );
+		setprop (rp2 ~ "/velocities/vertical-speed-fps", deltaAlt * M2FT / delta_t);
+		setprop (rp2 ~ "/velocities/true-airspeed-kt", missileSpeed_mps * MPS2KT);
+		setprop (rp2 ~ "/controls/flight/target-spd", newMissileSpeed_mps * MPS2KT);
+		setprop (rp2 ~ "/orientation/true-heading-deg", math.atan2( missileDir[0], missileDir[1] ) * R2D);
+		setprop (rp2 ~ "/orientation/pitch-deg", math.asin( v[2] / newMissileSpeed_mps ) * R2D);
+		setprop (rp2 ~ "/controls/flight/target-hdg", math.atan2( v[0], v[1] ) * R2D);
+	}
+
+
+
 
 	settimer ( func{ moveRocket (myNodeName1, elem, 0, N_STEPS, time_inc )}, 0 ); # first step called immediately
 
@@ -6818,12 +6855,26 @@ var killRocket = func (myNodeName, elem)
 			setprop (rp ~ "/position/longitude-deg", 0);
 			setprop (rp ~ "/position/altitude-ft", 0);
 			setprop (rp ~ "/velocities/true-airspeed-kt", 0);
-			setprop (rp ~ "/controls/flight/target-alt", 0);
-			setprop (rp ~ "/controls/flight/target-spd", 0);
 			}
 		, 4.0
 	);
 
+	if (!STATIC_MODEL)
+	{
+		settimer (
+			func {
+				var rp2 = "ai/models/aircraft[" ~ thisWeapon.rocketsIndex ~ "]";
+				setprop (rp2 ~ "/position/latitude-deg", 0);
+				setprop (rp2 ~ "/position/longitude-deg", 0);
+				setprop (rp2 ~ "/position/altitude-ft", 0);
+				setprop (rp2 ~ "/velocities/true-airspeed-kt", 0);
+				setprop (rp2 ~ "/velocities/vertical-speed-fps", 0);
+				setprop (rp2 ~ "/controls/flight/target-alt", 0);
+				setprop (rp2 ~ "/controls/flight/target-spd", 0);
+				}
+			, 4.0
+		);
+	}
 	attributes[myNodeName].attacks["rocketsInAir"] -= 1;
 }
 
@@ -9048,7 +9099,7 @@ var initialize_func = func ( b ){
 		if (contains (b.velocities, "diveTerminalVelocities") and typeof (b.velocities.diveTerminalVelocities) == "hash") {
 			var ave = 0;
 			var count = 0;
-			var temp = 0;
+			var sum = 0;
 			var dTV = b.velocities.diveTerminalVelocities;
 			var sin = 0; var deltaV_kt = 0; var factor = 0;
 			foreach (k; keys (dTV) ) {
@@ -9078,7 +9129,7 @@ var initialize_func = func ( b ){
 		if (contains (b.velocities, "climbTerminalVelocities") and typeof (b.velocities.climbTerminalVelocities) == "hash") {
 			var ave = 0;
 			var count = 0;
-			var temp = 0;
+			var sum = 0;
 			var cTV = b.velocities.climbTerminalVelocities;
 			var sin = 0; var deltaV_kt = 0; var factor = 0;
 			foreach (k; keys (cTV) ) {
@@ -10434,6 +10485,7 @@ var LOOP_TIME = 0.5; # timing of weapons loop and guide rocket
 var N_STEPS = 5; # resolution of flight path calculation
 # var TARGET_NODE = "/ai/models/aircraft" ;
 var TARGET_NODE = "" ;
+var STATIC_MODEL = 0;
 
 
 # List of nodes that listeners will use when checking for impact damage.
