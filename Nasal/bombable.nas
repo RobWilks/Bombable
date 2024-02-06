@@ -5956,6 +5956,7 @@ var weapons_loop = func (id, myNodeName1 = "", myNodeName2 = "", targetSize_m = 
 				
 	foreach (elem; keys (attributes[myNodeName1].weapons) ) 
 	{	
+		ot.reset();
 		var thisWeapon = attributes[myNodeName1].weapons[elem];
 		if (thisWeapon.destroyed == 1) continue; #skip this weapon if destroyed
 		
@@ -6000,6 +6001,7 @@ var weapons_loop = func (id, myNodeName1 = "", myNodeName2 = "", targetSize_m = 
 		}
 		else
 		{
+			# ot.reset();
 			var time2Destruct = guideRocket 
 			(
 				myNodeName1, myNodeName2,
@@ -6007,6 +6009,9 @@ var weapons_loop = func (id, myNodeName1 = "", myNodeName2 = "", targetSize_m = 
 				targetSize_m,  weaponSkill, 
 				damageValue
 			);
+			# var t_guideRocket = (ot.timestamp.elapsedUSec()/ot.resolution_uS);
+			# debprint(sprintf("Bombable: t_guideRocket = %6.3f msec", t_guideRocket));
+
 			if (time2Destruct < LOOP_TIME)
 			settimer
 			( func
@@ -6077,6 +6082,8 @@ var weapons_loop = func (id, myNodeName1 = "", myNodeName2 = "", targetSize_m = 
 				"Hit from " ~ ai_callsign ~ " - " ~ weaponName ~"!");								
 			}
 		}
+		var t_weap = (ot.timestamp.elapsedUSec()/ot.resolution_uS);
+		debprint(sprintf("Bombable: "~elem~" t_weap = %6.3f msec", t_weap));
 	}
 }
 
@@ -6276,9 +6283,9 @@ var guideRocket = func
 	deltaLat_deg = mlat_deg - alat_deg;
 	deltaLon_deg = mlon_deg - alon_deg ;
 
-	# calculate targetDispRefFrame, the displacement vector from node1 (AI) to node2 (mainAC) in a lon-lat-alt (x-y-z) frame of reference aka 'reference frame'
-	# the AI model is at < 0,0,0 > 
-	# and the main AC or target is at < deltaX,deltaY,deltaAlt > in relation to it.
+	# calculate targetDispRefFrame, the displacement vector from node1 (rocket) to node2 (target) in a lon-lat-alt (x-y-z) frame of reference aka 'reference frame'
+	# the rocket model is at < 0,0,0 > 
+	# and the target is at < deltaX,deltaY,deltaAlt > in relation to it.
 
 	var deltaX_m = deltaLon_deg * m_per_deg_lon;
 	var deltaY_m = deltaLat_deg * m_per_deg_lat;
@@ -6319,12 +6326,12 @@ var guideRocket = func
 		var t_intercept  = -dVdotR / dV2;
 		if ((distance_m < attributes[myNodeName2].dimensions.damageRadius_m)
 			and (t_intercept <0)) t_intercept = 0; # already reached closest approach
-		debprint (
-			sprintf(
-			"Bombable: time to intercept %5.2f", 
-			t_intercept
-			)
-		);
+		# debprint (
+		# 	sprintf(
+		# 	"Bombable: time to intercept %5.2f", 
+		# 	t_intercept
+		# 	)
+		# );
 		if ((t_intercept >= 0) and (t_intercept < delta_t))
 		{
 			var closestApproach = math.pow(
@@ -6334,7 +6341,7 @@ var guideRocket = func
 
 			debprint (
 				sprintf(
-				"Bombable: closest approach for %s:%6.1f intercept time:%6.1f", 
+				"Bombable: closest approach for %s:%6.1fm intercept time:%6.1fs", 
 				myNodeName1 ~ "/" ~ elem ,
 				closestApproach,
 				t_intercept
@@ -6426,12 +6433,12 @@ var guideRocket = func
 
 	if (intercept.time != -1) 
 	{
-		debprint (
-			sprintf(
-				"Bombable: intercept.vector =[%8.3f, %8.3f, %8.3f]",
-				intercept.vector[0], intercept.vector[1], intercept.vector[2] 
-			)
-		);
+		# debprint (
+		# 	sprintf(
+		# 		"Bombable: intercept.vector =[%8.3f, %8.3f, %8.3f]",
+		# 		intercept.vector[0], intercept.vector[1], intercept.vector[2] 
+		# 	)
+		# );
 		thisWeapon.aim.interceptSpeed = vectorModulus(intercept.vector);
 		thisWeapon.aim.interceptTime = intercept.time;
 
@@ -10481,6 +10488,8 @@ var LOOP_TIME = 0.5; # timing of weapons loop and guide rocket
 var N_STEPS = 8; # resolution of flight path calculation
 # var TARGET_NODE = "/ai/models/aircraft" ;
 var TARGET_NODE = "" ;
+var ot = emexec.OperationTimer.new("VSD");
+
 
 
 # List of nodes that listeners will use when checking for impact damage.
