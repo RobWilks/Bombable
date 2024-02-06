@@ -5956,7 +5956,7 @@ var weapons_loop = func (id, myNodeName1 = "", myNodeName2 = "", targetSize_m = 
 				
 	foreach (elem; keys (attributes[myNodeName1].weapons) ) 
 	{	
-		ot.reset();
+		# ot.reset();
 		var thisWeapon = attributes[myNodeName1].weapons[elem];
 		if (thisWeapon.destroyed == 1) continue; #skip this weapon if destroyed
 		
@@ -6001,7 +6001,7 @@ var weapons_loop = func (id, myNodeName1 = "", myNodeName2 = "", targetSize_m = 
 		}
 		else
 		{
-			# ot.reset();
+			ot.reset();
 			var time2Destruct = guideRocket 
 			(
 				myNodeName1, myNodeName2,
@@ -6009,8 +6009,8 @@ var weapons_loop = func (id, myNodeName1 = "", myNodeName2 = "", targetSize_m = 
 				targetSize_m,  weaponSkill, 
 				damageValue
 			);
-			# var t_guideRocket = (ot.timestamp.elapsedUSec()/ot.resolution_uS);
-			# debprint(sprintf("Bombable: t_guideRocket = %6.3f msec", t_guideRocket));
+			var t_guideRocket = (ot.timestamp.elapsedUSec()/ot.resolution_uS);
+			debprint(sprintf("Bombable: t_guideRocket = %6.3f msec", t_guideRocket));
 
 			if (time2Destruct < LOOP_TIME)
 			settimer
@@ -6082,8 +6082,8 @@ var weapons_loop = func (id, myNodeName1 = "", myNodeName2 = "", targetSize_m = 
 				"Hit from " ~ ai_callsign ~ " - " ~ weaponName ~"!");								
 			}
 		}
-		var t_weap = (ot.timestamp.elapsedUSec()/ot.resolution_uS);
-		debprint(sprintf("Bombable: "~elem~" t_weap = %6.3f msec", t_weap));
+		# var t_weap = (ot.timestamp.elapsedUSec()/ot.resolution_uS);
+		# debprint(sprintf("Bombable: "~elem~" t_weap = %6.3f msec", t_weap));
 	}
 }
 
@@ -6541,7 +6541,8 @@ var guideRocket = func
 	# creates set of intermediate positions in wayPoint hash
 	# incremental change in position given by vector newMissileDir * time_inc
 	# newMissileDir changes each time increment
-	var newV = newVelocity( thisWeapon, missileSpeed_mps, newDir, interceptDirRefFrame, turnRad, delta_t, aAlt_m );
+	var newV = newVelocity( thisWeapon, missileSpeed_mps, newDir, turnRad, delta_t, aAlt_m );
+
 	var newMissileSpeed_mps = math.sqrt ( newV[0] * newV[0] + newV[1] * newV[1] + newV[2] * newV[2] );
 	var newMissileDir = 
 	[
@@ -6747,7 +6748,7 @@ var changeDirection = func ( thisWeapon, missileDir, interceptDir, missileSpeed_
 # it may not be aligned with the thrust vector
 # func returns new velocity
 
-var newVelocity = func (thisWeapon, missileSpeed_mps, missileDir, interceptDir, deltaPhi, delta_t, alt_m )
+var newVelocity = func (thisWeapon, missileSpeed_mps, missileDir, deltaPhi, delta_t, alt_m )
 {
 
 	var thrust = 0.0;
@@ -6769,14 +6770,12 @@ var newVelocity = func (thisWeapon, missileSpeed_mps, missileDir, interceptDir, 
 
 	# calculate net force
 	var hdg = math.atan2 ( thisWeapon.velocities.thrustDir[0], thisWeapon.velocities.thrustDir[1] );
-	var normalForceVector = vectorMultiply(
-		[
-			- thisWeapon.velocities.thrustDir[2] * math.sin (hdg),
-			- thisWeapon.velocities.thrustDir[2] * math.cos (hdg),
-			math.cos ( math.asin(thisWeapon.velocities.thrustDir[2]) )
-		],
-		normalForce
-	); 
+	var normalForceVector = 
+	[
+		- thisWeapon.velocities.thrustDir[2] * math.sin (hdg) * normalForce,
+		- thisWeapon.velocities.thrustDir[2] * math.cos (hdg) * normalForce,
+		math.cos ( math.asin(thisWeapon.velocities.thrustDir[2]) ) * normalForce
+	]; 
 
 	# debprint (
 	# 	sprintf(
@@ -6785,44 +6784,34 @@ var newVelocity = func (thisWeapon, missileSpeed_mps, missileDir, interceptDir, 
 	# 	)
 	# );
 	# thrust minus drag plus lift
-	var netForce = vectorSum
-	(
-		vectorMultiply
-		( 
-		thisWeapon.velocities.thrustDir, 
-		thrust - axialForce
-		),
-		normalForceVector
-	);
+	var ta = thrust - axialForce;
+	var netForce = 
+	[
+		thisWeapon.velocities.thrustDir[0] * ta + normalForceVector[0],
+		thisWeapon.velocities.thrustDir[1] * ta + normalForceVector[1],
+		thisWeapon.velocities.thrustDir[2] * ta + normalForceVector[2] - thisWeapon.mass * grav_mpss
+	]; # adding weight
+
 
 	# minus weight
-	netForce[2] -= thisWeapon.mass * grav_mpss; # adding weight
-
-	# calculate resultant acceleration and change in velocity over delta_t
-	var deltaV = 
-	vectorMultiply(
-		netForce,
-		delta_t / thisWeapon.mass
-	);
-
-	var newV =
-	vectorSum(
-		vectorMultiply(
-			missileDir,
-			missileSpeed_mps
-		),
-		deltaV
-	);
+	netForce[2] 
 
 	var liftDragRatio = (cN - cD0 * thisWeapon.AoA) / (cN * thisWeapon.AoA + cD0); # small angle approximation for AoA
 	# reduce speed according to rate of turn
 	# approximation of (v - dv) / v = exp (-deltaPhi / liftDragRatio )
 	# https://therestlesstechnophile.com/2020/05/04/modelling-missiles-in-the-atmosphere/
-	newV = vectorMultiply(
-		newV,
-		1.0 - math.abs(deltaPhi) / liftDragRatio 
-		);
 
+	var dragFactor = 1.0 - math.abs(deltaPhi) / liftDragRatio;
+		
+	# calculate resultant acceleration and change in velocity over delta_t and multiply by dragFactor
+	var tbym = delta_t / thisWeapon.mass;
+	var newV =
+	[
+		(missileDir[0] * missileSpeed_mps + netForce[0] * tbym) * dragFactor,
+		(missileDir[1] * missileSpeed_mps + netForce[1] * tbym) * dragFactor,
+		(missileDir[2] * missileSpeed_mps + netForce[2] * tbym) * dragFactor
+	];
+	
 	# debprint (
 	# 	sprintf(
 	# 		"Bombable: new velocity vector =[%8.3f, %8.3f, %8.3f]",
@@ -11175,21 +11164,11 @@ var findIntercept = func (myNodeName1, myNodeName2, displacement, dist_m, interc
 
 var findIntercept2 = func (r21, modr21, speed1, velocity2)
 {
-	var deltaV = dotProduct(velocity2, velocity2) - speed1 * speed1;
-	# if (deltaV * deltaV < 1e-10) 
-	# {
-	# 	if ( speed1 > 0)
-	# 	{ 
-	# 		return ({time : modr21 / speed1, vector : vectorMultiply ( r21, speed1 / modr21 ) });
-	# 	}
-	# 	else
-	# 	{
-	# 		return ({time:-1, vector:[0, 0, 0]}); 
-	# 	}
-	# }
+	var deltaV = velocity2[0] * velocity2[0] + velocity2[1] * velocity2[1] + velocity2[2] * velocity2[2] - speed1 * speed1;
+
 	var time_sec = findRoots(
 		deltaV,
-		2 * dotProduct(r21, velocity2),
+		2 * (r21[0] * velocity2[0] + r21[1] * velocity2[1] + r21[2] * velocity2[2]),
 		modr21 * modr21);
 	if (time_sec.isReal != 1) return ({time:-1, vector:[0, 0, 0]});
 	# debprint(sprintf("Roots are %5.3f and %5.3f", time_sec.x1, time_sec.x2));
