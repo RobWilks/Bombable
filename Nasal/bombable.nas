@@ -5956,8 +5956,8 @@ var weapons_loop = func (id, myNodeName1 = "", myNodeName2 = "", targetSize_m = 
 				
 	foreach (elem; keys (attributes[myNodeName1].weapons) ) 
 	{	
-		if (getprop("" ~ myNodeName1 ~ "/" ~ elem ~ "/destroyed") == 1) continue; #skip this weapon if destroyed
 		var thisWeapon = attributes[myNodeName1].weapons[elem];
+		if (thisWeapon.destroyed == 1) continue; #skip this weapon if destroyed
 		
 		mDD_m = thisWeapon.maxDamageDistance_m;
 		if (mDD_m == nil or mDD_m == 0) mDD_m = 100;
@@ -5973,7 +5973,7 @@ var weapons_loop = func (id, myNodeName1 = "", myNodeName2 = "", targetSize_m = 
 		}
 		else
 		{
-			var callCheckAim = (getprop("" ~ myNodeName1 ~ "/" ~ elem ~ "/launched") == 1) ? 0: 2;
+			var callCheckAim = (thisWeapon.controls.launched == 1) ? 0: 2;
 		}
 
 		if (callCheckAim != 0) 
@@ -6011,7 +6011,6 @@ var weapons_loop = func (id, myNodeName1 = "", myNodeName2 = "", targetSize_m = 
 			settimer
 			( func
 				{
-					setprop ("" ~ myNodeName1 ~ "/" ~ elem ~ "/destroyed", 1);
 					killRocket (myNodeName1, elem);
 				},
 				time2Destruct
@@ -6089,8 +6088,7 @@ var launchRocket = func (myNodeName, elem, delta_t)
 {
 	var thisWeapon = attributes[myNodeName].weapons[elem];
 
-	# get speed and orientation of launchpad or pylon
-	setprop ("" ~ myNodeName ~ "/" ~ elem ~ "/launched", 1);
+	# get speed and orientation of launchpad or guide rail
 	var launchPadSpeed = 
 	getprop ("" ~ myNodeName ~ "/velocities/true-airspeed-kt");
 	var launchPadPitch = 
@@ -6105,12 +6103,14 @@ var launchRocket = func (myNodeName, elem, delta_t)
 	getprop("" ~ myNodeName ~ "/" ~ elem ~ "/position/altitude-ft");
 
 	# the launchPad velocity is used to set the initial velocity of the missile
-	# at launch the missile is not oriented with the direction of travel
+	# at launch the missile is not necessarily oriented with its direction of travel
 	# from ships or groundvehicles rockets are launched from tubes creating an initial vertical velocity
 
 	
 	thisWeapon.velocities.thrustDir = thisWeapon.aim.weaponDirRefFrame;
-	var vVert = math.sqrt(2.0 * (thisWeapon.thrust1 / thisWeapon.mass - thisWeapon.velocities.thrustDir[2] * grav_mpss ) * thisWeapon.lengthTube ); # v^2 = u^2 + 2*a*s
+	# acceleration in launch tube (length s) is thrust - weight / mass
+	# v^2 = u^2 + 2*a*s
+	var vVert = math.sqrt(2.0 * (thisWeapon.thrust1 / thisWeapon.launchMass - thisWeapon.velocities.thrustDir[2] * grav_mpss ) * thisWeapon.lengthTube ); 
 	thisWeapon.velocities.missileV_mps = vectorSum 
 		(
 			[
@@ -6128,7 +6128,7 @@ var launchRocket = func (myNodeName, elem, delta_t)
 
 
 
-	# rocket initiated by moving it from {lat, lon} {0, 0} to location of AC / ship
+	# AI model of rocket initiated by moving it from {lat, lon} {0, 0} to location of AC / ship
 	var rp = "ai/models/static[" ~ thisWeapon.rocketsIndex ~ "]";
 	var pitch = math.asin(thisWeapon.aim.weaponDirRefFrame[2]) * R2D; # orientation of rocket
 	var heading = math.atan2(thisWeapon.aim.weaponDirRefFrame[0], thisWeapon.aim.weaponDirRefFrame[1]) * R2D;
@@ -6141,7 +6141,7 @@ var launchRocket = func (myNodeName, elem, delta_t)
 	setprop (rp ~ "/position/latitude-deg", alat_deg);
 	setprop (rp ~ "/position/longitude-deg", alon_deg);
 	setprop (rp ~ "/position/altitude-ft", alt_ft);
-	setprop (rp ~ "/velocities/true-airspeed-kt", vectorModulus ( thisWeapon.velocities.missileV_mps ) * MPS2KT ); # speed and target speed kept to zero to override AI model control
+	setprop (rp ~ "/velocities/true-airspeed-kt", vectorModulus ( thisWeapon.velocities.missileV_mps ) * MPS2KT );
 	setprop (rp ~ "/orientation/pitch-deg", pitch);
 	setprop (rp ~ "/orientation/true-heading-deg", heading);
 	setprop (rp ~ "/controls/engine", 1);
@@ -6171,7 +6171,7 @@ var launchRocket = func (myNodeName, elem, delta_t)
 		
 	thisWeapon.counter = 0;
 
-	thisWeapon.mass = thisWeapon.launchMass;
+	thisWeapon.mass = thisWeapon.launchMass; # reset weapon mass
 
 	attributes[myNodeName].attacks["rocketsInAir"] += 1;
 
@@ -6183,6 +6183,37 @@ var launchRocket = func (myNodeName, elem, delta_t)
 	targetStatusPopupTip (msg, 20);
 
 	debprint ("Bombable: " ~ msg ~ " " ~ myNodeName ~ ", " ~ thisWeapon.name ~ " " ~ elem);
+
+	thisWeapon.controls.launched = 1;
+
+	props.globals.getNode("" ~ myNodeName ~ "/" ~ elem ~ "/rearm", 1).setBoolValue(0);
+
+	var id = setlistener
+		(
+			"" ~ myNodeName ~ "/" ~ elem ~ "/rearm", 
+			func (n)
+			{
+				if ( n.getValue() == 1)
+				{
+					settimer
+					(
+						func {
+							if ((thisWeapon.controls.launched == 1) and
+							(thisWeapon.destroyed == 1))
+							{
+								thisWeapon.controls.launched = 0;
+								thisWeapon.destroyed = 0;
+								removelistener(id);
+							}
+							n.setBoolValue(0);
+						},
+						1.0
+					);
+				}
+			},
+			0,
+			1
+		);
 }
 
 ############################ guideRocket ##############################
@@ -6332,6 +6363,7 @@ var guideRocket = func
 					thisWeapon.controls.flightPath[i].lat = alat_deg + deltaLat;
 					thisWeapon.controls.flightPath[i].alt = ( aAlt_m + deltaAlt ) * M2FT;
 				}
+				settimer ( func{ moveRocket (thisWeapon, 0, N_STEPS, time_inc )}, 0 ); # first step called immediately
 
 				return (t_intercept);
 			}
@@ -6489,7 +6521,7 @@ var guideRocket = func
 	# creates set of intermediate positions in wayPoint hash
 	# incremental change in position given by vector newMissileDir * time_inc
 	# newMissileDir changes each time increment
-	var newV = newVelocity( thisWeapon, missileSpeed_mps, newDir, interceptDirRefFrame, turnRad, delta_t, thisWeapon.controls.flightTime, aAlt_m );
+	var newV = newVelocity( thisWeapon, missileSpeed_mps, newDir, interceptDirRefFrame, turnRad, delta_t, aAlt_m );
 	var newMissileSpeed_mps = vectorModulus (newV);
 	var newMissileDir = vectorDivide ( newV, newMissileSpeed_mps );
 	var newPitch = math.asin( thisWeapon.velocities.thrustDir[2] ) * R2D; #change to the direction of the thrust vector
@@ -6524,7 +6556,7 @@ var guideRocket = func
 		thisWeapon.controls.flightPath[i].heading = math.atan2( v[0], v[1] ) * R2D;;
 	}
 
-	settimer ( func{ moveRocket (myNodeName1, elem, 0, N_STEPS, time_inc )}, 0 ); # first step called immediately
+	settimer ( func{ moveRocket (thisWeapon, 0, N_STEPS, time_inc )}, 0 ); # first step called immediately
 
 	thisWeapon.position.longitude_deg = alon_deg + deltaLon;
 	thisWeapon.position.latitude_deg = alat_deg + deltaLat;
@@ -6690,22 +6722,22 @@ var changeDirection = func ( thisWeapon, missileDir, interceptDir, missileSpeed_
 # it may not be aligned with the thrust vector
 # func returns new velocity
 
-var newVelocity = func (thisWeapon, missileSpeed_mps, missileDir, interceptDir, deltaPhi, delta_t, flight_time, alt_m )
+var newVelocity = func (thisWeapon, missileSpeed_mps, missileDir, interceptDir, deltaPhi, delta_t, alt_m )
 {
 
 	var thrust = 0.0;
-	if ( flight_time < thisWeapon.burn1 )
+	if ( thisWeapon.controls.flightTime < thisWeapon.burn1 )
 	{ 
 		thrust = thisWeapon.thrust1;
 		thisWeapon.mass -= delta_t * thisWeapon.fuelRate1;
 	}
-	elsif ( flight_time < thisWeapon.totalBurnTime )
+	elsif ( thisWeapon.controls.flightTime < thisWeapon.totalBurnTime )
 	{
 		thrust = thisWeapon.thrust2; # second stage of rocket
 		thisWeapon.mass -= delta_t * thisWeapon.fuelRate2;
 	}
 
-	var cD0 = zeroLiftDrag (thisWeapon, flight_time, alt_m, missileSpeed_mps); # note cD0, cN stored in attributes for debugging
+	var cD0 = zeroLiftDrag (thisWeapon, alt_m, missileSpeed_mps); # note cD0, cN stored in attributes for debugging
 	var cN = cN(thisWeapon);
 	var axialForce = thisWeapon.rhoAby2 * cD0 * missileSpeed_mps * missileSpeed_mps; # component of drag acting along the missile axis
 	var normalForce = axialForce * cN / cD0; # magnitude of force acting at 90 degrees to missile axis
@@ -6721,12 +6753,12 @@ var newVelocity = func (thisWeapon, missileSpeed_mps, missileDir, interceptDir, 
 		normalForce
 	); 
 
-	debprint (
-		sprintf(
-			"Bombable: normal force vector =[%8.3f, %8.3f, %8.3f]",
-			normalForceVector[0], normalForceVector[1], normalForceVector[2] 
-		)
-	);
+	# debprint (
+	# 	sprintf(
+	# 		"Bombable: normal force vector =[%8.3f, %8.3f, %8.3f]",
+	# 		normalForceVector[0], normalForceVector[1], normalForceVector[2] 
+	# 	)
+	# );
 	# thrust minus drag plus lift
 	var netForce = vectorSum
 	(
@@ -6766,12 +6798,12 @@ var newVelocity = func (thisWeapon, missileSpeed_mps, missileDir, interceptDir, 
 		1.0 - math.abs(deltaPhi) / liftDragRatio 
 		);
 
-	debprint (
-		sprintf(
-			"Bombable: new velocity vector =[%8.3f, %8.3f, %8.3f]",
-			newV[0], newV[1], newV[2] 
-		)
-	);
+	# debprint (
+	# 	sprintf(
+	# 		"Bombable: new velocity vector =[%8.3f, %8.3f, %8.3f]",
+	# 		newV[0], newV[1], newV[2] 
+	# 	)
+	# );
 
 	return(newV);
 }
@@ -6780,7 +6812,7 @@ var newVelocity = func (thisWeapon, missileSpeed_mps, missileDir, interceptDir, 
 # moveRocket updates the position of the AI model
 # note difference from guideRocket which calculates its overall flightpath
 
-var moveRocket = func (myNodeName, elem, index, lastIndex, timeInc)
+var moveRocket = func (thisWeapon, index, lastIndex, timeInc)
 {
 	# updates position, speed and orientation of AI model of rocket
 	# the rocket position and orientation are forced to follow the calculated rocket flightpath
@@ -6788,7 +6820,6 @@ var moveRocket = func (myNodeName, elem, index, lastIndex, timeInc)
 
 	#get flighpath waypoint
 
-	var thisWeapon = attributes[myNodeName].weapons[elem];
 	var fpath = thisWeapon.controls.flightPath;
 
 	var rp = "ai/models/static[" ~ thisWeapon.rocketsIndex ~ "]";
@@ -6800,7 +6831,7 @@ var moveRocket = func (myNodeName, elem, index, lastIndex, timeInc)
 	setprop (rp ~ "/orientation/true-heading-deg", fpath[index].heading);
 
 	var nextIndex = index + 1;
-	if (nextIndex < lastIndex) settimer ( func{ moveRocket (myNodeName, elem, nextIndex, lastIndex, timeInc)}, timeInc );
+	if (nextIndex < lastIndex) settimer ( func{ moveRocket (thisWeapon, nextIndex, lastIndex, timeInc)}, timeInc );
 
 	return (1);
 }
@@ -6818,6 +6849,8 @@ var killRocket = func (myNodeName, elem)
 
 	setprop (rp ~ "/controls/engine", 0);
 	deleteSmoke ("skywriting", rp);
+	thisWeapon.destroyed = 1;
+	attributes[myNodeName].attacks["rocketsInAir"] -= 1;
 	startSmoke ("flare", rp, "AI/Aircraft/Fire-Particles/large-explosion-particles.xml" ); 
 	settimer (
 		func {
@@ -6830,7 +6863,6 @@ var killRocket = func (myNodeName, elem)
 		, 4.0
 	);
 
-	attributes[myNodeName].attacks["rocketsInAir"] -= 1;
 }
 
 ############################ pidControllerInit ##############################
@@ -7048,11 +7080,11 @@ var speedSound = func (h)
 # DOI: 10.1177/0954410018797882
 # Mach number calculated from speed of sound at missile altitude
 
-var zeroLiftDrag = func (thisWeapon, flight_time, alt_m, missileSpeed_mps)
+var zeroLiftDrag = func (thisWeapon, alt_m, missileSpeed_mps)
 {
 	var intervalData = 0.2;
 
-	if (flight_time > thisWeapon.totalBurnTime)
+	if (thisWeapon.controls.flightTime > thisWeapon.totalBurnTime)
 	{
 		var cD_data =
 			[
@@ -9810,7 +9842,6 @@ var weapons_init_func = func(myNodeName) {
 			{
 				rocketCount += 1;
 				attributes[myNodeName].attacks["rocketsInAir"] = 0; # used to trigger rocket launch 
-				props.globals.getNode("" ~ myNodeName ~ "/" ~ elem ~ "/launched", 1).setBoolValue(0); # boolean to allow quick toggle from GUI
 				# each rocket is a separate weapon with a separate AI model - not tied to the parent AC/ship
 			}
 			else
@@ -9844,9 +9875,7 @@ var weapons_init_func = func(myNodeName) {
 		setprop ("" ~ myNodeName ~ "/" ~ elem ~ "/turret-pos-deg", weapAngles.heading);
 		setprop ("" ~ myNodeName ~ "/" ~ elem ~ "/cannon-elev-deg", weapAngles.elevation);
 			
-		props.globals.getNode("" ~ myNodeName ~ "/" ~ elem ~ "/destroyed", 1).setBoolValue(0);
-		# use rather than setprop to allow flag to be set as boolean type  
-		# needed? Could also deplete stores to zero to indicate destroyed
+		thisWeapon.destroyed = 0;
 
 		thisWeapon["aim"] = {
 			pHit:0, 
@@ -9965,7 +9994,7 @@ var rocketParmCheck = func( thisWeapon )
 		{name: "massFuel_2",						default: 150.0,		lowerBound: 50.0,		upperBound: 1000.0		}, # kg fuel stage 2
 		{name: "specificImpulse1",					default: 250.0,		lowerBound: 200.0,		upperBound: 1000.0		}, # sec, measured per unit weight in N
 		{name: "specificImpulse2",					default: 400.0,		lowerBound: 200.0,		upperBound: 1000.0		}, # sec, measured per unit weight in N
-		{name: "launchMass",						default: 500.0,		lowerBound: 200.0,		upperBound: 1000.0		}, # burn time of second rocket stage in sec
+		{name: "launchMass",						default: 500.0,		lowerBound: 200.0,		upperBound: 1000.0		}, # weapon mass during flight accounting for fuel depletion
 		{name: "maxMissileSpeed_mps",				default: 330.0,		lowerBound: 300.0,		upperBound: 1200.0		}, # determines drag factor
 		{name: "minTurnSpeed_mps",					default: 30.0,		lowerBound: 25.0,		upperBound: 50.0		}, # turn disabled below this speed - regime I
 		{name: "speedX",							default: 4.0,		lowerBound: 2.0,		upperBound: 10.0		}, # multiple of minTurnSpeed when maxTurnRate achieved - turn rate increases linearly with speed in regime II
@@ -10161,6 +10190,7 @@ var rocket_init_func = func (thisWeapon, rocketCount)
 	{
 		flightTime: 0,
 		flightPath: fp,
+		launched: 0
 	};
 
 	var maxLimit = LOOP_TIME * 40.0 * D2R; # initial value for maxRate turn 
