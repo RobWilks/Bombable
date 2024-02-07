@@ -6144,6 +6144,7 @@ var launchRocket = func (myNodeName, elem, delta_t)
 	thisWeapon.position.longitude_deg = alon_deg;
 	thisWeapon.position.altitude_ft = alt_ft;
 	thisWeapon.controls.flightTime = 0;
+	thisWeapon.controls.engine = 1;
 
 	setprop (rp ~ "/position/latitude-deg", alat_deg);
 	setprop (rp ~ "/position/longitude-deg", alon_deg);
@@ -6151,7 +6152,7 @@ var launchRocket = func (myNodeName, elem, delta_t)
 	setprop (rp ~ "/velocities/true-airspeed-kt", vectorModulus ( thisWeapon.velocities.missileV_mps ) * MPS2KT );
 	setprop (rp ~ "/orientation/pitch-deg", pitch);
 	setprop (rp ~ "/orientation/true-heading-deg", heading);
-	setprop (rp ~ "/controls/engine", 1);
+	setprop (rp ~ "/controls/engine", 1);  # animate plume from model
 
 	pidControllerInit (thisWeapon, "phi", delta_t);
 	pidControllerInit (thisWeapon, "theta", delta_t);
@@ -6322,6 +6323,22 @@ var guideRocket = func
 
 		return(0);
 	}	
+
+	# abort if target cannot be reached
+	if (thisWeapon.controls.engine == 0)
+	{
+		var range_m = (0.5  * missileSpeed_mps * missileSpeed_mps - grav_mpss * deltaAlt_m) * thisWeapon.mass / thisWeapon.axialForce;
+		# ( k.e. + p.e.) / axial force
+		if (range_m < distance_m) # check range estimate against target distance
+		{
+			var msg = thisWeapon.name ~ " from " ~ 
+			getprop ("" ~ myNodeName1 ~ "/name") ~ 
+			" aborted - too far from target";
+			targetStatusPopupTip (msg, 20);						
+
+			return(0);
+		}
+	}
 
 	if (distance_m < a_delta_dist)
 	{	
@@ -6615,9 +6632,9 @@ var guideRocket = func
 				" out of fuel";
 
 				targetStatusPopupTip (msg, 10);
-				# reduce thrust to zero to make the rocket fall out of the sky, rather than abort mid-air
+				# reduce thrust to zero
 				setprop (rp ~ "/controls/engine", 0);
-
+				thisWeapon.controls.engine = 1;
 			}
 		}
 	thisWeapon.controls.flightTime += delta_t ;
@@ -6720,7 +6737,7 @@ var changeDirection = func ( thisWeapon, missileDir, interceptDir, missileSpeed_
 		];
 
 	# if need to fly up add an angle of attack to provide lift  
-	if (theta2 > -PIBYSIX)
+	if (theta2 > -thisWeapon.AoA)
 	{
 		var thrustTheta = thetaNew + thisWeapon.AoA;
 		if (thrustTheta > PIBYTWO) 
@@ -6743,7 +6760,6 @@ var changeDirection = func ( thisWeapon, missileDir, interceptDir, missileSpeed_
 ############################ newVelocity ##############################
 # calculates velocity of rocket after delta_t accounting for:
 # gravity, skin drag, turn drag
-# rotates missle in direction of interceptDir
 # missileDir is the direction of the velocity vector 
 # it may not be aligned with the thrust vector
 # func returns new velocity
@@ -6765,8 +6781,8 @@ var newVelocity = func (thisWeapon, missileSpeed_mps, missileDir, deltaPhi, delt
 
 	var cD0 = zeroLiftDrag (thisWeapon, alt_m, missileSpeed_mps); # note cD0, cN stored in attributes for debugging
 	var cN = cN(thisWeapon);
-	var axialForce = thisWeapon.rhoAby2 * cD0 * missileSpeed_mps * missileSpeed_mps; # component of drag acting along the missile axis
-	var normalForce = axialForce * cN / cD0; # magnitude of force acting at 90 degrees to missile axis
+	thisWeapon.axialForce = thisWeapon.rhoAby2 * cD0 * missileSpeed_mps * missileSpeed_mps; # component of drag acting along the missile axis
+	var normalForce = thisWeapon.axialForce * cN / cD0; # magnitude of force acting at 90 degrees to missile axis
 
 	# calculate net force
 	var hdg = math.atan2 ( thisWeapon.velocities.thrustDir[0], thisWeapon.velocities.thrustDir[1] );
@@ -6783,8 +6799,9 @@ var newVelocity = func (thisWeapon, missileSpeed_mps, missileDir, deltaPhi, delt
 	# 		normalForceVector[0], normalForceVector[1], normalForceVector[2] 
 	# 	)
 	# );
+
 	# thrust minus drag plus lift
-	var ta = thrust - axialForce;
+	var ta = thrust - thisWeapon.axialForce;
 	var netForce = 
 	[
 		thisWeapon.velocities.thrustDir[0] * ta + normalForceVector[0],
@@ -6792,16 +6809,13 @@ var newVelocity = func (thisWeapon, missileSpeed_mps, missileDir, deltaPhi, delt
 		thisWeapon.velocities.thrustDir[2] * ta + normalForceVector[2] - thisWeapon.mass * grav_mpss
 	]; # adding weight
 
-
-	# minus weight
-	netForce[2] 
-
 	var liftDragRatio = (cN - cD0 * thisWeapon.AoA) / (cN * thisWeapon.AoA + cD0); # small angle approximation for AoA
 	# reduce speed according to rate of turn
 	# approximation of (v - dv) / v = exp (-deltaPhi / liftDragRatio )
 	# https://therestlesstechnophile.com/2020/05/04/modelling-missiles-in-the-atmosphere/
 
-	var dragFactor = 1.0 - math.abs(deltaPhi) / liftDragRatio;
+	# var dragFactor = 1.0 - math.abs(deltaPhi) / liftDragRatio + deltaPhi * deltaPhi / liftDragRatio / liftDragRatio / 2.0; # assume calc of exponent = expensive
+	var dragFactor = math.exp(- math.abs(deltaPhi) / liftDragRatio );
 		
 	# calculate resultant acceleration and change in velocity over delta_t and multiply by dragFactor
 	var tbym = delta_t / thisWeapon.mass;
@@ -10014,7 +10028,7 @@ var rocketParmCheck = func( thisWeapon )
 		{name: "speedX",							default: 4.0,		lowerBound: 2.0,		upperBound: 10.0		}, # multiple of minTurnSpeed when maxTurnRate achieved - turn rate increases linearly with speed in regime II
 		{name: "maxTurnRate",						default: 30.0*D2R,	lowerBound: 20.0*D2R,	upperBound: 45.0*D2R	}, # turn rate is constant in regime III
 		{name: "maxG",								default: 300.0,		lowerBound: 200.0,		upperBound: 400.0		}, # maximum G force the missile can withstand in mps limiting turn rate at high speeds - turn rate varies inversely with speed in regime IV
-		{name: "AoA",								default: 13.0*D2R,	lowerBound: 10.0*D2R,	upperBound: 15.0*D2R	}, # angle of attack to maximise lift, typically between 10 and 15 degrees turn disabled below this speed - dependent on whether missile has vectored thrust
+		{name: "AoA",								default: 13.0*D2R,	lowerBound: 8.0*D2R,	upperBound: 15.0*D2R	}, # angle of attack to maximise lift, typically between 10 and 15 degrees turn disabled below this speed - dependent on whether missile has vectored thrust
 		{name: "timeNoTurn",						default: 1.5,		lowerBound: 0.0,		upperBound: 3.0			}, # seconds after launch when not possible to turn
 		{name: "lengthTube",						default: 3.0,		lowerBound: 0.0,		upperBound: 10.0		}, # length of launch tube or guide rail
 		{name: "area",								default: 0.04,		lowerBound: 0.0225,		upperBound: 0.09		}, # effective area of rocket in metres squared; note length to diameter is fixed
@@ -10175,6 +10189,8 @@ var rocket_init_func = func (thisWeapon, rocketCount)
 	thisWeapon["fuelRate1"] = thisWeapon.massFuel_1 / thisWeapon.burn1;
 	thisWeapon["fuelRate2"] = thisWeapon.massFuel_2 / thisWeapon.burn2;
 
+	thisWeapon["axialForce"] = 0; # drag term
+
 	thisWeapon["velocities"] = 
 	{
 		missileV_mps: [0,0,0],
@@ -10204,7 +10220,8 @@ var rocket_init_func = func (thisWeapon, rocketCount)
 	{
 		flightTime: 0,
 		flightPath: fp,
-		launched: 0
+		launched: 0,
+		engine: 0,
 	};
 
 	var maxLimit = LOOP_TIME * 40.0 * D2R; # initial value for maxRate turn 
@@ -11168,11 +11185,13 @@ var findIntercept2 = func (r21, modr21, speed1, velocity2)
 
 	var time_sec = findRoots(
 		deltaV,
-		2 * (r21[0] * velocity2[0] + r21[1] * velocity2[1] + r21[2] * velocity2[2]),
+		2 * (r21[0] * velocity2[0] + r21[1] * velocity2[1] + r21[2] * velocity2[2]), # dot product
 		modr21 * modr21);
+	
 	if (time_sec.isReal != 1) return ({time:-1, vector:[0, 0, 0]});
 	# debprint(sprintf("Roots are %5.3f and %5.3f", time_sec.x1, time_sec.x2));
 	var chooseRoot = time_sec.x2;
+	
 	if (time_sec.x1 < 0) 
 	{
 		if (time_sec.x2 < 0) return ({time:-1, vector:[0, 0, 0]});
@@ -11181,6 +11200,7 @@ var findIntercept2 = func (r21, modr21, speed1, velocity2)
 	{
 		if ((time_sec.x2 < 0) or (time_sec.x2 > time_sec.x1)) chooseRoot = time_sec.x1;
 	}
+	
 	return (
 	{
 	time:chooseRoot, 
