@@ -6131,6 +6131,7 @@ var launchRocket = func (myNodeName, elem, delta_t)
 			vVert * thisWeapon.velocities.thrustDir[2]
 			]		
 		);
+	thisWeapon.velocities.speed = vectorModulus ( thisWeapon.velocities.missileV_mps ) ; # store both vector and its magnitude to reduce calculation
 	thisWeapon.velocities.lastMissileSpeed = 0;
 
 
@@ -6149,7 +6150,6 @@ var launchRocket = func (myNodeName, elem, delta_t)
 	setprop (rp ~ "/position/latitude-deg", alat_deg);
 	setprop (rp ~ "/position/longitude-deg", alon_deg);
 	setprop (rp ~ "/position/altitude-ft", alt_ft);
-	setprop (rp ~ "/velocities/true-airspeed-kt", vectorModulus ( thisWeapon.velocities.missileV_mps ) * MPS2KT );
 	setprop (rp ~ "/orientation/pitch-deg", pitch);
 	setprop (rp ~ "/orientation/true-heading-deg", heading);
 	setprop (rp ~ "/controls/engine", 1);  # animate plume from model
@@ -6251,7 +6251,7 @@ var guideRocket = func
 	var alat_deg = thisWeapon.position.latitude_deg; # AI
 	var alon_deg = thisWeapon.position.longitude_deg;
 	var aAlt_m = thisWeapon.position.altitude_ft * FT2M;
-	var missileSpeed_mps = getprop(rp ~ "/velocities/true-airspeed-kt") * KT2MPS;
+	var missileSpeed_mps = thisWeapon.velocities.speed; # magnitude of velocity vector
 	var missileDir = 
 	[
 		thisWeapon.velocities.missileV_mps[0] / missileSpeed_mps,
@@ -6405,7 +6405,7 @@ var guideRocket = func
 
 				return (t_intercept);
 			}
-			elsif (closestApproach < (2.0 * attributes[myNodeName2].dimensions.damageRadius_m ))
+			elsif (closestApproach < (4.0 * attributes[myNodeName2].dimensions.damageRadius_m ))
 			{
 				var msg = "Near miss from " ~ 
 				thisWeapon.name ~ " fired from " ~ 
@@ -6601,22 +6601,21 @@ var guideRocket = func
 	settimer ( func{ moveRocket (thisWeapon, 0, N_STEPS, time_inc )}, 0 ); # first step called immediately
 
 	thisWeapon.velocities.missileV_mps = newV;
+	thisWeapon.velocities.speed = newMissileSpeed_mps;
 	thisWeapon.position.longitude_deg = alon_deg + deltaLon;
 	thisWeapon.position.latitude_deg = alat_deg + deltaLat;
 	thisWeapon.position.altitude_ft = ( aAlt_m + deltaAlt ) * M2FT;
 
-	# update speed of AI model of rocket - not needed if static model
-	setprop (rp ~ "/velocities/true-airspeed-kt", newMissileSpeed_mps * MPS2KT);
-
-	if ( math.mod(thisWeapon.counter, 8) == 0 )
+	if ( math.mod(thisWeapon.counter, 4) == 0 )
 	{
 		var msg = "AI rocket from " ~ 
 		getprop ("" ~ myNodeName1 ~ "/name") ~ 
 		sprintf(
-		" intercept time %8.1fs, heading %8.1f deg, pitch %8.1f deg",
+		" intercept time %6.1fs, hdg %6.1f deg, pitch %6.1f deg, speed %6.1f mps",
 		thisWeapon.aim.interceptTime,
 		newHeading,
-		newPitch
+		newPitch,
+		newMissileSpeed_mps
 		);
 	
 
@@ -6634,7 +6633,7 @@ var guideRocket = func
 				targetStatusPopupTip (msg, 10);
 				# reduce thrust to zero
 				setprop (rp ~ "/controls/engine", 0);
-				thisWeapon.controls.engine = 1;
+				thisWeapon.controls.engine = 0;
 			}
 		}
 	thisWeapon.controls.flightTime += delta_t ;
@@ -6779,7 +6778,7 @@ var newVelocity = func (thisWeapon, missileSpeed_mps, missileDir, deltaPhi, delt
 		thisWeapon.mass -= delta_t * thisWeapon.fuelRate2;
 	}
 
-	var cD0 = zeroLiftDrag (thisWeapon, alt_m, missileSpeed_mps); # note cD0, cN stored in attributes for debugging
+	var cD0 = zeroLiftDrag (thisWeapon, missileSpeed_mps); # note cD0, cN stored in attributes for debugging
 	var cN = cN(thisWeapon);
 	thisWeapon.axialForce = thisWeapon.rhoAby2 * cD0 * missileSpeed_mps * missileSpeed_mps; # component of drag acting along the missile axis
 	var normalForce = thisWeapon.axialForce * cN / cD0; # magnitude of force acting at 90 degrees to missile axis
@@ -6886,7 +6885,6 @@ var killRocket = func (myNodeName, elem)
 			setprop (rp ~ "/position/latitude-deg", 0);
 			setprop (rp ~ "/position/longitude-deg", 0);
 			setprop (rp ~ "/position/altitude-ft", 0);
-			setprop (rp ~ "/velocities/true-airspeed-kt", 0);
 			}
 		, 4.0
 	);
@@ -7081,7 +7079,7 @@ var updateAirDensity = func (thisWeapon, alt_m)
 }
 
 ############################ speed sound ##############################
-# FUNCTION return speed of sound in mps at rocket altitude
+# FUNCTION return speed of sound in mps at rocket altitude (m)
 # see https://en.wikipedia.org/wiki/Speed_of_sound
 
 var speedSound = func (h)
@@ -7108,11 +7106,11 @@ var speedSound = func (h)
 # DOI: 10.1177/0954410018797882
 # Mach number calculated from speed of sound at missile altitude
 
-var zeroLiftDrag = func (thisWeapon, alt_m, missileSpeed_mps)
+var zeroLiftDrag = func (thisWeapon, missileSpeed_mps)
 {
 	var intervalData = 0.2;
 
-	if (thisWeapon.controls.flightTime > thisWeapon.totalBurnTime)
+	if (!thisWeapon.controls.engine)
 	{
 		var cD_data =
 			[
@@ -7173,7 +7171,7 @@ var zeroLiftDrag = func (thisWeapon, alt_m, missileSpeed_mps)
 	var index = mach / intervalData;
 	var intIndex = math.floor (index);
 	var delta = index - intIndex;
-	thisWeapon.cD0 = (cD_data[intIndex] * (intervalData - delta) + cD_data[intIndex+1] * delta) / intervalData;
+	thisWeapon.cD0 = cD_data[intIndex] * (1 - delta) + cD_data[intIndex+1] * delta;
 	return (thisWeapon.cD0);
 
 }
