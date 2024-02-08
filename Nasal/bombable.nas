@@ -5950,9 +5950,7 @@ var weapons_loop = func (id, myNodeName1 = "", myNodeName2 = "", targetSize_m = 
 	# weaponPower determines the probability of damage if there is a hit
 	# weaponSkill determines how frequently weapon aim is updated
 	# currently both are attributes of the AI model, not the weapon
-	
-	
-				
+		
 	foreach (elem; keys (attributes[myNodeName1].weapons) ) 
 	{	
 		# ot.reset();
@@ -6010,6 +6008,8 @@ var weapons_loop = func (id, myNodeName1 = "", myNodeName2 = "", targetSize_m = 
 			);
 			var t_guideRocket = (ot.timestamp.elapsedUSec()/ot.resolution_uS);
 			debprint(sprintf("Bombable: t_guideRocket = %6.3f msec", t_guideRocket));
+
+
 
 			if (time2Destruct < LOOP_TIME)
 			settimer
@@ -6176,7 +6176,8 @@ var launchRocket = func (myNodeName, elem, delta_t)
 		, 2.0
 	);
 		
-	thisWeapon.counter = 0;
+	thisWeapon.loopCount = 0;
+	thisWeapon.controls.abortCount = 0;
 
 	thisWeapon.mass = thisWeapon.launchMass; # reset weapon mass
 
@@ -6321,9 +6322,60 @@ var guideRocket = func
 		return(0);
 	}	
 
+	# abort if target cannot be reached
+	if (thisWeapon.controls.engine == 0)
+	{
+		if ( math.mod(thisWeapon.loopCount, 4) == 0 )
+		{	
+			var glide_range = thisWeapon.liftDragRatio * ( missileSpeed_mps * missileSpeed_mps / 2 / grav_mpss - deltaAlt_m );
+			# https://therestlesstechnophile.com/2018/05/26/useful-physics-equations-for-military-system-analysis/
+			if (distance_m * distance_m > glide_range * glide_range + deltaAlt_m * deltaAlt_m ) 
+			{
+				thisWeapon.controls.abortCount += 1;
+			}
+			else
+			{
+				thisWeapon.controls.abortCount = 0; # reset
+			}
 
+			if (thisWeapon.controls.abortCount == 3) # require 3 successive
+			{
+				var msg = thisWeapon.name ~ " from " ~ 
+				getprop ("" ~ myNodeName1 ~ "/name") ~ 
+				" aborted - too far from target";
+				targetStatusPopupTip (msg, 20);						
 
+				return(0);
+			}
+		}
+	
+	}
 
+	# abort if close to launch vehicle
+	if ( math.mod(thisWeapon.loopCount, 4) == 2 )
+	{
+		if (thisWeapon.controls.flightTime > thisWeapon.timeNoTurn)
+		{
+			var dx = 
+			(getprop("" ~ myNodeName1 ~ "/" ~ elem ~ "/position/latitude-deg") - thisWeapon.position.longitude_deg ) /
+			m_per_deg_lat;
+			var dy =
+			(getprop("" ~ myNodeName1 ~ "/" ~ elem ~ "/position/longitude-deg") - thisWeapon.position.latitude_deg ) /
+			m_per_deg_lon;
+			var dz = 
+			(getprop("" ~ myNodeName1 ~ "/" ~ elem ~ "/position/altitude-ft") - thisWeapon.position.altitude_ft ) *
+			FT2M;
+		}
+		if (dx * dx + dy * dy + dz * dz < 2.5e4) 
+		{
+			var msg = thisWeapon.name ~ " from " ~ 
+			getprop ("" ~ myNodeName1 ~ "/name") ~ 
+			" aborted - too close to launch vehicle";
+			targetStatusPopupTip (msg, 20);						
+			
+			return (0);
+		}
+	}
 
 	if (distance_m < a_delta_dist)
 	{	
@@ -6435,55 +6487,6 @@ var guideRocket = func
 		nextMissileSpeed,
 		nextTargetVelocity
 	);
-	var nTimes = size(thisWeapon.aim.interceptTime);
-	thisWeapon.aim.interceptTime[thisWeapon.aim.interceptTime_ptr] = intercept.time;
-	thisWeapon.aim.interceptTime_ptr = math.mod(thisWeapon.aim.interceptTime_ptr + 1 , nTimes);
-	# abort if target cannot be reached
-	if (thisWeapon.controls.engine == 0)
-	{	
-		var code = 0; # check glide range estimate against intercept distance
-		var glide_range = thisWeapon.liftDragRatio * ( missileSpeed_mps * missileSpeed_mps / 2 / grav_mpss - deltaAlt_m );
-		# https://therestlesstechnophile.com/2018/05/26/useful-physics-equations-for-military-system-analysis/
-		if (glide_range < intercept.time * missileSpeed_mps) code += 1;
-
-		var deltaSpeed = targetSpeed - missileSpeed_mps; # check glide range estimate against target distance
-		var glide_range = thisWeapon.liftDragRatio * (deltaSpeed * deltaSpeed / 2 / grav_mpss - deltaAlt_m );
-		if (glide_range < distance_m) code += 10;
-
-		var n_decreasing = 0; # check for decreasing sequence of intercept times
-		for (var i = 0; i < nTimes; i += 1)
-		{
-			var index = math.mod(i + thisWeapon.aim.interceptTime_ptr, nTimes);
-			var next_index = math.mod(i + thisWeapon.aim.interceptTime_ptr + 1, nTimes);
-			n_decreasing += (thisWeapon.aim.interceptTime[next_index] < thisWeapon.aim.interceptTime[index]);
-		}
-		if (n_decreasing < 3) code += 100;
-
-		debprint(
-			sprintf
-			(
-			"abort check: code =%4i ",
-			code
-			)
-			);
-
-		if (code) 
-		{
-			var msg = thisWeapon.name ~ " from " ~ 
-			getprop ("" ~ myNodeName1 ~ "/name") ~ 
-			" aborted - too far from target - code " ~ code;
-			targetStatusPopupTip (msg, 20);						
-
-			# return(0);
-		}
-
-	}
-
-
-
-
-
-
 
 	if (intercept.time != 9999) 
 	{
@@ -6639,7 +6642,7 @@ var guideRocket = func
 	thisWeapon.position.latitude_deg = alat_deg + deltaLat;
 	thisWeapon.position.altitude_ft = ( aAlt_m + deltaAlt ) * M2FT;
 
-	if ( math.mod(thisWeapon.counter, 4) == 0 )
+	if ( math.mod(thisWeapon.loopCount, 4) == 0 )
 	{
 		var msg = "AI rocket from " ~ 
 		getprop ("" ~ myNodeName1 ~ "/name") ~ 
@@ -6669,9 +6672,7 @@ var guideRocket = func
 				thisWeapon.controls.engine = 0;
 			}
 		}
-	thisWeapon.controls.flightTime += delta_t ;
 
-	thisWeapon.counter += 1;
 
 	# section to print flight stats to fgfs.log in C:\Users\userName\AppData\Roaming\flightgear.org
 
@@ -6716,6 +6717,8 @@ var guideRocket = func
 		)
 	);
 
+	thisWeapon.controls.flightTime += delta_t ;
+	thisWeapon.loopCount += 1;
 	return (LOOP_TIME);
 }
 
@@ -9943,8 +9946,6 @@ var weapons_init_func = func(myNodeName) {
 			weaponDirRefFrame:[0,0,0], 
 			lastTargetVelocity:[0,0,0],
 			interceptSpeed:0, 
-			interceptTime:[0,0,0,0,0],
-			interceptTime_ptr:0,
 			}; 
 		# new hash used to record direction weapon is pointing
 		# in the frame of reference of model and the frame of reference of the scene
@@ -10255,6 +10256,7 @@ var rocket_init_func = func (thisWeapon, rocketCount)
 		flightPath: fp,
 		launched: 0,
 		engine: 0,
+		abortCount: 0,
 	};
 
 	var maxLimit = LOOP_TIME * 40.0 * D2R; # initial value for maxRate turn 
@@ -10291,7 +10293,7 @@ var rocket_init_func = func (thisWeapon, rocketCount)
 
 	thisWeapon["rocketsIndex"] = rocketCount;
 
-	thisWeapon["counter"] = 0; # counts calls to guideRocket
+	thisWeapon["loopCount"] = 0; # counts calls to guideRocket
 
 	thisWeapon["cN"] = 0;
 	thisWeapon["cD0"] = 0;
