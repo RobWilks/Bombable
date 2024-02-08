@@ -5787,7 +5787,7 @@ var checkAim = func ( thisWeapon, myNodeName1 = "", myNodeName2 = "",
 		thisWeapon.maxMissileSpeed_mps
 	);
 
-	if (intercept.time == -1) return(weaponAimed);
+	if (intercept.time == 9999) return(weaponAimed);
 	weaponAimed = 1;
 	thisWeapon.aim.interceptSpeed = vectorModulus(intercept.vector);
 	
@@ -6183,9 +6183,7 @@ var launchRocket = func (myNodeName, elem, delta_t)
 	attributes[myNodeName].attacks["rocketsInAir"] += 1;
 
 	var msg = thisWeapon.name ~ " launched from " ~ 
-	getprop ("" ~ myNodeName ~ "/name") ~ 
-	" intercept time ~" ~ round(intercept.time) ~ "s" ~ 
-	" intercept speed ~" ~ round(thisWeapon.aim.interceptSpeed) ~ " mps";
+	getprop ("" ~ myNodeName ~ "/name");
 
 	targetStatusPopupTip (msg, 20);
 
@@ -6437,54 +6435,30 @@ var guideRocket = func
 		nextMissileSpeed,
 		nextTargetVelocity
 	);
-	var size = sizeof(thisWeapon.aim.interceptTime);
+	var nTimes = size(thisWeapon.aim.interceptTime);
 	thisWeapon.aim.interceptTime[thisWeapon.aim.interceptTime_ptr] = intercept.time;
-	thisWeapon.aim.interceptTime_ptr = math.mod(thisWeapon.aim.interceptTime_ptr + 1 , size);
+	thisWeapon.aim.interceptTime_ptr = math.mod(thisWeapon.aim.interceptTime_ptr + 1 , nTimes);
 	# abort if target cannot be reached
 	if (thisWeapon.controls.engine == 0)
 	{	
-		var code = 0;
+		var code = 0; # check glide range estimate against intercept distance
 		var glide_range = thisWeapon.liftDragRatio * ( missileSpeed_mps * missileSpeed_mps / 2 / grav_mpss - deltaAlt_m );
 		# https://therestlesstechnophile.com/2018/05/26/useful-physics-equations-for-military-system-analysis/
-		if (glide_range < intercept.time * missileSpeed_mps) # check range estimate against intercept distance
-		{
-			var msg = thisWeapon.name ~ " from " ~ 
-			getprop ("" ~ myNodeName1 ~ "/name") ~ 
-			" aborted - too far from target - code 1";
-			targetStatusPopupTip (msg, 20);						
+		if (glide_range < intercept.time * missileSpeed_mps) code += 1;
 
-			code = 1;
-		}
-	
-		var deltaSpeed = targetSpeed - missileSpeed_mps;
-		var range_m = thisWeapon.liftDragRatio * (deltaSpeed * deltaSpeed / 2 / grav_mpss - deltaAlt_m );
-		# https://therestlesstechnophile.com/2018/05/26/useful-physics-equations-for-military-system-analysis/
-		if (range_m < distance_m) # check range estimate against target distance
-		{
-			var msg = thisWeapon.name ~ " from " ~ 
-			getprop ("" ~ myNodeName1 ~ "/name") ~ 
-			" aborted - too far from target - code 2";
-			targetStatusPopupTip (msg, 20);						
+		var deltaSpeed = targetSpeed - missileSpeed_mps; # check glide range estimate against target distance
+		var glide_range = thisWeapon.liftDragRatio * (deltaSpeed * deltaSpeed / 2 / grav_mpss - deltaAlt_m );
+		if (glide_range < distance_m) code += 10;
 
-			code += 10;
-		}
-
-		var n_decreasing = 0; # check for decreasing sequence
-		for (var i; i = 0; i < size)
+		var n_decreasing = 0; # check for decreasing sequence of intercept times
+		for (var i = 0; i < nTimes; i += 1)
 		{
-			var index = math.mod(i + thisWeapon.aim.interceptTime_ptr, size);
-			var next_index = math.mod(i + thisWeapon.aim.interceptTime_ptr + 1, size);
+			var index = math.mod(i + thisWeapon.aim.interceptTime_ptr, nTimes);
+			var next_index = math.mod(i + thisWeapon.aim.interceptTime_ptr + 1, nTimes);
 			n_decreasing += (thisWeapon.aim.interceptTime[next_index] < thisWeapon.aim.interceptTime[index]);
 		}
-		if (n_decreasing < 3) # check range estimate against target distance
-		{
-			var msg = thisWeapon.name ~ " from " ~ 
-			getprop ("" ~ myNodeName1 ~ "/name") ~ 
-			" aborted - too far from target - code 3";
-			targetStatusPopupTip (msg, 20);						
+		if (n_decreasing < 3) code += 100;
 
-			code += 100;
-		}
 		debprint(
 			sprintf
 			(
@@ -6492,7 +6466,16 @@ var guideRocket = func
 			code
 			)
 			);
-		if (!code) return(0);
+
+		if (code) 
+		{
+			var msg = thisWeapon.name ~ " from " ~ 
+			getprop ("" ~ myNodeName1 ~ "/name") ~ 
+			" aborted - too far from target - code " ~ code;
+			targetStatusPopupTip (msg, 20);						
+
+			# return(0);
+		}
 
 	}
 
@@ -9958,11 +9941,10 @@ var weapons_init_func = func(myNodeName) {
 			weaponDirModelFrame:[0,0,0], 
 			weaponOffsetRefFrame:[0,0,0], 
 			weaponDirRefFrame:[0,0,0], 
-			interceptSpeed:0, 
-			interceptTime:0, 
 			lastTargetVelocity:[0,0,0],
-			thisWeapon.aim.interceptTime:[0,0,0,0,0],
-			thisWeapon.aim.interceptTime_ptr:0
+			interceptSpeed:0, 
+			interceptTime:[0,0,0,0,0],
+			interceptTime_ptr:0,
 			}; 
 		# new hash used to record direction weapon is pointing
 		# in the frame of reference of model and the frame of reference of the scene
@@ -11197,18 +11179,18 @@ var findIntercept = func (myNodeName1, myNodeName2, displacement, dist_m, interc
 					velocity2[2] - velocity1[2]
 					];
 	var deltaV = dotProduct(velocity21, velocity21) - interceptSpeed * interceptSpeed;
-	if (deltaV * deltaV < 1e-10) return ({time:-1, vector:[0, 0, 0]});
+	if (deltaV * deltaV < 1e-10) return ({time:9999, vector:[0, 0, 0]});
 	var time_sec = findRoots(
 		deltaV,
 		2 * dotProduct(displacement, velocity21),
 		dist_m * dist_m); # in reference frame of AC1
 	# if (time_sec.isReal != 1) debprint ("not real");
-	if (time_sec.isReal != 1) return ({time:-1, vector:[0, 0, 0]});
+	if (time_sec.isReal != 1) return ({time:9999, vector:[0, 0, 0]});
 	# debprint(sprintf("Roots are %5.3f and %5.3f", time_sec.x1, time_sec.x2));
 	var chooseRoot = time_sec.x2;
 	if (time_sec.x1 < 0) 
 	{
-		if (time_sec.x2 < 0) return ({time:-1, vector:[0, 0, 0]});
+		if (time_sec.x2 < 0) return ({time:9999, vector:[0, 0, 0]});
 	}
 	else 
 	{
