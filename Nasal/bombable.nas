@@ -6361,10 +6361,10 @@ var guideRocket = func
 		if (thisWeapon.controls.flightTime > 10) # must exceed time for rocket to reach safeDist after launch
 		{
 			var dx = 
-			(getprop("" ~ myNodeName1 ~ "/" ~ elem ~ "/position/latitude-deg") - thisWeapon.position.longitude_deg ) /
+			(getprop("" ~ myNodeName1 ~ "/" ~ elem ~ "/position/latitude-deg") - thisWeapon.position.longitude_deg ) *
 			m_per_deg_lat;
 			var dy =
-			(getprop("" ~ myNodeName1 ~ "/" ~ elem ~ "/position/longitude-deg") - thisWeapon.position.latitude_deg ) /
+			(getprop("" ~ myNodeName1 ~ "/" ~ elem ~ "/position/longitude-deg") - thisWeapon.position.latitude_deg ) *
 			m_per_deg_lon;
 			var dz = 
 			(getprop("" ~ myNodeName1 ~ "/" ~ elem ~ "/position/altitude-ft") - thisWeapon.position.altitude_ft ) *
@@ -9897,11 +9897,6 @@ var weapons_init_func = func(myNodeName) {
 		rocketCount = 0; #index of first rocket for AI aircraft
 		}
 
-	if (rocketCount) 
-	{
-		if (attributes[myNodeName].dimensions["safeDistance_m"] == nil) attributes[myNodeName].dimensions["safeDistance_m"] = 200;
-	}
-
 	foreach (elem;keys (weaps) ) 
 	{
 		var thisWeapon = attributes[myNodeName].weapons[elem]; # a pointer into the attributes hash
@@ -9975,6 +9970,11 @@ var weapons_init_func = func(myNodeName) {
 	
 	setprop ("/bombable/fire-particles/index" , count) ; #next unassigned fire particle
 	setprop ("/bombable/rockets/index" , rocketCount) ; #next unassigned rocket
+
+	if (rocketCount) 
+	{
+		if (attributes[myNodeName].dimensions["safeDistance_m"] == nil) attributes[myNodeName].dimensions["safeDistance_m"] = 200;
+	}
 	
 	#append(listenerids, listenerid);
 	#props.globals.getNode(""~myNodeName~"/bombable/weapons/listenerids",1).setValues({listenerids: listenerids});
