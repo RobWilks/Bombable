@@ -5988,7 +5988,7 @@ var weapons_loop = func (id, myNodeName1 = "", myNodeName2 = "", targetSize_m = 
 				weaponsOrientationPositionUpdate(myNodeName1, elem);
 				if (callCheckAim == 2)
 					{
-						if ( rand() < (weaponSkill * weaponSkill) / (attributes[myNodeName1].attacks["rocketsInAir"] + 1) ) 
+						if ( rand() < (weaponSkill * weaponSkill) / (attributes[myNodeName1].attacks["rocketsInAir"] + 1) / (attributes[myNodeName1].attacks["rocketsInAir"] + 1)) 
 						{
 							launchRocket(myNodeName1, elem, loopTime);
 						}
@@ -6007,18 +6007,21 @@ var weapons_loop = func (id, myNodeName1 = "", myNodeName2 = "", targetSize_m = 
 				damageValue
 			);
 			var t_guideRocket = (ot.timestamp.elapsedUSec()/ot.resolution_uS);
-			debprint(sprintf("Bombable: t_guideRocket = %6.3f msec", t_guideRocket));
+			debprint(sprintf("Bombable: " ~ elem ~ " t_guideRocket = %6.3f msec", t_guideRocket));
 
 
 
 			if (time2Destruct < LOOP_TIME)
+			{
+			var weapKey = elem; # otherwise killRocket uses value of elem at time of call 
 			settimer
 			( func
 				{
-					killRocket (myNodeName1, elem);
+					killRocket (myNodeName1, weapKey);
 				},
 				time2Destruct
 			);
+			}
 		}
 
 		# debprint ("Bombable: Weapons_loop ", myNodeName1, " weaponSkill = ",weaponSkill, " weaponPower = ", weaponPower, " thisWeapon.aim.pHit = ", thisWeapon.aim.pHit);
@@ -6241,6 +6244,7 @@ var guideRocket = func
 )
 {
 	var thisWeapon = attributes[myNodeName1].weapons[elem];
+	var dim = attributes[myNodeName1].dimensions;  
 	var rp = "ai/models/static[" ~ thisWeapon.rocketsIndex ~ "]"; # static model for rocket
 	var delta_t = LOOP_TIME;
 
@@ -6325,7 +6329,7 @@ var guideRocket = func
 	# abort if target cannot be reached
 	if (thisWeapon.controls.engine == 0)
 	{
-		if ( math.mod(thisWeapon.loopCount, 4) == 0 )
+		if ( math.mod(thisWeapon.loopCount, 4) == 1 )
 		{	
 			var glide_range = thisWeapon.liftDragRatio * ( missileSpeed_mps * missileSpeed_mps / 2 / grav_mpss - deltaAlt_m );
 			# https://therestlesstechnophile.com/2018/05/26/useful-physics-equations-for-military-system-analysis/
@@ -6354,7 +6358,7 @@ var guideRocket = func
 	# abort if close to launch vehicle
 	if ( math.mod(thisWeapon.loopCount, 4) == 2 )
 	{
-		if (thisWeapon.controls.flightTime > thisWeapon.timeNoTurn)
+		if (thisWeapon.controls.flightTime > 10) # must exceed time for rocket to reach safeDist after launch
 		{
 			var dx = 
 			(getprop("" ~ myNodeName1 ~ "/" ~ elem ~ "/position/latitude-deg") - thisWeapon.position.longitude_deg ) /
@@ -6365,15 +6369,15 @@ var guideRocket = func
 			var dz = 
 			(getprop("" ~ myNodeName1 ~ "/" ~ elem ~ "/position/altitude-ft") - thisWeapon.position.altitude_ft ) *
 			FT2M;
-		}
-		if (dx * dx + dy * dy + dz * dz < 2.5e4) 
-		{
-			var msg = thisWeapon.name ~ " from " ~ 
-			getprop ("" ~ myNodeName1 ~ "/name") ~ 
-			" aborted - too close to launch vehicle";
-			targetStatusPopupTip (msg, 20);						
-			
-			return (0);
+			if (dx * dx + dy * dy + dz * dz < dim.safeDistance_m * dim.safeDistance_m) 
+			{
+				var msg = thisWeapon.name ~ " from " ~ 
+				getprop ("" ~ myNodeName1 ~ "/name") ~ 
+				" aborted - too close to launch vehicle";
+				targetStatusPopupTip (msg, 20);						
+				
+				return (0);
+			}
 		}
 	}
 
@@ -6644,7 +6648,7 @@ var guideRocket = func
 
 	if ( math.mod(thisWeapon.loopCount, 4) == 0 )
 	{
-		var msg = "AI rocket from " ~ 
+		var msg = thisWeapon.name ~ " from " ~ 
 		getprop ("" ~ myNodeName1 ~ "/name") ~ 
 		sprintf(
 		" intercept time %6.1fs, hdg %6.1f deg, pitch %6.1f deg, speed %6.1f mps",
@@ -6907,13 +6911,14 @@ var moveRocket = func (thisWeapon, index, lastIndex, timeInc)
 
 var killRocket = func (myNodeName, elem)
 {
+	# debprint("Bombable: " ~ elem ~ " killed: rocket index " ~ thisWeapon.rocketsIndex);
 	var thisWeapon = attributes[myNodeName].weapons[elem];
-	var rp = "ai/models/static[" ~ thisWeapon.rocketsIndex ~ "]";	
-
-	setprop (rp ~ "/controls/engine", 0);
-	deleteSmoke ("skywriting", rp);
 	thisWeapon.destroyed = 1;
 	attributes[myNodeName].attacks["rocketsInAir"] -= 1;
+
+	var rp = "ai/models/static[" ~ thisWeapon.rocketsIndex ~ "]";	
+	setprop (rp ~ "/controls/engine", 0);
+	deleteSmoke ("skywriting", rp);
 	startSmoke ("flare", rp, "AI/Aircraft/Fire-Particles/large-explosion-particles.xml" ); 
 	settimer (
 		func {
@@ -9891,6 +9896,11 @@ var weapons_init_func = func(myNodeName) {
 	if (rocketCount == nil) {
 		rocketCount = 0; #index of first rocket for AI aircraft
 		}
+
+	if (rocketCount) 
+	{
+		if (attributes[myNodeName].dimensions["safeDistance_m"] == nil) attributes[myNodeName].dimensions["safeDistance_m"] = 200;
+	}
 
 	foreach (elem;keys (weaps) ) 
 	{
