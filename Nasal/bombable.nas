@@ -6662,9 +6662,9 @@ var guideRocket = func
 		targetStatusPopupTip (msg, 5);
 	}
 
-	if ( thisWeapon.controls.flightTime + delta_t > thisWeapon.totalBurnTime) 
+	if ( thisWeapon.controls.flightTime + delta_t > thisWeapon.burn_1_2_3) 
 		{
-			if ( thisWeapon.controls.flightTime < thisWeapon.totalBurnTime )
+			if ( thisWeapon.controls.flightTime < thisWeapon.burn_1_2_3 )
 			{
 				var msg = thisWeapon.name ~ " fired from " ~ 
 				getprop ("" ~ myNodeName1 ~ "/name") ~ 
@@ -6812,10 +6812,15 @@ var newVelocity = func (thisWeapon, missileSpeed_mps, missileDir, deltaPhi, delt
 		thrust = thisWeapon.thrust1;
 		thisWeapon.mass -= delta_t * thisWeapon.fuelRate1;
 	}
-	elsif ( thisWeapon.controls.flightTime < thisWeapon.totalBurnTime )
+	elsif ( thisWeapon.controls.flightTime < thisWeapon.burn_1_2 )
 	{
 		thrust = thisWeapon.thrust2; # second stage of rocket
 		thisWeapon.mass -= delta_t * thisWeapon.fuelRate2;
+	}
+	elsif ( thisWeapon.controls.flightTime < thisWeapon.burn_1_2_3 )
+	{
+		thrust = thisWeapon.thrust3; # third stage of rocket
+		thisWeapon.mass -= delta_t * thisWeapon.fuelRate3;
 	}
 
 	var cD0 = zeroLiftDrag (thisWeapon, missileSpeed_mps); # note cD0, cN stored in attributes for debugging
@@ -6840,13 +6845,27 @@ var newVelocity = func (thisWeapon, missileSpeed_mps, missileDir, deltaPhi, delt
 	# );
 
 	# thrust minus drag plus lift
-	var ta = thrust - thisWeapon.axialForce;
-	var netForce = 
-	[
-		thisWeapon.velocities.thrustDir[0] * ta + normalForceVector[0],
-		thisWeapon.velocities.thrustDir[1] * ta + normalForceVector[1],
-		thisWeapon.velocities.thrustDir[2] * ta + normalForceVector[2] - thisWeapon.mass * grav_mpss
-	]; # adding weight
+	if (thisWeapon.flightTime < thisWeapon.timeRelease)
+	{
+		# weight only acts aloing the axis of thrust
+		var ta = thrust - thisWeapon.axialForce - thisWeapon.velocities.thrustDir[2] * thisWeapon.mass * grav_mpss;
+		var netForce = 
+		[
+			thisWeapon.velocities.thrustDir[0] * ta + normalForceVector[0],
+			thisWeapon.velocities.thrustDir[1] * ta + normalForceVector[1],
+			thisWeapon.velocities.thrustDir[2] * ta + normalForceVector[2]
+		];
+	}
+	else
+	{
+		var ta = thrust - thisWeapon.axialForce;
+		var netForce = 
+		[
+			thisWeapon.velocities.thrustDir[0] * ta + normalForceVector[0],
+			thisWeapon.velocities.thrustDir[1] * ta + normalForceVector[1],
+			thisWeapon.velocities.thrustDir[2] * ta + normalForceVector[2] - thisWeapon.mass * grav_mpss
+		]; # adding weight along z-axis
+	}
 
 	thisWeapon.liftDragRatio = (cN - cD0 * thisWeapon.AoA) / (cN * thisWeapon.AoA + cD0); # small angle approximation for AoA
 	# reduce speed according to rate of turn
@@ -10057,14 +10076,15 @@ var rocketParmCheck = func( thisWeapon )
 {
 	var weaponVars =
 	[
-		{name: "thrust1",							default: 20000,		lowerBound: 15000,		upperBound: 30000		}, # thrust in Newtons stage 1
 		{name: "burn1",								default: 2.0,		lowerBound: 1.0,		upperBound: 20.0		}, # burn time of first rocket stage in sec
-		{name: "thrust2",							default: 5000,		lowerBound: 2000,		upperBound: 10000		}, # thrust in Newtons stage 2 - second stage optional
 		{name: "burn2",								default: 0.0,		lowerBound: 0.0,		upperBound: 3600.0		}, # burn time of second rocket stage in sec
-		{name: "massFuel_1",						default: 100.0,		lowerBound: 50.0,		upperBound: 1000.0		}, # kg fuel stage 1
-		{name: "massFuel_2",						default: 150.0,		lowerBound: 50.0,		upperBound: 1000.0		}, # kg fuel stage 2
+		{name: "burn3",								default: 0.0,		lowerBound: 0.0,		upperBound: 3600.0		}, # burn time of second rocket stage in sec
+		{name: "massFuel_1",						default: 100.0,		lowerBound: 0.0,		upperBound: 1000.0		}, # kg fuel stage 1. Zero to release rocket pre-ignition so as to make Stage 1 freefall
+		{name: "massFuel_2",						default: 100.0,		lowerBound: 0.0,		upperBound: 1000.0		}, # kg fuel stage 2
+		{name: "massFuel_3",						default: 100.0,		lowerBound: 0.0,		upperBound: 1000.0		}, # kg fuel stage 3
 		{name: "specificImpulse1",					default: 250.0,		lowerBound: 200.0,		upperBound: 1000.0		}, # sec, measured per unit weight in N
-		{name: "specificImpulse2",					default: 400.0,		lowerBound: 200.0,		upperBound: 1000.0		}, # sec, measured per unit weight in N
+		{name: "specificImpulse2",					default: 250.0,		lowerBound: 200.0,		upperBound: 1000.0		}, # sec, measured per unit weight in N
+		{name: "specificImpulse3",					default: 250.0,		lowerBound: 200.0,		upperBound: 1000.0		}, # sec, measured per unit weight in N
 		{name: "launchMass",						default: 500.0,		lowerBound: 200.0,		upperBound: 1000.0		}, # weapon mass during flight accounting for fuel depletion
 		{name: "maxMissileSpeed_mps",				default: 330.0,		lowerBound: 300.0,		upperBound: 1200.0		}, # determines drag factor
 		{name: "minTurnSpeed_mps",					default: 30.0,		lowerBound: 25.0,		upperBound: 50.0		}, # turn disabled below this speed - regime I
@@ -10077,7 +10097,6 @@ var rocketParmCheck = func( thisWeapon )
 		{name: "area",								default: 0.04,		lowerBound: 0.0225,		upperBound: 0.09		}, # effective area of rocket in metres squared; note length to diameter is fixed
 	];
 
-	var nThrust = 0;
 	var nBurn = 0;
 	var nSpecificImpulse = 0;
 	var nMassFuel = 0;
@@ -10085,16 +10104,13 @@ var rocketParmCheck = func( thisWeapon )
 	forindex(i; weaponVars) 
 	{
 		var gotValue = (thisWeapon[weaponVars[i].name] != nil);
-		for (var j=0; j < 2; j = j+1) {
-			if ((weaponVars[i].name == "thrust" ~ j ) and gotValue) nThrust += 1;
-		}
-		for (var j=0; j < 2; j = j+1) {
+		for (var j=0; j < 3; j = j+1) {
 			if ((weaponVars[i].name == "burn" ~ j ) and gotValue) nBurn += 1;
 		}
-		for (var j=0; j < 2; j = j+1) {
+		for (var j=0; j < 3; j = j+1) {
 			if ((weaponVars[i].name == "massFuel" ~ j ) and gotValue) nMassFuel += 1;
 		}
-		for (var j=0; j < 2; j = j+1) {
+		for (var j=0; j < 3; j = j+1) {
 			if ((weaponVars[i].name == "specificImpulse" ~ j ) and gotValue) nSpecificImpulse += 1;
 		}
 	}
@@ -10118,98 +10134,62 @@ var rocketParmCheck = func( thisWeapon )
 		);
 	}
 
-	var rocketCheck = 0; # 0 = fail
-	if ((nThrust == 0) and (nBurn == 0)) 
-		debprint ("Bombable: error: specify thrust or burn time for at least one stage");
-
-	if ((nThrust > 0) and (nBurn > 0)) 
-		debprint ("Bombable: error: specify either thrust or burn time - not both");
-
-	if ((nThrust > 0) and (nBurn == 0)) 
+	if (nBurn == 0) 
 	{
-		if (thisWeapon.thrust1 != 0)
-		{
-			thisWeapon.burn1 = thisWeapon.massFuel_1 * grav_mpss * thisWeapon.specificImpulse1 / thisWeapon.thrust1;
-			debprint (
-			sprintf
-				(
-					"Bombable: %s stage 1 burn time %6.0fs calculated from thrust %6.0fN, fuel mass %6.0fkg and specific impulse %6.0fs",
-					thisWeapon.name,
-					thisWeapon.burn1,
-					thisWeapon.thrust1,
-					thisWeapon.massFuel_1,
-					thisWeapon.specificImpulse1
-				)
-			);
-			if (thisWeapon.thrust2 != 0)
-			{
-				thisWeapon.burn2 = thisWeapon.massFuel_2 * grav_mpss * thisWeapon.specificImpulse2 / thisWeapon.thrust2;
-				debprint (
-				sprintf
-					(
-						"Bombable: %s stage 2 burn time %6.0fs calculated from thrust %6.0fN, fuel mass %6.0fkg and specific impulse %6.0fs",
-						thisWeapon.name,
-						thisWeapon.burn2,
-						thisWeapon.thrust2,
-						thisWeapon.massFuel_2,
-						thisWeapon.specificImpulse2
-					)
-				);
-			}			
-			else
-			{
-				thisWeapon.burn2 = 0;
-			}
-			rocketCheck = 1;
-		} 
-	} 
-
-	if ((nThrust == 0) and (nBurn > 0)) 
+		debprint ("Bombable: warning: no stages specified, using default values");
+	}
+	elsif ((nBurn != nMassFuel) or (nMassFuel != nSpecificImpulse)) 
 	{
-		if (thisWeapon.burn1 != 0)
-		{
-			thisWeapon.thrust1 = thisWeapon.massFuel_1 * grav_mpss * thisWeapon.specificImpulse1 / thisWeapon.burn1;
-			debprint (
-			sprintf
-				(
-					"Bombable: %s stage 1 thrust %6.0fs calculated from burn time %6.0fN, fuel mass %6.0fkg and specific impulse %6.0fs",
-					thisWeapon.name,
-					thisWeapon.thrust1,
-					thisWeapon.burn1,
-					thisWeapon.massFuel_1,
-					thisWeapon.specificImpulse1
-				)
-			);
-			if (thisWeapon.burn2 != 0)
-			{
-				thisWeapon.thrust2 = thisWeapon.massFuel_2 * grav_mpss * thisWeapon.specificImpulse2 / thisWeapon.burn2;
-				debprint (
-				sprintf
-					(
-						"Bombable: %s stage 2 thrust %6.0fs calculated from burn time %6.0fN, fuel mass %6.0fkg and specific impulse %6.0fs",
-						thisWeapon.name,
-						thisWeapon.thrust2,
-						thisWeapon.burn2,
-						thisWeapon.massFuel_2,
-						thisWeapon.specificImpulse2
-					)
-				);
-			}			
-			else
-			{
-				thisWeapon.thrust2 = 0;
-			}
-			rocketCheck = 1;
-		} 
-	} 
-
-	if (thisWeapon.launchMass < 2 * (thisWeapon.massFuel_1 + thisWeapon.massFuel_2))
-	{
-		debprint ("Bombable: error: total launch mass must be at least 2x fuel mass");
-		rocketCheck = 0;
+		debprint ("Bombable: error: specify burn time, mass of fuel and its specific impulse for each stage (up to 3)");
+		return(0);
 	}
 
-	return (rocketCheck) ;
+	var massFraction = (thisWeapon.massFuel_1 + thisWeapon.massFuel_2 + thisWeapon.massFuel_3) / thisWeapon.launchMass;
+	var maxMassFraction = 0.5;
+	if ( massFraction > maxMassFraction )
+	{ 
+		debprint ("Bombable: warning: total launch mass must be at least 2x fuel mass, mass of fuel scaled down");
+		thisWeapon.massFuel_1 *= ( maxMassFraction / massFraction);
+		thisWeapon.massFuel_2 *= ( maxMassFraction / massFraction);
+		thisWeapon.massFuel_3 *= ( maxMassFraction / massFraction);
+	}
+	thisWeapon.thrust1 = (thisWeapon.burn1 != 0) ? thisWeapon.massFuel_1 * grav_mpss * thisWeapon.specificImpulse1 / thisWeapon.burn1 : 0.0;
+	debprint (
+	sprintf
+		(
+			"Bombable: %s stage 1 thrust %6.0fs calculated from burn time %6.0fN, fuel mass %6.0fkg and specific impulse %6.0fs",
+			thisWeapon.name,
+			thisWeapon.thrust1,
+			thisWeapon.burn1,
+			thisWeapon.massFuel_1,
+			thisWeapon.specificImpulse1
+		)
+	);
+	thisWeapon.thrust2 = (thisWeapon.burn2 != 0) ? thisWeapon.massFuel_2 * grav_mpss * thisWeapon.specificImpulse2 / thisWeapon.burn2 : 0.0;
+	debprint (
+	sprintf
+		(
+			"Bombable: %s stage 2 thrust %6.0fs calculated from burn time %6.0fN, fuel mass %6.0fkg and specific impulse %6.0fs",
+			thisWeapon.name,
+			thisWeapon.thrust2,
+			thisWeapon.burn2,
+			thisWeapon.massFuel_2,
+			thisWeapon.specificImpulse2
+		)
+	);
+	thisWeapon.thrust3 = (thisWeapon.burn3 != 0) ? thisWeapon.massFuel_3 * grav_mpss * thisWeapon.specificImpulse3 / thisWeapon.burn3 : 0.0;
+	debprint (
+	sprintf
+		(
+			"Bombable: %s stage 3 thrust %6.0fs calculated from burn time %6.0fN, fuel mass %6.0fkg and specific impulse %6.0fs",
+			thisWeapon.name,
+			thisWeapon.thrust3,
+			thisWeapon.burn3,
+			thisWeapon.massFuel_3,
+			thisWeapon.specificImpulse3
+		)
+	);
+	return (1) ;
 }
 
 
@@ -10225,12 +10205,14 @@ var rocket_init_func = func (thisWeapon, rocketCount)
 
 	# set-up internal parameters
 
-	thisWeapon["totalBurnTime"] = thisWeapon["burn1"] + thisWeapon["burn2"];
+	thisWeapon["burn_1_2"] = thisWeapon["burn1"] + thisWeapon["burn2"];
+	thisWeapon["burn_1_2_3"] = thisWeapon["burn1"] + thisWeapon["burn2"] + thisWeapon["burn3"];
 	
 	thisWeapon["mass"] = thisWeapon.launchMass;
 
 	thisWeapon["fuelRate1"] = thisWeapon.massFuel_1 / thisWeapon.burn1;
 	thisWeapon["fuelRate2"] = thisWeapon.massFuel_2 / thisWeapon.burn2;
+	thisWeapon["fuelRate3"] = thisWeapon.massFuel_3 / thisWeapon.burn3;
 
 	thisWeapon["axialForce"] = 0; # drag term
 	thisWeapon["liftDragRatio"] = 1; # lift drag ratio used to determine glide performance
