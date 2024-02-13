@@ -6079,9 +6079,26 @@ var weapons_loop = func (id, myNodeName1 = "", myNodeName2 = "", targetSize_m = 
 							
 				weaponName = thisWeapon.name;
 				if (weaponName == nil) weaponName = "Main Weapon";
-							
-				mainAC_add_damage ( damageAdd, 0, "weapons",
-				"Hit from " ~ ai_callsign ~ " - " ~ weaponName ~"!");								
+
+				if (TARGET_NODE == "")
+				{
+					mainAC_add_damage ( damageAdd, 0, "weapons",
+					"Hit from " ~ ai_callsign ~ " - " ~ weaponName ~"!");								
+				}
+				elsif (thisWeapon.weaponType == 1)
+				{
+					add_damage
+					(
+						.1 * attributes[myNodeName2].vulnerabilities.damageVulnerability * thisWeapon.mass / 4, #mass in kg 
+						myNodeName2, 
+						"weapon", 
+						myNodeName1, 
+						thisWeapon.mass, 
+						thisWeapon.position.latitude_deg, 
+						thisWeapon.position.longitude_deg, 
+						thisWeapon.position.altitude_ft
+					);
+				}
 			}
 		}
 		# var t_weap = (ot.timestamp.elapsedUSec()/ot.resolution_uS);
@@ -6645,18 +6662,21 @@ var guideRocket = func
 
 	if ( math.mod(thisWeapon.loopCount, 4) == 0 )
 	{
-		var msg = thisWeapon.name ~ " from " ~ 
-		getprop ("" ~ myNodeName1 ~ "/name") ~ 
-		sprintf(
-		" intercept time %6.1fs, hdg %6.1f deg, pitch %6.1f deg, speed %6.1f mps",
-		intercept.time,
-		newHeading,
-		newPitch,
-		newMissileSpeed_mps
-		);
-	
+		if ((intercept.time > 5) and (intercept.time < 50))
+		{
+			var msg = thisWeapon.name ~ " from " ~ 
+			getprop ("" ~ myNodeName1 ~ "/name") ~ 
+			sprintf(
+			" intercept in%5.1fs hdg%6.1f deg pitch%5.1f deg speed%7.1fmps mach %5.1f",
+			intercept.time,
+			newHeading,
+			newPitch,
+			newMissileSpeed_mps,
+			newMissileSpeed_mps / thisWeapon.speedSound
+			);
 
-		targetStatusPopupTip (msg, 5);
+			targetStatusPopupTip (msg, 5);
+		}
 	}
 
 	if ( thisWeapon.controls.flightTime + delta_t > thisWeapon.burn_1_2_3) 
@@ -6677,46 +6697,46 @@ var guideRocket = func
 
 	# section to print flight stats to fgfs.log in C:\Users\userName\AppData\Roaming\flightgear.org
 
-	debprint (
-		sprintf(
-			"Bombable: co-ords: lon = %8.4f lat = %8.4f alt = %8.4f",
-			alon_deg + deltaLon, alat_deg + deltaLat, aAlt_m + deltaAlt
-		)
-	);
+	# debprint (
+	# 	sprintf(
+	# 		"Bombable: co-ords: lon = %8.4f lat = %8.4f alt = %8.4f",
+	# 		alon_deg + deltaLon, alat_deg + deltaLat, aAlt_m + deltaAlt
+	# 	)
+	# );
 
-	debprint (
-		sprintf(
-			"Bombable: intercept vector  =[%8.3f, %8.3f, %8.3f] intercept time =%8.1f",
-			interceptDirRefFrame[0], interceptDirRefFrame[1], interceptDirRefFrame[2],
-			intercept.time
-		)
-	);
+	# debprint (
+	# 	sprintf(
+	# 		"Bombable: intercept vector  =[%8.3f, %8.3f, %8.3f] intercept time =%8.1f",
+	# 		interceptDirRefFrame[0], interceptDirRefFrame[1], interceptDirRefFrame[2],
+	# 		intercept.time
+	# 	)
+	# );
 
-	debprint (
-		sprintf(
-			"Bombable: thrust direction  =[%8.3f, %8.3f, %8.3f]",
-			thisWeapon.velocities.thrustDir[0], thisWeapon.velocities.thrustDir[1], thisWeapon.velocities.thrustDir[2] 
-		)
-	);
+	# debprint (
+	# 	sprintf(
+	# 		"Bombable: thrust direction  =[%8.3f, %8.3f, %8.3f]",
+	# 		thisWeapon.velocities.thrustDir[0], thisWeapon.velocities.thrustDir[1], thisWeapon.velocities.thrustDir[2] 
+	# 	)
+	# );
 
-	debprint (
-		sprintf(
-			"Bombable: missile direction =[%8.3f, %8.3f, %8.3f]",
-			newMissileDir[0], newMissileDir[1], newMissileDir[2] 
-		)
-	);
+	# debprint (
+	# 	sprintf(
+	# 		"Bombable: missile direction =[%8.3f, %8.3f, %8.3f]",
+	# 		newMissileDir[0], newMissileDir[1], newMissileDir[2] 
+	# 	)
+	# );
 
-	debprint(
-		sprintf(
-			"Bombable: t = %6.1f pitch = %6.1f hdg = %6.1f spd_mps = %8.2f mach = %6.1f turnRate = %6.2f",
-			thisWeapon.controls.flightTime,
-			newPitch,
-			newHeading,
-			newMissileSpeed_mps,
-			newMissileSpeed_mps / thisWeapon.speedSound,
-			turnRad / delta_t * R2D
-		)
-	);
+	# debprint(
+	# 	sprintf(
+	# 		"Bombable: t = %6.1f pitch = %6.1f hdg = %6.1f spd_mps = %8.2f mach = %6.1f turnRate = %6.2f",
+	# 		thisWeapon.controls.flightTime,
+	# 		newPitch,
+	# 		newHeading,
+	# 		newMissileSpeed_mps,
+	# 		newMissileSpeed_mps / thisWeapon.speedSound,
+	# 		turnRad / delta_t * R2D
+	# 	)
+	# );
 
 	thisWeapon.controls.flightTime += delta_t ;
 	thisWeapon.loopCount += 1;
@@ -8680,7 +8700,7 @@ if (myNodeName == "") {
 node = props.globals.getNode(myNodeName);
 				
 				
-debprint ("Bombable: add_damage ", myNodeName);
+debprint (sprintf("Bombable: add_damage%6.2f to %s", damageRise, myNodeName));
 #var b = props.globals.getNode (""~myNodeName~"/bombable/attributes");
 var vuls = attributes[myNodeName].vulnerabilities;
 var spds = attributes[myNodeName].velocities;
@@ -8707,7 +8727,7 @@ elsif(damageRise < 0.0)
 	damageRise = 0.0;
 # rjw damageRise < 0!!! Is this function called for repair?
 				
-# update bombable/attributes/damage: 0.0 mean no damage, 1.0 mean full damage
+# update bombable/attributes/damage: 0.0 means no damage, 1.0 means full damage
 prevDamageValue = damageValue;
 damageValue  +=  damageRise;
 				
@@ -10519,8 +10539,8 @@ var attributes = {};
 #global variable used for sighting weapons
 var LOOP_TIME = 0.5; # timing of weapons loop and guide rocket
 var N_STEPS = 8; # resolution of flight path calculation
-# var TARGET_NODE = "/ai/models/aircraft" ;
-var TARGET_NODE = "" ;
+var TARGET_NODE = "/ai/models/aircraft" ;
+# var TARGET_NODE = "" ;
 var ot = emexec.OperationTimer.new("VSD");
 
 
