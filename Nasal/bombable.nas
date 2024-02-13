@@ -3246,7 +3246,7 @@ var ground_loop = func( id, myNodeName ) {
 	if ( damageValue > 0.8 ) {
 		if ( type == "aircraft") {
 		#If crashing we just force it to the right altitude, even if an aircraft
-		#but we move it a maximum of damageAlMaxRate
+		#but we move it a maximum of damageAltMaxRate
 		#if it's an airplane & it's crashing, we take it down as far as
 		#needed OR by the maximum allowed rate.
 				
@@ -3256,30 +3256,37 @@ var ground_loop = func( id, myNodeName ) {
 		#may be somewhat higher or lower than actual ground level
 				
 				
-		if ( damageAltMaxPerCycle_ft < damageAltAddCurrent_ft )  {
-			setprop (""~myNodeName~"/controls/flight/target-alt",  currAlt_ft - 500);
-			setprop (""~myNodeName~"/controls/flight/target-pitch", -45);
-					
-			#vert-speed prob
-			var orientPitch_deg = getprop (""~myNodeName~"/orientation/pitch-deg");
-			if ( orientPitch_deg > -10) {
-				setprop (""~myNodeName~"/orientation/pitch-deg", orientPitch_deg - 1 );
-				debprint ("Bombable: Changed pitch mild");
-			}
-					
-			} elsif (currAlt_ft + damageAltMaxPerCycle_ft > objectsLowestAllowedAlt_ft ) { #put it down by the max allowed rate
-					
-			setprop (""~myNodeName~"/controls/flight/target-alt",  currAlt_ft - 10000);
-			setprop (""~myNodeName~"/controls/flight/target-pitch", -70);
-								
-			#vert-speed prob
-			if (orientPitch_deg > -20) {
-				setprop (""~myNodeName~"/orientation/pitch-deg", orientPitch_deg - 1 );
-				debprint ("Bombable: Changed pitch severe");
-			}
-					
-					
-			} else { #closer to the ground than MaxPerCycle so terminate and explode
+		if ( damageAltMaxPerCycle_ft < damageAltAddCurrent_ft )  
+			{
+				setprop (""~myNodeName~"/controls/flight/target-alt",  currAlt_ft - 500);
+				setprop (""~myNodeName~"/controls/flight/target-pitch", -45);
+						
+				#vert-speed prob
+				var orientPitch_deg = getprop (""~myNodeName~"/orientation/pitch-deg");
+				if ( orientPitch_deg > -10)
+				{
+					setprop (""~myNodeName~"/orientation/pitch-deg", orientPitch_deg - 1 );
+					debprint ("Bombable: Changed pitch mild");
+				}
+						
+			} elsif (currAlt_ft + damageAltMaxPerCycle_ft > objectsLowestAllowedAlt_ft ) 
+			{ #put it down by the max allowed rate
+						
+				setprop (""~myNodeName~"/controls/flight/target-alt",  currAlt_ft - 10000);
+				setprop (""~myNodeName~"/controls/flight/target-pitch", -70);
+									
+				#vert-speed prob
+				var orientPitch_deg = getprop (""~myNodeName~"/orientation/pitch-deg");
+				if (orientPitch_deg > -20) 
+				{
+					setprop (""~myNodeName~"/orientation/pitch-deg", orientPitch_deg - 1 );
+					debprint ("Bombable: Changed pitch severe");
+				}
+						
+						
+			} 
+			else
+			{ #closer to the ground than MaxPerCycle so terminate and explode
 					
 			hitground_stop_explode(myNodeName, objectsLowestAllowedAlt_ft);
 			debprint ("Bombable: Aircraft hit ground");
@@ -3293,7 +3300,8 @@ var ground_loop = func( id, myNodeName ) {
 			#if necessary.  And explode & stuff.
 					
 			aircraftAlt_ft = getprop (""~myNodeName~"/position/altitude-ft" );
-			if ( aircraftAlt_ft < alt_ft - 5 )  {
+			if ( aircraftAlt_ft < alt_ft - 5 )  
+			{
 				debprint ("Bombable: Aircraft hit ground, it's dead. 1863.");
 				hitground_stop_explode(myNodeName, objectsLowestAllowedAlt_ft );
 			}
@@ -6067,8 +6075,8 @@ var weapons_loop = func (id, myNodeName1 = "", myNodeName2 = "", targetSize_m = 
 			# There is a smaller chance of doing a fairly high level of damage (up to 3X the regular max),
 			# and the better/closer the hit, the greater chance of doing that significant damage.
 			var r = rand();
-			if (r < thisWeapon.aim.pHit) {
-
+			if (r < thisWeapon.aim.pHit) 
+			{
 				var ai_callsign = getCallSign (myNodeName1);
 							
 				var damageAdd = thisWeapon.aim.pHit * weaponPower;
@@ -6085,11 +6093,13 @@ var weapons_loop = func (id, myNodeName1 = "", myNodeName2 = "", targetSize_m = 
 					mainAC_add_damage ( damageAdd, 0, "weapons",
 					"Hit from " ~ ai_callsign ~ " - " ~ weaponName ~"!");								
 				}
-				elsif (thisWeapon.weaponType == 1)
+				elsif (thisWeapon.weaponType == 1) # rocket
 				{
+					# var damageAdd = .1 * attributes[myNodeName2].vulnerabilities.damageVulnerability * thisWeapon.mass * 2.2 / 10, # used elsewhere, note mass in kg 
 					add_damage
 					(
-						.1 * attributes[myNodeName2].vulnerabilities.damageVulnerability * thisWeapon.mass / 4, #mass in kg 
+						damageAdd * thisWeapon.mass / 500, 
+						# for a rocket, damage is set by closest approach, weapon mass and weapon power; 500 kg is a large rocket
 						myNodeName2, 
 						"weapon", 
 						myNodeName1, 
@@ -8700,7 +8710,7 @@ if (myNodeName == "") {
 node = props.globals.getNode(myNodeName);
 				
 				
-debprint (sprintf("Bombable: add_damage%6.2f to %s", damageRise, myNodeName));
+debprint (sprintf("Bombable: add_damage%5.2f to %s", damageRise, myNodeName));
 #var b = props.globals.getNode (""~myNodeName~"/bombable/attributes");
 var vuls = attributes[myNodeName].vulnerabilities;
 var spds = attributes[myNodeName].velocities;
