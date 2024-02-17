@@ -2884,7 +2884,7 @@ var ground_loop = func( id, myNodeName ) {
 	}
 
 	var objectsLowestAllowedAlt_ft = alt_ft + alts.wheelsOnGroundAGL_ft + alts.crashedAGL_ft;
-	# if (thorough) debprint (" objectsLowestAllowedAlt_ft = ", objectsLowestAllowedAlt_ft);
+	if (thorough) debprint (" objectsLowestAllowedAlt_ft = ", objectsLowestAllowedAlt_ft);
 			
 	# If the object is as low as allowed by crashedAGL_m
 	# we consider it "on the ground" (for an airplane) or
@@ -3322,14 +3322,15 @@ var ground_loop = func( id, myNodeName ) {
 		}
 		elsif (type == "ship") 
 		{
-			if ( damageAltAddCurrent_ft > damageAltMaxPerCycle_ft )  
-			{
-				setprop(""~myNodeName~"/position/altitude-ft", currAlt_ft + damageAltMaxPerCycle_ft );
-			}
-			else
-			{
-				setprop(""~myNodeName~"/position/altitude-ft", currAlt_ft + damageAltAddCurrent_ft);
-			}
+			setprop(""~myNodeName~"/position/altitude-ft", calcAlt_ft );
+			# if ( damageAltAddCurrent_ft > damageAltMaxPerCycle_ft )  
+			# {
+			# 	setprop(""~myNodeName~"/position/altitude-ft", currAlt_ft + damageAltMaxPerCycle_ft );
+			# }
+			# else
+			# {
+			# 	setprop(""~myNodeName~"/position/altitude-ft", currAlt_ft + damageAltAddCurrent_ft);
+			# }
 		}
 	}		
 	#Whatever else, we don't let aircraft go below their lowest allowed altitude
@@ -8726,68 +8727,69 @@ gui.showHelpDialog ("/bombable/dialogs/records");
 # even if the engine dies completely.  A tank might stop forward motion almost
 # instantly.
 
-var add_damage = func(damageRise, myNodeName, damagetype = "weapon", impactNodeName = nil, ballisticMass_lb = nil, lat_deg = nil, lon_deg = nil, alt_m = nil  ) {
-if (!getprop(bomb_menu_pp~"bombable-enabled") ) return 0;
-if (myNodeName == "") 
+var add_damage = func(damageRise, myNodeName, damagetype = "weapon", impactNodeName = nil, ballisticMass_lb = nil, lat_deg = nil, lon_deg = nil, alt_m = nil  ) 
 {
-	var damAdd = mainAC_add_damage(damageRise, 0,"weapons", "Damaged by own weapons!");
-	return damAdd;
-}
-var node = props.globals.getNode(myNodeName);
-				
-debprint (sprintf("Bombable: add_damage%5.2f to %s", damageRise, myNodeName));
-#var b = props.globals.getNode (""~myNodeName~"/bombable/attributes");
-var vuls = attributes[myNodeName].vulnerabilities;
-var spds = attributes[myNodeName].velocities;
-var livs = attributes[myNodeName].damageLiveries;
-var liveriesCount = livs.count;
-var type = node.getName();
-if ((spds.maxSpeed_kt < 50) and (type == "aircraft")) type = "groundvehicle";
-
-# check for destroyed AC on ground; if so, no further action needed
-var onGround = getprop (""~myNodeName~"/bombable/on-ground");
-if (onGround == nil) onGround = 0;
-if (onGround) return 0;
-
-
-var damageValue = getprop(""~myNodeName~"/bombable/attributes/damage");
-if ( damageValue == nil ) damageValue = 0;
-
-
-var origDamageRise = damageRise;
-# make sure it's in range 0-1.0
-if(damageRise > 1.0)
-	damageRise = 1.0;
-elsif(damageRise < 0.0)
-	damageRise = 0.0;
-# rjw damageRise < 0!!! Is this function called for repair?
-				
-# update bombable/attributes/damage: 0.0 means no damage, 1.0 means full damage
-prevDamageValue = damageValue;
-damageValue  +=  damageRise;
-				
-#make sure it's in range 0-1.0
-if(damageValue > 1.0)
-	damageValue = 1.0;
-elsif(damageValue < 0.0)
-	damageValue = 0.0;
-setprop(""~myNodeName~"/bombable/attributes/damage", damageValue);
-damageIncrease = damageValue - prevDamageValue;
-
-if (liveriesCount > 0 and liveriesCount != nil ) 
-{							
-	livery = livs.damageLivery [ int ( damageValue * ( liveriesCount - 1 ) ) ];
-	setprop(""~myNodeName~"/bombable/texture-corps-path", livery );
-}
-
-if (damageIncrease > 0.05 and type == "aircraft") reduceRPM(myNodeName);
-#rjw: big hit so spin down an engine				
-
-if (damagetype == "weapon") records.record_impact ( myNodeName, damageRise, damageIncrease, damageValue, impactNodeName, ballisticMass_lb, lat_deg, lon_deg, alt_m );
-				
-var callsign = getCallSign (myNodeName);
-var weaponSkill = getprop(myNodeName~"/bombable/weapons-pilot-ability");				
+	if (!getprop(bomb_menu_pp~"bombable-enabled") ) return 0;
+	if (myNodeName == "") 
+	{
+		var damAdd = mainAC_add_damage(damageRise, 0,"weapons", "Damaged by own weapons!");
+		return damAdd;
+	}
+	var node = props.globals.getNode(myNodeName);
 					
+	debprint (sprintf("Bombable: add_damage%5.2f to %s", damageRise, myNodeName));
+	#var b = props.globals.getNode (""~myNodeName~"/bombable/attributes");
+	var vuls = attributes[myNodeName].vulnerabilities;
+	var spds = attributes[myNodeName].velocities;
+	var livs = attributes[myNodeName].damageLiveries;
+	var liveriesCount = livs.count;
+	var type = node.getName();
+	if ((spds.maxSpeed_kt < 50) and (type == "aircraft")) type = "groundvehicle";
+
+	# check for destroyed AC on ground; if so, no further action needed
+	var onGround = getprop (""~myNodeName~"/bombable/on-ground");
+	if (onGround == nil) onGround = 0;
+	if (onGround) return 0;
+
+
+	var damageValue = getprop(""~myNodeName~"/bombable/attributes/damage");
+	if ( damageValue == nil ) damageValue = 0;
+
+
+	var origDamageRise = damageRise;
+	# make sure it's in range 0-1.0
+	if(damageRise > 1.0)
+		damageRise = 1.0;
+	elsif(damageRise < 0.0)
+		damageRise = 0.0;
+	# rjw damageRise < 0!!! Is this function called for repair?
+					
+	# update bombable/attributes/damage: 0.0 means no damage, 1.0 means full damage
+	prevDamageValue = damageValue;
+	damageValue  +=  damageRise;
+					
+	#make sure it's in range 0-1.0
+	if(damageValue > 1.0)
+		damageValue = 1.0;
+	elsif(damageValue < 0.0)
+		damageValue = 0.0;
+	setprop(""~myNodeName~"/bombable/attributes/damage", damageValue);
+	var damageIncrease = damageValue - prevDamageValue;
+
+	if (liveriesCount > 0 and liveriesCount != nil ) 
+	{							
+		livery = livs.damageLivery [ int ( damageValue * ( liveriesCount - 1 ) ) ];
+		setprop(""~myNodeName~"/bombable/texture-corps-path", livery );
+	}
+
+	if (damageIncrease > 0.05 and type == "aircraft") reduceRPM(myNodeName);
+	#rjw: big hit so spin down an engine				
+
+	if (damagetype == "weapon") records.record_impact ( myNodeName, damageRise, damageIncrease, damageValue, impactNodeName, ballisticMass_lb, lat_deg, lon_deg, alt_m );
+					
+	var callsign = getCallSign (myNodeName);
+	var weaponSkill = getprop(myNodeName~"/bombable/weapons-pilot-ability");				
+						
 	if ( damageIncrease > 0 ) 
 	{
 		# Always display the message if a weapon hit or large damageRise. Otherwise
@@ -8808,70 +8810,45 @@ var weaponSkill = getprop(myNodeName~"/bombable/weapons-pilot-ability");
 		}
 	}
 
-					
-					
-	# max speed reduction due to damage, in %
-					
-	minSpeed = trueAirspeed2indicatedAirspeed (myNodeName, spds.minSpeed_kt);
-					
-					
+						
+						
+						
+						
+						
 	# for moving objects (ships & aircraft), reduce velocity each time damage added
 	# eventually  stopping when damage = 1.
 	# But don't reduce speed below minSpeed.
 	# we put it here outside the "if" statement so that burning
 	# objects continue to slow/stop even if their damage is already at 1
-	# this happens when file/reset is chosen in FG
-					
+	# this happens when file/reset is chosen in FG					
 	# rjw: tgt-speed-kts is used for ships and flight_tgt_spd for aircraft and groundvehicles
 
-	maxSpeedReduceProp = 1 - spds.maxSpeedReduce_percent / 100;  #spds.maxSpeedReduce_percent is a percentage
+	# max speed reduction due to damage, in %
+	var maxSpeedReduceFactor = 1 - spds.maxSpeedReduce_percent / 100; 
 
 	if ( damageValue == 1 and damageIncrease > 0) 
 	{
 		if (type == "aircraft") 
 		{
-		# rjw: aircraft will now crash
-		reduceRPM(myNodeName);
-		aircraftCrash (myNodeName);
+			# rjw: aircraft will now crash
+			reduceRPM(myNodeName);
+			aircraftCrash (myNodeName);
 		}
 		else
 		{
-		# for ships and ground vehicles decelerate at the maxSpeedReduce
-		settimer( func{reduceSpeed(myNodeName, maxSpeedReduceProp,type)},1);
+			# for ships and ground vehicles decelerate at the maxSpeedReduce
+			settimer( func{reduceSpeed(myNodeName, maxSpeedReduceFactor, type)},1);
 		}
+		# exit here or skip next block but need to start ship listing?
 	}
-	
-	speedReduce = 1 - damageValue;
-	if (speedReduce < maxSpeedReduceProp) speedReduce = maxSpeedReduceProp;
-					
-	# debprint("spds.speedOnFlat = ",spds.speedOnFlat);				
-	if ((type == "aircraft") or (type == "groundvehicle"))  
-	{
-		# rjw: if AC on ground will exit before this point
-		var flight_tgt_spd = getprop (""~myNodeName~"/controls/flight/target-spd");
-		if (flight_tgt_spd == nil ) flight_tgt_spd = 0;
-					
-		var true_spd = getprop (""~myNodeName~"/velocities/true-airspeed-kt");
-		if (true_spd == nil ) true_spd = 0;
 
-	
-		# only reduce speeds at high damage values
-		if ( damageValue >= 0.75) 
-		{
-			if (flight_tgt_spd > minSpeed) 
-			{
-				setprop(""~myNodeName~"/controls/flight/target-spd", flight_tgt_spd * speedReduce);
-				if (type == "groundvehicle") spds.speedOnFlat *= speedReduce;
-			}
-			else 
-			{
-				setprop(""~myNodeName~"/controls/flight/target-spd", minSpeed);
-				if (type == "groundvehicle") spds.speedOnFlat = minSpeed;
-			}
-		}
-	}  
-	else 
-	# ships we control in a similar way to ground vehicles
+	var speedReduce = 1 - damageValue;
+	if (speedReduce < maxSpeedReduceFactor) speedReduce = maxSpeedReduceFactor;
+					
+	minSpeed = spds.minSpeed_kt;
+	# debprint("spds.speedOnFlat = ",spds.speedOnFlat);				
+	if (type == "ship") 
+	# ships are controlled in a similar way to ground vehicles
 	{
 		var tgt_spd_kts = getprop (""~myNodeName~"/controls/tgt-speed-kts");
 		if (tgt_spd_kts == nil ) tgt_spd_kts = 0;
@@ -8894,7 +8871,7 @@ var weaponSkill = getprop(myNodeName~"/bombable/weapons-pilot-ability");
 		
 		# start listing of ship
 		# progressive motion managed by ground loop
-		if ((rand() < 1) and ( damageValue >= 0.75)) 
+		if ((rand() < 0.5) and ( damageValue >= 0.75)) 
 		{
 			var ctrls = attributes[myNodeName].controls;
 			if (ctrls["target_roll"] == nil) 
@@ -8905,7 +8882,32 @@ var weaponSkill = getprop(myNodeName~"/bombable/weapons-pilot-ability");
 			}
 		}
 	}
-		
+	else  # aircraft or GV
+	{
+		if (type == "aircraft") minSpeed = trueAirspeed2indicatedAirspeed (myNodeName, spds.minSpeed_kt); # correct for altitude
+		# rjw: if AC on ground will exit before this point
+		var flight_tgt_spd = getprop (""~myNodeName~"/controls/flight/target-spd");
+		if (flight_tgt_spd == nil ) flight_tgt_spd = 0;
+					
+		var true_spd = getprop (""~myNodeName~"/velocities/true-airspeed-kt");
+		if (true_spd == nil ) true_spd = 0;
+
+
+		# only reduce speeds at high damage values
+		if ( damageValue >= 0.75) 
+		{
+			if (flight_tgt_spd > minSpeed) 
+			{
+				setprop(""~myNodeName~"/controls/flight/target-spd", flight_tgt_spd * speedReduce);
+				if (type == "groundvehicle") spds.speedOnFlat *= speedReduce;
+			}
+			else 
+			{
+				setprop(""~myNodeName~"/controls/flight/target-spd", minSpeed);
+				if (type == "groundvehicle") spds.speedOnFlat = minSpeed;
+			}
+		}
+	}  
 
 	var fireStarted = getprop(""~myNodeName~"/bombable/fire-particles/fire-burning");
 	if (fireStarted == nil ) fireStarted = 0;
@@ -8917,69 +8919,69 @@ var weaponSkill = getprop(myNodeName~"/bombable/weapons-pilot-ability");
 	#if (!fireStarted or damageRise > vuls.fireDamageRate_percentpersecond * 2.5 ) debprint ("Damage added: ", damageRise, ", Total damage: ", damageValue);
 	#Start damaged engine smoke but only sometimes; greater chance when hitting an aircraft
 
-	if (!damageEngineSmokeStarted and !fireStarted and rand() < damageRise * vuls.engineDamageVulnerability_percent / 2 ) {
-	startSmoke("damagedengine",myNodeName);
-	#rjw: can reduce engine rpm at startSmoke or at this point
-	if (type == "aircraft") reduceRPM(myNodeName);
+	if (!damageEngineSmokeStarted and !fireStarted and rand() < damageRise * vuls.engineDamageVulnerability_percent / 2 ) 
+	{
+		startSmoke("damagedengine",myNodeName);
+		#rjw: can reduce engine rpm at startSmoke or at this point
+		if (type == "aircraft") reduceRPM(myNodeName);
 	}
 	# start fire if there is enough damage.
 	# if(damageValue >= 1 - vuls.fireVulnerability_percent/100 and !fireStarted ) {
 						
-		# a percentage change of starting a fire with each hit
-		if( rand() < .035 * damageRise * (vuls.fireVulnerability_percent) and !fireStarted ) {
-							
-			debprint ("Bombable: Starting fire for" ~ myNodeName);
-							
-			#use small, medium, large smoke column depending on vuls.damageVulnerability
-			#(high vuls.damageVulnerability means small/light/easily damaged while
-			# low vuls.damageVulnerability means a difficult, hardened target that should burn
-			# more vigorously once finally on fire)
-			#var fp = "";
-			#if (vuls.explosiveMass_kg < 1000 ) { fp = "AI/Aircraft/Fire-Particles/fire-particles-small.xml"; }
-			#elsif (vuls.explosiveMass_kg > 50000 ) { fp = "AI/Aircraft/Fire-Particles/fire-particles-large.xml"; }
-			#else {fp = "AI/Aircraft/Fire-Particles/fire-particles.xml";}
-
-			#small, med, large fire depending on size of hit that caused it
-			var fp = "";
-			if (damageRise < 0.2 ) { fp = "AI/Aircraft/Fire-Particles/fire-particles-very-small.xml"; }
-			elsif (damageRise > 0.5 ) { fp = "AI/Aircraft/Fire-Particles/fire-particles.xml"; }
-			else {fp = "AI/Aircraft/Fire-Particles/fire-particles-small.xml";}
-							
-			startFire(myNodeName, fp);
-			#only one damage smoke at a time . . .
-			deleteSmoke("damagedengine",myNodeName);
-							
-							
-			#fire can be extinguished up to MaxTime_seconds in the future,
-			#if it is extinguished we set up the damagedengine smoke so
-			#the smoke doesn't entirely go away, but no more damage added
-			if ( rand() * 100 < vuls.fireExtinguishSuccess_percentage ) {
-								
-				settimer (func {
-					deleteFire (myNodeName);
-					startSmoke("damagedengine",myNodeName);
-				} ,
-				rand() * vuls.fireExtinguishMaxTime_seconds + 15 ) ;
-			}
-							
-			#      debprint ("started fire");
-							
-			#Set livery to the one corresponding to this amount of damage
-			if (liveriesCount > 0 and liveriesCount != nil ) {
-				livery = livs.damageLivery [ int ( damageValue * ( liveriesCount - 1 ) ) ];
-				setprop(""~myNodeName~"/bombable/texture-corps-path",
-				livery );
-			}
-							
-							
-		} # end of starting fire block
-		#only send damage via multiplayer if it is weapon damage from our weapons
-		if (type == "multiplayer" and damagetype == "weapon") {
-			mp_send_damage(myNodeName, damageRise);
-		}
+	# a percentage change of starting a fire with each hit
+	if( rand() < .035 * damageRise * (vuls.fireVulnerability_percent) and !fireStarted ) 
+	{
+		debprint ("Bombable: Starting fire for" ~ myNodeName);
 						
-		return  damageIncrease;
+		#use small, medium, large smoke column depending on vuls.damageVulnerability
+		#(high vuls.damageVulnerability means small/light/easily damaged while
+		# low vuls.damageVulnerability means a difficult, hardened target that should burn
+		# more vigorously once finally on fire)
+		#var fp = "";
+		#if (vuls.explosiveMass_kg < 1000 ) { fp = "AI/Aircraft/Fire-Particles/fire-particles-small.xml"; }
+		#elsif (vuls.explosiveMass_kg > 50000 ) { fp = "AI/Aircraft/Fire-Particles/fire-particles-large.xml"; }
+		#else {fp = "AI/Aircraft/Fire-Particles/fire-particles.xml";}
+
+		#small, med, large fire depending on size of hit that caused it
+		var fp = "";
+		if (damageRise < 0.2 ) { fp = "AI/Aircraft/Fire-Particles/fire-particles-very-small.xml"; }
+		elsif (damageRise > 0.5 ) { fp = "AI/Aircraft/Fire-Particles/fire-particles.xml"; }
+		else {fp = "AI/Aircraft/Fire-Particles/fire-particles-small.xml";}
+						
+		startFire(myNodeName, fp);
+		#only one damage smoke at a time . . .
+		deleteSmoke("damagedengine",myNodeName);
+						
+						
+		#fire can be extinguished up to MaxTime_seconds in the future,
+		#if it is extinguished we set up the damagedengine smoke so
+		#the smoke doesn't entirely go away, but no more damage added
+		if ( rand() * 100 < vuls.fireExtinguishSuccess_percentage ) 
+		{
+			settimer (func {
+				deleteFire (myNodeName);
+				startSmoke("damagedengine",myNodeName);
+			} ,
+			rand() * vuls.fireExtinguishMaxTime_seconds + 15 ) ;
+		}
+		#      debprint ("started fire");
+						
+		#Set livery to the one corresponding to this amount of damage
+		if (liveriesCount > 0 and liveriesCount != nil ) 
+		{
+			livery = livs.damageLivery [ int ( damageValue * ( liveriesCount - 1 ) ) ];
+			setprop(""~myNodeName~"/bombable/texture-corps-path",
+			livery );
+		}
+	} # end of starting fire block
+	#only send damage via multiplayer if it is weapon damage from our weapons
+	if (type == "multiplayer" and damagetype == "weapon") 
+	{
+		mp_send_damage(myNodeName, damageRise);
 	}
+						
+return  damageIncrease;
+}
 
 
 ######################### inc_loopid ###########################
@@ -10531,9 +10533,9 @@ var feet2meters = .3048;
 var meters2feet = 1/feet2meters;
 var nmiles2meters = 1852;
 var meters2nmiles = 1/nmiles2meters;
-var KT2FPS = 1.68780986;
-var knots2mps = KT2FPS * feet2meters;
-var fps2knots = 1/KT2FPS;
+var knots2fps = 1.68780986;
+var knots2mps = knots2fps * feet2meters;
+var fps2knots = 1/knots2fps;
 var grav_fpss = 32.174;
 var grav_mpss = grav_fpss * feet2meters;
 var PIBYTWO = math.pi / 2.0;
