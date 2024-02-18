@@ -134,7 +134,8 @@ var check_overall_initialized = func(nodeName) {
 	if (find ("/ai/models/", nodeName ) != -1 ) init_allowed = 1;
 	if (find ("/multiplayer/", nodeName ) != -1 ) init_allowed = 1;
 	
-	if (init_allowed != 1) {
+	if (init_allowed != 1) 
+	{
 		bombable.debprint ("Bombable: Attempt to initialize a Bombable subroutine on an object that is not AI or Multiplayer; aborting initialization. ", nodeName);
 		return 1; #1 means abort; it's initialized already or can't/shouldn't be initialized,
 	}
@@ -143,7 +144,8 @@ var check_overall_initialized = func(nodeName) {
 	# if it 1 and we're trying to initialize, something has gone wrong and we abort with a message.
 	var inited = getprop(""~nodeName~"/bombable/overall-initialized");
 	
-	if (inited == 1) {
+	if (inited == 1) 
+	{
 		bombable.debprint ("Bombable: Attempt to re-initialize AI aircraft when it has not been de-initialized; aborting re-initialization. ", nodeName);
 		return 1; #1 means abort; it's initialized already or can't/shouldn't be initialized,
 	}
@@ -6002,11 +6004,14 @@ var weapons_loop = func (id, myNodeName1 = "", myNodeName2 = "", targetSize_m = 
 				weaponsOrientationPositionUpdate(myNodeName1, elem);
 				if (callCheckAim == 2)
 					{
-						if ( rand() < (weaponSkill * weaponSkill) / (attributes[myNodeName1].attacks["rocketsInAir"] + 1) / (attributes[myNodeName1].attacks["rocketsInAir"] + 1)) 
+						if ( rand() < (weaponSkill * weaponSkill) / (attributes[myNodeName1].attacks["rocketsInAir"] + 1) / (attributes[myNodeName1].attacks["rocketsInAir"] + 1))
 						{
-							launchRocket(myNodeName1, elem, loopTime);
+							if ((myNodeName2 == "") or (getprop(""~myNodeName2~"/bombable/initializers/attack-initialized") == 1)) #check target initialized (sporting)
+							{
+								launchRocket(myNodeName1, elem, loopTime);
+							}
 						}
-						continue; # if not launched then assume pHit = 0
+						continue; # since not launched, pHit = 0, so rest of loop not needed
 					}
 				}				
 		}
@@ -8436,7 +8441,7 @@ var aircraftCrash = func (myNodeName) {
 		else
 	{
 		var pitchChange = 0; 
-		var speedChange = -speed * (.25 + .25 * r) * KT2FPS;
+		var speedChange = -speed * (.25 + .25 * r);
 		reduceRPM(myNodeName);
 	}
 		
@@ -8468,7 +8473,7 @@ var aircraftCrash = func (myNodeName) {
 
 	# setprop(""~myNodeName~ "/position/crashCounter", 0);	
 
-	debprint ("Bombable: Starting crash routine, ",
+	debprint ("Bombable: Starting crash control, ",
 	"pitchChange = ",pitchChange,
 	"speedChange = ",speedChange	
 	);
@@ -9526,7 +9531,8 @@ var bombable_init_func = func(myNodeName) {
 	#impactReporters is the list of (theoretically) all places in the property
 	#tree where impacts/collisions will be reported.  It is set in the main
 	#bombableInit function
-	foreach (var i; bombable.impactReporters) {
+	foreach (var i; bombable.impactReporters) 
+	{
 		#debprint ("i: " , i);
 		listenerid = setlistener(i, func ( changedImpactReporterNode ) {
 			if (!getprop(bomb_menu_pp~"bombable-enabled") ) return 0;
@@ -9551,7 +9557,8 @@ var bombable_init_func = func(myNodeName) {
 	});
 						
 						
-	if (type == "multiplayer") {
+	if (type == "multiplayer") 
+	{
 							
 		#set up the mpreceive listener.  The final 0, 0) makes it
 		# trigger only when the location has * changed * .  This is necessary
@@ -9619,7 +9626,8 @@ var ground_init_func = func( myNodeName ) {
 	# set to 1 if initialized and 0 when de-inited. Nil if never before inited.
 	# if it 1 and we're trying to initialize, something has gone wrong and we abort with a message.
 	var inited = getprop(""~myNodeName~"/bombable/initializers/ground-initialized");
-	if (inited == 1) {
+	if (inited == 1) 
+	{
 		debprint ("Bombable: Attempt to re-initialize ground_init when it has not been de-initialized; aborting re-initialization. ", myNodeName);
 		return;
 	}
@@ -9671,7 +9679,8 @@ var ground_init_func = func( myNodeName ) {
 }
 ######################## location_init #############################
 
-var location_init = func (myNodeName = "") {
+var location_init = func (myNodeName = "") 
+{
 
 	debprint ("Bombable: Delaying location_init . . . ", myNodeName);
 	settimer (func {bombable.location_init_func(myNodeName);}, 50 + rand(),1);
@@ -9687,7 +9696,8 @@ var location_init = func (myNodeName = "") {
 # Put this nasal code in your object's load:
 #      bombable.location_init (cmdarg().getPath())
 
-var location_init_func = func(myNodeName) {
+var location_init_func = func(myNodeName) 
+{
 	#return;
 						
 	#only allow initialization for ai & multiplayer objects
@@ -9743,7 +9753,8 @@ var attack_init = func (myNodeName = "") {
 # Put this nasal code in your object's load:
 #      bombable.attack_init (cmdarg().getPath())
 
-var attack_init_func = func(myNodeName) {
+var attack_init_func = func(myNodeName) 
+{
 	#return;
 	#only allow initialization for ai & multiplayer objects
 	# in FG 2.4.0 we're having trouble with strange(!?) init requests from
