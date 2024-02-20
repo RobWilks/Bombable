@@ -1512,7 +1512,7 @@ var resetBombableDamageFuelWeapons = func (myNodeName) {
 			if (rand() > .5) pilotAbility = -pilotAbility;
 			setprop(""~myNodeName~"/bombable/attack-pilot-ability", pilotAbility);
 
-			setWeaponSkill (myNodeName);							
+			setWeaponPowerSkill (myNodeName);							
 
 					
 			if (myNodeName != "") {
@@ -5634,7 +5634,7 @@ var vertAngle_deg = func (geocoord1, geocoord2) {
 			
 
 var checkAim = func ( thisWeapon, myNodeName1 = "", myNodeName2 = "",
-					targetSize_m = nil,  weaponSkill = 1, 
+					targetSize_m = nil,  weapPowerSkill = 1, 
 					damageValue = 0) 
 {
 	# Note weaponAngle is a hash with components heading and elevation
@@ -5642,11 +5642,11 @@ var checkAim = func ( thisWeapon, myNodeName1 = "", myNodeName2 = "",
 
 	thisWeapon.aim.pHit = 0;
 
-	var weaponAimed = 0; #flag true if weapon aimed successfully
+	var targetSighted = 0; #flag true if target sighted which must happen before the weapon can be aimed
 				
 	#Weapons malfunction in proportion to the damageValue, to 100% of the time when damage = 100%
 	#debprint ("Bombable: AI weapons, ", myNodeName1, ", ", myNodeName2);
-	if (rand() < damageValue) return (weaponAimed) ;
+	if (rand() < damageValue) return (targetSighted) ;
 				
 	#if (myNodeName1 == "/environment" or myNodeName1 == "environment") myNodeName1 = "";
 	#if (myNodeName2 == "/environment" or myNodeName2 == "environment") myNodeName2 = "";
@@ -5664,17 +5664,17 @@ var checkAim = func ( thisWeapon, myNodeName1 = "", myNodeName2 = "",
 	deltaLat_deg = targetLat_deg - alat_deg;
 	if (abs(deltaLat_deg) > thisWeapon.maxDamageDistance_m / m_per_deg_lat ) {
 		#debprint ("Aim: Not close in lat.");
-		return (weaponAimed);
+		return (targetSighted);
 	}
 				
 	deltaLon_deg = targetLon_deg - alon_deg ;
 	if (abs(deltaLon_deg) > thisWeapon.maxDamageDistance_m / m_per_deg_lon )  {
 		#debprint ("Aim: Not close in lon.");
-		return (weaponAimed);
+		return (targetSighted);
 	}
 
 				
-	if (targetSize_m == nil or targetSize_m.horz <= 0 or targetSize_m.vert <= 0 or thisWeapon.maxDamageDistance_m <= 0) return (weaponAimed);				
+	if (targetSize_m == nil or targetSize_m.horz <= 0 or targetSize_m.vert <= 0 or thisWeapon.maxDamageDistance_m <= 0) return (targetSighted);				
 	if (thisWeapon.weaponAngle_deg == nil )
 	{ 
 		thisWeapon.weaponAngle_deg = {heading:0, elevation:0, headingMin:-60, headingMax:60, elevationMin:-20, elevationMax:20, track:0}; 
@@ -5700,7 +5700,7 @@ var checkAim = func ( thisWeapon, myNodeName1 = "", myNodeName2 = "",
 				
 	# debprint ("Bombable: AI weapons, distance: ", distance_m, " for ", myNodeName1);
 				
-	if (distance_m > thisWeapon.maxDamageDistance_m ) return (weaponAimed);
+	if (distance_m > thisWeapon.maxDamageDistance_m ) return (targetSighted);
 	
 	
 	
@@ -5712,7 +5712,7 @@ var checkAim = func ( thisWeapon, myNodeName1 = "", myNodeName2 = "",
 		msg = sprintf("You collided! Damage added %1.0f%%", 100 );
 		selfStatusPopupTip (msg, 10);
 		thisWeapon.aim.pHit = 1;
-		return (weaponAimed);
+		return (targetSighted);
 		
 		#rjw with the return above the following code in the block is unused
 		#more complicated way - maybe we'll try it later:
@@ -5742,7 +5742,7 @@ var checkAim = func ( thisWeapon, myNodeName1 = "", myNodeName2 = "",
 		msg = sprintf("You collided! Damage added %1.0f%%", retDam * 100 );
 		selfStatusPopupTip (msg, 10);
 		thisWeapon.aim.pHit = retDam;
-		return (weaponAimed);
+		return (targetSighted);
 	}
 
 	# check line of sight by calculating the height above ground of the bullet trajectory at the mid point between AI and main AC
@@ -5756,15 +5756,15 @@ var checkAim = func ( thisWeapon, myNodeName1 = "", myNodeName2 = "",
 	{
 		# debprint ("Bombable: checkLoS for ",  myNodeName1, "deltaAlt at mid point = ", ground_Alt_m - mid_Alt_m);
 		thisWeapon.aim.pHit = -1; #flag for no line of sight
-		return(weaponAimed);
+		return(targetSighted);
 	}
 	
 
 	
 	# correct targetDispRefFrame for weapon offset
-	# find newDir the direction required for a missile travelling at a constant speed to intercept the target 
+	# find interceptDir the direction required for a missile travelling at a constant speed to intercept the target 
 	# given the relative velocities of node1 and node2
-	# calculate the angle between the direction in which the weapon is aimed and newDir
+	# calculate the angle between the direction in which the weapon is aimed and interceptDir
 	# use this angle and the solid angle subtended by the mainAC to determine pHit
 	# AI aircraft animate model using pitch and roll; for AI ships and ground_vehicles code animation here
 
@@ -5803,10 +5803,11 @@ var checkAim = func ( thisWeapon, myNodeName1 = "", myNodeName2 = "",
 		thisWeapon.maxMissileSpeed_mps
 	);
 
-	if (intercept.time == 9999) return(weaponAimed);
-	weaponAimed = 1;
+	if (intercept.time == 9999) return(targetSighted);
+	#target has been sighted, now aim weapon towards it
+	targetSighted = 1;
 	thisWeapon.aim.interceptSpeed = vectorModulus(intercept.vector);
-	
+
 	var interceptDirRefFrame = vectorDivide(intercept.vector, thisWeapon.aim.interceptSpeed);
 	
 	# debprint (
@@ -5822,7 +5823,8 @@ var checkAim = func ( thisWeapon, myNodeName1 = "", myNodeName2 = "",
 		
 	#form vector for the current direction of weapon, weapDir, in the reference frame of the model
 	var cosWeapElev = cos(thisWeapon.weaponAngle_deg.elevation);
-	weapDir = [
+	var weapDir = 
+	[
 		cosWeapElev * sin(thisWeapon.weaponAngle_deg.heading),
 		cosWeapElev * cos(thisWeapon.weaponAngle_deg.heading),
 		sin(thisWeapon.weaponAngle_deg.elevation)
@@ -5831,6 +5833,7 @@ var checkAim = func ( thisWeapon, myNodeName1 = "", myNodeName2 = "",
 	#calculate angular offset
 	var cosOffset = dotProduct(newDir, weapDir);
 
+	#calculate probability of hitting target, pHit
 	if (cosOffset > 0.985)
 	{
 		# only calculate pHit if target direction within 10 degrees of weapon direction
@@ -5846,7 +5849,7 @@ var checkAim = func ( thisWeapon, myNodeName1 = "", myNodeName2 = "",
 		# debprint (sprintf("Bombable: weapDir[%8.2f,%8.2f,%8.2f]", weapDir[0], weapDir[1], weapDir[2]));
 		
 
-		# pHit ranges 0 to 1, 1 being direct hit			
+		# pHit ranges 0 to 1, 1 is a direct hit			
 		# calculate pHit as a joint probability distribution: the angular range of fire of the weapon and the angular range subtended by the target
 		# Assume:  pTargetHit = 1 within the angle range it subtends at the weapon
 		# Assume:  angular distribution of bullets from weapon is a normal distribution centred on weapon and of SD 5 degrees i.e. 1/12 radian
@@ -5854,22 +5857,24 @@ var checkAim = func ( thisWeapon, myNodeName1 = "", myNodeName2 = "",
 		# instead use error function to calculate integral of normal distribution
 
 		# probability x between p and q
-		# p(x) = (a/pi)^0.5 * 0.5 * ( erf (q * a^0.5) - erf (p * a^0.5) )  where a = 1 / 2 / SD^2, if SD = 5 deg, root_a  = 8.103
+		# p(x) = (a/pi)^0.5 * 0.5 * ( erf (q * a^0.5) - erf (p * a^0.5) )  where a = 1 / 2 / SD^2, if SD = 5 deg, sqrt_a  = 8.103
 
-		var root_a = 8.103;
-		thisWeapon.aim.pHit = 0.5 * ( erf((targetSize_rad + targetOffset_rad) * root_a) +  erf((targetSize_rad - targetOffset_rad) * root_a));
+		var sqrt_a = 8.103;
+		thisWeapon.aim.pHit = 0.5 * ( erf((targetSize_rad + targetOffset_rad) * sqrt_a) -  erf((targetSize_rad - targetOffset_rad) * sqrt_a));
 
 		debprint 
 		(
 			sprintf(
-			"Bombable: hit %s pHit = %6.3f offset deg = ",
+			"Bombable: hit %s pHit = %6.3f offset deg = %6.2f weapPowerSkill = %4.1f",
 			myNodeName1,
 			thisWeapon.aim.pHit,
-			targetOffset_rad * R2D)
+			targetOffset_rad * R2D,
+			weapPowerSkill)
 		);
 	}
 
-	if ( rand() < weaponSkill) # a skilled gunner changes the direction of their weapon more frequently 
+	#change orientation of weapon
+	if ( rand() < weapPowerSkill ) # a skilled gunner changes the direction of their weapon more frequently 
 	{ 
 		# ensure that newDir is in range of movement of weapon
 		var newElev = math.asin(newDir[2]) * R2D;
@@ -5894,8 +5899,6 @@ var checkAim = func ( thisWeapon, myNodeName1 = "", myNodeName2 = "",
 		}
 		
 		
-		if (changes !=0)
-		{
 			var cosNewElev = cos(newElev);
 			newDir = 
 			[
@@ -5903,19 +5906,27 @@ var checkAim = func ( thisWeapon, myNodeName1 = "", myNodeName2 = "",
 				cosNewElev * cos(newHeading),
 				sin(newElev)
 			];
-		}
+		# omitted - now always update newDir
+		# if (changes !=0)
+		# {
+		# }
+
 		# debprint ("Bombable: checkAim for ", myNodeName1,
 		# sprintf("newElev =%8.1f newHeading =%8.1f changes=%2.0f", newElev, newHeading, changes));
+
+		# change aim of weapon by setting weapon direction to intercept direction
+		thisWeapon.aim.weaponDirModelFrame = newDir;
+		thisWeapon.aim.weaponDirRefFrame = rotate_zxy(newDir, -pitch_deg, -roll_deg, myHeading_deg);
 	}
-	else
-	{
-		# keep weapon direction unchanged
-		newDir = weapDir;
-	}
-	# change aim of weapon by setting weapon direction to intercept direction
-	thisWeapon.aim.weaponDirModelFrame = newDir;
-	thisWeapon.aim.weaponDirRefFrame = rotate_zxy(newDir, -pitch_deg, -roll_deg, myHeading_deg);
-	return (weaponAimed); 	
+	
+	# omitted newDir is not used - originally to ensures weap positions updated on startup.  Should be done in weapons init
+
+	# else
+	# {
+	# 	# keep weapon direction unchanged
+	# 	newDir = weapDir;
+	# }
+	return (targetSighted); 	
 }
 
 ############################ weapons_loop #############################
@@ -5963,14 +5974,14 @@ var weapons_loop = func (id, myNodeName1 = "", myNodeName2 = "", targetSize_m = 
 	var weaponPower = getprop ("" ~bomb_menu_pp~ "ai-weapon-power");
 	if (weaponPower == nil) weaponPower = 0.2;
 				
-	# weaponSkill varies 0-1, average varies with power-skill combo
-	var weaponSkill = getprop(""~myNodeName1~"/bombable/weapons-pilot-ability");
-	if (weaponSkill == nil) weaponSkill = 0;
+	# weapPowerSkill varies 0-1, average varies with power-skill combo
+	var weapPowerSkill = getprop(""~myNodeName1~"/bombable/weapons-pilot-ability");
+	if (weapPowerSkill == nil) weapPowerSkill = 0;
 				
 	# use of AI power and skill
 	# weaponPower determines the probability of damage if there is a hit
-	# weaponSkill determines how frequently weapon aim is updated
-	# currently both are attributes of the AI model, not the weapon
+	# weapPowerSkill determines how frequently weapon aim is updated
+	# currently both are attributes of the AC, ship or vehicle, not the individual weapon
 		
 	foreach (elem; keys (attributes[myNodeName1].weapons) ) 
 	{	
@@ -5984,7 +5995,7 @@ var weapons_loop = func (id, myNodeName1 = "", myNodeName2 = "", targetSize_m = 
 		
 		if ( stores.checkWeaponsReadiness ( myNodeName1, elem ) == 0) continue; #can only shoot if ammo left!
 
-		# Could also check weaponSkill here. However skill of gunner not simply correlated with how frequently they fire
+		# Could also check weapPowerSkill here. However skill of gunner not simply correlated with how frequently they fire
 
 		if (thisWeapon.weaponType == 0) 
 		{
@@ -5997,19 +6008,19 @@ var weapons_loop = func (id, myNodeName1 = "", myNodeName2 = "", targetSize_m = 
 
 		if (callCheckAim != 0) 
 		{
-			 var foundTarget = checkAim
+			 var targetSighted = checkAim
 				(
 					thisWeapon, # pass pointer to weapon parameters
 					myNodeName1, myNodeName2, 
-					targetSize_m, weaponSkill,
+					targetSize_m, weapPowerSkill,
 					damageValue
 				);
-			 if ( foundTarget ) 
+			 if ( targetSighted ) 
 				{
 				weaponsOrientationPositionUpdate(myNodeName1, elem);
 				if (callCheckAim == 2)
 					{
-						if ( rand() < (weaponSkill * weaponSkill) / (attributes[myNodeName1].attacks["rocketsInAir"] + 1) / (attributes[myNodeName1].attacks["rocketsInAir"] + 1))
+						if ( rand() < (weapPowerSkill * weapPowerSkill) / (attributes[myNodeName1].attacks["rocketsInAir"] + 1) / (attributes[myNodeName1].attacks["rocketsInAir"] + 1))
 						{
 							if ((myNodeName2 == "") or (getprop(""~myNodeName2~"/bombable/initializers/attack-initialized") == 1)) #check target initialized (sporting)
 							{
@@ -6027,7 +6038,7 @@ var weapons_loop = func (id, myNodeName1 = "", myNodeName2 = "", targetSize_m = 
 			(
 				myNodeName1, myNodeName2,
 				elem,
-				targetSize_m,  weaponSkill, 
+				targetSize_m,  weapPowerSkill, 
 				damageValue
 			);
 			var t_guideRocket = (ot.timestamp.elapsedUSec()/ot.resolution_uS);
@@ -6048,7 +6059,7 @@ var weapons_loop = func (id, myNodeName1 = "", myNodeName2 = "", targetSize_m = 
 			}
 		}
 
-		# debprint ("Bombable: Weapons_loop ", myNodeName1, " weaponSkill = ",weaponSkill, " weaponPower = ", weaponPower, " thisWeapon.aim.pHit = ", thisWeapon.aim.pHit);
+		# debprint ("Bombable: Weapons_loop ", myNodeName1, " weapPowerSkill = ",weapPowerSkill, " weaponPower = ", weaponPower, " thisWeapon.aim.pHit = ", thisWeapon.aim.pHit);
 		# debprint (
 			# "Bombable: Weapons_loop " ~ myNodeName1 ~ " " ~ elem, 
 			# " heading = ", thisWeapon.weaponAngle_deg.heading, 
@@ -6059,8 +6070,9 @@ var weapons_loop = func (id, myNodeName1 = "", myNodeName2 = "", targetSize_m = 
 
 		
 		#debprint ("aim-check weapon");
-		if (thisWeapon.aim.pHit > (0.01 * weaponSkill))
-		# a skilled gunner will fire at 10% pHit; an unskilled one 1%
+		if (thisWeapon.aim.pHit > (0.05 * weapPowerSkill))
+		# fire weapon
+		# a skilled gunner with an effective weapon will fire at 50% pHit; a weak combination at only 5%
 		{
 			if (thisWeapon.weaponType == 0)
 			{
@@ -6071,27 +6083,27 @@ var weapons_loop = func (id, myNodeName1 = "", myNodeName2 = "", targetSize_m = 
 				
 				#fire weapons for visual effect
 				#whenever we're within maxDistance & aimed approximately in the right direction
-				fireAIWeapon(loopTime * 3, myNodeName1, thisWeapon, thisWeapon.aim.interceptSpeed);
+				var time2Fire =  2 * loopTime;
+				fireAIWeapon(time2Fire, myNodeName1, thisWeapon, thisWeapon.aim.interceptSpeed);
+
+				#reduce ammo count; bad gunners waste more ammo by firing when low pHit
+				if (stores.reduceWeaponsCount (myNodeName1, elem, time2Fire) == 1)
+				{
+					var msg = thisWeapon.name ~ " on " ~ 
+					getprop ("" ~ myNodeName1 ~ "/name") ~ 
+					" out of ammo";
+
+					targetStatusPopupTip (msg, 20);
+				}
 			}
 						
-
-			#reduce ammo count; bad pilots waste more ammo; weaponSkill ranges 0 to 1
-			if (stores.reduceWeaponsCount (myNodeName1, elem, loopTime * (2 + 2 * weaponSkill)) == 1)
-			{
-				var msg = thisWeapon.name ~ " on " ~ 
-				getprop ("" ~ myNodeName1 ~ "/name") ~ 
-				" out of ammo";
-
-				targetStatusPopupTip (msg, 20);
-			}
 
 						
 			# As with our regular damage, it has a pHit% change of registering a hit
 			# The amount of damage also increases with pHit.
 			# There is a smaller chance of doing a fairly high level of damage (up to 3X the regular max),
 			# and the better/closer the hit, the greater chance of doing that significant damage.
-			var r = rand();
-			if (r < thisWeapon.aim.pHit) 
+			if (rand() < thisWeapon.aim.pHit) 
 			{
 				var ai_callsign = getCallSign (myNodeName1);
 							
@@ -6109,7 +6121,7 @@ var weapons_loop = func (id, myNodeName1 = "", myNodeName2 = "", targetSize_m = 
 					mainAC_add_damage ( damageAdd, 0, "weapons",
 					"Hit from " ~ ai_callsign ~ " - " ~ weaponName ~"!");								
 				}
-				elsif (thisWeapon.weaponType == 1) # rocket
+				elsif (thisWeapon.weaponType == 1) # only rockets are able to damage AI targets
 				{
 					# var damageAdd = .1 * attributes[myNodeName2].vulnerabilities.damageVulnerability * thisWeapon.mass * 2.2 / 10, # used elsewhere, note mass in kg 
 					add_damage
@@ -6279,7 +6291,7 @@ var guideRocket = func
 (
 	myNodeName1 = "", myNodeName2 = "",
 	elem = "",
-	targetSize_m = nil,  weaponSkill = 1, 
+	targetSize_m = nil,  weapPowerSkill = 1, 
 	damageValue = 0
 )
 {
@@ -8794,7 +8806,7 @@ var add_damage = func(damageRise, myNodeName, damagetype = "weapon", impactNodeN
 	if (damagetype == "weapon") records.record_impact ( myNodeName, damageRise, damageIncrease, damageValue, impactNodeName, ballisticMass_lb, lat_deg, lon_deg, alt_m );
 					
 	var callsign = getCallSign (myNodeName);
-	var weaponSkill = getprop(myNodeName~"/bombable/weapons-pilot-ability");				
+	var weapPowerSkill = getprop(myNodeName~"/bombable/weapons-pilot-ability");				
 						
 	if ( damageIncrease > 0 ) 
 	{
@@ -8809,7 +8821,7 @@ var add_damage = func(damageRise, myNodeName, damagetype = "weapon", impactNodeN
 			elsif (damageRise < .1) damageRiseDisplay = sprintf ("%1.1f",damageRise * 100);
 							
 							
-			var msg = "Damage added: " ~ damageRiseDisplay ~ "% - Total damage: " ~ round ( damageValue * 100 ) ~ "% for " ~  string.trim(callsign) ~ ", skill level " ~ math.ceil(10 * weaponSkill);
+			var msg = "Damage added: " ~ damageRiseDisplay ~ "% - Total damage: " ~ round ( damageValue * 100 ) ~ "% for " ~  string.trim(callsign) ~ ", skill level " ~ math.ceil(10 * weapPowerSkill);
 			debprint ("Bombable: " ~ msg ~ " (" ~ myNodeName ~ ", " ~ origDamageRise ~")" );
 							
 			targetStatusPopupTip (msg, 20);
@@ -9798,7 +9810,7 @@ var attack_init_func = func(myNodeName)
 	attackCheckTime = atts.attackCheckTime_sec;
 	if (attackCheckTime == nil or attackCheckTime < 0.5) attackCheckTime = 0.5;
 						
-	# Set an individual pilot weapons ability, -1 to 1, with 0 being average
+	# Set an individual pilot ability, -1 to 1, with 0 being average
 	pilotAbility = math.pow (rand(), 1.5) ;
 	if (rand() > .5) pilotAbility = -pilotAbility;
 	setprop(""~myNodeName~"/bombable/attack-pilot-ability", pilotAbility);
@@ -10057,7 +10069,7 @@ var weapons_init_func = func(myNodeName) {
 
 		if (thisWeapon["maxMissileSpeed_mps"] == nil) thisWeapon["maxMissileSpeed_mps"] = 300;
 			
-		if (thisWeapon["ammo_seconds"] == nil) thisWeapon["ammo_seconds"] = 6000; # time a weapon can fire til out of ammo 
+		if (thisWeapon["ammo_seconds"] == nil) thisWeapon["ammo_seconds"] = 180; # time a weapon can fire til out of ammo 
 			
 
 	
@@ -10119,7 +10131,7 @@ var weapons_init_func = func(myNodeName) {
 
 		var mainAircraftSize_m = { vert : 4, horz : 8 };
 		
-		setWeaponSkill (myNodeName);							
+		setWeaponPowerSkill (myNodeName);							
 							
 		#we increment this each time we are inited or de-inited
 		#when the loopid is changed it kills the timer loops that have that id
@@ -11138,23 +11150,41 @@ var rotate_yxz = func (vector, alpha, beta, gamma) {
 ########################## erf ###########################
 var erf = func (xVal) 
 {
-	# require xVal positive.  Calculates for halfspace, 0 to xVal
+	# calculates for halfspace, 0 to xVal
+	# odd function so negate result for xVal < 0
 	# from https://en.wikipedia.org/wiki/Error_function
 	
 	var expVal = math.exp(-xVal * xVal);
 	var result = math.sqrt(1 - expVal);
-	result *= (1.0 + 0.1749 * expVal - 0.0481 * expVal * expVal);
+	result *= (.5 + 0.08744939 * expVal - 0.02404858 * expVal * expVal);
 	return( (xVal < 0) ? -result : result );
 }
-########################## setWeaponSkill ###########################
-	# called by resetBombableDamageFuelWeapons and weapons_init_func
-var setWeaponSkill = func(myNodeName)
+########################## setWeaponPowerSkill ###########################
+# called by resetBombableDamageFuelWeapons and weapons_init_func
+
+var setWeaponPowerSkill = func(myNodeName)
 {
-	var weaponPower = getprop ("" ~bomb_menu_pp~ "ai-weapon-power");
-	if (weaponPower == nil) weaponPower = 0.2;
-	# Set weaponSkill, 0 to 1, with average varying according to setting on Bombable weapon power-skill menu
-	var weaponSkill = 0.1 + 0.9 * math.pow (rand(), 1.5 - weaponPower) ;
-	setprop(""~myNodeName~"/bombable/weapons-pilot-ability", weaponSkill);
+	var power = getprop ("" ~bomb_menu_pp~ "ai-weapon-power");
+	if (power == nil) power = 0.2;
+	# var skill = 0;
+	# var n = 8;
+	# for (var i = 0; i < n; i += 1) {skill += rand();} # ~norm distribution central limit theorem 
+	# SD = 1 / sqrt(12n)
+	# skill /= n;
+	var skill = rand();
+
+	# Set weapPowerSkill, 0 to 1, an equal combination of weapon effectiveness and skill of pilot or gunner
+	var weapPowerSkill = ( power + skill ) / 2.0;
+	setprop(""~myNodeName~"/bombable/weapons-pilot-ability", weapPowerSkill);
+
+	debprint
+	(
+		sprintf
+		(
+			"WeapPowerSkill set to %4.1f for "~myNodeName~"",
+			weapPowerSkill
+		)
+	);
 }
 
 
