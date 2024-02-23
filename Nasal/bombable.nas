@@ -3812,10 +3812,10 @@ var test_impact = func(changedNode, myNodeName) {
 	# http://mathforum.org/library/drmath/view/54731.html (a more vector-based
 	# approach).
 	#
-	# ft_per_deg_lat = 366468.96 - 3717.12 * cos(pos.getLatitudeRad());
-	# ft_per_deg_lon = 365228.16 * cos(pos.getLatitudeRad());
+	# ft_per_deg_lat = 366468.96 - 3717.12 * math.cos(pos.getLatitudeRad());
+	# ft_per_deg_lon = 365228.16 * math.cos(pos.getLatitudeRad());
 	# per FG c code, http://gitorious.org/fg/flightgear/blobs/next/src/AIModel/AIBase.cxx line 178
-	# We could speed this up by leaving out the cos term in deg_lat and/or calculating these
+	# We could speed this up by leaving out the math.cos term in deg_lat and/or calculating these
 	# occasionally as the main A/C flies around and storing them (they don't change that)
 	# much from one mile to the next)
 	# var iLat_rad = iLat_deg* D2R;
@@ -5023,54 +5023,50 @@ var dodge = func(myNodeName) {
 	if ((vels.maxSpeed_kt < 80) and (type == "aircraft")) type = "groundvehicle";
 	# rjw groundvehicles behave as aircraft, e.g. can set vertical speed
 	
-		
-				
-				
 	# skill ranges 0-5; 0 = disabled, so 1-5;
 	var skill = calcPilotSkill (myNodeName);
 	if (skill <= .2) skillMult = 3/0.2;
 	else skillMult = 3/skill;
-
 				
 	# amount to dodge left-right, up to dodgeMax_deg in either direction
 	# (1-rand() * rand()) favors rolls towards the high end of the allowed range
-	dodgeAmount_deg = (evas.dodgeMax_deg - evas.dodgeMin_deg) * (1 - rand() * rand()) + evas.dodgeMin_deg;
+	var dodgeAmount_deg = (evas.dodgeMax_deg - evas.dodgeMin_deg) * (1 - rand() * rand()) + evas.dodgeMin_deg;
 	# cut the amount of dodging down some for less skilled pilots
 	dodgeAmount_deg  *=  (skill+6)/12;
 				
 	# If we're rolling hard one way then 'dodge' means roll the opposite way.
 	# Otherwise we set the roll direction randomly according to the preferences
 	# file
-	currRoll_deg = getprop(""~myNodeName~"/orientation/roll-deg");
+	var currRoll_deg = getprop(""~myNodeName~"/orientation/roll-deg");
 	if (math.abs(currRoll_deg) > 30) dodgeAmount_deg = -math.sgn(currRoll_deg) * dodgeAmount_deg;
 	else if (rand() > evas.dodgeROverLPreference_percent/100) dodgeAmount_deg = -dodgeAmount_deg;
 
-	# we want to mostly dodge to upper/lower extremes of our altitude limits
-	var dodgeAltFact = 1 - rand() * rand() * rand();
-	# less skilled pilots don't dodge as far
-	dodgeAltFact *=  (skill+3)/9;
-	# the direction of the Alt dodge will favor the direction that has more
-	# feet to dodge in the evasions definitions.  Some aircraft heavily favor
-	# diving to escape, for instance.
-	
-	if (evas.dodgeAltMax_ft !=0) {
-		var dodgeAltDirection = (evas.dodgeAltMax_ft - evas.dodgeAltMin_ft) * rand() + evas.dodgeAltMin_ft;
-					
-		#target amount to climb or drop
-		if (dodgeAltDirection >= 0)
-		dodgeAltAmount_ft = dodgeAltFact * evas.dodgeAltMax_ft;
-		else
-		dodgeAltAmount_ft = dodgeAltFact * evas.dodgeAltMin_ft;
-	} else {
-		dodgeAltAmount_ft = 0;
-	}
-				
-	debprint ("Bombable: Dodge alt:", dodgeAltAmount_ft, " degrees:", dodgeAmount_deg);
 	
 	var dodgeDelay = (evas.dodgeDelayMax_sec - evas.dodgeDelayMin_sec) * rand() + evas.dodgeDelayMin_sec;
 				
+	var dodgeAltAmount_ft = 0;
 				
 	if (type == "aircraft") {
+		
+		if (evas.dodgeAltMax_ft !=0) 
+		{
+			var dodgeAltDirection = (evas.dodgeAltMax_ft - evas.dodgeAltMin_ft) * rand() + evas.dodgeAltMin_ft;
+			
+			# we want to mostly dodge to upper/lower extremes of our altitude limits
+			var dodgeAltFact = 1 - rand() * rand() * rand();
+			# less skilled pilots don't dodge as far
+			dodgeAltFact *=  (skill+3)/9;
+			# the direction of the Alt dodge will favor the direction that has more
+			# feet to dodge in the evasions definitions.  Some aircraft heavily favor
+			# diving to escape, for instance.
+						
+			#target amount to climb or drop
+			if (dodgeAltDirection >= 0)
+			dodgeAltAmount_ft = dodgeAltFact * evas.dodgeAltMax_ft;
+			else
+			dodgeAltAmount_ft = dodgeAltFact * evas.dodgeAltMin_ft;
+		} 
+					
 		if (evas.rollRateMax_degpersec == nil or evas.rollRateMax_degpersec <= 0)
 		evas.rollRateMax_degpersec = 40;
 		var rollTime_sec = math.abs(dodgeAmount_deg / evas.rollRateMax_degpersec);
@@ -5178,6 +5174,7 @@ var dodge = func(myNodeName) {
 			}, dodgeDelay);
 		}
 				
+		debprint ("Bombable: Dodge alt:", dodgeAltAmount_ft, " degrees:", dodgeAmount_deg, " delay:", dodgeDelay);
 }
 
 ##################### getCallSign ##########################
@@ -5783,12 +5780,47 @@ var checkAim = func ( thisWeapon, myNodeName1 = "", myNodeName2 = "",
 	# the y-axis points at 90 deg to the direction of travel i.e. to the right
 	# weaponOffset is given in model co-ords; weaponOffsetRefFrame in the ground frame
 
-	# calculate the offset of the weapon in the ground reference frame
-	thisWeapon.aim.weaponOffsetRefFrame = rotate_zxy([
-		thisWeapon.weaponOffset_m.y,
-		-thisWeapon.weaponOffset_m.x,
-		thisWeapon.weaponOffset_m.z
-	], -pitch_deg, -roll_deg, myHeading_deg);
+	if (thisWeapon.parent == "")
+	{
+		# calculate the offset of the weapon in the ground reference frame
+		thisWeapon.aim.weaponOffsetRefFrame = rotate_zxy
+		(
+			[
+			thisWeapon.weaponOffset_m.y,
+			-thisWeapon.weaponOffset_m.x,
+			thisWeapon.weaponOffset_m.z
+			],
+			-pitch_deg, -roll_deg, myHeading_deg
+		);
+	}
+	else
+	{
+		var parentWeap = attributes[myNodeName1].weapons[thisWeapon.parent];
+		var phi = getprop( "" ~ myNodeName1 ~ "/" ~ thisWeapon.parent ~ "/turret-pos-deg" );
+		var myOffset = rotate_round_z_axis # in the model frame
+		(
+			[
+			thisWeapon.weaponOffset_m.x,
+			thisWeapon.weaponOffset_m.y,
+			thisWeapon.weaponOffset_m.z
+			], # offset in model frame relative to parent
+			phi
+		);
+		myOffset[0] += parentWeap.weaponOffset_m.x;
+		myOffset[1] += parentWeap.weaponOffset_m.y;
+		myOffset[2] += parentWeap.weaponOffset_m.z;
+
+		thisWeapon.aim.weaponOffsetRefFrame = rotate_zxy
+		(
+			[
+			myOffset[1],
+			-myOffset[0],
+			myOffset[2]
+			],
+			-pitch_deg, -roll_deg, myHeading_deg
+		);
+	}
+
 
 	
 	targetDispRefFrame = vectorSubtract(targetDispRefFrame, thisWeapon.aim.weaponOffsetRefFrame);
@@ -5822,12 +5854,12 @@ var checkAim = func ( thisWeapon, myNodeName1 = "", myNodeName2 = "",
 	
 		
 	#form vector for the current direction of weapon, weapDir, in the reference frame of the model
-	var cosWeapElev = cos(thisWeapon.weaponAngle_deg.elevation);
+	var cosWeapElev = math.cos(D2R * thisWeapon.weaponAngle_deg.elevation);
 	var weapDir = 
 	[
-		cosWeapElev * sin(thisWeapon.weaponAngle_deg.heading),
-		cosWeapElev * cos(thisWeapon.weaponAngle_deg.heading),
-		sin(thisWeapon.weaponAngle_deg.elevation)
+		cosWeapElev * math.sin(D2R * thisWeapon.weaponAngle_deg.heading),
+		cosWeapElev * math.cos(D2R * thisWeapon.weaponAngle_deg.heading),
+		math.sin(D2R * thisWeapon.weaponAngle_deg.elevation)
 	];
 	
 	#calculate angular offset
@@ -5874,58 +5906,33 @@ var checkAim = func ( thisWeapon, myNodeName1 = "", myNodeName2 = "",
 	}
 
 	#change orientation of weapon
-	if ( rand() < weapPowerSkill ) # a skilled gunner changes the direction of their weapon more frequently 
+	if ( rand() < weapPowerSkill * LOOP_TIME) # a skilled gunner changes the direction of their weapon more frequently 
 	{ 
 		# ensure that newDir is in range of movement of weapon
 		var newElev = math.asin(newDir[2]) * R2D;
 		var newHeading = math.atan2(newDir[0], newDir[1]) * R2D;
-		var changes = 2;
 
 		if (newElev < thisWeapon.weaponAngle_deg.elevationMin)
 			newElev = thisWeapon.weaponAngle_deg.elevationMin;
 		elsif (newElev > thisWeapon.weaponAngle_deg.elevationMax)
 			newElev = thisWeapon.weaponAngle_deg.elevationMax;
-		else
-			changes -= 1;
 
 		var headingVal = keepInsideRange(thisWeapon.weaponAngle_deg.headingMin, thisWeapon.weaponAngle_deg.headingMax, newHeading);
-		if (headingVal.insideRange)
-		{
-			changes -= 1;
-		}
-		else
-		{
-			newHeading = headingVal.newHdg;
-		}
+		if (!headingVal.insideRange) newHeading = headingVal.newHdg;
 		
 		
-			var cosNewElev = cos(newElev);
-			newDir = 
-			[
-				cosNewElev * sin(newHeading),
-				cosNewElev * cos(newHeading),
-				sin(newElev)
-			];
-		# omitted - now always update newDir
-		# if (changes !=0)
-		# {
-		# }
+		var cosNewElev = math.cos(D2R * newElev);
+		newDir = 
+		[
+			cosNewElev * math.sin(D2R * newHeading),
+			cosNewElev * math.cos(D2R * newHeading),
+			math.sin(D2R * newElev)
+		];
 
-		# debprint ("Bombable: checkAim for ", myNodeName1,
-		# sprintf("newElev =%8.1f newHeading =%8.1f changes=%2.0f", newElev, newHeading, changes));
-
-		# change aim of weapon by setting weapon direction to intercept direction
 		thisWeapon.aim.weaponDirModelFrame = newDir;
 		thisWeapon.aim.weaponDirRefFrame = rotate_zxy(newDir, -pitch_deg, -roll_deg, myHeading_deg);
 	}
-	
-	# omitted newDir is not used - originally to ensures weap positions updated on startup.  Should be done in weapons init
 
-	# else
-	# {
-	# 	# keep weapon direction unchanged
-	# 	newDir = weapDir;
-	# }
 	return (targetSighted); 	
 }
 
@@ -9258,7 +9265,7 @@ var initialize_func = func ( b ){
 			var count = 0;
 			var sum = 0;
 			var dTV = b.velocities.diveTerminalVelocities;
-			var sin = 0; var deltaV_kt = 0; var factor = 0;
+			var sinPitch = 0; var deltaV_kt = 0; var factor = 0;
 			foreach (k; keys (dTV) ) {
 				dTV[k].airspeed_kt = checkRangeHash (dTV[k], "airspeed_kt", 0, nil, nil );
 									
@@ -9266,9 +9273,9 @@ var initialize_func = func ( b ){
 									
 				if ( dTV[k].airspeed_kt != nil and dTV[k].vertical_speed_fps != nil ){
 					dTV[k].airspeed_fps = dTV[k].airspeed_kt * KT2FPS;
-					sin = math.abs(dTV[k].vertical_speed_fps/dTV[k].airspeed_fps);
+					sinPitch = math.abs(dTV[k].vertical_speed_fps/dTV[k].airspeed_fps);
 					deltaV_kt = dTV[k].airspeed_kt  - b.velocities.attackSpeed_kt;
-					factor = deltaV_kt/sin;
+					factor = deltaV_kt/sinPitch;
 					sum += factor;
 					count += 1;
 					} else {
@@ -9288,7 +9295,7 @@ var initialize_func = func ( b ){
 			var count = 0;
 			var sum = 0;
 			var cTV = b.velocities.climbTerminalVelocities;
-			var sin = 0; var deltaV_kt = 0; var factor = 0;
+			var sinPitch = 0; var deltaV_kt = 0; var factor = 0;
 			foreach (k; keys (cTV) ) {
 				cTV[k].airspeed_kt = checkRangeHash (cTV[k], "airspeed_kt", 0, nil, nil );
 									
@@ -9296,9 +9303,9 @@ var initialize_func = func ( b ){
 									
 				if ( cTV[k].airspeed_kt != nil and cTV[k].vertical_speed_fps != nil ){
 					cTV[k].airspeed_fps = cTV[k].airspeed_kt * KT2FPS;
-					sin = math.abs(cTV[k].vertical_speed_fps/cTV[k].airspeed_fps);
+					sinPitch = math.abs(cTV[k].vertical_speed_fps/cTV[k].airspeed_fps);
 					deltaV_kt = b.velocities.attackSpeed_kt - cTV[k].airspeed_kt;
-					factor = deltaV_kt/sin;
+					factor = deltaV_kt/sinPitch;
 					sum += factor;
 					count += 1;
 					} else {
@@ -9947,7 +9954,8 @@ var weapons_init = func (myNodeName = "") {
 # Put this nasal code in your object's load:
 #      bombable.weapons_init (cmdarg().getPath())
 
-var weapons_init_func = func(myNodeName) {
+var weapons_init_func = func(myNodeName) 
+{
 	#return;
 	myNode = props.globals.getNode(myNodeName);
 	type = myNode.getName();
@@ -10041,11 +10049,11 @@ var weapons_init_func = func(myNodeName) {
 		
 		# form vector for weapon direction, weapDir
 		var weapAngles = thisWeapon.weaponAngle_deg;
-		var cosWeapElev = cos(weapAngles.elevation);
+		var cosWeapElev = math.cos(D2R * weapAngles.elevation);
 		var weapDir = [
-			cosWeapElev * sin(weapAngles.heading),
-			cosWeapElev * cos(weapAngles.heading),
-			sin(weapAngles.elevation)
+			cosWeapElev * math.sin(D2R * weapAngles.heading),
+			cosWeapElev * math.cos(D2R * weapAngles.heading),
+			math.sin(D2R * weapAngles.elevation)
 		];		
 		# set turret and gun to their default positions
 		setprop ("" ~ myNodeName ~ "/" ~ elem ~ "/turret-pos-deg", weapAngles.heading);
@@ -10072,6 +10080,15 @@ var weapons_init_func = func(myNodeName) {
 		if (thisWeapon["ammo_seconds"] == nil) thisWeapon["ammo_seconds"] = 180; # time a weapon can fire til out of ammo 
 			
 
+		# key to indicate the position of the weapon is determined by the position of a parent weapon, e.g. turret and subturret
+		if (thisWeapon["parent"] == nil) 
+		{
+			thisWeapon["parent"] = "";
+		}
+		elsif (! contains ( attributes[myNodeName], thisWeapon["parent"] )  or (thisWeapon["parent"] == "" ~ elem))
+		{
+			thisWeapon["parent"] = "";
+		}
 	
 		debprint ("Weaps: ", myNodeName, " initialized ", thisWeapon.name);
 		count += 1;
@@ -10085,6 +10102,7 @@ var weapons_init_func = func(myNodeName) {
 		if (attributes[myNodeName].dimensions["safeDistance_m"] == nil) attributes[myNodeName].dimensions["safeDistance_m"] = 200;
 	}
 	
+
 	#append(listenerids, listenerid);
 	#props.globals.getNode(""~myNodeName~"/bombable/weapons/listenerids",1).setValues({listenerids: listenerids});
 
@@ -10946,16 +10964,11 @@ var reduceSpeed = func(myNodeName, factorSlowDown, type) {
 	settimer( func{reduceSpeed(myNodeName, factorSlowDown,type)},1);
 }
 
-########################## trigonometry ###########################
-
-var sin = func(a) { math.sin(a * globals.D2R) }
-var cos = func(a) { math.cos(a * globals.D2R) }
-
 ########################## rotate_round ###########################
 var rotate_round_x_axis = func (vector, alpha) {
  
-    var c_alpha = cos(alpha);
-    var s_alpha = sin(alpha);
+    var c_alpha = math.cos(D2R * alpha);
+    var s_alpha = math.sin(D2R * alpha);
 
     var matrix = [
         [
@@ -10986,8 +10999,8 @@ var rotate_round_x_axis = func (vector, alpha) {
 }
 var rotate_round_y_axis = func (vector, beta) {
  
-    var c_beta = cos(beta);
-    var s_beta = sin(beta);
+    var c_beta = math.cos(D2R * beta);
+    var s_beta = math.sin(D2R * beta);
 
     var matrix = [
         [
@@ -11018,8 +11031,8 @@ var rotate_round_y_axis = func (vector, beta) {
 }
 var rotate_round_z_axis = func (vector, gamma) {
  
-    var c_gamma = cos(gamma);
-    var s_gamma = sin(gamma);
+    var c_gamma = math.cos(D2R * gamma);
+    var s_gamma = math.sin(D2R * gamma);
 
     var matrix = [
         [
