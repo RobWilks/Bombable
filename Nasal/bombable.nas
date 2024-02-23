@@ -5803,9 +5803,10 @@ var checkAim = func ( thisWeapon, myNodeName1 = "", myNodeName2 = "",
 			thisWeapon.weaponOffset_m.x,
 			thisWeapon.weaponOffset_m.y,
 			thisWeapon.weaponOffset_m.z
-			], # offset in model frame relative to parent
+			], # offset of weapon in model frame relative to parent weapon
 			phi
 		);
+		# offset of weapon relative to AI model origin
 		myOffset[0] += parentWeap.weaponOffset_m.x;
 		myOffset[1] += parentWeap.weaponOffset_m.y;
 		myOffset[2] += parentWeap.weaponOffset_m.z;
@@ -5854,12 +5855,12 @@ var checkAim = func ( thisWeapon, myNodeName1 = "", myNodeName2 = "",
 	
 		
 	#form vector for the current direction of weapon, weapDir, in the reference frame of the model
-	var cosWeapElev = math.cos(D2R * thisWeapon.weaponAngle_deg.elevation);
+	var cosWeapElev = math.cos(thisWeapon.weaponAngle_deg.elevation* D2R);
 	var weapDir = 
 	[
-		cosWeapElev * math.sin(D2R * thisWeapon.weaponAngle_deg.heading),
-		cosWeapElev * math.cos(D2R * thisWeapon.weaponAngle_deg.heading),
-		math.sin(D2R * thisWeapon.weaponAngle_deg.elevation)
+		cosWeapElev * math.sin(thisWeapon.weaponAngle_deg.heading* D2R),
+		cosWeapElev * math.cos(thisWeapon.weaponAngle_deg.heading* D2R),
+		math.sin(thisWeapon.weaponAngle_deg.elevation* D2R)
 	];
 	
 	#calculate angular offset
@@ -5921,12 +5922,12 @@ var checkAim = func ( thisWeapon, myNodeName1 = "", myNodeName2 = "",
 		if (!headingVal.insideRange) newHeading = headingVal.newHdg;
 		
 		
-		var cosNewElev = math.cos(D2R * newElev);
+		var cosNewElev = math.cos(newElev* D2R);
 		newDir = 
 		[
-			cosNewElev * math.sin(D2R * newHeading),
-			cosNewElev * math.cos(D2R * newHeading),
-			math.sin(D2R * newElev)
+			cosNewElev * math.sin(newHeading* D2R),
+			cosNewElev * math.cos(newHeading* D2R),
+			math.sin(newElev* D2R)
 		];
 
 		thisWeapon.aim.weaponDirModelFrame = newDir;
@@ -6077,9 +6078,10 @@ var weapons_loop = func (id, myNodeName1 = "", myNodeName2 = "", targetSize_m = 
 
 		
 		#debprint ("aim-check weapon");
-		if (thisWeapon.aim.pHit > (0.05 * weapPowerSkill))
 		# fire weapon
 		# a skilled gunner with an effective weapon will fire at 50% pHit; a weak combination at only 5%
+		# if (thisWeapon.aim.pHit > (0.05 * weapPowerSkill))
+		if (0) # omit for testing
 		{
 			if (thisWeapon.weaponType == 0)
 			{
@@ -10049,11 +10051,11 @@ var weapons_init_func = func(myNodeName)
 		
 		# form vector for weapon direction, weapDir
 		var weapAngles = thisWeapon.weaponAngle_deg;
-		var cosWeapElev = math.cos(D2R * weapAngles.elevation);
+		var cosWeapElev = math.cos(weapAngles.elevation* D2R);
 		var weapDir = [
-			cosWeapElev * math.sin(D2R * weapAngles.heading),
-			cosWeapElev * math.cos(D2R * weapAngles.heading),
-			math.sin(D2R * weapAngles.elevation)
+			cosWeapElev * math.sin(weapAngles.heading* D2R),
+			cosWeapElev * math.cos(weapAngles.heading* D2R),
+			math.sin(weapAngles.elevation* D2R)
 		];		
 		# set turret and gun to their default positions
 		setprop ("" ~ myNodeName ~ "/" ~ elem ~ "/turret-pos-deg", weapAngles.heading);
@@ -10967,8 +10969,8 @@ var reduceSpeed = func(myNodeName, factorSlowDown, type) {
 ########################## rotate_round ###########################
 var rotate_round_x_axis = func (vector, alpha) {
  
-    var c_alpha = math.cos(D2R * alpha);
-    var s_alpha = math.sin(D2R * alpha);
+    var c_alpha = math.cos(alpha * D2R);
+    var s_alpha = math.sin(alpha * D2R);
 
     var matrix = [
         [
@@ -10999,8 +11001,8 @@ var rotate_round_x_axis = func (vector, alpha) {
 }
 var rotate_round_y_axis = func (vector, beta) {
  
-    var c_beta = math.cos(D2R * beta);
-    var s_beta = math.sin(D2R * beta);
+    var c_beta = math.cos(beta * D2R);
+    var s_beta = math.sin(beta * D2R);
 
     var matrix = [
         [
@@ -11031,8 +11033,8 @@ var rotate_round_y_axis = func (vector, beta) {
 }
 var rotate_round_z_axis = func (vector, gamma) {
  
-    var c_gamma = math.cos(D2R * gamma);
-    var s_gamma = math.sin(D2R * gamma);
+    var c_gamma = math.cos(gamma * D2R);
+    var s_gamma = math.sin(gamma * D2R);
 
     var matrix = [
         [
