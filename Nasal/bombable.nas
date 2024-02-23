@@ -2728,8 +2728,7 @@ var ground_loop = func( id, myNodeName ) {
 	# Allow this function to be disabled via menu since it can kill framerate at times
 	if (! getprop ( bomb_menu_pp~"ai-ground-loop-enabled") or ! getprop(bomb_menu_pp~"bombable-enabled") ) return;
 
-	node = props.globals.getNode(myNodeName);
-	var type = node.getName();
+	var type = attributes[myNodeName].type;
 
 	var alts = attributes[myNodeName].altitudes;
 	var ctrls = attributes[myNodeName].controls;
@@ -2742,8 +2741,6 @@ var ground_loop = func( id, myNodeName ) {
 	if (ctrls.onGround) thorough = 0; #never need thorough when crashed
 	
 	
-	if ((vels.maxSpeed_kt < 80) and (type == "aircraft")) type = "groundvehicle";
-	# rjw groundvehicles behave as aircraft, e.g. can set vertical speed
 			
 	# If you get too close in to the object, FG detects the elevation of the top of the object itself
 	# rather than the underlying ground elevation. So we go an extra FGAltObjectPerimeterBuffer_m
@@ -2862,7 +2859,7 @@ var ground_loop = func( id, myNodeName ) {
 		if (type != "aircraft") 
 		{
 			setprop (""~myNodeName~"/position/altitude-ft", alt_ft ); # ships and groundvehicles are set to altitude of ground in their initial location
-			setprop (""~myNodeName~"/controls/flight/target-alt",  alt_ft);
+			setprop (""~myNodeName~"/controls/flight/target-alt",  alt_ft); # sets the target height of groundvehicles which are AI model type aircraft - confusing!
 			alts.targetAGL_ft = 0; 
 			alts.initialAlt_ft = alt_ft;  # rjw mod to check for grounded ships
 		}
@@ -2915,7 +2912,8 @@ var ground_loop = func( id, myNodeName ) {
 	# speed is adjusted by add_damage
 	if ((type == "groundvehicle") or (type == "ship")) 
 	{
-		if (speed_kt <= 1) {
+		if (speed_kt <= 1) 
+		{
 			setprop(""~myNodeName~"/bombable/exploded", 1);
 			setprop(""~myNodeName~"/bombable/attributes/damage", 1); # could continue fighting even though immobilised
 			setprop(""~myNodeName~"/controls/tgt-speed-kt", 0);
@@ -4338,8 +4336,7 @@ var test_impact = func(changedNode, myNodeName) {
 					
 		}
 
-		var node = props.globals.getNode(myNodeName);
-		var type = node.getName();
+		var type = attributes[myNodeName].type;
 
 		if ( type != "multiplayer" and myNodeName != "" ) {
 			#any impacts somewhat close to us, we start dodging - if we're a good pilot.
@@ -4937,9 +4934,8 @@ var rudder_roll_climb = func (myNodeName, degrees = 15, alt_ft = -20, time = 10,
 	#var b = props.globals.getNode (""~myNodeName~"/bombable/attributes");
 	var alts = attributes[myNodeName].altitudes;
 				
-	node = props.globals.getNode(myNodeName);
-	var type = node.getName();
-				
+	var type = attributes[myNodeName].type;
+
 
 	# rudder/roll
 	currRudder = getprop(""~myNodeName~"/surface-positions/rudder-pos-deg");
@@ -5008,8 +5004,7 @@ var dodge = func(myNodeName) {
 	return;
 	# rjw: unsure where to find attack-enabled on bombable menu. However it is set for B-17 scenario
 				
-	node = props.globals.getNode(myNodeName);
-	var type = node.getName();
+	var type = attributes[myNodeName].type;
 
 	debprint ("Bombable: Starting Dodge", myNodeName, " type = ", type);
 				
@@ -5020,9 +5015,6 @@ var dodge = func(myNodeName) {
 	dims = attributes[myNodeName].dimensions;
 	evas = attributes[myNodeName].evasions;
 
-	if ((vels.maxSpeed_kt < 80) and (type == "aircraft")) type = "groundvehicle";
-	# rjw groundvehicles behave as aircraft, e.g. can set vertical speed
-	
 	# skill ranges 0-5; 0 = disabled, so 1-5;
 	var skill = calcPilotSkill (myNodeName);
 	if (skill <= .2) skillMult = 3/0.2;
@@ -5197,7 +5189,7 @@ var getCallSign = func ( myNodeName ) {
 		var callsign = getprop(""~myNodeName~"/callsign");
 		if (callsign == nil or callsign == "") callsign = getprop(""~myNodeName~"/name");
 		if (callsign == nil or callsign == "") {
-			node = props.globals.getNode(myNodeName);
+			var node = props.globals.getNode(myNodeName);
 			callsign = node.getName() ~ "[" ~ node.getIndex() ~ "]";
 		}
 	}
@@ -8764,7 +8756,6 @@ var add_damage = func(damageRise, myNodeName, damagetype = "weapon", impactNodeN
 		var damAdd = mainAC_add_damage(damageRise, 0,"weapons", "Damaged by own weapons!");
 		return damAdd;
 	}
-	var node = props.globals.getNode(myNodeName);
 					
 	debprint (sprintf("Bombable: add_damage%5.2f to %s", damageRise, myNodeName));
 	#var b = props.globals.getNode (""~myNodeName~"/bombable/attributes");
@@ -8772,8 +8763,7 @@ var add_damage = func(damageRise, myNodeName, damagetype = "weapon", impactNodeN
 	var spds = attributes[myNodeName].velocities;
 	var livs = attributes[myNodeName].damageLiveries;
 	var liveriesCount = livs.count;
-	var type = node.getName();
-	if ((spds.maxSpeed_kt < 50) and (type == "aircraft")) type = "groundvehicle";
+	var type = attributes[myNodeName].type;
 
 	# check for destroyed AC on ground; if so, no further action needed
 	if (attributes[myNodeName].controls.onGround) return 0;
@@ -9173,6 +9163,8 @@ var initialize_func = func ( b ){
 
 	# add controls key, used to control animation of damaged ships and aircraft
 	b["controls"] = { groundLoopCounter : 0, onGround : 0, damageAltAddCurrent_ft : 0, damageAltAddCumulative_ft : 0,};
+
+	if (! contains (b, "type")) b["type"] = props.globals.getNode(""~b.objectNodeName).getName(); # key allows AI ship models to be used as ground vehicles by adding type:"groundvehicle" to Bombable attributes hash
 						
 	# altitudes sanity checking
 	if (contains (b, "altitudes") and typeof (b.altitudes) == "hash") {
