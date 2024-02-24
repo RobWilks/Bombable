@@ -2824,7 +2824,8 @@ var ground_loop = func( id, myNodeName ) {
 		toRightAlt_ft = elev (GeoCoord2.lat(), GeoCoord2.lon()  ); #in feet
 		GeoCoord2.apply_course_distance(heading - 90, dims.width_m + 2 * FGAltObjectPerimeterBuffer_m );  # rjw same method as calculation of front-rear
 		toLeftAlt_ft = elev (GeoCoord2.lat(), GeoCoord2.lon()  ); #in feet
-		rollangle_deg = R2D * math.atan2(toLeftAlt_ft - toRightAlt_ft, dims.width_ft + 2 * FGAltObjectPerimeterBuffer_ft); #must convert this from radians to degrees, thus the 180/pi
+		var rollangle_rad = math.atan2(toLeftAlt_ft - toRightAlt_ft, dims.width_ft + 2 * FGAltObjectPerimeterBuffer_ft); 
+		rollangle_deg = R2D * rollangle_rad; 
 				
 		# in CVS, taking the alt of an object's position actually finds the top
 		# of that particular object.  So to find the alt of the actual landscape
@@ -2833,7 +2834,9 @@ var ground_loop = func( id, myNodeName ) {
 		# which we need to set pitch & roll,  so little is lost
 
 		alt_ft = (toFrontAlt_ft + toRearAlt_ft + toLeftAlt_ft + toRightAlt_ft) / 4; #in feet
-		} else {
+	}
+	else
+	{
 		toLeftAlt_ft = alt_ft;
 		toRightAlt_ft = alt_ft;
 	}
@@ -2859,7 +2862,7 @@ var ground_loop = func( id, myNodeName ) {
 		if (type != "aircraft") 
 		{
 			setprop (""~myNodeName~"/position/altitude-ft", alt_ft ); # ships and groundvehicles are set to altitude of ground in their initial location
-			setprop (""~myNodeName~"/controls/flight/target-alt",  alt_ft); # sets the target height of groundvehicles which are AI model type aircraft - confusing!
+			# setprop (""~myNodeName~"/controls/flight/target-alt",  alt_ft); # sets the target height of groundvehicles which are AI model type aircraft - confusing!
 			alts.targetAGL_ft = 0; 
 			alts.initialAlt_ft = alt_ft;  # rjw mod to check for grounded ships
 		}
@@ -3001,46 +3004,51 @@ var ground_loop = func( id, myNodeName ) {
 	# rjw might use thorough if the number of calls to measure terrain altitude use too many clock cycles
 	if (type == "groundvehicle") 
 	{
-		var slopeAhead_rad = math.atan2(toFrontAlt_ft - alt_ft , dims.length_m / 2 + FGAltObjectPerimeterBuffer_m);
+		var gradient = (toFrontAlt_ft - alt_ft ) / ( dims.length_m / 2 + FGAltObjectPerimeterBuffer_m );
 		# here can change speed according to gradient ahead
-		# not sure whether true-airspeed-kt is actual vehcile speed or horizontal speed would hope the former!
+		# true-airspeed-kt for a ship is the horizontal speed
+		# horizontal speed maintained up to a gradient where the max climb rate is exceeded 
+		var slope_rad = math.atan(gradient);
 
 
 		# set vert-speed not pitch for ground craft
-		vert_speed = math.sin(slopeAhead_rad) * speed_kt * KT2FPS;
-		vert_speed += (alt_ft + alts.wheelsOnGroundAGL_ft - currAlt_ft) / updateTime_s; # correction if above or below ground
+		var vert_speed = gradient * speed_kt * KT2FPS;
+		vert_speed += (alts.wheelsOnGroundAGL_ft / math.cos(slope_rad) / math.cos(rollangle_rad) + alt_ft - currAlt_ft) / updateTime_s; # correction if above or below ground
 		speedFactor = vert_speed / vels.maxClimbRate_fps;  # this parm is only set for a groundvehicle
 		if (speedFactor > 1) 
 		{
 			vert_speed = vels.maxClimbRate_fps;
 			setprop (""~myNodeName~"/velocities/true-airspeed-kt", speed_kt / speedFactor); # rather than set target-speed try direct change which the AI will then adjust out
 		}
-		setprop (""~myNodeName~"/velocities/vertical-speed-fps", vert_speed);
 
-		var targetAlt_ft = currAlt_ft + vert_speed * updateTime_s;
-		setprop (""~myNodeName~"/controls/flight/target-alt", targetAlt_ft);
-		#setprop (""~myNodeName~"/position/altitude-ft", alt_ft ); # feet
+		# not needed for AI ship
+		# setprop (""~myNodeName~"/velocities/vertical-speed-fps", vert_speed);
 
+		# var targetAlt_ft = currAlt_ft + vert_speed * updateTime_s;
+		# setprop (""~myNodeName~"/controls/flight/target-alt", targetAlt_ft);
+		# setprop (""~myNodeName~"/position/altitude-ft", alt_ft ); # feet
+		var delta_t = updateTime_s / N_STEPS;
+		var delta_alt = vert_speed * delta_t;
+		altitude_adjust(myNodeName, currAlt_ft, 0, delta_alt, delta_t, N_STEPS);
 		
 		# pitch and roll controlled by model animation
-		var AIroll = getprop (""~myNodeName~"/orientation/roll-deg");
-		setprop (""~myNodeName~"/orientation/roll-animation", rollangle_deg - AIroll ); 
+		# var AIroll = getprop (""~myNodeName~"/orientation/roll-deg");
 		# the AI changes the object roll as the aircraft banks - not wanted for a ground vehicle
-		setprop (""~myNodeName~"/orientation/pitch-animation", pitchangle_deg );
-
+		# setprop (""~myNodeName~"/orientation/roll-animation", rollangle_deg - AIroll ); 
+		setprop (""~myNodeName~"/orientation/roll-animation", rollangle_deg ); 
+		setprop (""~myNodeName~"/orientation/pitch-animation", pitchangle_deg ); 
 		
 		if (thorough) debprint(
 		"Bombable: Ground_loop: ",
 		sprintf("vertical-speed-fps = %4.1f", vert_speed),
 		sprintf("pitchangle_deg = %4.1f", pitchangle_deg),
-		sprintf("slopeAhead_deg = %4.1f", slopeAhead_rad * R2D),	
+		sprintf("slopeAhead_deg = %4.1f", slope_rad * R2D),	
 		sprintf("alt_ft - currAlt_ft = %4.1f", alt_ft - currAlt_ft)
 		);		
 		# if (thorough and alts.initialized == 1) debprint(
 		# "Bombable: Ground_loop: ",
 		# "vels.speedOnFlat = ", vels.speedOnFlat
 		# );		
-		# rjw debug
 
 		
 		return;
@@ -4586,35 +4594,26 @@ var speed_adjust_loop = func ( id, myNodeName, looptime_sec) {
 
 }
 
-############################# height_adjust ############################
-# FUNCTION height_adjust
-# rjw mod
-# adjusts height (altitude) of an AI groundvehicle
+############################# altitude_adjust ############################
+# adjusts altitude of a groundvehicle
 #
-var height_adjust = func (myNodeName, time_sec ){
+var altitude_adjust = func (myNodeName, alt_ft, count, delta_alt, delta_t, N_STEPS)
+{
+	var new_alt = alt_ft + delta_alt;
 
-	var vert_speed = getprop (""~myNodeName~"/velocities/vertical-speed-fps");
-
-	if (vert_speed == nil) vert_speed = 0;
-	
-	var alt_ft = getprop (""~myNodeName~"/position/altitude-ft" );
-	
-	setprop (""~myNodeName~"/position/altitude-ft", alt_ft + vert_speed * time_sec); # feet
-
+	count += 1; 
+	if (count < N_STEPS)
+	{
+		settimer(func
+		{
+			setprop (""~myNodeName~"/position/altitude-ft", new_alt);
+			altitude_adjust(myNodeName, new_alt, count, delta_alt, delta_t, N_STEPS);
+		},
+		delta_t
+		);
+	}
 }
 
-#################################### height_adjust_loop ##################################
-var height_adjust_loop = func ( id, myNodeName, looptime_sec) {
-	var loopid = getprop(""~myNodeName~"/bombable/loopids/height-adjust-loopid");
-	id == loopid or return;
-				
-	settimer (  func { height_adjust_loop (id, myNodeName, looptime_sec)}, looptime_sec);
-
-	if (! getprop(bomb_menu_pp~"bombable-enabled") ) return;
-				
-	height_adjust (myNodeName, looptime_sec);
-
-}
 ################################## do_acrobatic_loop_loop ####################################
 # FUNCTION do_acrobatic_loop_loop
 # The settimer loop to do an acrobatic loop, up or down, or part of a loop
