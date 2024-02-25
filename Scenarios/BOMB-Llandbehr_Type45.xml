@@ -1,0 +1,136 @@
+<?xml version="1.0"?>
+<PropertyList>
+	<scenario>
+		<name>Type45 Bae Ceredigion</name>
+		<description>Bombable: (EGOD) Type45 Royal Navy destroyer (with MK8, Phalax and Sea Viper!) near Llanbedr:  This scenario puts one Type45 in Bae Ceredigion near Llandbehr Airport (KSFO).
+
+The Type45 starts at the end of Runway 32 and continue on a 296 degree heading at 10 knots.
+
+The Type45s are air-to-ground targets, you can damage them with bombs or heavy guns.
+  
+When you bomb and shoot the destroyers they will slow down, finally catch fire, and then stop completely (to see the smoke and fire you must have Particles enabled in View/Rendering Options).
+
+To damage the destroyers takes a direct hit from a machine gun or heavy gun, or a close strike by a heavy bomb.  It generally takes many hits, even with bombs, to severely damage the destroyers.  The destroyers are large, quite fast-moving, and quite difficult to kill with your available armament.
+
+Install this scenario in the FlightGear/data/AI directory.
+
+Any aircraft that shoots guns or drops bombs can damage the tanks.  The Fairchild A-10 Thunderbolt is a great choice - http://wiki.flightgear.org/index.php/Fairchild_A-10
+
+Addition of aircraft AI model which is used as a rocket to be fired from the Type45
+
+		</description>
+		<!-- COLUMN 1 (moving column)-->
+<entry>
+	<search-order>PREFER_AI</search-order>
+	<type>ship</type>
+	<callsign>HMS_Duncan</callsign>
+	<name>HMS_Duncan</name>
+	<model type="string">Aircraft/Type45-Bombable/RN-Type45.xml</model>
+	<latitude type="double">52.8172</latitude>
+	<longitude type="double">-4.1182</longitude>
+	<altitude>-3</altitude>
+	<speed>10</speed>
+	<rudder type="double">0</rudder>
+	<bank type="double">0</bank>
+	<heading type="double">320</heading>
+</entry>
+		
+<entry>
+	<search-order>PREFER_AI</search-order>
+	<type>static</type>
+	<callsign>Vlad</callsign>
+	<name>Sea_Viper1</name>
+	<model type="string">Aircraft/Rockets/aster-30-exhaust.xml</model>
+	<latitude type="double">0</latitude>
+	<longitude type="double">0</longitude>
+	<altitude type="double">0</altitude>
+	<speed>0</speed>
+	<heading type="double">0</heading>
+</entry>
+		
+<!-- <entry>
+	<search-order>PREFER_AI</search-order>
+	<type>static</type>
+	<callsign>Impaler</callsign>
+	<name>Sea_Viper2</name>
+	<model type="string">Aircraft/Rockets/aster-30-exhaust.xml</model>
+	<latitude type="double">0</latitude>
+	<longitude type="double">0</longitude>
+	<altitude type="double">0</altitude>
+	<speed>0</speed>
+	<heading type="double">0</heading>
+</entry>		
+
+<entry>
+	<search-order>PREFER_AI</search-order>
+	<type>static</type>
+	<callsign>Impaler</callsign>
+	<name>Sea_Viper12</name>
+	<model type="string">Aircraft/Rockets/aster-30-exhaust.xml</model>
+	<latitude type="double">0</latitude>
+	<longitude type="double">0</longitude>
+	<altitude type="double">0</altitude>
+	<speed>0</speed>
+	<heading type="double">0</heading>
+</entry>		
+
+<entry>
+	<search-order>PREFER_AI</search-order>
+	<type>static</type>
+	<callsign>SuzyQ</callsign>
+	<name>Sea_Viper13</name>
+	<model type="string">Aircraft/Rockets/aster-30-exhaust.xml</model>
+	<latitude type="double">0</latitude>
+	<longitude type="double">0</longitude>
+	<altitude type="double">0</altitude>
+	<speed>0</speed>
+	<heading type="double">0</heading>
+</entry>	 -->	
+
+<!-- <entry>
+	<search-order>PREFER_AI</search-order>
+	<type>aircraft</type>
+	<class>ww2_fighter</class>
+	<callsign>alphaTango</callsign>
+	<name>Sopwith_Camel</name>
+	<model type="string">Aircraft/sopwithCamel-Bombable/Models/sopwithCamel-model.xml</model>
+	<latitude type="double">52.811699</latitude>
+	<longitude type="double">-4.12358</longitude>
+	<altitude type="double">500</altitude>
+	<speed>12</speed>
+	<bank type="double">0</bank>
+	<heading type="double">320</heading>
+</entry> -->
+<!-- 
+<entry>
+	<search-order>PREFER_AI</search-order>
+	<type>aircraft</type>
+	<class>rocket</class>
+	<callsign>vv_frightening</callsign>
+	<name>spark</name>
+	<model type="string">Aircraft/Lightning/Models/lightning-model.xml</model>
+	<latitude type="double">52.487699</latitude>
+	<longitude type="double">-4.12358</longitude>
+	<altitude type="double">10000</altitude>
+	<speed>10</speed>
+	<bank type="double">0</bank>
+	<heading type="double">360</heading>
+</entry>
+ -->
+<entry>
+	<search-order>PREFER_AI</search-order>
+	<type>aircraft</type>
+	<class>jet_fighter</class>
+	<callsign>TopGun</callsign>
+	<name>F15_Eagle</name>
+	<model type="string">Aircraft/F-15-Bombable/Models/F-15.xml</model>
+	<latitude type="double">52.761699</latitude>
+	<longitude type="double">-4.12358</longitude>
+	<altitude type="double">3000</altitude>
+	<speed>100</speed>
+	<bank type="double">0</bank>
+	<heading type="double">360</heading>
+</entry>
+				
+	</scenario>
+</PropertyList>

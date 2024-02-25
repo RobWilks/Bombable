@@ -30,7 +30,7 @@ Any aircraft that shoots guns or drops bombs can damage the B-17.  A great choic
       <model type="string">Aircraft/B-17-Bombable/Models/b17.xml</model>
       <latitude type="double">37.9102</latitude>
       <longitude type="double">-122.4672</longitude>
-      <altitude type="double">5100</altitude>
+      <altitude type="double">1000</altitude>
       <speed>182</speed>
       <bank type="double">0</bank>
       <heading type="double">10</heading>
@@ -43,7 +43,20 @@ Any aircraft that shoots guns or drops bombs can damage the B-17.  A great choic
       <model type="string">Aircraft/B-17-Bombable/Models/b17.xml</model>
       <latitude type="double">37.91200</latitude>
       <longitude type="double">-122.46810</longitude>
-      <altitude type="double">5000</altitude>
+      <altitude type="double">1100</altitude>
+      <speed>182</speed>
+      <bank type="double">0</bank>
+      <heading type="double">10</heading>
+    </entry>    
+	<!--<entry>
+	<search-order>PREFER_AI</search-order>
+      <type>aircraft</type>
+      <callsign>B17-5</callsign>
+      <name>B17_1</name>
+      <model type="string">Aircraft/B-17-Bombable/Models/b17.xml</model>
+      <latitude type="double">37.90200</latitude>
+      <longitude type="double">-122.46710</longitude>
+      <altitude type="double">5050</altitude>
       <speed>182</speed>
       <bank type="double">0</bank>
       <heading type="double">10</heading>
@@ -73,6 +86,6 @@ Any aircraft that shoots guns or drops bombs can damage the B-17.  A great choic
       <speed>182</speed>
       <bank type="double">0</bank>
       <heading type="double">10</heading>
-    </entry>       
+    </entry>-->       
 	</scenario>
 </PropertyList>
