@@ -123,8 +123,6 @@
 				
 				node.getNode("bombable/texture-corps-path", 1).setValue(base_color~".png");
 
-				node.getNode("surface-positions/cannon-elev-deg", 1).setDoubleValue(0.0);
-				node.getNode("surface-positions/turret-pos-deg", 1).setDoubleValue(0.0);
 				
         ########################################################################
         ########################################################################
@@ -152,6 +150,7 @@
           
           objectNodeName : thisNodeName,
           objectNode : props.globals.getNode(thisNodeName),
+		  type : "groundvehicle",
           updateTime_s : 2/3, #time, in seconds, between the updates that 
           #keep the object at its AGL. Tradeoff is high-speed updates look more
           #realistic but slow down the framerate/cause jerkiness.  Faster-moving
@@ -166,7 +165,7 @@
           # all in meters
           #                     
           altitudes : {	
-            wheelsOnGroundAGL_m : 0.98 , #altitude correction to add to your aircraft or ship that is needed to put wheels on ground (or, for a ship, make it float in the water at the correct level).  For most objects this is 0 but some models need a small correction to place them exactly at ground level
+            wheelsOnGroundAGL_m : 1.0 , #altitude correction to add to your aircraft or ship that is needed to put wheels on ground (or, for a ship, make it float in the water at the correct level).  For most objects this is 0 but some models need a small correction to place them exactly at ground level
             
             minimumAGL_m : 0, #minimum altitude above ground level this object is allowed to fly
             maximumAGL_m : 0, #maximum altitude AGL this object is allowed to fly	    
@@ -201,7 +200,7 @@
             dodgeDelayMax_sec : 15, #max time to delay/wait between dodges
             dodgeDelayMin_sec : 5, #minimum time to delay/wait between dodges
             dodgeMax_deg : 30, #Max amount to turn when dodging
-            dodgeMin_deg : 5, #minimum amount to turn when dodging
+            dodgeMin_deg : 15, #minimum amount to turn when dodging
             rollRateMax_degpersec : 1, #you can figure this out by rolling the corresponding FG aircraft and timing a 180 or 360 deg roll             
             dodgeROverLPreference_percent : 50, # Preference for right turns vs. left when dodging.  90% means 90% right turns, 50% means 50% right turns.
             dodgeAltMin_m : 0, #Aircraft will begin to move up or down 
