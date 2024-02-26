@@ -4379,9 +4379,11 @@ var test_impact = func(changedNode, myNodeName) {
 # too sharp reduces speed and this is one of the primary constraints on sharp
 # turns in fighter aircraft)
 #
-var speed_adjust = func (myNodeName, time_sec ){
+var speed_adjust = func (myNodeName, time_sec )
+{
 
-	if (attributes[myNodeName].controls.onGround) return;
+	var ctrls = attributes[myNodeName].controls;
+	if (ctrls.onGround) return;
 				
 	var stalling = 0;
 	var vels = attributes[myNodeName].velocities;
@@ -4410,8 +4412,8 @@ var speed_adjust = func (myNodeName, time_sec ){
 	var add_velocity_fps = 0;
 	var termVel_kt = 0;
 				
-	if (getprop(""~myNodeName~"/bombable/attack-inprogress") or
-	getprop ( ""~myNodeName~"/bombable/dodge-inprogress") ) {
+	if (ctrls.attackInProgress or ctrls.dodgeInProgress ) 
+	{
 
 		targetSpeed_kt = vels.attackSpeed_kt;
 
@@ -4643,7 +4645,6 @@ var do_acrobatic_loop_loop = func (id, myNodeName, loop_time = 20, full_loop_ste
 	#we'll never put something greater than the AC's maxSpeed into the vertical
 	# velocity
 	var vels = attributes[myNodeName].velocities;
-	var alts = attributes[myNodeName].altitudes;
 				
 	maxSpeed_fps = vels.maxSpeed_kt * KT2FPS;
 				
@@ -4665,7 +4666,7 @@ var do_acrobatic_loop_loop = func (id, myNodeName, loop_time = 20, full_loop_ste
 	#    then we terminate the loop & the dodge
 	if (stalling or currSpeed_kt > vels.maxSpeed_kt or currSpeed_kt < vels.minSpeed_kt * 1.1 ) {
 		debprint ("Bombable: Exiting loop " ~myNodeName ~ ": ", stalling, " ", currSpeed_kt, "currAlt: ", currAlt_m );
-		setprop(""~myNodeName~"/bombable/dodge-inprogress", 0);
+		attributes[myNodeName].controls.dodgeInProgress = 0;
 		return;
 	}
 				
@@ -4771,9 +4772,13 @@ var do_acrobatic_loop_loop = func (id, myNodeName, loop_time = 20, full_loop_ste
 var do_acrobatic_loop = func (myNodeName, loop_time = 20, full_loop_steps = 100, exit_steps = 100,  direction = "up", rolldirenter = "cc", rolldirexit = "ccw", vert_speed_add_kt = nil ){
 				
 	debprint ("Bombable: Starting acrobatic loop for ", myNodeName, " ", loop_time, " ",full_loop_steps, " ",exit_steps,  " ",direction, " ",vert_speed_add_kt );
-	setprop(""~myNodeName~"/bombable/dodge-inprogress", 1);
-	settimer ( func {setprop(""~myNodeName~"/bombable/dodge-inprogress", 0);
-	}, loop_time );
+	attributes[myNodeName].controls.dodgeInProgress = 1;
+	settimer ( 
+		func 
+		{
+			attributes[myNodeName].controls.dodgeInProgress = 0;
+		}, 
+		loop_time );
 
 	#loopid same as other roll type maneuvers because only one can
 	#   happen at a time
@@ -4782,13 +4787,13 @@ var do_acrobatic_loop = func (myNodeName, loop_time = 20, full_loop_steps = 100,
 	loopid  += 1;
 	setprop(""~myNodeName~"/bombable/loopids/roll-loopid", loopid);
 				
-	if (vert_speed_add_kt == nil or vert_speed_add_kt <= 0) {
+	if (vert_speed_add_kt == nil or vert_speed_add_kt <= 0)
+	{
 					
 		#this basically means, convert all of the AC's current forward velocity
 		# into vertical velocity.  100% of the airspeed seems too much so we're
 		# trying70%
 		vert_speed_add_kt = .70 * getprop (""~myNodeName~"/velocities/true-airspeed-kt");
-					
 	}
 				
 	setprop ("" ~ myNodeName ~ "/velocities/bombable-acrobatic-vertical-speed-fps", 0);
@@ -4877,8 +4882,8 @@ skill, currAlt_m, targetAlt_m, elevTarget_m){
 	#or create a new geo object for the AI aircraft using coord = geo.Coord.new(geo.aircraft_position(myNodeName))
  			
 	#loops only help if the target is behind us
-	if ( math.abs(deltaHeading_deg) >= 100) {
-					
+	if ( math.abs(deltaHeading_deg) >= 100) 
+	{
 		var vels = attributes[myNodeName].velocities;
 					
 		#if we're going same direction as target and it is close behind
@@ -4908,20 +4913,22 @@ skill, currAlt_m, targetAlt_m, elevTarget_m){
 		debprint ("Bombable: Attack acrobatic, ", steps, "/100 loop ", myNodeName, " ", direction," ", rolldirenter, " ", rolldirexit);
 		do_acrobatic_loop (myNodeName, time, 100, steps, direction, rolldirenter , rolldirexit);
 
-		setprop ( ""~myNodeName~"/bombable/dodge-inprogress" , 1);
-		settimer ( func {setprop(""~myNodeName~"/bombable/dodge-inprogress", 0);
-		}, time );
-
+		attributes[myNodeName].controls.dodgeInProgress = 1;
+		settimer ( 
+			func
+			{
+				attributes[myNodeName].controls.dodgeInProgress = 0;
+			}, 
+			time
+			);
 					
-		#the target is in front of us, so a loop really isn't going to help
+		# the target is in front of us, so a loop really isn't going to help
 		# we'll let the initial attack routine do its thing
-		} else {
-					
+	} 
+	else
+	{
 		ret = 0;
-					
 	}
-				
-				
 				
 	return ret;
 				
@@ -5015,28 +5022,30 @@ var rudder_roll_climb = func (myNodeName, degrees = 15, alt_ft = -20, time = 10,
 # function makes an object dodge
 #
 var dodge = func(myNodeName) {
-				
-	#var b = props.globals.getNode (""~myNodeName~"/bombable/attributes");
-	if ( getprop ( ""~myNodeName~"/bombable/dodge-inprogress") == 1 ) {
-		#debprint ("Bombable: Dodge temporarily locked for this object. ", myNodeName );
-		return;
-	}
+
 	if (  ! getprop (bomb_menu_pp~"ai-aircraft-attack-enabled")
 	or getprop("" ~ myNodeName~"/bombable/attributes/damage") == 1
 	or ! getprop(bomb_menu_pp~"bombable-enabled") )
 	return;
 	# rjw: unsure where to find attack-enabled on bombable menu. However it is set for B-17 scenario
 				
+	var ctrls = attributes[myNodeName].controls;
+	if ( ctrls.dodgeInProgress ) 
+	{
+		#debprint ("Bombable: Dodge temporarily locked for this object. ", myNodeName );
+		return;
+	}
+	# Don't change rudder/roll again until the delay
+	ctrls.dodgeInProgress = 1;
+				
 	var type = attributes[myNodeName].type;
+	var vels = attributes[myNodeName].velocities;
+	var dims = attributes[myNodeName].dimensions;
+	var evas = attributes[myNodeName].evasions;
 
 	debprint ("Bombable: Starting Dodge", myNodeName, " type = ", type);
 				
-	# Don't change rudder/roll again until the delay
-	setprop ( ""~myNodeName~"/bombable/dodge-inprogress" , 1);
 
-	vels = attributes[myNodeName].velocities;
-	dims = attributes[myNodeName].dimensions;
-	evas = attributes[myNodeName].evasions;
 
 	# skill ranges 0-5; 0 = disabled, so 1-5;
 	var skill = calcPilotSkill (myNodeName);
@@ -5150,15 +5159,15 @@ var dodge = func(myNodeName) {
 		# it to near-level flight
 		#
 		stores.reduceFuel (myNodeName, dodgeDelay ); #deduct the amount of fuel from the tank, for this dodge
-		settimer ( func {
-			setprop(""~myNodeName~"/bombable/dodge-inprogress", 0);
+		settimer ( func 
+		{
+			ctrls.dodgeInProgress = 0;
 			# This resets the aircraft to 0 deg roll (via FG's
 			# AI system target roll; leaves target altitude
 			# unchanged  )
 			# rudder_roll_climb (myNodeName, -dodgeAmount_deg, dodgeAltAmount_ft, rollTime_sec);						
 		}
 		, rollTime_sec + dodgeDelay_remainder_sec );
-		
 		} 
 		else 
 		{  
@@ -5173,7 +5182,7 @@ var dodge = func(myNodeName) {
 		settimer 
 			( func 
 				{
-				setprop(""~myNodeName~"/bombable/dodge-inprogress", 0);
+				ctrls.dodgeInProgress = 0;
 				rudder_roll_climb (myNodeName, 0, 0, dodgeDelay );
 				},
 				2 * dodgeDelay 
@@ -7609,10 +7618,10 @@ var attack_loop = func (id, myNodeName, looptime) {
 	settimer ( func { attack_loop (id, myNodeName, looptime) }, looptimeActual);
 				
 	#we're going to say that dodging takes priority over attacking
-	if (getprop ( ""~myNodeName~"/bombable/dodge-inprogress")) return;
+	var ctrls = attributes[myNodeName].controls;
+	if (ctrls.dodgeInProgress) return;
 				
 				
-	#var b = props.globals.getNode (""~myNodeName~"/bombable/attributes");
 	var atts = attributes[myNodeName].attacks;
 	var alts = attributes[myNodeName].altitudes;
 				
@@ -7691,7 +7700,7 @@ var attack_loop = func (id, myNodeName, looptime) {
 	#TODO: Other factors could be added here, like less likely to attack if
 	#    behind a cloud, more likely if rest of squadron is, etc.
 				
-	var attack_inprogress = getprop(""~myNodeName~"/bombable/attack-inprogress");
+	var attack_inprogress = ctrls.attackInProgress;
 				
 	#criteria for attacking (or more precisely, for not attacking) . . . if
 	# we meet any of these criteria we do a few things then exit without attacking
@@ -7728,7 +7737,7 @@ var attack_loop = func (id, myNodeName, looptime) {
 		if ( dist[0] > atts.maxDistance_m ) stores.revitalizeAttackReadiness(myNodeName, dist[0]);
 					
 		setprop(""~myNodeName~"/bombable/attack-looptime", atts.attackCheckTime_sec);
-		setprop(""~myNodeName~"/bombable/attack-inprogress", "0");
+		ctrls.attackInProgress = 0;
 		return;
 	}
 				
@@ -7745,7 +7754,8 @@ var attack_loop = func (id, myNodeName, looptime) {
 				
 	#if we are aiming almost at our target we reduce the roll if we are
 	#close to aiming at them
-	if (math.abs(roll_deg) > 4 * math.abs(deltaHeading_deg)){
+	if (math.abs(roll_deg) > 4 * math.abs(deltaHeading_deg))
+	{
 		roll_deg = 4 * math.abs(deltaHeading_deg);
 	}
 				
@@ -7776,35 +7786,29 @@ var attack_loop = func (id, myNodeName, looptime) {
 	elevTarget_m = targetAlt_m-targetAGL_m;
 	currAlt_m = getprop(""~myNodeName~"/position/altitude-ft") * FT2M;
 
-
-	var attackClimbDive_inprogress = getprop(""~myNodeName~"/bombable/attackClimbDive-inprogress");
-	var attackClimbDive_targetAGL_m = getprop(""~myNodeName~"/bombable/attackClimbDive-targetAGL_m");
-				
-	setprop(""~myNodeName~"/bombable/attack-inprogress", "1");
+	ctrls.attackInProgress = 1;
 
 	# is this the start of our attack?  If so or if we're heading away from the
 	# target, we'll possibly do a loop or strong altitude move
 	# to get turned around, and continue that until we are close than 90 degrees
 	# in heading delta
-	if ((attack_inprogress == nil or attack_inprogress == 0) or (math.abs ( deltaHeading_deg ) >= 90) ) {
-					
-					
-					
+	if ((attack_inprogress == 0) or (math.abs ( deltaHeading_deg ) >= 90) ) 
+	{
 		#if we've already started an attack loop, keep doing it with the same
 		#  targetAGL, unless we have arrived within 500 meters of that elevation
 		#  already.  Also we randomly pick a new targetaltitude every so often
-		if (attackClimbDive_inprogress and
-		( attackClimbDive_targetAGL_m != nil and attackClimbDive_targetAGL_m > 0
-		and math.abs(attackClimbDive_targetAGL_m + elevTarget_m - currAlt_m) > 500
-		and (rand() > 0.005 * skill)
-		) ) {
-						
-			targetAGL_m = attackClimbDive_targetAGL_m;
-						
-			} else {
+		if 
+		(
+			ctrls.attackClimbDiveInProgress and ctrls.attackClimbDiveTargetAGL_m > 0 and 
+			math.abs(ctrls.attackClimbDiveTargetAGL_m + elevTarget_m - currAlt_m) > 500 and
+			(rand() > 0.005 * skill)
+		) 
+		{
+			targetAGL_m = ctrls.attackClimbDiveTargetAGL_m;
+		} 
+		else
+		{
 			#otherwise, we are starting a new attack so we need to figure out what to do
-						
-						
 
 			#if we're skilled and we have enough speed we'll do a loop to get in better position
 			#more skilled pilots do acrobatics more often
@@ -7815,16 +7819,13 @@ var attack_loop = func (id, myNodeName, looptime) {
 			#
 			vels = attributes[myNodeName].velocities;
 			var currSpeed_kt = getprop (""~myNodeName~"/velocities/true-airspeed-kt");
-			if (currSpeed_kt > 2.2 * vels.minSpeed_kt and rand() < (skill+8)/15) {
+			if (currSpeed_kt > 2.2 * vels.minSpeed_kt and rand() < (skill+8)/15) 
+			{
 				if ( choose_attack_acrobatic(myNodeName, dist[0], myHeading_deg,
 				targetHeading_deg, courseToTarget_deg, deltaHeading_deg,
 				currSpeed_kt, skill, currAlt_m, targetAlt_m, elevTarget_m))
 				return;
 			}
-						
-						
-						
-						
 						
 			#we want to mostly dodge to upper/lower extremes of our altitude limits
 			var attackClimbDiveAddFact = 1-rand() * rand() * rand();
@@ -7879,12 +7880,13 @@ var attack_loop = func (id, myNodeName, looptime) {
 			if (targetAGL_m > alts.maximumAGL_m) targetAGL_m = alts.maximumAGL_m;
 						
 			debprint ("Bombable: Starting attack turn/loop for ", myNodeName," targetAGL_m = ", targetAGL_m);
-			setprop(""~myNodeName~"/bombable/attackClimbDive-inprogress", "1");
-			setprop(""~myNodeName~"/bombable/attackClimbDive-targetAGL_m", targetAGL_m);
+			ctrls.attackClimbDiveInProgress = 1;
+			ctrls.attackClimbDiveTargetAGL_m = targetAGL_m;
 		}
-					
-		} else {
-		setprop(""~myNodeName~"/bombable/attackClimbDive-inprogress", "0");
+	} 
+	else
+	{
+		ctrls.attackClimbDiveInProgress = 0;
 		debprint ("Bombable: Ending attack turn/loop for ", myNodeName);
 	}
 				
@@ -8426,19 +8428,12 @@ var aircraftCrashControl = func (myNodeName) {
 
 var stopDodgeAttack = func (myNodeName) 
 {
-	# rjw: turn-off timers for current manoeuvres
-	if ( getprop ( ""~myNodeName~"/bombable/dodge-inprogress") == 1 )
-	setprop ( ""~myNodeName~"/bombable/dodge-inprogress", 0);
-	if ( getprop ( ""~myNodeName~"/bombable/attack-inprogress") == 1 )
-	setprop ( ""~myNodeName~"/bombable/attack-inprogress", 0);
+	var ctrls = attributes[myNodeName].controls;
+	ctrls.dodgeInProgress = 0;
+	ctrls.attackInProgress = 0;
 	inc_loopid(myNodeName, "roll");
 	inc_loopid(myNodeName, "speed-adjust");
 	inc_loopid(myNodeName, "attack");
-	# attempt to turnoff autopilot
-	# setprop ( ""~myNodeName~"/controls/flight/lateral-mode", "");
-	# setprop ( ""~myNodeName~"/controls/flight/longitude-mode", "");	
-
-	# end of rjw mod
 }
 
 
@@ -9177,7 +9172,17 @@ var initialize_func = func ( b ){
 	b.updateTime_s = checkRange ( b.updateTime_s, 0, 10, 1);
 
 	# add controls key, used to control animation of damaged ships and aircraft
-	b["controls"] = { groundLoopCounter : 0, onGround : 0, damageAltAddCurrent_ft : 0, damageAltAddCumulative_ft : 0,};
+	b["controls"] = 
+	{ 
+		groundLoopCounter : 0, 
+		onGround : 0, 
+		damageAltAddCurrent_ft : 0, 
+		damageAltAddCumulative_ft : 0, 
+		dodgeInProgress : 0, 
+		attackInProgress : 0, 
+		attackClimbDiveInProgress : 0,
+		attackClimbDiveTargetAGL_m : 0,
+	};
 
 	if (! contains (b, "type")) b["type"] = props.globals.getNode(""~b.objectNodeName).getName(); # key allows AI ship models to be used as ground vehicles by adding type:"groundvehicle" to Bombable attributes hash
 						
