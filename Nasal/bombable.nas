@@ -3025,7 +3025,40 @@ var ground_loop = func( id, myNodeName )
 		var delta_t = updateTime_s / N_STEPS;
 		var delta_alt = vert_speed * delta_t;
 		altitude_adjust(myNodeName, currAlt_ft, 0, delta_alt, delta_t, N_STEPS);
-		
+
+		if (!ctrls.dodgeInProgress)
+		{
+			# avoid steep terrain
+			if (math.abs.slope_rad > PIBYFOUR)
+			{
+				dodge( myNodeName);
+			}
+			else
+			{
+				# steer toward target heading
+				var targetHeading = getprop (""~myNodeName~"/controls/tgt-heading-degs");
+				var delta_heading_deg = math.fmod ( targetHeading - heading + 360, 360);
+				var sign = 1;
+				var rudder = 0;
+				if (delta_heading_deg < 0)
+				{
+					delta_heading_deg = - delta_heading_deg;
+					sign = -1;
+				}
+				if (delta_heading_deg > 81)
+					rudder = 15;
+				elsif (delta_heading_deg > 27)
+					rudder = 10;
+				elsif (delta_heading_deg > 9)
+					rudder = 7;
+				elsif (delta_heading_deg > 3)
+					rudder = 4;
+				elsif (delta_heading_deg > 1)
+					rudder = 1;
+				setprop (""~myNodeName~"/surface-positions/rudder-pos-deg", rudder * sign);
+			}
+		}
+
 		# pitch and roll controlled by model animation
 		setprop (""~myNodeName~"/orientation/roll-animation", rollangle_deg ); 
 		setprop (""~myNodeName~"/orientation/pitch-animation", pitchangle_deg ); 
@@ -10613,6 +10646,7 @@ var grav_fpss = 32.174;
 var grav_mpss = grav_fpss * feet2meters;
 var PIBYTWO = math.pi / 2.0;
 var PIBYTHREE = math.pi / 3.0;
+var PIBYTHREE = math.pi / 4.0;
 var PIBYSIX = math.pi / 6.0;
 var PI = math.pi;
 var TWOPI = math.pi * 2.0;
