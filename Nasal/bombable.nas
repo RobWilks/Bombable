@@ -2808,7 +2808,7 @@ var ground_loop = func( id, myNodeName )
 
 		GeoCoord.apply_course_distance(heading + 180, dims.length_m + 2 * FGAltObjectPerimeterBuffer_m );
 		toRearAlt_ft = elev (GeoCoord.lat(), GeoCoord.lon()  ); #in feet
-		pitchangle1_deg = R2D * math.atan2(toFrontAlt_ft - toRearAlt_ft, dims.length_ft + 2 * FGAltObjectPerimeterBuffer_ft ); #must convert this from radians to degrees, thus the 180/pi
+		pitchangle1_deg = math.atan2(toFrontAlt_ft - toRearAlt_ft, dims.length_ft + 2 * FGAltObjectPerimeterBuffer_ft ) * R2D;
 		pitchangle_deg = pitchangle1_deg; 
 		# rjw: the slope of ground.  The buffer is to ensure that we don't measure altitude at the top of the object		
 		
@@ -3005,7 +3005,7 @@ var ground_loop = func( id, myNodeName )
 	# rjw might use thorough if the number of calls to measure terrain altitude use too many clock cycles
 	if (type == "groundvehicle") 
 	{
-		var gradient = (toFrontAlt_ft - alt_ft ) / ( dims.length_m / 2 + FGAltObjectPerimeterBuffer_m );
+		var gradient = (toFrontAlt_ft - alt_ft ) / ( dims.length_ft / 2 + FGAltObjectPerimeterBuffer_ft );
 		# here can change speed according to gradient ahead
 		# true-airspeed-kt for a ship is the horizontal speed
 		# horizontal speed maintained up to the gradient at which the max climb rate is exceeded 
@@ -3342,7 +3342,9 @@ var ground_loop = func( id, myNodeName )
 
 
 #######################################################
-# location-check loop, a timer function, every 15-16 seconds to check if the object has been relocated (this will happen if the object is set up as an AI ship or aircraft and FG is reset).  If so it restores the object to its position before the reset.
+# location-check loop, a timer function, every 15-16 seconds to check if the object has been relocated
+# (this will happen if the object is set up as an AI ship or aircraft and FG is reset).  
+# If so it restores the object to its position before the reset.
 # This solves an annoying problem in FG, where using file/reset (which
 # you might do if you crash the aircraft, but also if you run out of ammo
 # and need to re-load or for other reasons) will also reset the objects to
@@ -3352,7 +3354,14 @@ var ground_loop = func( id, myNodeName )
 # interesting/difficult positions, so we want to preserve those positions
 # rather than letting them reset back to where they started.
 # TODO: Some of this could be done better using a listener on /sim/signals/reinit
-var location_loop = func(id, myNodeName) {
+#
+# rjw: the logic to detect a reset current delta_dist > 4x previous delta_dist is flawed
+# some objects such as tanks will go round in circles or make slow progress over steep terrain
+# another approach is to track the average location or average displacement since last called but still will not work for objects that dwell and then move
+# therefore omit this loop
+
+var location_loop = func(id, myNodeName) 
+{
 	var loopid = getprop(""~myNodeName~"/bombable/loopids/location-loopid");
 	id == loopid or return;
 
@@ -3387,19 +3396,20 @@ var location_loop = func(id, myNodeName) {
 			
 	# getting the global_x,y,z seems to stop strange behavior from the smoke
 	# when we do a relocate of the objects
+	# rjw probably delete
 	var global_x = getprop(""~myNodeName~"/position/global-x");
 	var global_y = getprop(""~myNodeName~"/position/global-y");
 	var global_z = getprop(""~myNodeName~"/position/global-z");
 			
 			
-	prev_distance = 0;
-	directDistance = 200; # this will be set as previous/distance if we are initializing
+	var prev_distance = 0;
+	var directDistance = 200; # this will be set as previous/distance if we are initializing
 			
 	# if we have previously recorded the position we check if it has moved too far
 	# if it has moved too far it is because FG has reset and we
 	# then restore the object's position to where it was before the reset
-	if (started ) {
-				
+	if ( started ) 
+	{
 		var prevlat = getprop(""~myNodeName~"/position/previous/latitude-deg");
 		var prevlon = getprop(""~myNodeName~"/position/previous/longitude-deg");
 		var prevalt_ft = getprop(""~myNodeName~"/position/previous/altitude-ft");
@@ -3416,9 +3426,9 @@ var location_loop = func(id, myNodeName) {
 		var GeoCoordprev = geo.Coord.new();
 		GeoCoordprev.set_latlon(prevlat, prevlon, prevalt_ft * FT2M);
 
-		var directDistance = GeoCoord.distance_to(GeoCoordprev);
+		var directDistance = GeoCoord.distance_to(GeoCoordprev); # following earth's curvature, ignoring altitude
 				
-		# debprint ("Object  ", myNodeName ", distance: ", directDistance);
+		debprint ("Object  ", myNodeName, ", distance: ", directDistance, ", prev distance: ", prev_distance);
 				
 		# 4X the previously traveled distance is our cutoff
 		# so if our object is moving faster/further than this we assume it has
@@ -3431,7 +3441,9 @@ var location_loop = func(id, myNodeName) {
 		# reset) the move back is less than 4X the previous move and so it is OK.
 
 		# A bit kludgy . . . but it works.
-		if ( directDistance > 5 and directDistance > 4 * prev_distance ) {
+		# rjw why 5?
+		if ( directDistance > 5 and directDistance > 4 * prev_distance ) 
+		{
 			node.getNode("position/latitude-deg", 1).setDoubleValue(prevlat);
 			node.getNode("position/longitude-deg", 1).setDoubleValue(prevlon);
 			node.getNode("position/altitude-ft", 1).setDoubleValue(prevalt_ft);
@@ -3439,7 +3451,6 @@ var location_loop = func(id, myNodeName) {
 			lat = prevlat;
 			lon = prevlon;
 			alt_ft = prevalt_ft;
-					
 					
 			debprint ("Bombable: Repositioned object "~ myNodeName~ " to lat: "~ prevlat~ " long: "~ prevlon~ " altitude: "~ prevalt_ft~" ft.");
 		}
@@ -3451,8 +3462,7 @@ var location_loop = func(id, myNodeName) {
 	node.getNode("position/previous/altitude-ft", 1).setDoubleValue(alt_ft);
 	node.getNode("position/previous/global-x", 1).setDoubleValue(global_x);
 	node.getNode("position/previous/global-y", 1).setDoubleValue(global_y);
-	node.getNode("position/previous/global-z", 1).setDoubleValue(global_z);
-			
+	node.getNode("position/previous/global-z", 1).setDoubleValue(global_z);			
 	node.getNode("position/previous/distance", 1).setDoubleValue(directDistance);
 
 }
@@ -4984,7 +4994,7 @@ var rudder_roll_climb = func (myNodeName, degrees = 15, alt_ft = -20, time = 10,
 		}
 	}
 	else # ship or groundvehicle
-	# spd < 5 uses fixed turn radius
+	# spd < 5 uses fixed turn radius, see AIship parms
 	# spd > 5 achieves max turn rate at 15 kts
 	{
 		currRudder = getprop(""~myNodeName~"/surface-positions/rudder-pos-deg");
@@ -5172,7 +5182,9 @@ var dodge = func(myNodeName) {
 		else 
 		{  
 		# for ships	and groundvehicles		
-		# set rudder or roll degrees to that amount
+		# set rudder or roll degrees for a change in direction
+		# the dodge starts immediately and stops at 2x dodgeDelay
+
 		rudder_roll_climb (myNodeName, dodgeAmount_deg, dodgeAltAmount_ft, dodgeDelay);
 					
 					
@@ -7792,7 +7804,7 @@ var attack_loop = func (id, myNodeName, looptime) {
 	# target, we'll possibly do a loop or strong altitude move
 	# to get turned around, and continue that until we are close than 90 degrees
 	# in heading delta
-	if ((attack_inprogress == 0) or (math.abs ( deltaHeading_deg ) >= 90) ) 
+	if ( !attack_inprogress or math.abs ( deltaHeading_deg ) >= 90 ) 
 	{
 		#if we've already started an attack loop, keep doing it with the same
 		#  targetAGL, unless we have arrived within 500 meters of that elevation
@@ -9715,9 +9727,10 @@ var ground_init_func = func( myNodeName ) {
 
 var location_init = func (myNodeName = "") 
 {
-
-	debprint ("Bombable: Delaying location_init . . . ", myNodeName);
-	settimer (func {bombable.location_init_func(myNodeName);}, 50 + rand(),1);
+	# function disabled:  incorrect logic
+	# debprint ("Bombable: Delaying location_init . . . ", myNodeName);
+	debprint ("Bombable: Disabled location_init . . . ", myNodeName);
+	# settimer (func {bombable.location_init_func(myNodeName);}, 50 + rand(),1);
 
 }
 
