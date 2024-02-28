@@ -2718,14 +2718,14 @@ var ground_loop = func( id, myNodeName )
 	var loopid = getprop(""~myNodeName~"/bombable/loopids/ground-loopid");
 	id == loopid or return;
 
-	var updateTime_s = attributes[myNodeName].updateTime_s;
+	var updateTime_s = attributes[myNodeName].updateTime_s * (0.9 + 0.2 * rand());
 
 	if (getprop(""~myNodeName~"/bombable/exploded") == 1) return();
 			
 	# reset the timer loop first so we don't lose it entirely in case of a runtime
 	# error or such
 	# add rand() so that all objects don't do this function simultaneously
-	settimer(func { ground_loop(id, myNodeName)}, (0.9 + 0.2 * rand()) * updateTime_s );
+	settimer(func { ground_loop(id, myNodeName)}, updateTime_s );
 
 	# Allow this function to be disabled via menu since it can kill framerate at times
 	if (! getprop ( bomb_menu_pp~"ai-ground-loop-enabled") or ! getprop(bomb_menu_pp~"bombable-enabled") ) return;
@@ -3015,12 +3015,18 @@ var ground_loop = func( id, myNodeName )
 		# set vert-speed not pitch for ground craft
 		var vert_speed = gradient * speed_kt * KT2FPS;
 		vert_speed += (alts.wheelsOnGroundAGL_ft / math.cos(slope_rad) / math.cos(rollangle_rad) + alt_ft - currAlt_ft) / updateTime_s; # correction if above or below ground
-		speedFactor = vert_speed / vels.maxClimbRate_fps;  # this parm is only set for a groundvehicle
+		var speedFactor = vert_speed / vels.maxClimbRate_fps;  # this parm is only set for a groundvehicle
 		if (speedFactor > 1) 
 		{
 			vert_speed = vels.maxClimbRate_fps;
 			setprop (""~myNodeName~"/velocities/true-airspeed-kt", speed_kt / speedFactor); # rather than set target-speed try direct change which the AI will then adjust out
 		}
+		elsif (speedFactor < -2) 
+		{
+			vert_speed = -2 * vels.maxClimbRate_fps; # could also compare with cruise speed here
+			setprop (""~myNodeName~"/velocities/true-airspeed-kt", -speed_kt * 2 / speedFactor);
+		}
+
 
 		var delta_t = updateTime_s / N_STEPS;
 		var delta_alt = vert_speed * delta_t;
@@ -3029,7 +3035,7 @@ var ground_loop = func( id, myNodeName )
 		if (!ctrls.dodgeInProgress)
 		{
 			# avoid steep terrain
-			if (math.abs.slope_rad > PIBYFOUR)
+			if (math.abs(slope_rad) > PIBYSIX)
 			{
 				dodge( myNodeName);
 			}
@@ -3038,6 +3044,7 @@ var ground_loop = func( id, myNodeName )
 				# steer toward target heading
 				var targetHeading = getprop (""~myNodeName~"/controls/tgt-heading-degs");
 				var delta_heading_deg = math.fmod ( targetHeading - heading + 360, 360);
+				if (delta_heading_deg > 180) delta_heading_deg -= 360;
 				var sign = 1;
 				var rudder = 0;
 				if (delta_heading_deg < 0)
@@ -3065,7 +3072,7 @@ var ground_loop = func( id, myNodeName )
 		
 		if (thorough) debprint(
 		"Bombable: Ground_loop: ",
-		sprintf("vertical-speed-fps = %4.1f", vert_speed),
+		sprintf("vertSpeed-fps = %4.1f", vert_speed),
 		sprintf("pitchangle_deg = %4.1f", pitchangle_deg),
 		sprintf("slopeAhead_deg = %4.1f", slope_rad * R2D),	
 		sprintf("alt_ft - currAlt_ft = %4.1f", alt_ft - currAlt_ft)
@@ -3147,7 +3154,6 @@ var ground_loop = func( id, myNodeName )
 	# rjw removed since not realistic:  Badly damaged diving aircraft do not match their pitch to the gradient of ground.  
 	# Causes errors since pitchangle1_deg only calculated when reach ground
 	{ 
-		#ground_loop is called every updateTime_s seconds (1.68780986 converts knots to ft per second)
 		var pitchangle2_deg = R2D * math.asin(damageAltAddCurrent, distance_til_update_ft );
 		if (damageAltAddCurrent == 0 and distance_til_update_ft > 0) pitchangle2_deg = 0; #forward
 		if (damageAltAddCurrent < 0 and distance_til_update_ft == 0) pitchangle2_deg = -90; #straight down
@@ -5032,10 +5038,9 @@ var rudder_roll_climb = func (myNodeName, degrees = 15, alt_ft = -20, time = 10,
 	{
 		currRudder = getprop(""~myNodeName~"/surface-positions/rudder-pos-deg");
 		if (currRudder == nil) currRudder = 0; 
-		var evas = attributes[myNodeName].evasions;
+		var vels = attributes[myNodeName].velocities;
 		if ( currRudder == 0)
 		{
-			evas.prevTgtSpeed = getprop(""~myNodeName~"/controls/tgt-speed-kts");
 			setprop(""~myNodeName~"/surface-positions/rudder-pos-deg", degrees);
 			setprop
 			(
@@ -5043,16 +5048,16 @@ var rudder_roll_climb = func (myNodeName, degrees = 15, alt_ft = -20, time = 10,
 			( getprop (""~myNodeName~"/velocities/speed-kts") > 10) ? 15 : 5
 			);
 		}
-		else # stop dodge, restore old values
+		else # stop dodge, return to cruise speed
 		{
-			setprop(""~myNodeName~"/surface-positions/rudder-pos-deg", 0);
-			setprop(""~myNodeName~"/controls/tgt-speed-kts", evas.prevTgtSpeed );
+			setprop(""~myNodeName~"/surface-positions/rudder-pos-deg", 0 );
+			setprop(""~myNodeName~"/controls/tgt-speed-kts", vels.cruiseSpeed_kt );
 		}
-	debprint 
+		debprint 
 		(
 			sprintf
 				(
-					"Bombable: rudder_roll_climb for %s deg:%6.1f time:%5.1f feet:%6.1f",
+					"Bombable: rudder_roll_climb for %s deg:%6.1f time:%5.1f alt_ft:%6.1f",
 					myNodeName,
 					degrees,
 					time,
@@ -9381,7 +9386,6 @@ var initialize_func = func ( b ){
 			}
 		}
 	}
-	b.evasions["prevTgtSpeed"] = b.velocities.cruiseSpeed_kt; # used for dodge routine
 
 	# damage sanity checking
 	if (contains (b, "vulnerabilities") and typeof (b.vulnerabilities) == "hash") {
@@ -10646,7 +10650,7 @@ var grav_fpss = 32.174;
 var grav_mpss = grav_fpss * feet2meters;
 var PIBYTWO = math.pi / 2.0;
 var PIBYTHREE = math.pi / 3.0;
-var PIBYTHREE = math.pi / 4.0;
+var PIBYFOUR = math.pi / 4.0;
 var PIBYSIX = math.pi / 6.0;
 var PI = math.pi;
 var TWOPI = math.pi * 2.0;
