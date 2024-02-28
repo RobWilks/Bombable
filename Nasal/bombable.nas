@@ -2195,7 +2195,8 @@ var setupBombableMenu = func {
 	["flare",66,3600],
 	["skywriting",55,-1],
 	["blaze",13,-1],
-	] ) {
+	] ) 
+	{
 				
 		# trigger is the overall flag for that type of smoke/fire
 		# for Bombable as a whole
@@ -2919,14 +2920,20 @@ var ground_loop = func( id, myNodeName )
 	{
 		if (speed_kt <= 1) 
 		{
+			debprint(sprintf
+				(
+				"Bombable: Ground loop terminated for %s speed_kt=%6.2f tgt_speed=%6.2f",
+				myNodeName,
+				speed_kt,
+				getprop(""~myNodeName~"/controls/tgt-speed-kts")
+				)
+			);
 			setprop(""~myNodeName~"/bombable/exploded", 1);
 			setprop(""~myNodeName~"/bombable/attributes/damage", 1); # could continue fighting even though immobilised
 			setprop(""~myNodeName~"/controls/tgt-speed-kts", 0);
 			setprop(""~myNodeName~"/velocities/true-airspeed-kt", 0);
 			setprop(""~myNodeName~"/velocities/vertical-speed-fps", 0);
 			if (type == "groundvehicle") deleteSmoke("pistonexhaust", myNodeName); # could set a timer here; smoke from ship?
-			debprint("Bombable: Ground loop terminated for ",myNodeName);
-			
 			return;
 		}
 	}
@@ -3035,36 +3042,59 @@ var ground_loop = func( id, myNodeName )
 		if (!ctrls.dodgeInProgress)
 		{
 			# avoid steep terrain
-			if (math.abs(slope_rad) > PIBYSIX)
+			var targetHeading = getprop (""~myNodeName~"/controls/tgt-heading-degs");
+			if (math.abs(slope_rad) > PIBYFOUR)
 			{
-				dodge( myNodeName);
-			}
-			else
-			{
-				# steer toward target heading
-				var targetHeading = getprop (""~myNodeName~"/controls/tgt-heading-degs");
-				var delta_heading_deg = math.fmod ( targetHeading - heading + 360, 360);
-				if (delta_heading_deg > 180) delta_heading_deg -= 360;
-				var sign = 1;
-				var rudder = 0;
-				if (delta_heading_deg < 0)
+				if (!ctrls.avoidCliffInProgress)
 				{
-					delta_heading_deg = - delta_heading_deg;
-					sign = -1;
+					newTargetHeading += (rand() > 0.5 ? 90 : -90); # could choose minimum grad
+					newTargetHeading = math.fmod ( newTargetHeading + 3600, 360);
+					if (newTargetHeading > 180) newTargetHeading -= 360;
+					setprop (""~myNodeName~"/controls/tgt-heading-degs", newTargetHeading);
+					settimer
+					(
+						func
+						{
+						setprop (""~myNodeName~"/controls/tgt-heading-degs", targetHeading);
+						ctrls.avoidCliffInProgress = 0;
+						},
+						2 + rand() * 5
+					);
+					ctrls.avoidCliffInProgress = 1;
+					targetHeading = newTargetHeading;
+					debprint
+					(
+						sprintf(
+							"Bombable: avoiding cliff, new target hdg = %5.1f, slope = %5.1f", 
+							newTargetHeading, slope_rad * R2D
+						)
+					);
 				}
-				if (delta_heading_deg > 81)
-					rudder = 15;
-				elsif (delta_heading_deg > 27)
-					rudder = 10;
-				elsif (delta_heading_deg > 9)
-					rudder = 7;
-				elsif (delta_heading_deg > 3)
-					rudder = 4;
-				elsif (delta_heading_deg > 1)
-					rudder = 1;
-				setprop (""~myNodeName~"/surface-positions/rudder-pos-deg", rudder * sign);
 			}
+			
+			# steer toward target heading
+			var delta_heading_deg = math.fmod ( targetHeading - heading + 3600, 360);
+			if (delta_heading_deg > 180) delta_heading_deg -= 360;
+			var sign = 1;
+			var rudder = 0;
+			if (delta_heading_deg < 0)
+			{
+				delta_heading_deg = - delta_heading_deg;
+				sign = -1;
+			}
+			if (delta_heading_deg > 81)
+				rudder = 30;
+			elsif (delta_heading_deg > 27)
+				rudder = 15;
+			elsif (delta_heading_deg > 9)
+				rudder = 10;
+			elsif (delta_heading_deg > 3)
+				rudder = 7;
+			elsif (delta_heading_deg > 1)
+				rudder = 4;
+			setprop (""~myNodeName~"/surface-positions/rudder-pos-deg", rudder * sign);
 		}
+		
 
 		# pitch and roll controlled by model animation
 		setprop (""~myNodeName~"/orientation/roll-animation", rollangle_deg ); 
@@ -4989,10 +5019,12 @@ skill, currAlt_m, targetAlt_m, elevTarget_m){
 #and for aircraft, sets an amount of climb
 #controls ships, so we just change both, to be safe
 #alt_ft is a change to the current altitude
+#returns time which is determined by the type of turn 
 
 var rudder_roll_climb = func (myNodeName, degrees = 15, alt_ft = -20, time = 10, roll_limit_deg = 85 )
 {
 	var type = attributes[myNodeName].type;
+	var ret = time;
 
 	if (type == "aircraft")
 	{
@@ -5035,36 +5067,37 @@ var rudder_roll_climb = func (myNodeName, degrees = 15, alt_ft = -20, time = 10,
 	else # ship or groundvehicle
 	# spd < 5 uses fixed turn radius, see AIship parms
 	# spd > 5 achieves max turn rate at 15 kts
+	# unfortunate: the turn radius is a strong function of speed ( v - 15 )^2
+	# ctrls.dodgeInProgress is a flag set by Dodge()
 	{
-		currRudder = getprop(""~myNodeName~"/surface-positions/rudder-pos-deg");
-		if (currRudder == nil) currRudder = 0; 
-		var vels = attributes[myNodeName].velocities;
-		if ( currRudder == 0)
+		if ( attributes[myNodeName].controls.dodgeInProgress )
 		{
 			setprop(""~myNodeName~"/surface-positions/rudder-pos-deg", degrees);
-			setprop
-			(
-			""~myNodeName~"/controls/tgt-speed-kts", 
-			( getprop (""~myNodeName~"/velocities/speed-kts") > 10) ? 15 : 5
-			);
+			var spd = getprop (""~myNodeName~"/velocities/speed-kts");
+
+			var newSpd = (spd < 10) ? 15 : 5;
+			var ret *= ((spd < 10) ? 1 : 4);
+			setprop(""~myNodeName~"/controls/tgt-speed-kts", newSpd);
+			setprop(""~myNodeName~"/velocities/speed-kts", newSpd);
 		}
 		else # stop dodge, return to cruise speed
 		{
 			setprop(""~myNodeName~"/surface-positions/rudder-pos-deg", 0 );
-			setprop(""~myNodeName~"/controls/tgt-speed-kts", vels.cruiseSpeed_kt );
+			setprop(""~myNodeName~"/controls/tgt-speed-kts", attributes[myNodeName].velocities.cruiseSpeed_kt );
 		}
-		debprint 
-		(
-			sprintf
-				(
-					"Bombable: rudder_roll_climb for %s deg:%6.1f time:%5.1f alt_ft:%6.1f",
-					myNodeName,
-					degrees,
-					time,
-					alt_ft
-				)
-		);
 	}
+	debprint 
+	(
+		sprintf
+			(
+				"Bombable: rudder_roll_climb for %s deg:%6.1f time:%5.1f alt_ft:%6.1f",
+				myNodeName,
+				degrees,
+				time,
+				alt_ft
+			)
+	);
+	return(ret);
 }
 ############################### dodge #################################
 # function makes an object dodge
@@ -5220,22 +5253,18 @@ var dodge = func(myNodeName) {
 		else 
 		{  
 		# for ships	and groundvehicles		
-		# set rudder or roll degrees for a change in direction
-		# the dodge starts immediately and stops at 2x dodgeDelay
+		# set rudder degrees for a change in direction
+		# the dodge starts immediately and stops at turnTime, set according to type of turn
 
-		rudder_roll_climb (myNodeName, dodgeAmount_deg, dodgeAltAmount_ft, dodgeDelay);
-					
-					
-		# Roll/climb for dodgeDelay seconds, then wait dodgeDelay seconds to allow the change in direction
-					
-		stores.reduceFuel (myNodeName, 2 * dodgeDelay ); #deduct the amount of fuel from the tank, for this dodge
+		var turnTime = rudder_roll_climb (myNodeName, dodgeAmount_deg, dodgeAltAmount_ft, dodgeDelay);
+		stores.reduceFuel (myNodeName, dodgeDelay );
 		settimer 
 			( func 
 				{
 				ctrls.dodgeInProgress = 0;
 				rudder_roll_climb (myNodeName, 0, 0, dodgeDelay );
 				},
-				2 * dodgeDelay 
+				turnTime 
 			);	
 		}
 				
@@ -9229,6 +9258,7 @@ var initialize_func = func ( b ){
 		damageAltAddCurrent_ft : 0, 
 		damageAltAddCumulative_ft : 0, 
 		dodgeInProgress : 0, 
+		avoidCliffInProgress : 0,
 		attackInProgress : 0, 
 		attackClimbDiveInProgress : 0,
 		attackClimbDiveTargetAGL_m : 0,
