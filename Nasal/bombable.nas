@@ -2775,20 +2775,25 @@ var ground_loop = func( id, myNodeName )
 
 	var pitchangle_deg = 0;
 	var rollangle_deg = 0;
-	var pitchangle1_deg = 0;		
+	var pitchangle1_deg = 0;
+	var frontBack = dims.length_m / 2 + FGAltObjectPerimeterBuffer_m;
+	var leftRight = dims.width_m / 2 + FGAltObjectPerimeterBuffer_m;		
 			
 	# calculate the altitude behind & ahead of the object, this determines the pitch angle and helps determine the overall ground level at this spot
 	# Go that extra amount, FGAltObjectPerimeterBuffer_m, out from the actual length to keep FG from detecting the top of the
 	# object as the altitude.  We need ground altitude here.
 	# You can't just ask for elev at the object's current position or you'll get
 	# the elev at the top of the object itself, not the ground . . .
+	# rjw true for scenery objects - check for AI
+
 	var GeoCoord = geo.Coord.new();
 	GeoCoord.set_latlon(lat, lon);
 	alt_ft = elev (GeoCoord.lat(), GeoCoord.lon()  ); #in feet
 	# assume lat, lon are at the centre of the object
 	#debprint ("Bombable: GeoCoord.apply_course_distance(heading, dims.length_m/2); ",heading, " ", dims.length_m/2 );
-	GeoCoord.apply_course_distance(heading, dims.length_m / 2 + FGAltObjectPerimeterBuffer_m);    #frontreardist in meters
-	toFrontAlt_ft = elev (GeoCoord.lat(), GeoCoord.lon()  ); #in feet
+	var GeoCoord_front = GeoCoord;
+	GeoCoord_front.apply_course_distance(heading, frontBack);    #frontreardist in meters
+	toFrontAlt_ft = elev ( GeoCoord_front.lat(), GeoCoord_front.lon() ); #in feet
 			
 	# This loop is one of our biggest framerate sucks and so if we're an undamaged
 	# aircraft way above our minimum AGL we're just going to skip it entirely.
@@ -2807,9 +2812,10 @@ var ground_loop = func( id, myNodeName )
 
 	# find the slope of the ground in the direction we are heading
 
-		GeoCoord.apply_course_distance(heading + 180, dims.length_m + 2 * FGAltObjectPerimeterBuffer_m );
-		toRearAlt_ft = elev (GeoCoord.lat(), GeoCoord.lon()  ); #in feet
-		pitchangle1_deg = math.atan2(toFrontAlt_ft - toRearAlt_ft, dims.length_ft + 2 * FGAltObjectPerimeterBuffer_ft ) * R2D;
+		var GeoCoord_rear = GeoCoord;
+		GeoCoord_rear.apply_course_distance(heading + 180, frontBack );
+		toRearAlt_ft = elev (GeoCoord_rear.lat(), GeoCoord_rear.lon()  ); #in feet
+		pitchangle1_deg = math.atan2( toFrontAlt_ft - toRearAlt_ft, 2 * frontBack ) * R2D;
 		pitchangle_deg = pitchangle1_deg; 
 		# rjw: the slope of ground.  The buffer is to ensure that we don't measure altitude at the top of the object		
 		
@@ -2817,17 +2823,17 @@ var ground_loop = func( id, myNodeName )
 		# find altitude of ground to left & right of object to determine roll &
 		# to help in determining altitude
 				
-		var GeoCoord2 = geo.Coord.new();
-		GeoCoord2.set_latlon(lat, lon);
 
 		# go that extra amount out from the actual width to keep FG from detecting the top of the
 		# object as the altitude.  We need ground altitude here. FGAltObjectPerimeterBuffer_m
 
-		GeoCoord2.apply_course_distance(heading + 90, dims.width_m / 2 + FGAltObjectPerimeterBuffer_m);  #sidedist in meters
-		toRightAlt_ft = elev (GeoCoord2.lat(), GeoCoord2.lon()  ); #in feet
-		GeoCoord2.apply_course_distance(heading - 90, dims.width_m + 2 * FGAltObjectPerimeterBuffer_m );  # rjw same method as calculation of front-rear
-		toLeftAlt_ft = elev (GeoCoord2.lat(), GeoCoord2.lon()  ); #in feet
-		var rollangle_rad = math.atan2(toLeftAlt_ft - toRightAlt_ft, dims.width_ft + 2 * FGAltObjectPerimeterBuffer_ft); 
+		var GeoCoord_left = GeoCoord;
+		var GeoCoord_right = GeoCoord;
+		GeoCoord_left.apply_course_distance( heading - 90, leftRight );  #sidedist in meters
+		GeoCoord_right.apply_course_distance( heading + 90, leftRight );  #sidedist in meters
+		toLeftAlt_ft = elev (GeoCoord_left.lat(), GeoCoord_left.lon()  ); #in feet
+		toRightAlt_ft = elev (GeoCoord_right.lat(), GeoCoord_right.lon()  ); #in feet
+		var rollangle_rad = math.atan2( toLeftAlt_ft - toRightAlt_ft, 2 * leftRight ); 
 		rollangle_deg = R2D * rollangle_rad; 
 				
 		# in CVS, taking the alt of an object's position actually finds the top
@@ -2972,12 +2978,11 @@ var ground_loop = func( id, myNodeName )
 	var lookingAheadAlt_ft = toFrontAlt_ft;
 	if (type == "aircraft" and !ctrls.onGround ) 
 	{
-		# rjw: is it possible to have types of object other than aircraft that are not on the ground? 
-				
-		GeoCoord.apply_course_distance( heading, dims.length_m + speed_kt * KT2MPS * 10 ); # GeoCoord is already in front of the AC location
+		var GeoCoord_ahead = GeoCoord;
+		GeoCoord_ahead.apply_course_distance( heading, dims.length_m + speed_kt * KT2MPS * 10 );
 		# 10sec look ahead - 120s below?
 				
-		var radarAheadAlt_ft = elev ( GeoCoord.lat(), GeoCoord.lon() ); #in feet
+		var aheadAlt_ft = elev ( GeoCoord_ahead.lat(), GeoCoord_ahead.lon() ); #in feet
 				
 				
 		# our target altitude (for aircraft purposes) is the greater of the
@@ -2994,12 +2999,12 @@ var ground_loop = func( id, myNodeName )
 
 		if (damageValue < 0.8 )
 		{
-			if ( (radarAheadAlt_ft > toFrontAlt_ft)  
-			and (radarAheadAlt_ft + alts.minimumAGL_ft > currAlt_ft )  )
-			lookingAheadAlt_ft = radarAheadAlt_ft;
+			if ( (aheadAlt_ft > toFrontAlt_ft)  
+			and (aheadAlt_ft + alts.minimumAGL_ft > currAlt_ft )  )
+			lookingAheadAlt_ft = aheadAlt_ft;
 					
 			#if we're low to the ground we add this extra 500 ft just to be safe
-			if (currAlt_ft - radarAheadAlt_ft < 500)
+			if (currAlt_ft - aheadAlt_ft < 500)
 			lookingAheadAlt_ft  +=  500;
 		}
 	} 
@@ -3047,7 +3052,7 @@ var ground_loop = func( id, myNodeName )
 			{
 				if (!ctrls.avoidCliffInProgress)
 				{
-					newTargetHeading += (rand() > 0.5 ? 90 : -90); # could choose minimum grad
+					var newTargetHeading = (rand() > 0.5 ? 90 : -90); # could choose minimum grad
 					newTargetHeading = math.fmod ( newTargetHeading + 3600, 360);
 					if (newTargetHeading > 180) newTargetHeading -= 360;
 					setprop (""~myNodeName~"/controls/tgt-heading-degs", newTargetHeading);
