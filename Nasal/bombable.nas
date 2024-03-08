@@ -2190,7 +2190,7 @@ var setupBombableMenu = func {
 	["fire",88, 3600],
 	["jetcontrail", 77, -1],
 	["smoketrail", 55, -1],
-	["pistonexhaust", 15, -1],
+	["pistonexhaust", 5, -1],
 	["damagedengine",  55, -1],
 	["flare",66,3600],
 	["skywriting",55,-1],
@@ -2776,8 +2776,10 @@ var ground_loop = func( id, myNodeName )
 	var pitchangle_deg = 0;
 	var rollangle_deg = 0;
 	var pitchangle1_deg = 0;
-	var frontBack = dims.length_m / 2 + FGAltObjectPerimeterBuffer_m;
-	var leftRight = dims.width_m / 2 + FGAltObjectPerimeterBuffer_m;		
+	var frontBack_m = dims.length_m / 2 + FGAltObjectPerimeterBuffer_m;
+	var leftRight_m = dims.width_m / 2 + FGAltObjectPerimeterBuffer_m;		
+	var frontBack_ft = frontBack_m * M2FT;
+	var leftRight_ft = leftRight_m * M2FT;	
 			
 	# calculate the altitude behind & ahead of the object, this determines the pitch angle and helps determine the overall ground level at this spot
 	# Go that extra amount, FGAltObjectPerimeterBuffer_m, out from the actual length to keep FG from detecting the top of the
@@ -2791,9 +2793,8 @@ var ground_loop = func( id, myNodeName )
 	alt_ft = elev (GeoCoord.lat(), GeoCoord.lon()  ); #in feet
 	# assume lat, lon are at the centre of the object
 	#debprint ("Bombable: GeoCoord.apply_course_distance(heading, dims.length_m/2); ",heading, " ", dims.length_m/2 );
-	var GeoCoord_front = GeoCoord;
-	GeoCoord_front.apply_course_distance(heading, frontBack);    #frontreardist in meters
-	toFrontAlt_ft = elev ( GeoCoord_front.lat(), GeoCoord_front.lon() ); #in feet
+	GeoCoord.apply_course_distance(heading, frontBack_m);    #frontreardist in meters
+	var toFrontAlt_ft = elev ( GeoCoord.lat(), GeoCoord.lon() ); #in feet
 			
 	# This loop is one of our biggest framerate sucks and so if we're an undamaged
 	# aircraft way above our minimum AGL we're just going to skip it entirely.
@@ -2812,30 +2813,30 @@ var ground_loop = func( id, myNodeName )
 
 	# find the slope of the ground in the direction we are heading
 
-		var GeoCoord_rear = GeoCoord;
-		GeoCoord_rear.apply_course_distance(heading + 180, frontBack );
-		toRearAlt_ft = elev (GeoCoord_rear.lat(), GeoCoord_rear.lon()  ); #in feet
-		pitchangle1_deg = math.atan2( toFrontAlt_ft - toRearAlt_ft, 2 * frontBack ) * R2D;
+		GeoCoord.apply_course_distance(heading + 180, 2 * frontBack_m );
+		var toRearAlt_ft = elev (GeoCoord.lat(), GeoCoord.lon()  );
+		pitchangle1_deg = math.atan2( toFrontAlt_ft - toRearAlt_ft, 2 * frontBack_ft ) * R2D;
 		pitchangle_deg = pitchangle1_deg; 
 		# rjw: the slope of ground.  The buffer is to ensure that we don't measure altitude at the top of the object		
-		
-				
+
+		var distAhead_m = speed_kt * KT2MPS * 5;
+		GeoCoord.apply_course_distance( heading, distAhead_m + 2 * frontBack_m);
+		var gradientAheadAlt_ft = (elev ( GeoCoord.lat(), GeoCoord.lon() ) - toFrontAlt_ft) * FT2M / distAhead_m;
+
 		# find altitude of ground to left & right of object to determine roll &
 		# to help in determining altitude
-				
-
 		# go that extra amount out from the actual width to keep FG from detecting the top of the
 		# object as the altitude.  We need ground altitude here. FGAltObjectPerimeterBuffer_m
 
-		var GeoCoord_left = GeoCoord;
-		var GeoCoord_right = GeoCoord;
-		GeoCoord_left.apply_course_distance( heading - 90, leftRight );  #sidedist in meters
-		GeoCoord_right.apply_course_distance( heading + 90, leftRight );  #sidedist in meters
-		toLeftAlt_ft = elev (GeoCoord_left.lat(), GeoCoord_left.lon()  ); #in feet
-		toRightAlt_ft = elev (GeoCoord_right.lat(), GeoCoord_right.lon()  ); #in feet
-		var rollangle_rad = math.atan2( toLeftAlt_ft - toRightAlt_ft, 2 * leftRight ); 
+		var GeoCoord2 = geo.Coord.new();
+		GeoCoord2.set_latlon(lat, lon);
+		GeoCoord2.apply_course_distance( heading - 90, leftRight_m );  #sidedist in meters
+		var toLeftAlt_ft = elev (GeoCoord2.lat(), GeoCoord2.lon()  ); #in feet
+		GeoCoord2.apply_course_distance( heading + 90, 2 * leftRight_m );  #sidedist in meters
+		var toRightAlt_ft = elev (GeoCoord2.lat(), GeoCoord2.lon()  ); #in feet
+		var rollangle_rad = math.atan2( toLeftAlt_ft - toRightAlt_ft, 2 * leftRight_ft ); 
 		rollangle_deg = R2D * rollangle_rad; 
-				
+
 		# in CVS, taking the alt of an object's position actually finds the top
 		# of that particular object.  So to find the alt of the actual landscape
 		# we do ahead, behind, to left, to right of object & take the average.
@@ -2843,6 +2844,7 @@ var ground_loop = func( id, myNodeName )
 		# which we need to set pitch & roll,  so little is lost
 
 		alt_ft = (toFrontAlt_ft + toRearAlt_ft + toLeftAlt_ft + toRightAlt_ft) / 4; #in feet
+		
 	}
 	else
 	{
@@ -2978,11 +2980,10 @@ var ground_loop = func( id, myNodeName )
 	var lookingAheadAlt_ft = toFrontAlt_ft;
 	if (type == "aircraft" and !ctrls.onGround ) 
 	{
-		var GeoCoord_ahead = GeoCoord;
-		GeoCoord_ahead.apply_course_distance( heading, dims.length_m + speed_kt * KT2MPS * 10 );
+		GeoCoord.apply_course_distance( heading, speed_kt * KT2MPS * 10 );
 		# 10sec look ahead - 120s below?
 				
-		var aheadAlt_ft = elev ( GeoCoord_ahead.lat(), GeoCoord_ahead.lon() ); #in feet
+		var radarAheadAlt_ft = elev ( GeoCoord.lat(), GeoCoord.lon() ); #in feet
 				
 				
 		# our target altitude (for aircraft purposes) is the greater of the
@@ -2999,12 +3000,12 @@ var ground_loop = func( id, myNodeName )
 
 		if (damageValue < 0.8 )
 		{
-			if ( (aheadAlt_ft > toFrontAlt_ft)  
-			and (aheadAlt_ft + alts.minimumAGL_ft > currAlt_ft )  )
-			lookingAheadAlt_ft = aheadAlt_ft;
+			if ( (radarAheadAlt_ft > toFrontAlt_ft)  
+			and (radarAheadAlt_ft + alts.minimumAGL_ft > currAlt_ft )  )
+			lookingAheadAlt_ft = radarAheadAlt_ft;
 					
 			#if we're low to the ground we add this extra 500 ft just to be safe
-			if (currAlt_ft - aheadAlt_ft < 500)
+			if (currAlt_ft - radarAheadAlt_ft < 500)
 			lookingAheadAlt_ft  +=  500;
 		}
 	} 
@@ -3017,12 +3018,11 @@ var ground_loop = func( id, myNodeName )
 	# rjw might use thorough if the number of calls to measure terrain altitude use too many clock cycles
 	if (type == "groundvehicle") 
 	{
-		var gradient = (toFrontAlt_ft - alt_ft ) / ( dims.length_ft / 2 + FGAltObjectPerimeterBuffer_ft );
+		var gradient = (toFrontAlt_ft - alt_ft ) / frontBack_ft;
 		# here can change speed according to gradient ahead
 		# true-airspeed-kt for a ship is the horizontal speed
 		# horizontal speed maintained up to the gradient at which the max climb rate is exceeded 
 		var slope_rad = math.atan(gradient);
-
 
 		# set vert-speed not pitch for ground craft
 		var vert_speed = gradient * speed_kt * KT2FPS;
@@ -3048,11 +3048,13 @@ var ground_loop = func( id, myNodeName )
 		{
 			# avoid steep terrain
 			var targetHeading = getprop (""~myNodeName~"/controls/tgt-heading-degs");
-			if (math.abs(slope_rad) > PIBYFOUR)
+
+			if (math.abs(gradientAheadAlt_ft) > 0.9) # turn if at top or bottom of cliff
 			{
 				if (!ctrls.avoidCliffInProgress)
 				{
-					var newTargetHeading = (rand() > 0.5 ? 90 : -90); # could choose minimum grad
+					# var newTargetHeading = (rand() > 0.5 ? 90 : -90); # could choose minimum grad
+					var newTargetHeading = (math.abs(toLeftAlt_ft - alt_ft) > math.abs(toRightAlt_ft - alt_ft) ) ? 90 : -90; # turn toward level ground
 					newTargetHeading = math.fmod ( newTargetHeading + 3600, 360);
 					if (newTargetHeading > 180) newTargetHeading -= 360;
 					setprop (""~myNodeName~"/controls/tgt-heading-degs", newTargetHeading);
@@ -5029,7 +5031,7 @@ skill, currAlt_m, targetAlt_m, elevTarget_m){
 var rudder_roll_climb = func (myNodeName, degrees = 15, alt_ft = -20, time = 10, roll_limit_deg = 85 )
 {
 	var type = attributes[myNodeName].type;
-	var ret = time;
+	var newTime = time;
 
 	if (type == "aircraft")
 	{
@@ -5080,10 +5082,10 @@ var rudder_roll_climb = func (myNodeName, degrees = 15, alt_ft = -20, time = 10,
 			setprop(""~myNodeName~"/surface-positions/rudder-pos-deg", degrees);
 			var spd = getprop (""~myNodeName~"/velocities/speed-kts");
 
-			var newSpd = (spd < 10) ? 15 : 5;
-			var ret *= ((spd < 10) ? 1 : 4);
+			var newSpd = (spd < 10) ? 4.8 : 15;
+			var newTime *= ((spd < 10) ? 1 : 4);
 			setprop(""~myNodeName~"/controls/tgt-speed-kts", newSpd);
-			setprop(""~myNodeName~"/velocities/speed-kts", newSpd);
+			setprop(""~myNodeName~"/velocities/speed-kts", (spd + newSpd) / 2);
 		}
 		else # stop dodge, return to cruise speed
 		{
@@ -5098,11 +5100,11 @@ var rudder_roll_climb = func (myNodeName, degrees = 15, alt_ft = -20, time = 10,
 				"Bombable: rudder_roll_climb for %s deg:%6.1f time:%5.1f alt_ft:%6.1f",
 				myNodeName,
 				degrees,
-				time,
+				newTime,
 				alt_ft
 			)
 	);
-	return(ret);
+	return(newTime);
 }
 ############################### dodge #################################
 # function makes an object dodge
@@ -5436,8 +5438,8 @@ var mainAC_add_damage = func (damageRise = 0, damageTotal = 0, source = "", mess
 	elsif(damageValue < 0.0)
 	damageValue = 0.0;
 				
-	# setprop("/bombable/attributes/damage", damageValue);
-	# rjw commented for debug to prevent any main aircraft  
+	setprop("/bombable/attributes/damage", damageValue);
+	# rjw commented for debug to stop damage to main aircraft  
 				
 	damageIncrease = damageValue - prevDamageValue;
 				
@@ -6178,9 +6180,12 @@ var weapons_loop = func (id, myNodeName1 = "", myNodeName2 = "", targetSize_m = 
 		
 		#debprint ("aim-check weapon");
 		# fire weapon
-		# a skilled gunner with an effective weapon will fire at 50% pHit; a weak combination at only 5%
-		# if (thisWeapon.aim.pHit > (0.05 * weapPowerSkill))
-		if (0) # omit for testing
+		# pFire = a * skillLevel + b
+		# a skilled gunner with an effective weapon will fire at 60% pHit; a weak combination at 20%
+		# then a = (pHigh - pLow ) / 9 ; b = (10 * pLow - pHigh ) / 9
+
+		if (thisWeapon.aim.pHit > ( 0.044444 * weapPowerSkill + .1555555 ))
+		# if (0) # omit for testing
 		{
 			if (thisWeapon.weaponType == 0)
 			{
@@ -6189,9 +6194,8 @@ var weapons_loop = func (id, myNodeName1 = "", myNodeName2 = "", targetSize_m = 
 				# " accuracy ", round(thisWeapon.aim.pHit * 100 ),"%",
 				# " interceptSpeed", round(thisWeapon.aim.interceptSpeed), " mps");
 				
-				#fire weapons for visual effect
-				#whenever we're within maxDistance & aimed approximately in the right direction
-				var time2Fire =  2 * loopTime;
+				# fire weapons for visual effect
+				var time2Fire =  3;
 				fireAIWeapon(time2Fire, myNodeName1, thisWeapon, thisWeapon.aim.interceptSpeed);
 
 				#reduce ammo count; bad gunners waste more ammo by firing when low pHit
@@ -10180,7 +10184,12 @@ var weapons_init_func = func(myNodeName)
 
 		if (thisWeapon["maxMissileSpeed_mps"] == nil) thisWeapon["maxMissileSpeed_mps"] = 300;
 			
-		if (thisWeapon["ammo_seconds"] == nil) thisWeapon["ammo_seconds"] = 180; # time a weapon can fire til out of ammo 
+		if (thisWeapon["ammo_seconds"] == nil)
+		{
+			if (thisWeapon["roundsPerSec"] == nil) thisWeapon["roundsPerSec"] = 3; # firing rate 
+			if (thisWeapon["nRounds"] == nil) thisWeapon["nRounds"] = 180; # numver of rounds 
+			thisWeapon["ammo_seconds"] = thisWeapon.nRounds / thisWeapon.roundsPerSec; # time a weapon can fire til out of ammo 
+		} 
 			
 
 		# key to indicate the position of the weapon is determined by the position of a parent weapon, e.g. turret and subturret
