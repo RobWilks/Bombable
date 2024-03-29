@@ -5998,8 +5998,12 @@ var checkAim = func ( thisWeapon, myNodeName1 = "", myNodeName2 = "",
 		# probability x between p and q
 		# p(x) = (a/pi)^0.5 * 0.5 * ( erf (q * a^0.5) - erf (p * a^0.5) )  where a = 1 / 2 / SD^2, if SD = 5 deg, sqrt_a  = 8.103
 
+		# pHit for one round is related to probability P of hitting over the period of fire as pHit = 1 - ( 1 - pRound) ^ (LOOP_TIME * rounds per sec)
+		# pMiss for one round = 1 - pRound 
+
 		var sqrt_a = 8.103;
-		thisWeapon.aim.pHit = 0.5 * ( erf((targetSize_rad + targetOffset_rad) * sqrt_a) -  erf((targetSize_rad - targetOffset_rad) * sqrt_a));
+		var pRound = 0.5 * ( erf((targetSize_rad + targetOffset_rad) * sqrt_a) -  erf((targetSize_rad - targetOffset_rad) * sqrt_a));
+		thisWeapon.aim.pHit = 1 - math.pow( 1 - pRound , LOOP_TIME * thisWeapon.roundsPerSec);
 
 		debprint 
 		(
@@ -6014,7 +6018,7 @@ var checkAim = func ( thisWeapon, myNodeName1 = "", myNodeName2 = "",
 	# change orientation of weapon
 	# a skilled gunner changes the direction of their weapon more frequently 
 	# children always move
-	if (( rand() < weapPowerSkill * LOOP_TIME) or (thisWeapon.parent != ""))
+	if (( rand() < weapPowerSkill ) or (thisWeapon.parent != ""))
 	{ 
 		# ensure that newDir is in range of movement of weapon
 		var newElev = math.asin(newDir[2]) * R2D;
@@ -6097,6 +6101,7 @@ var weapons_loop = func (id, myNodeName1 = "", myNodeName2 = "", targetSize_m = 
 	# weaponPower determines the probability of damage if there is a hit
 	# weapPowerSkill determines how frequently weapon aim is updated
 	# currently both are attributes of the AC, ship or vehicle, not the individual weapon
+
 		
 	foreach (elem; keys (attributes[myNodeName1].weapons) ) 
 	{	
@@ -6228,6 +6233,7 @@ var weapons_loop = func (id, myNodeName1 = "", myNodeName2 = "", targetSize_m = 
 			# The amount of damage also increases with pHit.
 			# There is a smaller chance of doing a fairly high level of damage (up to 3X the regular max),
 			# and the better/closer the hit, the greater chance of doing that significant damage.
+			# pHit is the probability of a hit in time interval LOOP_TIME
 			if (rand() < thisWeapon.aim.pHit) 
 			{
 				var ai_callsign = getCallSign (myNodeName1);
@@ -10210,12 +10216,9 @@ var weapons_init_func = func(myNodeName)
 
 		if (thisWeapon["maxMissileSpeed_mps"] == nil) thisWeapon["maxMissileSpeed_mps"] = 300;
 			
-		if (thisWeapon["ammo_seconds"] == nil)
-		{
-			if (thisWeapon["roundsPerSec"] == nil) thisWeapon["roundsPerSec"] = 3; # firing rate 
-			if (thisWeapon["nRounds"] == nil) thisWeapon["nRounds"] = 180; # numver of rounds 
-			thisWeapon["ammo_seconds"] = thisWeapon.nRounds / thisWeapon.roundsPerSec; # time a weapon can fire til out of ammo 
-		} 
+		if (thisWeapon["roundsPerSec"] == nil) thisWeapon["roundsPerSec"] = 3; # firing rate 
+		if (thisWeapon["nRounds"] == nil) thisWeapon["nRounds"] = 180; # number of rounds 
+		thisWeapon["ammo_seconds"] = thisWeapon.nRounds / thisWeapon.roundsPerSec; # time weapon can fire til out of ammo 
 			
 
 		# key to indicate the position of the weapon is determined by the position of a parent weapon, e.g. turret and subturret
@@ -11307,6 +11310,7 @@ var erf = func (xVal)
 }
 ########################## setWeaponPowerSkill ###########################
 # called by resetBombableDamageFuelWeapons and weapons_init_func
+# note weapon power measures effectiveness - not simply explosive force - which includes how accurately it can be targetted
 
 var setWeaponPowerSkill = func(myNodeName)
 {
@@ -11320,7 +11324,10 @@ var setWeaponPowerSkill = func(myNodeName)
 	var skill = rand();
 
 	# Set weapPowerSkill, 0 to 1, an equal combination of weapon effectiveness and skill of pilot or gunner
-	var weapPowerSkill = ( power + skill ) / 2.0;
+	# probability of a hit depends on effectiveness, skill and the number of attempts
+	# attempt frequency is set by LOOP_TIME the update time for the weapons loop
+
+	var weapPowerSkill = math.pow(( power + skill ) / 2.0, LOOP_TIME);
 	setprop(""~myNodeName~"/bombable/weapons-pilot-ability", weapPowerSkill);
 
 	debprint
