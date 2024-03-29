@@ -3109,17 +3109,19 @@ var ground_loop = func( id, myNodeName )
 		setprop (""~myNodeName~"/orientation/roll-animation", rollangle_deg ); 
 		setprop (""~myNodeName~"/orientation/pitch-animation", pitchangle_deg ); 
 		
-		if (thorough) debprint(
-		"Bombable: Ground_loop: ",
-		sprintf("vertSpeed-fps = %4.1f", vert_speed),
-		sprintf("pitchangle_deg = %4.1f", pitchangle_deg),
-		sprintf("slopeAhead_deg = %4.1f", slope_rad * R2D),	
-		sprintf("alt_ft - currAlt_ft = %4.1f", alt_ft - currAlt_ft)
-		);		
+		# if (thorough) debprint(
+		# "Bombable: Ground_loop: ",
+		# sprintf("vertSpeed-fps = %4.1f", vert_speed),
+		# sprintf("pitchangle_deg = %4.1f", pitchangle_deg),
+		# sprintf("slopeAhead_deg = %4.1f", slope_rad * R2D),	
+		# sprintf("alt_ft - currAlt_ft = %4.1f", alt_ft - currAlt_ft)
+		# );
+
 		# if (thorough and alts.initialized == 1) debprint(
 		# "Bombable: Ground_loop: ",
 		# "vels.speedOnFlat = ", vels.speedOnFlat
-		# );		
+		# );
+
 		return;
 	}	
 
@@ -5990,7 +5992,7 @@ var checkAim = func ( thisWeapon, myNodeName1 = "", myNodeName2 = "",
 
 		# pHit ranges 0 to 1, 1 is a direct hit			
 		# calculate pHit as a joint probability distribution: the angular range of fire of the weapon and the angular range subtended by the target
-		# Assume:  pTargetHit = 1 within the angle range it subtends at the weapon
+		# Assume:  pTargetHit = 1 within the angle range the target subtends at the weapon
 		# Assume:  angular distribution of bullets from weapon is a normal distribution centred on weapon and of SD 5 degrees i.e. 1/12 radian
 		# could approximate normal distribution using central limit https://en.wikipedia.org/wiki/Normal_distribution#Generating_values_from_normal_distribution and use MonteCarlo
 		# instead use error function to calculate integral of normal distribution
@@ -6001,15 +6003,15 @@ var checkAim = func ( thisWeapon, myNodeName1 = "", myNodeName2 = "",
 		# pHit for one round is related to probability P of hitting over the period of fire as pHit = 1 - ( 1 - pRound) ^ (LOOP_TIME * rounds per sec)
 		# pMiss for one round = 1 - pRound 
 
-		var sqrt_a = 8.103;
-		var pRound = 0.5 * ( erf((targetSize_rad + targetOffset_rad) * sqrt_a) -  erf((targetSize_rad - targetOffset_rad) * sqrt_a));
+		var sqrt_a = 0.7071 / thisWeapon.accuracy;
+		var pRound = 0.5 * ( erf(( targetOffset_rad + targetSize_rad ) * sqrt_a) -  erf(( targetOffset_rad - targetSize_rad ) * sqrt_a));;
 		thisWeapon.aim.pHit = 1 - math.pow( 1 - pRound , LOOP_TIME * thisWeapon.roundsPerSec);
 
 		debprint 
 		(
 			sprintf(
 			"Bombable: hit %s pHit = %6.3f offset deg = %6.2f weapPowerSkill = %4.1f",
-			myNodeName1,
+			myNodeName1~"/"~elem,
 			thisWeapon.aim.pHit,
 			targetOffset_rad * R2D,
 			weapPowerSkill)
@@ -10219,7 +10221,8 @@ var weapons_init_func = func(myNodeName)
 		if (thisWeapon["roundsPerSec"] == nil) thisWeapon["roundsPerSec"] = 3; # firing rate 
 		if (thisWeapon["nRounds"] == nil) thisWeapon["nRounds"] = 180; # number of rounds 
 		thisWeapon["ammo_seconds"] = thisWeapon.nRounds / thisWeapon.roundsPerSec; # time weapon can fire til out of ammo 
-			
+		if (thisWeapon["accuracy"] == nil) thisWeapon["accuracy"] = 3; # angular variation of fire in degrees 
+		thisWeapon.accuracy *= R2D; # covert to radians	
 
 		# key to indicate the position of the weapon is determined by the position of a parent weapon, e.g. turret and subturret
 		if (thisWeapon["parent"] == nil) 
