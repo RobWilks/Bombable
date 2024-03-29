@@ -250,22 +250,25 @@ var put_ballistic_model = func(myNodeName = "/ai/models/aircraft", path = "AI/Ai
 # Smallest safe value for time_sec is maybe .3 .4 or .5 seconds.
 #
 var put_remove_model = func(lat_deg = nil, lon_deg = nil, elev_m = nil, time_sec = nil, 
-	startSize_m = nil, 	endSize_m = 1, path = "AI/Aircraft/Fire-Particles/flack-impact.xml" ) {
+	startSize_m = nil, 	endSize_m = 1, path = "AI/Aircraft/Fire-Particles/flack-impact.xml" ) 
+{
 
 	if (lat_deg == nil or lon_deg == nil or elev_m == nil) { return; }
 	
 	var delay_sec = 0.1; #particles/models seem to cause FG crash * sometimes * when appearing within a model
 	#we try to reduce this by making the smoke appear a fraction of a second later, after
-	# the a/c model has moved out of the way. (possibly moved, anyway--depending on it's speed)
+	# the a/c model has moved out of the way. (possibly moved, anyway--depending on its speed)
 
 	# debprint ("Bombable: Placing flack");
 	
-	settimer ( func {
+	settimer ( func 
+	{
 		#start & end size in particle system appear to be in feet
 		if (startSize_m != nil) setprop ("/bombable/fire-particles/flack-startsize", startSize_m);
 		if (endSize_m != nil) setprop ("/bombable/fire-particles/flack-endsize", endSize_m);
 
-		fgcommand("add-model", flackNode = props.Node.new({
+		fgcommand("add-model", flackNode = props.Node.new(
+			{
 			"path": path,
 			"latitude-deg": lat_deg,
 			"longitude-deg":lon_deg,
@@ -274,15 +277,14 @@ var put_remove_model = func(lat_deg = nil, lon_deg = nil, elev_m = nil, time_sec
 			"pitch-deg"    : 0,
 			"roll-deg"     : 0,
 			"enable-hot"   : 0,
-			
-			
-			
-		}));
+			}
+			));
 		
 		var flackModelNodeName = flackNode.getNode("property").getValue();
 		
 		#add the -prop property in /models/model[X] for each of lat, long, elev, etc
-		foreach (name; ["latitude-deg","longitude-deg","elevation-ft", "heading-deg", "pitch-deg", "roll-deg"]){
+		foreach (name; ["latitude-deg","longitude-deg","elevation-ft", "heading-deg", "pitch-deg", "roll-deg"])
+		{
 			setprop(  flackModelNodeName ~"/"~ name ~ "-prop",flackModelNodeName ~ "/" ~ name );
 		}
 		
@@ -290,8 +292,8 @@ var put_remove_model = func(lat_deg = nil, lon_deg = nil, elev_m = nil, time_sec
 		
 		settimer ( func { props.globals.getNode(flackModelNodeName).remove();}, time_sec);
 
-	}, delay_sec);
-
+	}, 
+	delay_sec);
 }
 
 ############################# start_terrain_fire #################################
@@ -5438,8 +5440,8 @@ var mainAC_add_damage = func (damageRise = 0, damageTotal = 0, source = "", mess
 	elsif(damageValue < 0.0)
 	damageValue = 0.0;
 				
-	setprop("/bombable/attributes/damage", damageValue);
-	# rjw commented for debug to stop damage to main aircraft  
+	# setprop("/bombable/attributes/damage", damageValue);
+	# comment line to stop damage to main aircraft  
 				
 	damageIncrease = damageValue - prevDamageValue;
 				
@@ -5773,13 +5775,6 @@ var checkAim = func ( thisWeapon, myNodeName1 = "", myNodeName2 = "",
 
 				
 	if (targetSize_m == nil or targetSize_m.horz <= 0 or targetSize_m.vert <= 0 or thisWeapon.maxDamageDistance_m <= 0) return (targetSighted);				
-	if (thisWeapon.weaponAngle_deg == nil )
-	{ 
-		thisWeapon.weaponAngle_deg = {heading:0, elevation:0, headingMin:-60, headingMax:60, elevationMin:-20, elevationMax:20, track:0}; 
-	} #note definition of value for each key of hash
-	if (thisWeapon.weaponOffset_m == nil ) thisWeapon.weaponOffset_m = {x:0,y:0,z:0}; 
-				
-	
 				
 	# calculate targetDispRefFrame, the displacement vector from node1 (AI) to node2 (mainAC) in a lon-lat-alt (x-y-z) frame of reference aka 'reference frame'
 	# the AI model is at < 0,0,0 > 
@@ -5896,21 +5891,31 @@ var checkAim = func ( thisWeapon, myNodeName1 = "", myNodeName2 = "",
 	}
 	else
 	{
+		# code could be optimized; no change in z
+		# assume parent weapon located on axis of its turret
 		var parentWeap = attributes[myNodeName1].weapons[thisWeapon.parent];
 		var phi = getprop( "" ~ myNodeName1 ~ "/" ~ thisWeapon.parent ~ "/turret-pos-deg" );
 		var myOffset = rotate_round_z_axis # in the model frame
 		(
 			[
-			thisWeapon.weaponOffset_m.x,
-			thisWeapon.weaponOffset_m.y,
-			thisWeapon.weaponOffset_m.z
+			thisWeapon.weaponOffset_m.x - parentWeap.weaponOffset_m.x,
+			thisWeapon.weaponOffset_m.y - parentWeap.weaponOffset_m.y,
+			thisWeapon.weaponOffset_m.z - parentWeap.weaponOffset_m.z
 			], # offset of weapon in model frame relative to parent weapon
-			phi
+			-phi
 		);
+
+		var index = thisWeapon.fireParticle;
+		# index of the fire particle tied to the weapon
+
 		# offset of weapon relative to AI model origin
 		myOffset[0] += parentWeap.weaponOffset_m.x;
 		myOffset[1] += parentWeap.weaponOffset_m.y;
 		myOffset[2] += parentWeap.weaponOffset_m.z;
+
+		setprop("bombable/fire-particles/projectile-tracer[" ~ index ~ "]/offset-x", myOffset[0]);
+		setprop("bombable/fire-particles/projectile-tracer[" ~ index ~ "]/offset-y", myOffset[1]);
+		setprop("bombable/fire-particles/projectile-tracer[" ~ index ~ "]/offset-z", myOffset[2]);
 
 		thisWeapon.aim.weaponOffsetRefFrame = rotate_zxy
 		(
@@ -6006,9 +6011,10 @@ var checkAim = func ( thisWeapon, myNodeName1 = "", myNodeName2 = "",
 			weapPowerSkill)
 		);
 	}
-
-	#change orientation of weapon
-	if ( rand() < weapPowerSkill * LOOP_TIME) # a skilled gunner changes the direction of their weapon more frequently 
+	# change orientation of weapon
+	# a skilled gunner changes the direction of their weapon more frequently 
+	# children always move
+	if (( rand() < weapPowerSkill * LOOP_TIME) or (thisWeapon.parent != ""))
 	{ 
 		# ensure that newDir is in range of movement of weapon
 		var newElev = math.asin(newDir[2]) * R2D;
@@ -6097,13 +6103,12 @@ var weapons_loop = func (id, myNodeName1 = "", myNodeName2 = "", targetSize_m = 
 		# ot.reset();
 		var thisWeapon = attributes[myNodeName1].weapons[elem];
 		if (thisWeapon.destroyed == 1) continue; #skip this weapon if destroyed
+		if ( stores.checkWeaponsReadiness ( myNodeName1, elem ) == 0) continue; # can only shoot if ammo left!
 		
 		mDD_m = thisWeapon.maxDamageDistance_m;
 		if (mDD_m == nil or mDD_m == 0) mDD_m = 100;
 
 		
-		if ( stores.checkWeaponsReadiness ( myNodeName1, elem ) == 0) continue; #can only shoot if ammo left!
-
 		# Could also check weapPowerSkill here. However skill of gunner not simply correlated with how frequently they fire
 
 		if (thisWeapon.weaponType == 0) 
@@ -6168,6 +6173,7 @@ var weapons_loop = func (id, myNodeName1 = "", myNodeName2 = "", targetSize_m = 
 			}
 		}
 
+
 		# debprint ("Bombable: Weapons_loop ", myNodeName1, " weapPowerSkill = ",weapPowerSkill, " weaponPower = ", weaponPower, " thisWeapon.aim.pHit = ", thisWeapon.aim.pHit);
 		# debprint (
 			# "Bombable: Weapons_loop " ~ myNodeName1 ~ " " ~ elem, 
@@ -6177,14 +6183,17 @@ var weapons_loop = func (id, myNodeName1 = "", myNodeName2 = "", targetSize_m = 
 		
 		if (thisWeapon.aim.pHit == -1) break; #flag for no line of sight; assume none of the gunners can see the target so abort loop
 
-		
+
+
 		#debprint ("aim-check weapon");
 		# fire weapon
+		# bad gunners waste more ammo by firing when low pHit
 		# pFire = a * skillLevel + b
-		# a skilled gunner with an effective weapon will fire at 60% pHit; a weak combination at 20%
+		# a skilled gunner with an effective weapon will fire at 70% pHit; a weak combination at 30%
 		# then a = (pHigh - pLow ) / 9 ; b = (10 * pLow - pHigh ) / 9
 
-		if (thisWeapon.aim.pHit > ( 0.044444 * weapPowerSkill + .1555555 ))
+		# if (thisWeapon.aim.pHit > ( 0.044444 * weapPowerSkill + .1555555 )) # 60% / 20%
+		if (thisWeapon.aim.pHit > ( 0.055555 * weapPowerSkill + .3444444 )) # 90% / 40%
 		# if (0) # omit for testing
 		{
 			if (thisWeapon.weaponType == 0)
@@ -6198,7 +6207,7 @@ var weapons_loop = func (id, myNodeName1 = "", myNodeName2 = "", targetSize_m = 
 				var time2Fire =  3;
 				fireAIWeapon(time2Fire, myNodeName1, thisWeapon, thisWeapon.aim.interceptSpeed);
 
-				#reduce ammo count; bad gunners waste more ammo by firing when low pHit
+				#reduce ammo count
 				if (stores.reduceWeaponsCount (myNodeName1, elem, time2Fire) == 1)
 				{
 					var msg = thisWeapon.name ~ " on " ~ 
@@ -6206,6 +6215,10 @@ var weapons_loop = func (id, myNodeName1 = "", myNodeName2 = "", targetSize_m = 
 					" out of ammo";
 
 					targetStatusPopupTip (msg, 20);
+
+					# reset turret and gun positions with some random variation
+					setprop("" ~ myNodeName1 ~ "/" ~ elem ~ "/cannon-elev-deg" , thisWeapon.weaponAngle_deg.initialElevation + (4 * rand() - 2));
+					setprop("" ~ myNodeName1 ~ "/" ~ elem ~ "/turret-pos-deg" , thisWeapon.weaponAngle_deg.initialHeading + (10 * rand() - 5));
 				}
 			}
 						
@@ -8726,7 +8739,7 @@ records.record_impact = func ( myNodeName = "", damageRise = 0, damageIncrease =
 		if (! contains (currHash, i) ){
 			currHash[i] = {};
 							
-			#We don't save impacts per callsign, because misses & terrain
+			# We don't save impacts per callsign, because misses & terrain
 			# impacts can be picked up by any AI object or the main AC in a
 			# fairly random/meaningless fashion
 			if (count != 0) currHash[i].Total_Impacts = 0;
@@ -9477,10 +9490,14 @@ var initialize_func = func ( b ){
 			if (b.weapons[elem].maxDamage_percent <= 0) b.weapons[elem].maxDamageDistance_m = 1;
 			if (b.weapons[elem].weaponAngle_deg.heading == nil ) b.weapons[elem].weaponAngle_deg.heading = 0;
 			if (b.weapons[elem].weaponAngle_deg.elevation == nil ) b.weapons[elem].weaponAngle_deg.elevation = 0;
+			if (b.weapons[elem].weaponAngle_deg.headingMin == nil ) b.weapons[elem].weaponAngle_deg.headingMin = -60;
+			if (b.weapons[elem].weaponAngle_deg.headingMax == nil ) b.weapons[elem].weaponAngle_deg.headingMax = 60;
+			if (b.weapons[elem].weaponAngle_deg.elevationMin == nil ) b.weapons[elem].weaponAngle_deg.elevationMin = -20;
+			if (b.weapons[elem].weaponAngle_deg.elevationMax == nil ) b.weapons[elem].weaponAngle_deg.elevationMax = 20;
 			if (b.weapons[elem].weaponOffset_m.x == nil ) b.weapons[elem].weaponOffset_m.x = 0;
 			if (b.weapons[elem].weaponOffset_m.y == nil ) b.weapons[elem].weaponOffset_m.y = 0;
 			if (b.weapons[elem].weaponOffset_m.z == nil ) b.weapons[elem].weaponOffset_m.z = 0;
-								
+
 			if (!contains(b.weapons[elem], "weaponSize_m"))
 			b.weapons[elem].weaponSize_m = {start:nil, end:nil};
 								
@@ -9975,9 +9992,8 @@ var weaponsOrientationPositionUpdate = func (myNodeName, elem) {
 	var newHeading = math.atan2(aim.weaponDirModelFrame[0], aim.weaponDirModelFrame[1]) * R2D;
 	var newElev_ref = math.asin(aim.weaponDirRefFrame[2]) * R2D;
 	var newHeading_ref = math.atan2(aim.weaponDirRefFrame[0], aim.weaponDirRefFrame[1]) * R2D;
-	thisWeapon.weaponAngle_deg.heading = newHeading; #weaps is local to this function so these lines have no effect!!!
+	thisWeapon.weaponAngle_deg.heading = newHeading;
 	thisWeapon.weaponAngle_deg.elevation = newElev;
-	# see https://wiki.flightgear.org/Object_Oriented_Programming_with_Nasal#Hashes
 
 	setprop("" ~ myNodeName ~ "/" ~ elem ~ "/cannon-elev-deg" , newElev);
 	setprop("" ~ myNodeName ~ "/" ~ elem ~ "/turret-pos-deg" , -newHeading);
@@ -10143,8 +10159,10 @@ var weapons_init_func = func(myNodeName)
 			}
 		}
 		
-		# the weapon long lat and altitude should be set before tie-ing the fire particle to the aircraft
-		# these are calculated in checkAim
+		# the weapon particle system is offset from the AI model origin by vector weaponOffset_m, 
+		# which is defined in the AI model include file and in the co-ordinates of the model
+		# the x-axis points 180 degrees from the direction of travel; the y-axis points right; the z-axis up
+
 		put_tied_weapon
 			(
 				myNodeName, elem,
@@ -10153,6 +10171,10 @@ var weapons_init_func = func(myNodeName)
 		setprop ("/bombable/fire-particles/projectile-tracer[" ~ count ~ "]/projectile-startsize", thisWeapon.weaponSize_m.start);
 		setprop ("/bombable/fire-particles/projectile-tracer[" ~ count ~ "]/projectile-endsize", thisWeapon.weaponSize_m.end);
 		setprop ("/bombable/fire-particles/projectile-tracer[" ~ count ~ "]/ai-weapon-firing", 0); 
+		setprop ("/bombable/fire-particles/projectile-tracer[" ~ count ~ "]/ai-weapon-firing", 0); 
+		setprop ("/bombable/fire-particles/projectile-tracer[" ~ count ~ "]/offset-x", thisWeapon.weaponOffset_m.x); 
+		setprop ("/bombable/fire-particles/projectile-tracer[" ~ count ~ "]/offset-y", thisWeapon.weaponOffset_m.y); 
+		setprop ("/bombable/fire-particles/projectile-tracer[" ~ count ~ "]/offset-z", thisWeapon.weaponOffset_m.z); 
 		
 		# form vector for weapon direction, weapDir
 		var weapAngles = thisWeapon.weaponAngle_deg;
@@ -10165,6 +10187,10 @@ var weapons_init_func = func(myNodeName)
 		# set turret and gun to their default positions
 		setprop ("" ~ myNodeName ~ "/" ~ elem ~ "/turret-pos-deg", weapAngles.heading);
 		setprop ("" ~ myNodeName ~ "/" ~ elem ~ "/cannon-elev-deg", weapAngles.elevation);
+
+		# store initial values
+		weapAngles["initialHeading"] = weapAngles.heading;
+		weapAngles["initialElevation"] = weapAngles.elevation;
 			
 		thisWeapon.destroyed = 0;
 
@@ -10197,11 +10223,18 @@ var weapons_init_func = func(myNodeName)
 		{
 			thisWeapon["parent"] = "";
 		}
-		elsif (! contains ( attributes[myNodeName], thisWeapon["parent"] )  or (thisWeapon["parent"] == "" ~ elem))
+		elsif (!contains ( attributes[myNodeName].weapons, thisWeapon["parent"] ))
 		{
-			thisWeapon["parent"] = "";
+			debprint ("Weaps: ", myNodeName ~ "/" ~ elem ~ "parent not found - weapon failed to init");
+			delete(attributes[myNodeName].weapons, elem);
+			continue;
 		}
-	
+		elsif (thisWeapon["parent"] == "" ~ elem)
+		{
+			debprint ("Weaps: ", myNodeName ~ "/" ~ elem ~ "parent declared as self - weapon failed to init");
+			delete(attributes[myNodeName].weapons, elem);
+			continue;
+		}	
 		debprint ("Weaps: ", myNodeName, " initialized ", thisWeapon.name);
 		count += 1;
 	}
@@ -11129,6 +11162,7 @@ var rotate_round_y_axis = func (vector, beta) {
     return [x2, y2, z2];
 }
 var rotate_round_z_axis = func (vector, gamma) {
+	#rotate gamma degrees clockwise viewed in direction of -z
  
     var c_gamma = math.cos(gamma * D2R);
     var s_gamma = math.sin(gamma * D2R);
