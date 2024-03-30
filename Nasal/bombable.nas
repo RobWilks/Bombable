@@ -5442,8 +5442,12 @@ var mainAC_add_damage = func (damageRise = 0, damageTotal = 0, source = "", mess
 	elsif(damageValue < 0.0)
 	damageValue = 0.0;
 				
+	# comment line to stop damage to main aircraft and keep track of cumulative damage in a new node
 	# setprop("/bombable/attributes/damage", damageValue);
-	# comment line to stop damage to main aircraft  
+	var damageCumulative = getprop("/bombable/attributes/damageCumulative");
+	if (damageCumulative == nil ) damageCumulative = 0;
+	setprop("/bombable/attributes/damageCumulative", damageCumulative + damageRise);
+	
 				
 	damageIncrease = damageValue - prevDamageValue;
 				
@@ -6004,14 +6008,15 @@ var checkAim = func ( thisWeapon, myNodeName1 = "", myNodeName2 = "",
 		# pMiss for one round = 1 - pRound 
 
 		var sqrt_a = 0.7071 / thisWeapon.accuracy;
-		var pRound = 0.5 * ( erf(( targetOffset_rad + targetSize_rad ) * sqrt_a) -  erf(( targetOffset_rad - targetSize_rad ) * sqrt_a));;
+		var pRound = erf(( targetOffset_rad + targetSize_rad ) * sqrt_a) -  erf(( targetOffset_rad - targetSize_rad ) * sqrt_a);
+		pRound *= (1 - getprop (""~myNodeName1~"/velocities/true-airspeed-kt") / attributes[myNodeName1].velocities.maxSpeed_kt); # reduce probability if platform moving
 		thisWeapon.aim.pHit = 1 - math.pow( 1 - pRound , LOOP_TIME * thisWeapon.roundsPerSec);
 
 		debprint 
 		(
 			sprintf(
 			"Bombable: hit %s pHit = %6.3f offset deg = %6.2f weapPowerSkill = %4.1f",
-			myNodeName1~"/"~elem,
+			myNodeName1 ~ ":" ~ thisWeapon.name,
 			thisWeapon.aim.pHit,
 			targetOffset_rad * R2D,
 			weapPowerSkill)
@@ -6019,8 +6024,8 @@ var checkAim = func ( thisWeapon, myNodeName1 = "", myNodeName2 = "",
 	}
 	# change orientation of weapon
 	# a skilled gunner changes the direction of their weapon more frequently 
-	# children always move
-	if (( rand() < weapPowerSkill ) or (thisWeapon.parent != ""))
+	# weapons on slaved turrets ('children') must update more frequently since their aim is lost on movement of the parent turret
+	if ( rand() < weapPowerSkill * ((thisWeapon.parent != "") ? 1 : .5))
 	{ 
 		# ensure that newDir is in range of movement of weapon
 		var newElev = math.asin(newDir[2]) * R2D;
@@ -6196,11 +6201,13 @@ var weapons_loop = func (id, myNodeName1 = "", myNodeName2 = "", targetSize_m = 
 		# fire weapon
 		# bad gunners waste more ammo by firing when low pHit
 		# pFire = a * skillLevel + b
-		# a skilled gunner with an effective weapon will fire at 70% pHit; a weak combination at 30%
-		# then a = (pHigh - pLow ) / 9 ; b = (10 * pLow - pHigh ) / 9
+		# range of skill level 0.1 to 1.0 
+		# a skilled gunner with an effective weapon will fire at a higher likely damage threshold; a weak combination at 30%
+		# then a = 10 * (pHigh - pLow ) / 9 ; b = (10 * pLow - pHigh ) / 9
 
 		# if (thisWeapon.aim.pHit > ( 0.044444 * weapPowerSkill + .1555555 )) # 60% / 20%
-		if (thisWeapon.aim.pHit > ( 0.055555 * weapPowerSkill + .3444444 )) # 90% / 40%
+		# if (thisWeapon.aim.pHit * thisWeapon.maxDamage_percent > ( 0.55555 * weapPowerSkill + 3.444444 )) # 90% / 40% ; 10% damage
+		if ( (thisWeapon.aim.pHit * thisWeapon.maxDamage_percent) > (2.77777 * weapPowerSkill + 0.222222) ) # 60% / 10% ; 5% damage
 		# if (0) # omit for testing
 		{
 			if (thisWeapon.weaponType == 0)
@@ -6240,8 +6247,7 @@ var weapons_loop = func (id, myNodeName1 = "", myNodeName2 = "", targetSize_m = 
 			{
 				var ai_callsign = getCallSign (myNodeName1);
 							
-				var damageAdd = thisWeapon.aim.pHit * weaponPower;
-				if (damageAdd > thisWeapon.maxDamage_percent / 100) damageAdd = thisWeapon.maxDamage_percent / 100;
+				var damageAdd = thisWeapon.aim.pHit * weaponPower * thisWeapon.maxDamage_percent / 100;
 							
 				# Some chance of doing more damage (and a higher chance the closer the hit)
 				# if (r < thisWeapon.aim.pHit / 5 ) damageAdd  *=  3 * rand(); # rjw omitted
@@ -8490,6 +8496,7 @@ var aircraftCrashControl = func (myNodeName) {
 	# target_spd = getprop(""~myNodeName~ "/controls/flight/target-spd");
 	setprop (""~myNodeName~ "/velocities/true-airspeed-kt", newTrueAirspeed_fps * FPS2KT);
 	setprop (""~myNodeName~ "/controls/flight/target-spd", newTrueAirspeed_fps * FPS2KT);
+
 	
 	# Change pitch
 	setprop (""~myNodeName~ "/orientation/pitch-deg", newPitchAngle );
@@ -8876,7 +8883,7 @@ var add_damage = func(damageRise, myNodeName, damagetype = "weapon", impactNodeN
 		return damAdd;
 	}
 					
-	debprint (sprintf("Bombable: add_damage%5.2f to %s", damageRise, myNodeName));
+	debprint (sprintf("Bombable: add_damage%6.2f to %s", damageRise, myNodeName));
 	#var b = props.globals.getNode (""~myNodeName~"/bombable/attributes");
 	var vuls = attributes[myNodeName].vulnerabilities;
 	var spds = attributes[myNodeName].velocities;
@@ -8944,6 +8951,18 @@ var add_damage = func(damageRise, myNodeName, damagetype = "weapon", impactNodeN
 							
 			targetStatusPopupTip (msg, 20);
 		}
+
+		# a large hit can knock-out a weapon
+		if ( (damageRise > 0.1) and (rand() > .5) )
+			{
+				if(contains(attributes[myNodeName],"weapons"))
+				{
+					var weaps = attributes[myNodeName].weapons;
+					var nWeapons = size(weaps) ;
+					var index = int (rand() * nWeapons) ;
+					weaps[""~keys(weaps)[index]]["destroyed"] = 1;
+				}
+			}
 	}
 
 						
@@ -10222,7 +10241,7 @@ var weapons_init_func = func(myNodeName)
 		if (thisWeapon["nRounds"] == nil) thisWeapon["nRounds"] = 180; # number of rounds 
 		thisWeapon["ammo_seconds"] = thisWeapon.nRounds / thisWeapon.roundsPerSec; # time weapon can fire til out of ammo 
 		if (thisWeapon["accuracy"] == nil) thisWeapon["accuracy"] = 3; # angular variation of fire in degrees 
-		thisWeapon.accuracy *= R2D; # covert to radians	
+		thisWeapon.accuracy *= D2R; # covert to radians	
 
 		# key to indicate the position of the weapon is determined by the position of a parent weapon, e.g. turret and subturret
 		if (thisWeapon["parent"] == nil) 
@@ -11319,18 +11338,27 @@ var setWeaponPowerSkill = func(myNodeName)
 {
 	var power = getprop ("" ~bomb_menu_pp~ "ai-weapon-power");
 	if (power == nil) power = 0.2;
+	var skill = getprop ("" ~bomb_menu_pp~ "ai-aircraft-skill-level");
+	if (skill == nil) skill = 1;
+
+	# power ranges 0.2 to 1; skill ranges 1 to 5
+	# separate pilot skill from gunner skill, e.g. relevant for Flying Fortress?
 	# var skill = 0;
 	# var n = 8;
 	# for (var i = 0; i < n; i += 1) {skill += rand();} # ~norm distribution central limit theorem 
 	# SD = 1 / sqrt(12n)
 	# skill /= n;
-	var skill = rand();
+	# var skill = rand();
+
 
 	# Set weapPowerSkill, 0 to 1, an equal combination of weapon effectiveness and skill of pilot or gunner
 	# probability of a hit depends on effectiveness, skill and the number of attempts
-	# attempt frequency is set by LOOP_TIME the update time for the weapons loop
+	# attempt frequency is set by LOOP_TIME the update time for the weapons loop (not modelled)
+	# var weapPowerSkill = math.pow(( power + skill ) / 2.0, LOOP_TIME);
 
-	var weapPowerSkill = math.pow(( power + skill ) / 2.0, LOOP_TIME);
+
+	var weapPowerSkill = ( power + skill / 5.0 ) / 2.0 + rand() * 0.4 - 0.2 ;
+	if (weapPowerSkill > 1) weapPowerSkill = 1 elsif (weapPowerSkill < 0) weapPowerSkill = 0;
 	setprop(""~myNodeName~"/bombable/weapons-pilot-ability", weapPowerSkill);
 
 	debprint
