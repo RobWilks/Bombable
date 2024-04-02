@@ -4805,6 +4805,7 @@ var do_acrobatic_loop_loop = func
 		attributes[myNodeName].controls.dodgeInProgress = 0;
 		return;
 	}
+	# debprint("Bombable:  do_acrobatic_loop_loop ", loop_time, " ", full_loop_steps, " ", exit_steps, " ", direction, " ", rolldirenter, " ", rolldirexit, " ", vert_speed_add_kt, " ", loop_count);
 	loop_count += 1;
 	if (loop_count <= exit_steps ) settimer (func { do_acrobatic_loop_loop(id, myNodeName, loop_time, full_loop_steps, exit_steps, direction, rolldirenter, rolldirexit,vert_speed_add_kt, loop_count);}, loop_time/full_loop_steps);
 				
@@ -4935,8 +4936,7 @@ var do_acrobatic_loop = func
 		loop_time
 	);
 
-	#loopid same as other roll type maneuvers because only one can
-	#   happen at a time
+	# loopid same as other roll type maneuvers because only one can happen at a time
 	var loopid = getprop(""~myNodeName~"/bombable/loopids/roll-loopid");
 	if (loopid == nil) loopid = 0;
 	loopid  += 1;
@@ -5219,8 +5219,7 @@ var dodge = func(myNodeName) {
 
 	# skill ranges 0-5; 0 = disabled, so 1-5;
 	var skill = calcPilotSkill (myNodeName);
-	if (skill <= .2) skillMult = 3/0.2;
-	else skillMult = 3/skill;
+	var skillMult = (skill <= .2) ? 3/0.2 : 3/skill;
 				
 	# amount to dodge left-right, up to dodgeMax_deg in either direction
 	# (1-rand() * rand()) favors rolls towards the high end of the allowed range
@@ -7785,7 +7784,6 @@ var courseToMainAircraft = func (myNodeName){
 }
 
 ######################### attack_loop ###########################
-# attack_loop
 # Main loop for calculating attacks, changing direction, altitude, etc.
 #
 
@@ -7794,34 +7792,32 @@ var attack_loop = func (id, myNodeName, looptime) {
 	var loopid = getprop(""~myNodeName~"/bombable/loopids/attack-loopid");
 	id == loopid or return;
 				
-	#debprint ("attack_loop starting");
+	var atts = attributes[myNodeName].attacks;
+	if (  ! getprop (bomb_menu_pp~"ai-aircraft-attack-enabled") or ! getprop(bomb_menu_pp~"bombable-enabled") or 
+	getprop("" ~ myNodeName~"/bombable/attributes/damage") == 1 ) 
+	{
+		setprop(""~myNodeName~"/bombable/attack-looptime", atts.attackCheckTime_sec);
+		return;
+	}
 				
-	looptimealt = getprop(""~myNodeName~"/bombable/attack-looptime");
+	# dodging takes priority over attacking
+	var ctrls = attributes[myNodeName].controls;
+	if (ctrls.dodgeInProgress) return;
+
+	#debprint ("attack_loop starting");
+	var looptimealt = getprop(""~myNodeName~"/bombable/attack-looptime");
 	if (looptimealt != nil and looptimealt > 0) looptime = looptimealt;
 	setprop(""~myNodeName~"/bombable/attack-looptime", looptime);
 				
 	#skill ranges 0-5; 0 = disabled, so 1-5;
 	var skill = calcPilotSkill (myNodeName);
-	if (skill <= .2) skillMult = 3/0.2;
-	else skillMult = 3/skill;
-	 
+	var skillMult = (skill <= .2) ? 3/0.2 : 3/skill;
+
 	#Higher skill makes the AI pilot react faster/more often:
 	var looptimeActual = skillMult * looptime;
 	settimer ( func { attack_loop (id, myNodeName, looptime) }, looptimeActual);
 				
-	#we're going to say that dodging takes priority over attacking
-	var ctrls = attributes[myNodeName].controls;
-	if (ctrls.dodgeInProgress) return;
-				
-				
-	var atts = attributes[myNodeName].attacks;
 	var alts = attributes[myNodeName].altitudes;
-				
-	if (  ! getprop (bomb_menu_pp~"ai-aircraft-attack-enabled") or ! getprop(bomb_menu_pp~"bombable-enabled") or getprop("" ~ myNodeName~"/bombable/attributes/damage") == 1 ) {
-		setprop(""~myNodeName~"/bombable/attack-looptime", atts.attackCheckTime_sec);
-		return;
-	}
-				
 				
 	var dist = distAItoMainAircraft (myNodeName);
 	var courseToTarget_deg = courseToMainAircraft(myNodeName);
@@ -7833,23 +7829,22 @@ var attack_loop = func (id, myNodeName, looptime) {
 	deltaHeading_deg = math.mod (deltaHeading_deg + 180, 360) - 180;
 	var targetHeading_deg = getprop("/orientation/heading-deg");
 				
-	#whether or not to continue the attack when within minDistance
-	#If we are headed basically straight towards the Target aircraft
+	# whether or not to continue the attack when within minDistance:
+	# If we are headed basically straight towards the Target aircraft
 	# we continue (within continueAttackAngle_deg of straight on)
 	# or if we are still quite a ways above or below the main AC,
 	# we continue the attack
 	# otherwise we break off the attack/evade
 	var continueAttack = 0;
-	if ( dist[0] < atts.minDistance_m ) {
-					
-		var newAltLowerCutoff_m = atts.altitudeLowerCutoff_m/4;
+	if ( dist[0] < atts.minDistance_m ) 
+	{
+		var newAltLowerCutoff_m = atts.altitudeLowerCutoff_m / 4;
 		if (newAltLowerCutoff_m < 150) newAltLowerCutoff_m = 200;
-		var newAltHigherCutoff_m = atts.altitudeHigherCutoff_m/4;
+		var newAltHigherCutoff_m = atts.altitudeHigherCutoff_m / 4;
 		if (newAltHigherCutoff_m < 150) newAltHigherCutoff_m = 200;
 					
 		if (math.abs ( deltaHeading_deg ) < atts.continueAttackAngle_deg
 		or dist[1] < -newAltLowerCutoff_m or dist[1] > newAltHigherCutoff_m ) continueAttack = 1;
-					
 	}
 				
 	# readiness = 0 means it has little fuel/weapons left.  It will cease
@@ -7857,14 +7852,15 @@ var attack_loop = func (id, myNodeName, looptime) {
 	# However there is no point in attacking if no ammo at all, in that
 	# case only dodging/evading will happen.
 	var readinessAttack = 1;
-	if ( ! stores.checkAttackReadiness(myNodeName) ) {
-					
+	if ( ! stores.checkAttackReadiness(myNodeName) ) 
+	{
 		var newMaxDist_m = atts.maxDistance_m/8;
 		if (newMaxDist_m < atts.minDistance_m) newMaxDist_m = atts.minDistance_m * 1.5;
 					
-		readinessAttack = dist[0] < newMaxDist_m and ( dist[0] > atts.minDistance_m or continueAttack ) and dist[1] > -atts.altitudeLowerCutoff_m/3 and dist[1] < atts.altitudeHigherCutoff_m/3 and stores.checkWeaponsReadiness(myNodeName);
+		readinessAttack = ( dist[0] < newMaxDist_m ) and ( dist[0] > atts.minDistance_m or continueAttack ) and 
+		(dist[1] > -atts.altitudeLowerCutoff_m/3) and (dist[1] < atts.altitudeHigherCutoff_m/3) and stores.checkWeaponsReadiness(myNodeName);
 	}
-				
+	
 	# OK, we spend 13% of our time zoning out.  http://discovermagazine.com/2009/jul-aug/15-brain-stop-paying-attention-zoning-out-crucial-mental-state
 	# Or maybe we are distracted by some other task or whatever.  At any rate,
 	# this is a human factor for the possibility that they could have observed/
@@ -7878,14 +7874,14 @@ var attack_loop = func (id, myNodeName, looptime) {
 	# This only applies to the start of an attack.  Once attacking, presumably
 	# we are paying enough attention to continue.
 	var attentionFactor = 1;
-	if (rand() < .20 - 2 * skill/100) attentionFactor = 0;
+	if (rand() < .20 - 2 * skill / 100) attentionFactor = 0;
 				
 	# The further away we are, the less likely to notice the MainAC and start
 	# an attack.
 	# This only applies to the start of an attack.  Once attacking, presumably
 	# we are paying enough attention to continue.
 	var distanceFactor = 1;
-	if (rand() < dist[0]/atts.maxDistance_m) distanceFactor = 0;
+	if (rand() < dist[0] / atts.maxDistance_m) distanceFactor = 0;
 	if (dist[1] < 0) if  (rand() < -dist[1]/atts.altitudeLowerCutoff_m)  distanceFactor = 0;
 	elsif (rand() < dist[1]/atts.altitudeHigherCutoff_m)  distanceFactor = 0;
 				
@@ -7894,10 +7890,12 @@ var attack_loop = func (id, myNodeName, looptime) {
 				
 	var attack_inprogress = ctrls.attackInProgress;
 				
-	#criteria for attacking (or more precisely, for not attacking) . . . if
+	# criteria for attacking (or more precisely, for not attacking) . . . if
 	# we meet any of these criteria we do a few things then exit without attacking
-	if ( ! (dist[0] < atts.maxDistance_m and ( dist[0] > atts.minDistance_m or continueAttack ) and dist[1] > -atts.altitudeLowerCutoff_m and dist[1] < atts.altitudeHigherCutoff_m  and  readinessAttack and ( (attentionFactor and distanceFactor) or attack_inprogress ) ) )  {
-					
+	if ( ! (dist[0] < atts.maxDistance_m and ( dist[0] > atts.minDistance_m or continueAttack ) and
+	(dist[1] > -atts.altitudeLowerCutoff_m) and (dist[1] < atts.altitudeHigherCutoff_m)  and  
+	readinessAttack and ( (attentionFactor and distanceFactor) or attack_inprogress ) ) )  
+	{
 		#OK, no attack, we're too far away or too close & passed it, too low, too high, etc etc etc
 		#Instead we: 1. dodge if necessary 2. exit
 		#always dodge when close to Target aircraft--unless we're aiming at it
@@ -7905,23 +7903,24 @@ var attack_loop = func (id, myNodeName, looptime) {
 					
 		# When the AC is done attacking & dodging it will continue to fly in
 		# circles unless we do this
-		setprop (""~myNodeName~"/controls/flight/target-roll", rand() * 2-1);
+		setprop (""~myNodeName~"/controls/flight/target-roll", rand() * 2 - 1);
 					
 		#If not attacking, every once in a while we turn the AI AC in the general
 		#direction of the Main AC
-		#This is to keep the AC from getting too dispersed all over the place.
+		#This is to keep the AI AC from getting too dispersed all over the place.
 		#TODO: We could do lots of things here, like have the AC join up in squadrons,
 		#return to a certain staging area, patrol a certain area, or whatever.
-		if (rand() < .03 and atts.maxDistance_m) {
+		if (rand() < .03 and atts.maxDistance_m) 
+		{
 			aircraftTurnToHeading ( myNodeName, courseToTarget_deg, 60);
 			debprint ("Bombable: Not attacking, turning in general direction of main AC");
 		}
 
-		#are we ahead of or behind the target AC?  If behind, there is little point
+		# are we ahead of or behind the target AC?  If behind, there is little point
 		# in dodging.  aheadBehindTarget_deg will be 0 degrees if we're directly
-		# behind, 90 deg
-		# if directly to the side.  We dodge only if > 110 degrees, which puts
-		# us pretty much in frontish.
+		# behind, 90 deg if directly to the side.  
+		# We dodge only if > 110 degrees, which puts us pretty much in frontish.
+
 		var aheadBehindTarget_deg = normdeg180 (targetHeading_deg - courseToTarget_deg);
 					
 		if (dist[0] < atts.minDistance_m and rand() < skill/5 and math.abs(aheadBehindTarget_deg) > 110)  dodge( myNodeName);
@@ -7940,7 +7939,7 @@ var attack_loop = func (id, myNodeName, looptime) {
 	#debprint ("Bombable: Starting attack run of Target aircraft with " ~ myNodeName );
 	# (1-rand() * rand()) makes it choose values at the higher end of the range more often
 				
-	var roll_deg = (1-rand() * rand()) * (atts.rollMax_deg-atts.rollMin_deg) + atts.rollMin_deg;
+	var roll_deg = (1 - rand() * rand()) * (atts.rollMax_deg-atts.rollMin_deg) + atts.rollMin_deg;
 				
 	#debprint ("rolldeg:", roll_deg);
 				
@@ -7955,28 +7954,28 @@ var attack_loop = func (id, myNodeName, looptime) {
 				
 	#var aiAircraftPosition = any_aircraft_position(myNodeName);
 				
-	var targetAlt_m = geo.aircraft_position().alt();
-	attackCheckTimeEngaged_sec = atts.attackCheckTimeEngaged_sec;
+	var attackCheckTimeEngaged_sec = atts.attackCheckTimeEngaged_sec;
 				
 	#Easy mode makes the attack manuevers less aggressive
 	#if (skill == 2) roll_deg *= 0.9;
 	#if (skill == 1) roll_deg *= 0.8;
 				
 	#reduce the roll according to skill
-	roll_deg *= (skill+6)/12;
+	roll_deg *= (skill + 6) / 12;
 				
 	#debprint ("rolldeg:", roll_deg);
 				
-	courseToTarget_deg  +=  (rand() * 16-8) * skillMult; #keeps the moves from being so robotic and makes the lower skilled AI pilots less able to aim for the Target aircraft
+	courseToTarget_deg  +=  (rand() * 16 - 8) * skillMult; #keeps the moves from being so robotic and makes the lower skilled AI pilots less able to aim for the Target aircraft
 
 	#it turns out that the main AC's AGL is available in the prop tree, which is
 	#far quicker to access then the elev function, which is very slow
 	#elevTarget_m = elev (geo.aircraft_position().lat(),geo.aircraft_position().lon() ) * FT2M;
 	#targetAGL_m = targetAlt_m-elevTarget_m;
 				
-	targetAGL_m = getprop ("/position/altitude-agl-ft") * FT2M;
-	elevTarget_m = targetAlt_m-targetAGL_m;
-	currAlt_m = getprop(""~myNodeName~"/position/altitude-ft") * FT2M;
+	var targetAlt_m = getprop ("/position/altitude-ft") * FT2M;
+	var targetAGL_m = getprop ("/position/altitude-agl-ft") * FT2M;
+	var elevTarget_m = targetAlt_m - targetAGL_m; # height of ground at main AC position
+	var currAlt_m = getprop(""~myNodeName~"/position/altitude-ft") * FT2M;
 
 	ctrls.attackInProgress = 1;
 
@@ -7984,11 +7983,22 @@ var attack_loop = func (id, myNodeName, looptime) {
 	# target, we'll possibly do a loop or strong altitude move
 	# to get turned around, and continue that until we are closer than 90 degrees
 	# in heading delta
+	debprint( myNodeName, "continue attack: ", continueAttack, "readiness attack: ", readinessAttack );
+	debprint
+	(
+		sprintf
+		(
+			"deltaHeading_deg %5d attackClimbDiveInProgress %d attackClimbDiveTargetAGL_m %d", 
+			deltaHeading_deg, 
+			ctrls.attackClimbDiveInProgress, 
+			ctrls.attackClimbDiveTargetAGL_m
+		)
+	);			
 	if ( !attack_inprogress or math.abs ( deltaHeading_deg ) >= 90 ) 
 	{
-		#if we've already started an attack loop, keep doing it with the same
-		#  targetAGL, unless we have arrived within 500 meters of that elevation
-		#  already.  Also we randomly pick a new targetaltitude every so often
+		# if we've already started an attack loop, keep doing it with the same
+		# targetAGL, unless we have arrived within 500 meters of that elevation
+		# already.  Also we randomly pick a new targetaltitude every so often
 		if 
 		(
 			ctrls.attackClimbDiveInProgress and ctrls.attackClimbDiveTargetAGL_m > 0 and 
@@ -8000,10 +8010,10 @@ var attack_loop = func (id, myNodeName, looptime) {
 		} 
 		else
 		{
-			#otherwise, we are starting a new attack so we need to figure out what to do
+			# otherwise, we are starting a new attack so we need to figure out what to do
 
-			#if we're skilled and we have enough speed we'll do a loop to get in better position
-			#more skilled pilots do acrobatics more often
+			# if we're skilled and we have enough speed we'll do a loop to get in better position
+			# more skilled pilots do acrobatics more often
 			# in the Zero 130 kt is about the minimum speed needed to
 			# complete a loop without stalling.
 			# TODO: This varies by AC.  As a first try we're going with 2X
@@ -8019,16 +8029,16 @@ var attack_loop = func (id, myNodeName, looptime) {
 				return;
 			}
 						
-			#we want to mostly dodge to upper/lower extremes of our altitude limits
+			# we want to mostly dodge to upper/lower extremes of our altitude limits
 			var attackClimbDiveAddFact = 1 - rand() * rand() * rand();
-			#worse pilots don't dodge as far
+			# worse pilots don't dodge as far
 			attackClimbDiveAddFact *= (skill+3)/9;
-			#the direction of the Alt dodge will favor the direction that has more
+			# the direction of the Alt dodge will favor the direction that has more
 			# feet to dodge in the evasions definitions.  Some aircraft heavily favor
 			# diving to escape, for instance.
 			#
 						
-			#climb or dive more according to the aircraft's capabilities.
+			# climb or dive more according to the aircraft's capabilities.
 			# However note that by itself this will lead the AI AC to climb/dive
 			# away from the Target AC unless climbPower & divePower are equal.  So we
 			# mediate this by adjusting if it gets too far above/below the Target AC
@@ -8042,31 +8052,27 @@ var attack_loop = func (id, myNodeName, looptime) {
 			#var attackClimbDiveAddDirection = 2 * rand()-1;
 						
 						
-			#if we're too high or too low compared with Target AC then we'll climb or
-			#    dive towards it always.  This prevents aircraft from accidentally
-			#    climbing/diving away from the Target AC too much.
-			deltaAlt_m = currAlt_m - targetAlt_m;
-			if (deltaAlt_m > 0) {
+			# if we're too high or too low compared with Target AC then we'll climb or
+			# dive towards it always.  This prevents aircraft from accidentally
+			# climbing/diving away from the Target AC too much.
+			var deltaAlt_m = currAlt_m - targetAlt_m;
+			if (deltaAlt_m > 0) 
+			{
 				if ( deltaAlt_m > atts.divePower/6 ) attackClimbDiveAddDirection = -1;
-				} else {
+			}
+			else
+			{
 				if ( -deltaAlt_m > atts.climbPower/6 ) attackClimbDiveAddDirection = 1;
 			}
 						
-			#           #for FG's AI to make a good dive/climb the difference in altitude must be at least 5000 ft
+			# for FG's AI to make a good dive/climb the difference in altitude must be at least 5000 ft
 						
 			#target amount to climb or drop
-			if (attackClimbDiveAddDirection >= 0)
-			attackClimbDiveAdd_m = attackClimbDiveAddFact * atts.climbPower;
-			else
-			attackClimbDiveAdd_m = -attackClimbDiveAddFact * atts.divePower;
-						
-						
+			var attackClimbDiveAdd_m = (attackClimbDiveAddDirection >= 0) ? attackClimbDiveAddFact * atts.climbPower : -attackClimbDiveAddFact * atts.divePower ;
 						
 			#attackClimbDiveAdd_m = rand() * (atts.climbPower + atts.divePower) - atts.divePower;  #for FG's AI to make a good dive/climb the difference in altitude must be at least 5000 ft
 						
-						
 			targetAGL_m = currAlt_m + attackClimbDiveAdd_m - elevTarget_m;
-						
 						
 			if (targetAGL_m < alts.minimumAGL_m) targetAGL_m = alts.minimumAGL_m;
 			if (targetAGL_m > alts.maximumAGL_m) targetAGL_m = alts.maximumAGL_m;
@@ -8110,48 +8116,7 @@ var attack_loop = func (id, myNodeName, looptime) {
 				
 }
 			
-			
 
-######################################################
-# make an aircraft turn to a certain heading
-# older/nonworking version
-var aircraftTurnToHeadingOld = func (myNodeName, heading_deg = 0, roll_deg = 30, turntime = 15){
-	if (turntime <= 0) turntime = 1;
-	start_heading_deg = getprop (""~myNodeName~"/orientation/true-heading-deg");
-	diff_heading_deg = heading_deg-start_heading_deg;
-	while ( diff_heading_deg < 0 ) diff_heading_deg  +=  360;
-	if (diff_heading_deg > 180) diff_heading_deg  +=  - 360;
-				
-	roll_deg = math.sgn (diff_heading_deg) * math.abs(roll_deg);
-				
-	aircraftRoll(myNodeName,roll_deg,turntime/3);
-	settimer (func {
-		firstturn_heading_deg = getprop (""~myNodeName~"/orientation/true-heading-deg");
-		turnamount_deg = firstturn_heading_deg-start_heading_deg;
-		while ( turnamount_deg < 0 ) turnamount_deg  +=  360;
-		turnrate_degps = turnamount_deg/turntime * 3;
-					
-		remaining_deg = diff_heading_deg - 2 * turnamount_deg;
-		if (remaining_deg >= turnrate_degps * turntime/3 ) {
-			waittime = remaining_deg/turnrate_degps;
-			#hold the roll amount
-			aircraftRoll(myNodeName,0,waittime);
-			settimer (func { aircraftRoll (myNodeName, -roll_deg, turntime/3)},
-			waittime);
-						
-			} else {
-			roll_deg = math.sgn(remaining_deg) * roll_deg;
-			remainingturntime = remaining_deg/turnrate_degps;
-			aircraftRoll (myNodeName, roll_deg, remainingturntime)
-						
-		}
-					
-					
-	}, turntime/3);
-				
-
-
-}
 ################### aircraftSetVertSpeed ####################
 
 var aircraftSetVertSpeed = func (myNodeName, dodgeAltAmount_ft, evasORatts = "evas") {
@@ -8273,7 +8238,7 @@ var aircraftTurnToHeadingControl = func (myNodeName, id, targetdegrees = 0, roll
 	#whereas roll_limit_deg is the absolute max for the aircraft
 	# rjw unclear why need rollMax_deg _and_ roll_limit_deg; where are they set?  Assume these are in the bombable file included in the aircraft model
 	if (math.abs(targetRoll_deg) > math.abs(roll_limit_deg)) targetRoll_deg = math.abs(roll_limit_deg) * math.sgn(targetRoll_deg);
-	#debprint ("Bombable: Limit: ", roll_limit_deg, " rolldeg ", targetRoll_deg);
+	debprint ("Bombable: Limit: ", roll_limit_deg, " rolldeg ", targetRoll_deg);
 				
 	#rollMax_deg = getprop(""~myNodeName~"/bombable/attributes/attacks/rollMax_deg");
 	var rollMax_deg = atts.rollMax_deg;
@@ -8284,7 +8249,7 @@ var aircraftTurnToHeadingControl = func (myNodeName, id, targetdegrees = 0, roll
 
 
 				
-	#debprint ("Bombable: Setting roll-deg for ", myNodeName , " to ", targetRoll_deg, " 3086");
+	debprint ("Bombable: Setting roll-deg for ", myNodeName , " to ", targetRoll_deg);
 	setprop (""~myNodeName~ "/orientation/roll-deg", targetRoll_deg);
 	setprop (""~myNodeName~ "/orientation/roll-deg-bombable", targetRoll_deg);
 				
@@ -8351,6 +8316,8 @@ var aircraftTurnToHeadingControl = func (myNodeName, id, targetdegrees = 0, roll
 # make an aircraft turn to a certain heading
 #
 # called by attack_loop
+
+
 var aircraftTurnToHeading = func (myNodeName, targetdegrees = 0, rolldegrees = 45, targetAlt_m = "none", roll_limit_deg = 85, favor = "normal" ) {
 	#if (crashListener != 0 ) return;
 	#debprint ("Bombable: Starting aircraft turn-to-heading routine");
@@ -8365,7 +8332,7 @@ var aircraftTurnToHeading = func (myNodeName, targetdegrees = 0, rolldegrees = 4
 	targetdegrees = normdeg180(targetdegrees);
 	rolldegrees = normdeg180(rolldegrees);
 
-	#debprint ("Bombable: Starting turn-to-heading routine, loopid = ",loopid, " ", rolldegrees, " ", targetdegrees);
+	debprint ("Bombable: Starting turn-to-heading routine, loopid = ",loopid, " ", rolldegrees, " ", targetdegrees);
 	#props.globals.getNode(""~myNodeName~ "/orientation/rollTimeElapsed", 1).setValue( 0 );
 	currRoll_deg = getprop (""~myNodeName~ "/orientation/roll-deg");
 	if (currRoll_deg == nil) currRoll_deg = 0;
@@ -8793,7 +8760,7 @@ records.record_impact = func ( myNodeName = "", damageRise = 0, damageIncrease =
 					
 					
 	var weaponType = nil;
-	if (impactNodeName != nil) weaponType = getprop (""~impactNodeName~"/callsign");
+	if (impactNodeName != nil) weaponType = getprop (""~impactNodeName~"/name");
 	var ballCategory = nil;
 	if ( ballisticMass_lb < 1) ballCategory = "Small arms";
 	elsif ( ballisticMass_lb <= 10) ballCategory = "1-10 pound ordinance";
@@ -10748,7 +10715,7 @@ var attack_del = func(myNodeName)
 	#we increment this each time we are inited or de-inited
 	#when the loopid is changed it kills the timer loops that have that id
 	var loopid = inc_loopid(myNodeName, "attack");
-	inc_loopid(myNodeName, "speed-adjust");
+	var speedAdjust_loopid = inc_loopid(myNodeName, "speed-adjust");
 						
 	#set this to 0/false when de-inited
 	setprop(""~myNodeName~"/bombable/initializers/attack-initialized", 0);
