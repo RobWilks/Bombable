@@ -1537,7 +1537,7 @@ var resetBombableDamageFuelWeapons = func (myNodeName) {
 			# a new personality when they come back alive
 			var pilotAbility = math.pow (rand(), 1.5) ;
 			if (rand() > .5) pilotAbility = -pilotAbility;
-			setprop(""~myNodeName~"/bombable/attack-pilot-ability", pilotAbility);
+			atts.pilotAbility = pilotAbility;
 
 			setWeaponPowerSkill (myNodeName);							
 
@@ -2264,21 +2264,19 @@ var setupBombableMenu = func {
 # the current level of damage
 #
 
-var calcPilotSkill = func ( myNodeName ) {
+var calcPilotSkill = func ( myNodeName ) 
+{
 	#skill ranges 0-5; 0 = disabled, so 1-5;
 	var skill = getprop (bomb_menu_pp~"ai-aircraft-skill-level");
 	if (skill == nil) skill = 0;
-	var skillMult = 1;
+
 	#pilotSkill is a rand +/-1 in skill level per individual pilot
 	# so now skill ranges 0-6
-	var pilotSkill = getprop(""~myNodeName~"/bombable/attack-pilot-ability");
-	if (pilotSkill == nil) pilotSkill = 0;
-	skill += pilotSkill;
+	skill += attributes[myNodeName].attacks.pilotAbility;
 			
-	#ability to maneuever goes down as attack fuel reserves are depleted
+	#ability to manoeuvre goes down as attack fuel reserves are depleted
 	var fuelLevel = stores.fuelLevel (myNodeName);
-	if (fuelLevel < .2) skill  *=  fuelLevel/ 0.2;
-			
+	if (fuelLevel < .2) skill  *=  fuelLevel / 0.2;
 			
 	var damage = getprop(""~myNodeName~"/bombable/attributes/damage");
 			
@@ -4656,17 +4654,17 @@ var speed_adjust = func (myNodeName, time_sec )
 		if (termVel_kt > maxSpeed_kt) termVel_kt = maxSpeed_kt;
 					
 		add_velocity_fps = (1 - math.abs(airspeed_kt/termVel_kt)) * grav_fpss * time_sec/1.5;
-		debprint
-		(
-			sprintf
-			(
-				"Bombable: Speed Adjust, diving: %6.1f airspeed: %6.1f termVel: %6.1f %s",
-				add_velocity_fps * fps2knots,
-				airspeed_kt,
-				termVel_kt,
-				myNodeName 
-			)
-		);
+		# debprint
+		# (
+		# 	sprintf
+		# 	(
+		# 		"Bombable: Speed Adjust, diving: %6.1f airspeed: %6.1f termVel: %6.1f %s",
+		# 		add_velocity_fps * fps2knots,
+		# 		airspeed_kt,
+		# 		termVel_kt,
+		# 		myNodeName 
+		# 	)
+		# );
 	}
 					
 	# if we're above maxSpeed we make a fairly large/quick correction
@@ -5219,7 +5217,7 @@ var dodge = func(myNodeName) {
 
 	# skill ranges 0-5; 0 = disabled, so 1-5;
 	var skill = calcPilotSkill (myNodeName);
-	var skillMult = (skill <= .2) ? 3/0.2 : 3/skill;
+	var skillMult = (skill <= .2) ? 15 : 3/skill;
 				
 	# amount to dodge left-right, up to dodgeMax_deg in either direction
 	# (1-rand() * rand()) favors rolls towards the high end of the allowed range
@@ -7774,8 +7772,10 @@ var distAItoMainAircraft = func (myNodeName){
 }
 
 ######################### courseToMainAircraft ###########################
-#returns course from myNodeName to main aircraft
-#
+# returns course from myNodeName to main aircraft
+# rjw costly algorithm!
+# improve by reading positions from property tree
+
 var courseToMainAircraft = func (myNodeName){
 	mainAircraftPosition = geo.aircraft_position();
 	aiAircraftPosition = any_aircraft_position(myNodeName);
@@ -7787,16 +7787,30 @@ var courseToMainAircraft = func (myNodeName){
 # Main loop for calculating attacks, changing direction, altitude, etc.
 #
 
-var attack_loop = func (id, myNodeName, looptime) {
+var attack_loop = func ( id, myNodeName ) {
 				
 	var loopid = getprop(""~myNodeName~"/bombable/loopids/attack-loopid");
 	id == loopid or return;
-				
 	var atts = attributes[myNodeName].attacks;
+				
+	#debprint ("attack_loop starting");
+
+	# var looptimealt = getprop(""~myNodeName~"/bombable/attack-looptime");
+	# if (looptimealt != nil and looptimealt > 0) looptime = looptimealt;
+	# setprop(""~myNodeName~"/bombable/attack-looptime", looptime);
+				
+	#skill ranges 0-5; 0 = disabled, so 1-5;
+	var skill = calcPilotSkill (myNodeName);
+	var skillMult = (skill <= .2) ? 15 : 3/skill;
+	var loopTimeActual = skillMult * atts.loopTime;
+
+	#Higher skill makes the AI pilot react faster/more often:
+	settimer ( func { attack_loop ( id, myNodeName ) }, loopTimeActual );
+				
 	if (  ! getprop (bomb_menu_pp~"ai-aircraft-attack-enabled") or ! getprop(bomb_menu_pp~"bombable-enabled") or 
 	getprop("" ~ myNodeName~"/bombable/attributes/damage") == 1 ) 
 	{
-		setprop(""~myNodeName~"/bombable/attack-looptime", atts.attackCheckTime_sec);
+		atts.loopTime = atts.attackCheckTime_sec;
 		return;
 	}
 				
@@ -7804,19 +7818,6 @@ var attack_loop = func (id, myNodeName, looptime) {
 	var ctrls = attributes[myNodeName].controls;
 	if (ctrls.dodgeInProgress) return;
 
-	#debprint ("attack_loop starting");
-	var looptimealt = getprop(""~myNodeName~"/bombable/attack-looptime");
-	if (looptimealt != nil and looptimealt > 0) looptime = looptimealt;
-	setprop(""~myNodeName~"/bombable/attack-looptime", looptime);
-				
-	#skill ranges 0-5; 0 = disabled, so 1-5;
-	var skill = calcPilotSkill (myNodeName);
-	var skillMult = (skill <= .2) ? 3/0.2 : 3/skill;
-
-	#Higher skill makes the AI pilot react faster/more often:
-	var looptimeActual = skillMult * looptime;
-	settimer ( func { attack_loop (id, myNodeName, looptime) }, looptimeActual);
-				
 	var alts = attributes[myNodeName].altitudes;
 				
 	var dist = distAItoMainAircraft (myNodeName);
@@ -7927,12 +7928,12 @@ var attack_loop = func (id, myNodeName, looptime) {
 					
 		if ( dist[0] > atts.maxDistance_m ) stores.revitalizeAttackReadiness(myNodeName, dist[0]);
 					
-		setprop(""~myNodeName~"/bombable/attack-looptime", atts.attackCheckTime_sec);
+		atts.loopTime = atts.attackCheckTime_sec;
 		ctrls.attackInProgress = 0;
 		return;
 	}
 				
-	stores.reduceFuel (myNodeName, looptimeActual ); #deduct the amount of fuel from the tank
+	stores.reduceFuel (myNodeName, loopTimeActual ); #deduct the amount of fuel from the tank
 				
 	#attack
 	#
@@ -7979,21 +7980,22 @@ var attack_loop = func (id, myNodeName, looptime) {
 
 	ctrls.attackInProgress = 1;
 
-	# is this the start of our attack?  If so or if we're heading away from the
+	# is this the start of our attack?  If so, or if we're heading away from the
 	# target, we'll possibly do a loop or strong altitude move
 	# to get turned around, and continue that until we are closer than 90 degrees
 	# in heading delta
-	debprint( myNodeName, "continue attack: ", continueAttack, "readiness attack: ", readinessAttack );
-	debprint
-	(
-		sprintf
-		(
-			"deltaHeading_deg %5d attackClimbDiveInProgress %d attackClimbDiveTargetAGL_m %d", 
-			deltaHeading_deg, 
-			ctrls.attackClimbDiveInProgress, 
-			ctrls.attackClimbDiveTargetAGL_m
-		)
-	);			
+
+	# debprint( myNodeName, "continue attack: ", continueAttack, "readiness attack: ", readinessAttack );
+	# debprint
+	# (
+	# 	sprintf
+	# 	(
+	# 		"deltaHeading_deg %5d attackClimbDiveInProgress %d attackClimbDiveTargetAGL_m %d", 
+	# 		deltaHeading_deg, 
+	# 		ctrls.attackClimbDiveInProgress, 
+	# 		ctrls.attackClimbDiveTargetAGL_m
+	# 	)
+	# );			
 	if ( !attack_inprogress or math.abs ( deltaHeading_deg ) >= 90 ) 
 	{
 		# if we've already started an attack loop, keep doing it with the same
@@ -8090,28 +8092,26 @@ var attack_loop = func (id, myNodeName, looptime) {
 				
 	targetAlt_m = targetAGL_m + elevTarget_m;
 				
-	#var b = props.globals.getNode (""~myNodeName~"/bombable/attributes");
 	if (targetAGL_m < alts.minimumAGL_m ) targetAGL_m = alts.minimumAGL_m;
 	if (targetAGL_m > alts.maximumAGL_m ) targetAGL_m = alts.maximumAGL_m;
 				
-	#sometimes when the deltaheading is near 180 degrees we turn the opposite way of normal
+	# rjw commented out since not used by aircraftTurnToHeading
+	# 
+	# sometimes when the deltaheading is near 180 degrees we turn the opposite way of normal
 	#
-	#
-	var favor = getprop(""~myNodeName~"/bombable/favor-direction");
-	if ((favor != "normal" and favor != "opposite") or rand() < .003) {
-		var favor = "normal"; if (rand() > .5) favor = "opposite";
-		setprop(""~myNodeName~"/bombable/favor-direction", favor);
-	}
+	# var favor = getprop(""~myNodeName~"/bombable/favor-direction");
+	# if ((favor != "normal" and favor != "opposite") or rand() < .003) {
+	# 	var favor = "normal"; if (rand() > .5) favor = "opposite";
+	# 	setprop(""~myNodeName~"/bombable/favor-direction", favor);
+	# }
 				
 	aircraftSetVertSpeed (myNodeName, targetAlt_m - currAlt_m, "evas" );
 				
-	setprop(""~myNodeName~"/bombable/attributes/altitudes/targetAGL_ft", targetAGL_m * M2FT);
-	setprop(""~myNodeName~"/bombable/attributes/altitudes/targetAGL_m", targetAGL_m);
-	aircraftTurnToHeading ( myNodeName, courseToTarget_deg, roll_deg, targetAlt_m, atts.rollMax_deg, favor);
+	aircraftTurnToHeading ( myNodeName, courseToTarget_deg, roll_deg, targetAlt_m, atts.rollMax_deg );
 				
 				
 	#update more frequently when engaged with the main aircraft
-	setprop(""~myNodeName~"/bombable/attack-looptime", attackCheckTimeEngaged_sec);
+	atts.loopTime = attackCheckTimeEngaged_sec;
 				
 				
 }
@@ -8179,8 +8179,8 @@ var aircraftSetVertSpeed = func (myNodeName, dodgeAltAmount_ft, evasORatts = "ev
 # called by aircraftTurnToHeading
 # rollTime is the total time for the manoeuvre
 # rolldegrees is the maximum bank angle
-var aircraftTurnToHeadingControl = func (myNodeName, id, targetdegrees = 0, rolldegrees = 45, targetAlt_m = "none" ,  roll_limit_deg = 85, correction = 0 ) {
-				
+var aircraftTurnToHeadingControl = func (myNodeName, id, targetdegrees = 0, rolldegrees = 45, targetAlt_m = "none" ,  roll_limit_deg = 85, correction = 0 ) 
+{
 	var loopid = getprop(""~myNodeName~"/bombable/loopids/roll-loopid");
 	id == loopid or return;
 
@@ -8207,9 +8207,7 @@ var aircraftTurnToHeadingControl = func (myNodeName, id, targetdegrees = 0, roll
 	updateinterval_sec = .1;
 	maxTurnTime = 60; #max time to stay in this loop/a failsafe
 				
-	var rollTimeElapsed = getprop(""~myNodeName~ "/orientation/rollTimeElapsed");
-	if (rollTimeElapsed == nil) rollTimeElapsed = 0;
-	setprop(""~myNodeName~ "/orientation/rollTimeElapsed", rollTimeElapsed + updateinterval_sec);
+	attributes[myNodeName].controls.rollTimeElapsed += updateinterval_sec;
 				
 	atts = attributes[myNodeName].attacks;
 				
@@ -8224,8 +8222,6 @@ var aircraftTurnToHeadingControl = func (myNodeName, id, targetdegrees = 0, roll
 	if (rolltime < updateinterval_sec) rolltime = updateinterval_sec;
 	#props.globals.getNode(""~myNodeName~ "/position");
 	#ac_position = props.globals.getNode(myNodeName, 1).getParent().getPath();
-	var rollTimeElapsed = getprop(""~myNodeName~ "/orientation/rollTimeElapsed");
-	if (rollTimeElapsed == nil) rollTimeElapsed = 0;#rjw: check not necessary since check made earlier in this function
 	delta_deg = rolldegrees * updateinterval_sec / rolltime; #31/second for rolltime seconds
 
 	currRoll_deg = getprop(""~myNodeName~ "/orientation/roll-deg-bombable");
@@ -8238,7 +8234,7 @@ var aircraftTurnToHeadingControl = func (myNodeName, id, targetdegrees = 0, roll
 	#whereas roll_limit_deg is the absolute max for the aircraft
 	# rjw unclear why need rollMax_deg _and_ roll_limit_deg; where are they set?  Assume these are in the bombable file included in the aircraft model
 	if (math.abs(targetRoll_deg) > math.abs(roll_limit_deg)) targetRoll_deg = math.abs(roll_limit_deg) * math.sgn(targetRoll_deg);
-	debprint ("Bombable: Limit: ", roll_limit_deg, " rolldeg ", targetRoll_deg);
+	# debprint ("Bombable: Limit: ", roll_limit_deg, " rolldeg ", targetRoll_deg);
 				
 	#rollMax_deg = getprop(""~myNodeName~"/bombable/attributes/attacks/rollMax_deg");
 	var rollMax_deg = atts.rollMax_deg;
@@ -8249,7 +8245,7 @@ var aircraftTurnToHeadingControl = func (myNodeName, id, targetdegrees = 0, roll
 
 
 				
-	debprint ("Bombable: Setting roll-deg for ", myNodeName , " to ", targetRoll_deg);
+	# debprint ("Bombable: Setting roll-deg for ", myNodeName , " to ", targetRoll_deg);
 	setprop (""~myNodeName~ "/orientation/roll-deg", targetRoll_deg);
 	setprop (""~myNodeName~ "/orientation/roll-deg-bombable", targetRoll_deg);
 				
@@ -8297,18 +8293,24 @@ var aircraftTurnToHeadingControl = func (myNodeName, id, targetdegrees = 0, roll
 				
 	#debprint("Bombable: RollControl: delta = ",delta_deg, " ",targetRoll_deg," ", myNodeName);
 	# Make it roll:
-	setprop(""~myNodeName~ "/orientation/rollTimeElapsed", rollTimeElapsed+updateinterval_sec);
-				
+
+	var rollTimeElapsed = attributes[myNodeName].controls.rollTimeElapsed;
+			
 	cutoff = math.abs(rolldegrees)/5;
 	if (cutoff < 1) cutoff = 1;
 	#wait a while & then roll back.  correction makes sure we don't keep
 	# doing this repeatedly
-	if ( math.abs(delta_heading_deg) > cutoff and rollTimeElapsed < maxTurnTime ) settimer (func { aircraftTurnToHeadingControl(myNodeName, loopid, targetdegrees, rolldegrees, targetAlt_m, roll_limit_deg)}, updateinterval_sec );
-	else {
-		setprop(""~myNodeName~ "/orientation/rollTimeElapsed", 0);
-		#debprint ("Bombable: Ending aircraft turn-to-heading routine");
-		#aircraftRoll(myNodeName, 0, rolltime, roll_limit_deg);
+	if ( math.abs(delta_heading_deg) > cutoff and rollTimeElapsed < maxTurnTime ) 
+	{
+		attributes[myNodeName].controls.rollTimeElapsed = rollTimeElapsed + updateinterval_sec;
+		settimer (func { aircraftTurnToHeadingControl(myNodeName, loopid, targetdegrees, rolldegrees, targetAlt_m, roll_limit_deg)}, updateinterval_sec );
+
+	}
+	else 
+	{
+		attributes[myNodeName].controls.rollTimeElapsed = 0;
 		setprop(""~myNodeName~"/controls/flight/target-hdg", targetdegrees);
+		#debprint ("Bombable: Ending aircraft turn-to-heading routine");
 	}
 }
 
@@ -8318,7 +8320,8 @@ var aircraftTurnToHeadingControl = func (myNodeName, id, targetdegrees = 0, roll
 # called by attack_loop
 
 
-var aircraftTurnToHeading = func (myNodeName, targetdegrees = 0, rolldegrees = 45, targetAlt_m = "none", roll_limit_deg = 85, favor = "normal" ) {
+var aircraftTurnToHeading = func (myNodeName, targetdegrees = 0, rolldegrees = 45, targetAlt_m = "none", roll_limit_deg = 85 ) 
+{
 	#if (crashListener != 0 ) return;
 	#debprint ("Bombable: Starting aircraft turn-to-heading routine");
 	#same as roll-loopid ID because we can't do this & roll @ the same time
@@ -8326,14 +8329,12 @@ var aircraftTurnToHeading = func (myNodeName, targetdegrees = 0, rolldegrees = 4
 	if (loopid == nil) loopid = 0;
 	loopid  += 1;
 	setprop(""~myNodeName~"/bombable/loopids/roll-loopid", loopid);
-				
-	setprop(""~myNodeName~ "/orientation/rollTimeElapsed", 0);
+	attributes[myNodeName].controls.rollTimeElapsed = 0;
 				
 	targetdegrees = normdeg180(targetdegrees);
 	rolldegrees = normdeg180(rolldegrees);
 
 	debprint ("Bombable: Starting turn-to-heading routine, loopid = ",loopid, " ", rolldegrees, " ", targetdegrees);
-	#props.globals.getNode(""~myNodeName~ "/orientation/rollTimeElapsed", 1).setValue( 0 );
 	currRoll_deg = getprop (""~myNodeName~ "/orientation/roll-deg");
 	if (currRoll_deg == nil) currRoll_deg = 0;
 	props.globals.getNode(""~myNodeName~ "/orientation/roll-deg-bombable", 1).setValue( currRoll_deg );
@@ -8341,11 +8342,13 @@ var aircraftTurnToHeading = func (myNodeName, targetdegrees = 0, rolldegrees = 4
 	start_heading_deg = getprop (""~myNodeName~"/orientation/true-heading-deg");
 	delta_heading_deg = normdeg180(targetdegrees-start_heading_deg);
 				
-	#if close to 180 degrees off we sometimes/randomly choose to turn the
+	# if close to 180 degrees off we sometimes/randomly choose to turn the
 	# opposite direction.  Just for variety/reduce robotic-ness.
-	#if (math.abs(delta_heading_deg) > 150 and favor == "opposite") {
+	# if (math.abs(delta_heading_deg) > 150 and favor == "opposite") {
 		#   targetdegrees = start_heading_deg-delta_heading_deg;
 	#   }
+	# rjw commented out by bhugh - if function called several times to set direction then will flip-flop
+	# favor removed from function arguments
 
 				
 	aircraftTurnToHeadingControl (myNodeName, loopid, targetdegrees, rolldegrees, targetAlt_m, roll_limit_deg);
@@ -8379,8 +8382,7 @@ var aircraftRollControl = func (myNodeName, id, rolldegrees = -90, rolltime = 5,
 	#props.globals.getNode(""~myNodeName~ "/position");
 	#ac_position = props.globals.getNode(myNodeName, 1).getParent().getPath();
 
-	var rollTimeElapsed = getprop(""~myNodeName~ "/orientation/rollTimeElapsed");
-	if (rollTimeElapsed == nil) rollTimeElapsed = 0;
+
 	var startRoll_deg = getprop(""~myNodeName~ "/orientation/start-roll-deg");
 	if (startRoll_deg == nil) startRoll_deg = 0;
 	delta_deg = (rolldegrees-startRoll_deg) * updateinterval_sec/rolltime;
@@ -8414,12 +8416,17 @@ var aircraftRollControl = func (myNodeName, id, rolldegrees = -90, rolltime = 5,
 				
 	#debprint("Bombable: RollControl: delta = ",delta_deg, " ",targetRoll_deg," ", myNodeName);
 	# Make it roll:
-	setprop(""~myNodeName~ "/orientation/rollTimeElapsed", rollTimeElapsed + updateinterval_sec);
+	
+	var rollTimeElapsed = attributes[myNodeName].controls.rollTimeElapsed;
 				
-	if ( rollTimeElapsed < rolltime ) settimer (func { aircraftRollControl(myNodeName, loopid, rolldegrees, rolltime, roll_limit_deg)}, updateinterval_sec, roll_limit_deg );
+	if ( rollTimeElapsed < rolltime )
+	{
+		attributes[myNodeName].controls.rollTimeElapsed = rollTimeElapsed + updateinterval_sec;
+		settimer (func { aircraftRollControl(myNodeName, loopid, rolldegrees, rolltime, roll_limit_deg)}, updateinterval_sec, roll_limit_deg );
+	}
 	else 
 	{
-		setprop(""~myNodeName~ "/orientation/rollTimeElapsed", 0);
+		attributes[myNodeName].controls.rollTimeElapsed = 0;
 		#debprint ("Bombable: Ending aircraft roll routine");
 	}
 }
@@ -8427,7 +8434,8 @@ var aircraftRollControl = func (myNodeName, id, rolldegrees = -90, rolltime = 5,
 ################################## aircraftRoll ################################
 # Will roll the AC from whatever roll deg it is at, to rolldegrees in rolltime
 # Initialises aircraftRollControl
-var aircraftRoll = func (myNodeName, rolldegrees = -60, rolltime = 5, roll_limit_deg = 85) {
+var aircraftRoll = func (myNodeName, rolldegrees = -60, rolltime = 5, roll_limit_deg = 85) 
+{
 				
 	#if (crashListener != 0 ) return;
 	#debprint ("Bombable: Starting aircraft roll routine");
@@ -8439,9 +8447,9 @@ var aircraftRoll = func (myNodeName, rolldegrees = -60, rolltime = 5, roll_limit
 	setprop(""~myNodeName~"/bombable/loopids/roll-loopid", loopid);
 
 	debprint ("Bombable: Starting roll routine, loopid = ",loopid, " ", rolldegrees, " ", rolltime, " for " ~ myNodeName);
-	props.globals.getNode(""~myNodeName~ "/orientation/rollTimeElapsed", 1).setValue( 0 );
 	currRoll_deg = getprop (""~myNodeName~ "/orientation/roll-deg");
 	if (currRoll_deg == nil) currRoll_deg = 0;
+	attributes[myNodeName].controls.rollTimeElapsed = 0;
 	props.globals.getNode(""~myNodeName~ "/orientation/roll-deg-bombable", 1).setValue( currRoll_deg );
 	props.globals.getNode(""~myNodeName~ "/orientation/start-roll-deg", 1).setValue( currRoll_deg );
 
@@ -9355,6 +9363,7 @@ var initialize_func = func ( b ){
 		attackClimbDiveInProgress : 0,
 		attackClimbDiveTargetAGL_m : 0,
 		stalling: 0,
+		rollTimeElapsed: 0,
 	};
 
 	if (! contains (b, "type")) b["type"] = props.globals.getNode(""~b.objectNodeName).getName(); # key allows AI ship models to be used as ground vehicles by adding type:"groundvehicle" to Bombable attributes hash
@@ -10006,9 +10015,9 @@ var attack_init_func = func(myNodeName)
 	# Set an individual pilot ability, -1 to 1, with 0 being average
 	var pilotAbility = math.pow (rand(), 1.5) ; # U-shaped distribution???
 	if (rand() > .5) pilotAbility = -pilotAbility;
-	setprop(""~myNodeName~"/bombable/attack-pilot-ability", pilotAbility);
-						
-	settimer(func {attack_loop(loopid, myNodeName, attackCheckTime); }, attackCheckTime + rand());
+	atts["pilotAbility"] = pilotAbility;
+	atts["loopTime"] = attackCheckTime + rand();						
+	settimer( func {attack_loop(loopid, myNodeName); }, atts.loopTime );
 						
 	#start the speed adjust loop.  Adjust speed up/down depending on climbing/
 	# diving, or level flight; only for AI aircraft.
