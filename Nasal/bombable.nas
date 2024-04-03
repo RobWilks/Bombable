@@ -8119,7 +8119,8 @@ var attack_loop = func ( id, myNodeName ) {
 
 ################### aircraftSetVertSpeed ####################
 
-var aircraftSetVertSpeed = func (myNodeName, dodgeAltAmount_ft, evasORatts = "evas") {
+var aircraftSetVertSpeed = func (myNodeName, dodgeAltAmount_ft, evasORatts = "evas") 
+{
 
 	var vels = attributes[myNodeName].velocities;
 	var evas = attributes[myNodeName].evasions;
@@ -8207,9 +8208,10 @@ var aircraftTurnToHeadingControl = func (myNodeName, id, targetdegrees = 0, roll
 	updateinterval_sec = .1;
 	maxTurnTime = 60; #max time to stay in this loop/a failsafe
 				
-	attributes[myNodeName].controls.rollTimeElapsed += updateinterval_sec;
-				
-	atts = attributes[myNodeName].attacks;
+	var atts = attributes[myNodeName].attacks;
+	var ctrls = attributes[myNodeName].controls;			
+	
+	ctrls.rollTimeElapsed += updateinterval_sec;
 				
 	if (atts.rollRateMax_degpersec == nil or atts.rollRateMax_degpersec <= 0)
 	atts.rollRateMax_degpersec = 50;
@@ -8224,9 +8226,7 @@ var aircraftTurnToHeadingControl = func (myNodeName, id, targetdegrees = 0, roll
 	#ac_position = props.globals.getNode(myNodeName, 1).getParent().getPath();
 	delta_deg = rolldegrees * updateinterval_sec / rolltime; #31/second for rolltime seconds
 
-	currRoll_deg = getprop(""~myNodeName~ "/orientation/roll-deg-bombable");
-	if (currRoll_deg == nil) currRoll_deg = 0;
-	targetRoll_deg = currRoll_deg + delta_deg;
+	var targetRoll_deg = ctrls.roll_deg_bombable + delta_deg;
 	#Fg turns too quickly to be believable if the roll gets about 78 degrees or so.
 	#rolldegrees limits the max roll allowed for this manoeuvre
 	if (math.abs(targetRoll_deg) > math.abs(rolldegrees)) targetRoll_deg = math.abs(rolldegrees) * math.sgn (targetRoll_deg);
@@ -8247,7 +8247,7 @@ var aircraftTurnToHeadingControl = func (myNodeName, id, targetdegrees = 0, roll
 				
 	# debprint ("Bombable: Setting roll-deg for ", myNodeName , " to ", targetRoll_deg);
 	setprop (""~myNodeName~ "/orientation/roll-deg", targetRoll_deg);
-	setprop (""~myNodeName~ "/orientation/roll-deg-bombable", targetRoll_deg);
+	ctrls.roll_deg_bombable = targetRoll_deg;
 				
 	#set the target altitude as well.  flight/target-alt is in ft
 	if (targetAlt_m != "none") {
@@ -8304,7 +8304,6 @@ var aircraftTurnToHeadingControl = func (myNodeName, id, targetdegrees = 0, roll
 	{
 		attributes[myNodeName].controls.rollTimeElapsed = rollTimeElapsed + updateinterval_sec;
 		settimer (func { aircraftTurnToHeadingControl(myNodeName, loopid, targetdegrees, rolldegrees, targetAlt_m, roll_limit_deg)}, updateinterval_sec );
-
 	}
 	else 
 	{
@@ -8322,7 +8321,9 @@ var aircraftTurnToHeadingControl = func (myNodeName, id, targetdegrees = 0, roll
 
 var aircraftTurnToHeading = func (myNodeName, targetdegrees = 0, rolldegrees = 45, targetAlt_m = "none", roll_limit_deg = 85 ) 
 {
-	#if (crashListener != 0 ) return;
+	# aircraftTurnToHeading does not do much - merge with aircraftTurnToHeadingControl?
+	
+	# if (crashListener != 0 ) return;
 	#debprint ("Bombable: Starting aircraft turn-to-heading routine");
 	#same as roll-loopid ID because we can't do this & roll @ the same time
 	var loopid = getprop(""~myNodeName~"/bombable/loopids/roll-loopid");
@@ -8335,23 +8336,22 @@ var aircraftTurnToHeading = func (myNodeName, targetdegrees = 0, rolldegrees = 4
 	rolldegrees = normdeg180(rolldegrees);
 
 	debprint ("Bombable: Starting turn-to-heading routine, loopid = ",loopid, " ", rolldegrees, " ", targetdegrees);
-	currRoll_deg = getprop (""~myNodeName~ "/orientation/roll-deg");
-	if (currRoll_deg == nil) currRoll_deg = 0;
-	props.globals.getNode(""~myNodeName~ "/orientation/roll-deg-bombable", 1).setValue( currRoll_deg );
 
-	start_heading_deg = getprop (""~myNodeName~"/orientation/true-heading-deg");
-	delta_heading_deg = normdeg180(targetdegrees-start_heading_deg);
-				
-	# if close to 180 degrees off we sometimes/randomly choose to turn the
-	# opposite direction.  Just for variety/reduce robotic-ness.
-	# if (math.abs(delta_heading_deg) > 150 and favor == "opposite") {
-		#   targetdegrees = start_heading_deg-delta_heading_deg;
-	#   }
 	# rjw commented out by bhugh - if function called several times to set direction then will flip-flop
 	# favor removed from function arguments
 
-				
+	# if close to 180 degrees off we sometimes/randomly choose to turn the
+	# opposite direction.  Just for variety/reduce robotic-ness.
+	# var start_heading_deg = getprop (""~myNodeName~"/orientation/true-heading-deg");
+	# var delta_heading_deg = normdeg180(targetdegrees - start_heading_deg);
+	# if (math.abs(delta_heading_deg) > 150 and favor == "opposite") {
+		#   targetdegrees = start_heading_deg-delta_heading_deg;
+	#   }
+
+
 	aircraftTurnToHeadingControl (myNodeName, loopid, targetdegrees, rolldegrees, targetAlt_m, roll_limit_deg);
+
+
 	#turn it off after 10 seconds
 	#settimer (func {removelistener(crashListener); crashListener = 0;}, 10);
 				
@@ -8379,42 +8379,36 @@ var aircraftRollControl = func (myNodeName, id, rolldegrees = -90, rolltime = 5,
 				
 	var updateinterval_sec = .1;
 	if (rolltime < updateinterval_sec) rolltime = updateinterval_sec;
-	#props.globals.getNode(""~myNodeName~ "/position");
-	#ac_position = props.globals.getNode(myNodeName, 1).getParent().getPath();
 
 
 	var startRoll_deg = getprop(""~myNodeName~ "/orientation/start-roll-deg");
 	if (startRoll_deg == nil) startRoll_deg = 0;
-	delta_deg = (rolldegrees-startRoll_deg) * updateinterval_sec/rolltime;
-	currRoll_deg = getprop(""~myNodeName~ "/orientation/roll-deg-bombable");
-	#rjw why do we use roll-deg-bombable rather than roll-deg?
-	if (currRoll_deg == nil) currRoll_deg = 0;
-	targetRoll_deg = currRoll_deg + delta_deg;
+	var delta_deg = ( rolldegrees - startRoll_deg ) * updateinterval_sec / rolltime;
+	attributes[myNodeName].controls.roll_deg_bombable += delta_deg;
+	var targetRoll_deg = attributes[myNodeName].controls.roll_deg_bombable;
+
 	#Fg turns too quickly to be believable if the roll gets about 78 degrees or so.
 	#Fg seems to go totally whacky if the roll gets to, or close to, 90 degrees
+	# bombable keeps the 'uncorrected' amount because normal behavior
+	# is to go to a certain degree & then return.  If we capped at 85 deg
+	# then we would end up returning too far
 
 	if (targetRoll_deg > roll_limit_deg ) targetRoll_deg = roll_limit_deg;
 	if (targetRoll_deg < -roll_limit_deg) targetRoll_deg = -roll_limit_deg;
 				
 				
 	if (math.abs(targetRoll_deg) > roll_limit_deg) targetRoll_deg = roll_limit_deg * math.sgn(targetRoll_deg);
-	#rollMax_deg = getprop(""~myNodeName~"/bombable/attributes/attacks/rollMax_deg");
-	rollMax_deg = attributes[myNodeName].attacks.rollMax_deg;
+	var rollMax_deg = attributes[myNodeName].attacks.rollMax_deg;
 	if (rollMax_deg == nil) rollMax_deg = 50;
 	if (math.abs(targetRoll_deg) > rollMax_deg) targetRoll_deg = rollMax_deg * math.sgn(targetRoll_deg);
 				
 	#if (math.abs (currRoll_deg - targetRoll_deg) > 5) debprint ("Bombable: Changing roll: ", currRoll_deg - targetRoll_deg, " ", myNodeName, " 3238");
-				
 	#debprint ("Bombable: Setting roll-deg for ", myNodeName , " to ", targetRoll_deg, " 3240");
+	#debprint("Bombable: RollControl: delta = ",delta_deg, " ",targetRoll_deg," ", myNodeName);
+	
+	
 	setprop (""~myNodeName~ "/orientation/roll-deg", targetRoll_deg);
 				
-				
-	# we keep the 'uncorrected' amount internally because normal behavior
-	# is to go to a certain degree & then return.  If we capped at 85 deg
-	# then we would end up returning too far
-	setprop (""~myNodeName~ "/orientation/roll-deg-bombable", currRoll_deg + delta_deg);
-				
-	#debprint("Bombable: RollControl: delta = ",delta_deg, " ",targetRoll_deg," ", myNodeName);
 	# Make it roll:
 	
 	var rollTimeElapsed = attributes[myNodeName].controls.rollTimeElapsed;
@@ -8445,12 +8439,13 @@ var aircraftRoll = func (myNodeName, rolldegrees = -60, rolltime = 5, roll_limit
 	if (loopid == nil) loopid = 0;
 	loopid  +=  1;
 	setprop(""~myNodeName~"/bombable/loopids/roll-loopid", loopid);
+	var ctrls = attributes[myNodeName].controls;
 
 	debprint ("Bombable: Starting roll routine, loopid = ",loopid, " ", rolldegrees, " ", rolltime, " for " ~ myNodeName);
 	currRoll_deg = getprop (""~myNodeName~ "/orientation/roll-deg");
 	if (currRoll_deg == nil) currRoll_deg = 0;
-	attributes[myNodeName].controls.rollTimeElapsed = 0;
-	props.globals.getNode(""~myNodeName~ "/orientation/roll-deg-bombable", 1).setValue( currRoll_deg );
+	ctrls.rollTimeElapsed = 0;
+	ctrls.roll_deg_bombable = currRoll_deg;
 	props.globals.getNode(""~myNodeName~ "/orientation/start-roll-deg", 1).setValue( currRoll_deg );
 
 	aircraftRollControl(myNodeName, loopid, rolldegrees, rolltime, roll_limit_deg);
@@ -9364,6 +9359,7 @@ var initialize_func = func ( b ){
 		attackClimbDiveTargetAGL_m : 0,
 		stalling: 0,
 		rollTimeElapsed: 0,
+		roll_deg_bombable: 0,
 	};
 
 	if (! contains (b, "type")) b["type"] = props.globals.getNode(""~b.objectNodeName).getName(); # key allows AI ship models to be used as ground vehicles by adding type:"groundvehicle" to Bombable attributes hash
