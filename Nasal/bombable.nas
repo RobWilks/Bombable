@@ -1536,9 +1536,9 @@ var resetBombableDamageFuelWeapons = func (myNodeName) {
 					
 			#take the opportunity to reset the pilot's abilities, giving them
 			# a new personality when they come back alive
-			var pilotAbility = math.pow (rand(), 1.5) ;
-			if (rand() > .5) pilotAbility = -pilotAbility;
-			atts.pilotAbility = pilotAbility;
+			var ability = math.pow (rand(), 1.5); 
+			if (rand() > .5) ability = -ability;
+			ctrls.pilotAbility = ability;
 
 			setWeaponPowerSkill (myNodeName);							
 
@@ -2273,7 +2273,7 @@ var calcPilotSkill = func ( myNodeName )
 
 	#pilotSkill is a rand +/-1 in skill level per individual pilot
 	# so now skill ranges 0-6
-	skill += attributes[myNodeName].attacks.pilotAbility;
+	skill += attributes[myNodeName].controls.pilotAbility;
 			
 	#ability to manoeuvre goes down as attack fuel reserves are depleted
 	var fuelLevel = stores.fuelLevel (myNodeName);
@@ -5006,12 +5006,11 @@ var choose_random_acrobatic = func (myNodeName)
 var choose_attack_acrobatic = func 
 (
 	myNodeName, dist, myHeading_deg,
-	targetHeading_deg, courseToTarget_deg, deltaHeading_deg, currSpeed_kt,
+	targetHeading_deg, deltaHeading_deg, currSpeed_kt,
 	skill, currAlt_m, targetAlt_m, elevTarget_m
 )
 
 {
-				
 	var ret = 1;
 				
 	var alts = attributes[myNodeName].altitudes;
@@ -5019,12 +5018,10 @@ var choose_attack_acrobatic = func
 	var time = 12  + (7-skill) * 2.5 + 30 * math.abs(currAlt_m-targetAlt_m)/10000;
 	if (time > 45) time = 45;
 				
-				
-				
-	#at 125 kts we can do a 20 second loop; at 250 a 60 second loop, maximum.
+	# at 125 kts we can do a 20 second loop; at 250 a 60 second loop, maximum.
 	# TODO: Should be airplane specific or dependent on the AC's characteristics
-	# somehow.  Formula below based on minSpeed_kt is the first try.
-	vels = attributes[myNodeName].velocities;
+	# Formula below based on minSpeed_kt is the first try.
+	var vels = attributes[myNodeName].velocities;
 	var maxTime = (currSpeed_kt - vels.minSpeed_kt * 2.2) / vels.minSpeed_kt / 2.2 * 25 + 12;
 				
 	if (time > maxTime) time = maxTime;
@@ -5040,9 +5037,7 @@ var choose_attack_acrobatic = func
 	#loops only help if the target is behind us
 	if ( math.abs(deltaHeading_deg) >= 100) 
 	{
-		var vels = attributes[myNodeName].velocities;
-					
-		#if we're going same direction as target and it is close behind
+		# if we're going same direction as target and it is close behind
 		# us we try a 3/4 loop to try to slip in right behind it
 		if ( math.abs(normdeg180(myHeading_deg - targetHeading_deg)) < 90 and
 		dist < currSpeed_kt * time / 3600 * nmiles2meters ) var steps = 85;
@@ -5051,16 +5046,17 @@ var choose_attack_acrobatic = func
 		# just do an immelmann loop to get turned around in its direction
 		else var steps = 48;
 					
-		#if target is above us or not enough room below for a loop,
+		# if target is above us or not enough room below for a loop,
 		# or going too fast to do a downwards loop, we'll
 		# loop upwards, otherwise downwards
 		if ( currAlt_m-targetAlt_m < 0 or currAlt_m - currElev_m < alts.minimumAGL_m + 200 or
 		currSpeed_kt > .75 * vels.cruiseSpeed_kt ) var direction = "up";
 		else var direction = "down";
 					
-		#TODO: there is undoubtedly a best direction to choose for these,
+		# TODO: there is undoubtedly a best direction to choose for these,
 		# which would leave the AI AC aimed more directly at the Main AC,
 		# depending on the relative positions of Main & AI ACs
+
 		var rolldirenter = "cc";
 		var rolldirexit = "cc";
 		if (rand() > .5) rolldirenter = "ccw";
@@ -5098,7 +5094,6 @@ var choose_attack_acrobatic = func
 		ret = 0;
 	}
 	return ret;
-				
 }
 
 ############################# rudder_roll_climb ############################
@@ -7824,6 +7819,7 @@ var attack_loop = func ( id, myNodeName ) {
 				
 	var dist = distAItoMainAircraft (myNodeName);
 	var courseToTarget_deg = courseToMainAircraft(myNodeName); # absolute bearing
+	
 	#debprint ("Bombable: Checking attack parameters: ", dist[0], " ", atts.maxDistance_m, " ",atts.minDistance_m, " ",dist[1], " ",-atts.altitudeLowerCutoff_m, " ",dist[1] < atts.altitudeHigherCutoff_m );
 				
 				
@@ -7915,13 +7911,14 @@ var attack_loop = func ( id, myNodeName ) {
 					
 		#If not attacking, every once in a while we turn the AI AC in the general
 		#direction of the Main AC
-		#This is to keep the AI AC from getting too dispersed all over the place.
+		#This is to keep the AI AC from getting too dispersed.
 		#TODO: We could do lots of things here, like have the AC join up in squadrons,
 		#return to a certain staging area, patrol a certain area, or whatever.
 
-		if (rand() < 0.1 and atts.maxDistance_m) # if attack check time 5 sec then < 0.1 gives on average a 50 sec delay til AC turns back into the fray
+		if (rand() < 0.1 and atts.maxDistance_m) # if attack check time 5 sec then < 0.1 gives an average delay of 50 sec til AC turns back into the fray
 		{
-			aircraftTurnToHeading ( myNodeName, courseToTarget_deg, 60 );
+			ctrls.courseToTarget_deg = courseToTarget_deg;
+			aircraftTurnToHeading ( myNodeName, 60 );
 			debprint ("Bombable: ", myNodeName, " Turning in direction of main AC");
 		}
 
@@ -7974,7 +7971,7 @@ var attack_loop = func ( id, myNodeName ) {
 				
 	#debprint ("rolldeg:", roll_deg);
 				
-	courseToTarget_deg  +=  (rand() * 16 - 8) * skillMult; #keeps the moves from being so robotic and makes the lower skilled AI pilots less able to aim for the Target aircraft
+	ctrls.courseToTarget_deg = courseToTarget_deg + (rand() * 16 - 8) * skillMult; #keeps the moves from being so robotic and makes the lower skilled AI pilots less able to aim for the Target aircraft
 
 	#it turns out that the main AC's AGL is available in the prop tree, which is
 	#far quicker to access then the elev function, which is very slow
@@ -8035,7 +8032,7 @@ var attack_loop = func ( id, myNodeName ) {
 			if (currSpeed_kt > 2.2 * vels.minSpeed_kt and rand() < (skill+8)/15) 
 			{
 				if ( choose_attack_acrobatic(myNodeName, dist[0], myHeading_deg,
-				targetHeading_deg, courseToTarget_deg, deltaHeading_deg,
+				targetHeading_deg, deltaHeading_deg,
 				currSpeed_kt, skill, currAlt_m, targetAlt_m, elevTarget_m))
 				return;
 			}
@@ -8117,7 +8114,7 @@ var attack_loop = func ( id, myNodeName ) {
 	aircraftSetVertSpeed (myNodeName, targetAlt_m - currAlt_m, "evas" );
 
 	# turn to heading is called too frequently (t = 0.5 sec).  It aborts any existing turn.  However the AI AC is attacking so must track the target			
-	if (rand() < 0.2) aircraftTurnToHeading ( myNodeName, courseToTarget_deg, roll_deg, targetAlt_m );
+	if (rand() < 0.2) aircraftTurnToHeading ( myNodeName, roll_deg, targetAlt_m );
 				
 				
 	#update more frequently when engaged with the main aircraft
@@ -8186,11 +8183,11 @@ var aircraftSetVertSpeed = func (myNodeName, dodgeAltAmount_ft, evasORatts = "ev
 }
 
 ################### aircraftTurnToHeadingControl ####################
-# internal - for making AI aircraft turn to certain heading
+# for making AI aircraft turn to certain heading
 # called by aircraftTurnToHeading
 # rolldegrees is the maximum bank angle - always positive
 
-var aircraftTurnToHeadingControl = func (myNodeName, id, targetdegrees = 0, rolldegrees = 45, targetAlt_m = "none" ,  roll_limit_deg = 85, correction = 0 ) 
+var aircraftTurnToHeadingControl = func (myNodeName, id, rolldegrees = 45, targetAlt_m = "none" ,  roll_limit_deg = 85, correction = 0 ) 
 {
 	var loopid = getprop(""~myNodeName~"/bombable/loopids/roll-loopid");
 	id == loopid or return;
@@ -8201,7 +8198,7 @@ var aircraftTurnToHeadingControl = func (myNodeName, id, targetdegrees = 0, roll
 	var atts = attributes[myNodeName].attacks;
 	var ctrls = attributes[myNodeName].controls;			
 	var start_heading_deg = getprop (""~myNodeName~"/orientation/true-heading-deg"); # an absolute bearing
-	var delta_heading_deg = targetdegrees - start_heading_deg;
+	var delta_heading_deg = ctrls.courseToTarget_deg - start_heading_deg;
 	while ( delta_heading_deg < 0 ) delta_heading_deg  +=  360; #same as norm180
 	if (delta_heading_deg > 180) delta_heading_deg  +=  -360;
 	var delta_deg = math.sgn (delta_heading_deg) * atts.rollRateMax_degpersec * updateinterval_sec;
@@ -8264,7 +8261,7 @@ var aircraftTurnToHeadingControl = func (myNodeName, id, targetdegrees = 0, roll
 	if ( math.abs(delta_heading_deg) > cutoff and rollTimeElapsed < maxTurnTime ) 
 	{
 		ctrls.rollTimeElapsed = rollTimeElapsed + updateinterval_sec;
-		settimer (func { aircraftTurnToHeadingControl(myNodeName, loopid, targetdegrees, rolldegrees, targetAlt_m )}, updateinterval_sec );
+		settimer (func { aircraftTurnToHeadingControl(myNodeName, loopid, rolldegrees, targetAlt_m )}, updateinterval_sec );
 	}
 	else 
 	{
@@ -8281,7 +8278,7 @@ var aircraftTurnToHeadingControl = func (myNodeName, id, targetdegrees = 0, roll
 # called by attack_loop every t = attackCheckTimeEngaged_sec (too often)
 
 
-var aircraftTurnToHeading = func (myNodeName, targetdegrees = 0, rolldegrees = 45, targetAlt_m = "none" ) 
+var aircraftTurnToHeading = func (myNodeName, rolldegrees = 45, targetAlt_m = "none" ) 
 {
 	# same as roll-loopid ID because we can't turn to heading & roll @ the same time
 	# rjw how to avoid function clash?
@@ -8289,12 +8286,11 @@ var aircraftTurnToHeading = func (myNodeName, targetdegrees = 0, rolldegrees = 4
 	if (loopid == nil) loopid = 0;
 	loopid  += 1;
 	setprop(""~myNodeName~"/bombable/loopids/roll-loopid", loopid);
-	attributes[myNodeName].controls.rollTimeElapsed = 0;
+	var ctrls = attributes[myNodeName].controls;
+	ctrls.rollTimeElapsed = 0;
 				
-	var	target_deg = normdeg180(targetdegrees); # rjw could be done by calling routine. likely not needed at all since not used to set roll_deg
-	
 	var	currRoll_deg = getprop (""~myNodeName~ "/orientation/roll-deg");
-	attributes[myNodeName].controls.roll_deg_bombable = currRoll_deg;
+	ctrls.roll_deg_bombable = currRoll_deg;
 	
 	# max roll angle = 75 - 85, more than this FG AI goes a bit wacky
 	# depends on the aircraft/speed/etc so we let the individual aircraft set it individually
@@ -8313,9 +8309,9 @@ var aircraftTurnToHeading = func (myNodeName, targetdegrees = 0, rolldegrees = 4
 		#   targetdegrees = start_heading_deg-delta_heading_deg;
 	#   }
 
-	aircraftTurnToHeadingControl ( myNodeName, loopid, targetdegrees, rolldegrees_, targetAlt_m );
+	aircraftTurnToHeadingControl ( myNodeName, loopid, rolldegrees_, targetAlt_m );
 				
-	debprint (sprintf("Bombable: Starting turn-to-heading routine for %s, loopid= %d, rolldegrees= %5.1f, target_deg= %6.1f",myNodeName, loopid, rolldegrees_, target_deg));
+	debprint (sprintf("Bombable: Starting turn-to-heading routine for %s, loopid= %d, rolldegrees= %5.1f, target_deg= %6.1f",myNodeName, loopid, rolldegrees_, ctrls.courseToTarget_deg));
 }
 
 
@@ -8324,65 +8320,55 @@ var aircraftTurnToHeading = func (myNodeName, targetdegrees = 0, rolldegrees = 4
 # internal - for making AI aircraft roll/turn
 # rolldegrees means the absolute roll degrees to move to, from whatever
 # rolldegrees the AC currently is at.
-var aircraftRollControl = func (myNodeName, id, rolldegrees = -90, rolltime = 5, roll_limit_deg = 85) {
+var aircraftRollControl = func (myNodeName, id, rolldegrees, rolltime, roll_limit_deg, delta_deg, delta_t) {
 				
 	var loopid = getprop(""~myNodeName~"/bombable/loopids/roll-loopid");
 	id == loopid or return;
 	if (!getprop(bomb_menu_pp~"bombable-enabled") ) return;
 				
+	var atts = attributes[myNodeName].attacks;
+	var ctrls = attributes[myNodeName].controls;
 	#At a certain roll degrees aircraft behave very unrealistically--turning
 	#far too fast etc. This is somewhat per aircraft and per velocity, but generally
 	#anything more than 85 degrees just makes them turn on a dime rather
 	#than realistically. 90 degrees is basically instant turn, so we're going
 	# to disallow that, but allow anything up to that.
 				
-	if (math.abs(rolldegrees) >= 90 ) rolldegrees = 88 * math.sgn(rolldegrees);
-				
-	var updateinterval_sec = .1;
-	if (rolltime < updateinterval_sec) rolltime = updateinterval_sec;
 
-
-	var startRoll_deg = getprop(""~myNodeName~ "/orientation/start-roll-deg");
-	if (startRoll_deg == nil) startRoll_deg = 0;
-	var delta_deg = ( rolldegrees - startRoll_deg ) * updateinterval_sec / rolltime;
-	attributes[myNodeName].controls.roll_deg_bombable += delta_deg;
-	var targetRoll_deg = attributes[myNodeName].controls.roll_deg_bombable;
+	var targetRoll_deg = ctrls.roll_deg_bombable + delta_deg;
 
 	#Fg turns too quickly to be believable if the roll gets about 78 degrees or so.
-	#Fg seems to go totally whacky if the roll gets to, or close to, 90 degrees
+	# rolldegrees limits the max roll allowed for this manoeuvre
 	# bombable keeps the 'uncorrected' amount because normal behavior
 	# is to go to a certain degree & then return.  If we capped at 85 deg
 	# then we would end up returning too far
-
-	if (targetRoll_deg > roll_limit_deg ) targetRoll_deg = roll_limit_deg;
-	if (targetRoll_deg < -roll_limit_deg) targetRoll_deg = -roll_limit_deg;
-				
-				
-	if (math.abs(targetRoll_deg) > roll_limit_deg) targetRoll_deg = roll_limit_deg * math.sgn(targetRoll_deg);
-	var rollMax_deg = attributes[myNodeName].attacks.rollMax_deg;
-	if (rollMax_deg == nil) rollMax_deg = 50;
-	if (math.abs(targetRoll_deg) > rollMax_deg) targetRoll_deg = rollMax_deg * math.sgn(targetRoll_deg);
-				
-	#if (math.abs (currRoll_deg - targetRoll_deg) > 5) debprint ("Bombable: Changing roll: ", currRoll_deg - targetRoll_deg, " ", myNodeName, " 3238");
-	#debprint ("Bombable: Setting roll-deg for ", myNodeName , " to ", targetRoll_deg, " 3240");
-	#debprint("Bombable: RollControl: delta = ",delta_deg, " ",targetRoll_deg," ", myNodeName);
 	
+	var dir = math.sgn (targetRoll_deg);
+	var rollMax_deg = atts.rollMax_deg;
+	if (targetRoll_deg * dir > roll_limit_deg) targetRoll_deg = roll_limit_deg * dir;
+	if (targetRoll_deg * dir > rollMax_deg) targetRoll_deg = rollMax_deg * dir;
+
 	
 	setprop (""~myNodeName~ "/orientation/roll-deg", targetRoll_deg);
+	ctrls.roll_deg_bombable = targetRoll_deg;
 				
-	# Make it roll:
+	#debprint("Bombable: RollControl: delta = ",delta_deg, " ",targetRoll_deg," ", myNodeName);
 	
-	var rollTimeElapsed = attributes[myNodeName].controls.rollTimeElapsed;
+	var rollTimeElapsed = ctrls.rollTimeElapsed;
 				
 	if ( rollTimeElapsed < rolltime )
 	{
-		attributes[myNodeName].controls.rollTimeElapsed = rollTimeElapsed + updateinterval_sec;
-		settimer (func { aircraftRollControl(myNodeName, loopid, rolldegrees, rolltime, roll_limit_deg)}, updateinterval_sec, roll_limit_deg );
+		ctrls.rollTimeElapsed = rollTimeElapsed + delta_t;
+		settimer (func 
+		{ 
+			aircraftRollControl(myNodeName, loopid, rolldegrees, rolltime, roll_limit_deg, delta_deg, delta_t)
+		}, 
+		delta_t );
 	}
 	else 
 	{
-		attributes[myNodeName].controls.rollTimeElapsed = 0;
-		#debprint ("Bombable: Ending aircraft roll routine");
+		ctrls.rollTimeElapsed = 0;
+		debprint ("Bombable: Ending aircraft roll routine");
 	}
 }
 
@@ -8391,29 +8377,22 @@ var aircraftRollControl = func (myNodeName, id, rolldegrees = -90, rolltime = 5,
 # Initialises aircraftRollControl
 var aircraftRoll = func (myNodeName, rolldegrees = -60, rolltime = 5, roll_limit_deg = 85) 
 {
-				
-	#if (crashListener != 0 ) return;
-	#debprint ("Bombable: Starting aircraft roll routine");
-				
-				
 	var loopid = getprop(""~myNodeName~"/bombable/loopids/roll-loopid");
 	if (loopid == nil) loopid = 0;
 	loopid  +=  1;
 	setprop(""~myNodeName~"/bombable/loopids/roll-loopid", loopid);
+	var updateinterval_sec = .1;
 	var ctrls = attributes[myNodeName].controls;
-
-	debprint ("Bombable: Starting roll routine, loopid = ",loopid, " ", rolldegrees, " ", rolltime, " for " ~ myNodeName);
-	currRoll_deg = getprop (""~myNodeName~ "/orientation/roll-deg");
-	if (currRoll_deg == nil) currRoll_deg = 0;
 	ctrls.rollTimeElapsed = 0;
+	var currRoll_deg = getprop (""~myNodeName~ "/orientation/roll-deg");
 	ctrls.roll_deg_bombable = currRoll_deg;
-	props.globals.getNode(""~myNodeName~ "/orientation/start-roll-deg", 1).setValue( currRoll_deg );
+	if (math.abs(rolldegrees) >= 90 ) rolldegrees = 88 * math.sgn(rolldegrees);
+	if (rolltime < updateinterval_sec) rolltime = updateinterval_sec;
+	var delta_deg = ( rolldegrees - currRoll_deg ) * updateinterval_sec / rolltime;
 
-	aircraftRollControl(myNodeName, loopid, rolldegrees, rolltime, roll_limit_deg);
+	aircraftRollControl(myNodeName, loopid, rolldegrees, rolltime, roll_limit_deg, delta_deg, delta_t);
 				
-	#turn it off after 10 seconds
-	#settimer (func {removelistener(crashListener); crashListener = 0;}, 10);
-				
+	debprint ("Bombable: Starting roll routine, loopid = ",loopid, " ", rolldegrees, " ", rolltime, " for " ~ myNodeName);
 }
 
 ################################# aircraftCrashControl #################################
@@ -9306,6 +9285,10 @@ var initialize_func = func ( b ){
 	b.damage = 0;
 	b.updateTime_s = checkRange ( b.updateTime_s, 0, 10, 1);
 
+	# Set an individual pilot ability, -1 to 1, with 0 being average
+	var ability = math.pow (rand(), 1.5); # U-shaped distribution???
+	if (rand() > .5) ability = -ability;
+
 	# add controls key, used to control animation of damaged ships and aircraft
 	b["controls"] = 
 	{ 
@@ -9321,6 +9304,8 @@ var initialize_func = func ( b ){
 		stalling: 0,
 		rollTimeElapsed: 0,
 		roll_deg_bombable: 0,
+		courseToTarget_deg: 0,
+		pilotAbility: ability,
 	};
 
 	if (! contains (b, "type")) b["type"] = props.globals.getNode(""~b.objectNodeName).getName(); # key allows AI ship models to be used as ground vehicles by adding type:"groundvehicle" to Bombable attributes hash
@@ -9969,10 +9954,7 @@ var attack_init_func = func(myNodeName)
 	var attackCheckTime = atts.attackCheckTime_sec;
 	if (attackCheckTime == nil or attackCheckTime < 0.5) attackCheckTime = 0.5;
 						
-	# Set an individual pilot ability, -1 to 1, with 0 being average
-	var pilotAbility = math.pow (rand(), 1.5) ; # U-shaped distribution???
-	if (rand() > .5) pilotAbility = -pilotAbility;
-	atts["pilotAbility"] = pilotAbility;
+
 	atts["loopTime"] = attackCheckTime + rand();						
 	settimer( func {attack_loop(loopid, myNodeName); }, atts.loopTime );
 						
