@@ -1511,43 +1511,36 @@ var resetBombableDamageFuelWeapons = func (myNodeName) {
 	#don't do this for objects that don't even have bombable initialized
 	if (props.globals.getNode ( ""~myNodeName~"/bombable" ) == nil) return;
 			
-	if (myNodeName == "") {
+	if (myNodeName == "") 
+	{
 		#main aircraft
 		reset_damage_fires();
-				
-		} else {
+	}
+	else
+	{
 		#ai objects
-				
 		#refill fuel & weapons
 		stores.fillFuel(myNodeName, 1);
 		stores.fillWeapons (myNodeName, 1);
 		deleteFire(myNodeName);
 		deleteSmoke("damagedengine", myNodeName);
 		startEngines(myNodeName);
-		if (props.globals.getNode ( ""~myNodeName~"/bombable/attributes/damage" ) != nil) 
-		{
-			var ctrls = attributes[myNodeName].controls;	
-					
-			setprop(""~myNodeName~"/bombable/attributes/damage", 0);
-			setprop(""~myNodeName~"/bombable/exploded", 0);
-			ctrls.onGround = 0;
-			ctrls.damageAltAddCurrent_ft = 0;
-			ctrls.damageAltAddCumulative_ft = 0;
-					
-			#take the opportunity to reset the pilot's abilities, giving them
-			# a new personality when they come back alive
-			var ability = math.pow (rand(), 1.5); 
-			if (rand() > .5) ability = -ability;
-			ctrls.pilotAbility = ability;
+		var ctrls = attributes[myNodeName].controls;	
+		ctrls.damage = 0;
+		ctrls.exploded = 0;
+		ctrls.onGround = 0;
+		ctrls.damageAltAddCurrent_ft = 0;
+		ctrls.damageAltAddCumulative_ft = 0;
+				
+		#take the opportunity to reset the pilot's abilities, giving them
+		# a new personality when they come back alive
+		var ability = math.pow (rand(), 1.5); 
+		if (rand() > .5) ability = -ability;
+		ctrls.pilotAbility = ability;
 
-			setWeaponPowerSkill (myNodeName);							
-
-					
-			if (myNodeName != "") {
-				msg = "Damage reset to 0 for " ~ myNodeName;
-				targetStatusPopupTip (msg, 2);
-			}
-		}
+		setWeaponPowerSkill (myNodeName);							
+		msg = "Damage reset to 0 for " ~ myNodeName;
+		targetStatusPopupTip (msg, 2);
 	}
 
 }
@@ -2267,22 +2260,21 @@ var setupBombableMenu = func {
 
 var calcPilotSkill = func ( myNodeName ) 
 {
+	var ctrls = attributes[myNodeName].controls;
 	#skill ranges 0-5; 0 = disabled, so 1-5;
 	var skill = getprop (bomb_menu_pp~"ai-aircraft-skill-level");
 	if (skill == nil) skill = 0;
 
 	# pilotSkill is a rand +/-1 in skill level per individual pilot
 	# so now skill ranges 0-6
-	skill += attributes[myNodeName].controls.pilotAbility;
+	skill += ctrls.pilotAbility;
 			
 	#ability to manoeuvre goes down as attack fuel reserves are depleted
 	var fuelLevel = stores.fuelLevel (myNodeName);
 	if (fuelLevel < .2) skill  *=  fuelLevel / 0.2;
 			
-	var damage = getprop(""~myNodeName~"/bombable/attributes/damage");
-			
 	#skill goes down to 0 as damage goes from 80% to 100%
-	if (damage > 0.8) skill  *=  (1 - damage)/ 0.2;
+	if (ctrls.damage > 0.8) skill  *=  (1 - ctrls.damage)/ 0.2;
 			
 	return skill;
 			
@@ -2644,10 +2636,9 @@ var hitground_stop_explode = func (myNodeName, alt)
 
 			
 	# check if this object has exploded already
-	exploded = getprop (""~myNodeName~"/bombable/exploded" );
 			
 	# if not, explode for ~3 seconds
-	if ( exploded == nil or !exploded )
+	if ( !ctrls.exploded )
 	{
 		# and we cover our tracks by making a really big explosion momentarily
 		# if it hit the ground that hard it's justified, right?
@@ -2660,7 +2651,7 @@ var hitground_stop_explode = func (myNodeName, alt)
 		setprop ("/bombable/fire-particles/smoke-startsize-large", smokeStartsize * (rand() * 4 + 1));
 				
 		# explode for, say, 3 seconds but then we're done for this object
-		settimer (   func {setprop(""~myNodeName~"/bombable/exploded" , 1 ); }, 3 + rand() );
+		settimer (   func { ctrls.exploded = 1; }, 3 + rand() );
 	}
 
 }
@@ -2747,7 +2738,8 @@ var ground_loop = func( id, myNodeName )
 
 	var updateTime_s = attributes[myNodeName].updateTime_s * (0.9 + 0.2 * rand());
 
-	if (getprop(""~myNodeName~"/bombable/exploded") == 1) return();
+	var ctrls = attributes[myNodeName].controls;
+	if (ctrls.exploded == 1) return();
 			
 	# reset the timer loop first so we don't lose it entirely in case of a runtime
 	# error or such
@@ -2760,7 +2752,6 @@ var ground_loop = func( id, myNodeName )
 	var type = attributes[myNodeName].type;
 
 	var alts = attributes[myNodeName].altitudes;
-	var ctrls = attributes[myNodeName].controls;
 	var dims = attributes[myNodeName].dimensions;
 	var vels = attributes[myNodeName].velocities;
 
@@ -2787,7 +2778,7 @@ var ground_loop = func( id, myNodeName )
 	var heading = getprop(""~myNodeName~"/orientation/true-heading-deg");
 	var speed_kt = getprop(""~myNodeName~"/velocities/true-airspeed-kt");
 	var distance_til_update_ft = speed_kt * KT2FPS * updateTime_s;
-	var damageValue = getprop(""~myNodeName~"/bombable/attributes/damage");
+	var damageValue = ctrls.damage;
 	var damageAltAddPrev_ft = ctrls.damageAltAddCurrent_ft;
 			
 	if (lat == nil) {
@@ -2962,8 +2953,8 @@ var ground_loop = func( id, myNodeName )
 				getprop(""~myNodeName~"/controls/tgt-speed-kts")
 				)
 			);
-			setprop(""~myNodeName~"/bombable/exploded", 1);
-			setprop(""~myNodeName~"/bombable/attributes/damage", 1); # could continue fighting even though immobilised
+			ctrls.exploded = 1;
+			ctrls.damage = 1; # could continue fighting even though immobilised
 			setprop(""~myNodeName~"/controls/tgt-speed-kts", 0);
 			setprop(""~myNodeName~"/velocities/true-airspeed-kt", 0);
 			setprop(""~myNodeName~"/velocities/vertical-speed-fps", 0);
@@ -2978,7 +2969,7 @@ var ground_loop = func( id, myNodeName )
 	{
 		#go to object's resting altitude
 		#rjw onGround is set by hitground_stop_explode
-		debprint("Bombable: ", myNodeName, " on ground. Exploded = ", getprop(""~myNodeName~"/bombable/exploded"));
+		debprint("Bombable: ", myNodeName, " on ground. Exploded = ", ctrls.exploded);
 		
 		setprop (""~myNodeName~"/position/altitude-ft", objectsLowestAllowedAlt_ft );
 		setprop (""~myNodeName~"/controls/flight/target-alt",  objectsLowestAllowedAlt_ft);
@@ -5190,13 +5181,13 @@ var dodge = func(myNodeName) {
 	# dodgeDelay_remainder_sec is the amount of that time left
 	# rollTime_sec is the time the AC rolls
 
+	var ctrls = attributes[myNodeName].controls;
 	if (  ! getprop (bomb_menu_pp~"ai-aircraft-attack-enabled")
-	or getprop("" ~ myNodeName~"/bombable/attributes/damage") == 1
+	or (ctrls.damage == 1)
 	or ! getprop(bomb_menu_pp~"bombable-enabled") )
 	return;
 	# rjw: unsure where to find attack-enabled on bombable menu. However it is set for B-17 scenario
 				
-	var ctrls = attributes[myNodeName].controls;
 	if ( ctrls.dodgeInProgress ) 
 	{
 		#debprint ("Bombable: Dodge temporarily locked for this object. ", myNodeName );
@@ -5381,6 +5372,7 @@ var getCallSign = func ( myNodeName )
 ################################################################
 # function updates damage to the ai or main aircraft when a msg
 # is received over MP
+# rjw assume no AI in MP mode.  What is the interaction between AI and MP aircraft?
 
 #damageRise is the increase in damage sent by the remote MP aircraft
 #damageTotal is the remote MP aircraft's current total of damage
@@ -6159,7 +6151,7 @@ var weapons_loop = func (id, myNodeName1 = "", myNodeName2 = "", targetSize_m = 
 				
 	#debprint ("aim-check damage");
 	#If damage = 100% we're going to assume the weapons won't work.
-	var damageValue = getprop(""~myNodeName1~"/bombable/attributes/damage");
+	var damageValue = attributes[myNodeName1].controls.damage;
 	if (damageValue == 1) return;
 	
 	# weaponPower varies between 0 and 1
@@ -7602,14 +7594,12 @@ stores.fillWeapons = func (myNodeName, amount = 1){
 #
 # removes amount from damage
 #
-stores.repairDamage = func (myNodeName, amount = 0 ){
-	var damage = getprop("" ~ myNodeName ~ "/bombable/attributes/damage");
-	if (damage == nil) damage = 0;
-	damage  -=  amount;
-	if (damage > 1) damage = 1;
-	if (damage < 0) damage = 0;
-	setprop("" ~ myNodeName~"/bombable/attributes/damage", damage);
-				
+stores.repairDamage = func (myNodeName, amount = 0 )
+{
+	var ctrls = attributes[myNodeName].controls;
+	var damage = ctrls.damage - amount;
+	if (damage > 1) damage = 1 elsif (damage < 0) damage = 0;
+	ctrls.damage = damage;
 }
 
 ###############################################
@@ -7655,7 +7645,8 @@ stores.fuelLevel = func (myNodeName) {
 # checks weapons, fuel, damage level, etc, to see if an AI
 # should continue to attack or not
 #
-stores.checkAttackReadiness = func (myNodeName) {
+stores.checkAttackReadiness = func (myNodeName) 
+{
 	var ret = 1;
 	var msg = "Bombable: CheckAttackReadiness for  " ~ myNodeName;
 	var stos = attributes[myNodeName].stores;
@@ -7663,26 +7654,27 @@ stores.checkAttackReadiness = func (myNodeName) {
 				
 	if (stos["fuel"] != nil and stos.fuel < .2) ret = 0;
 	msg ~=  " fuel:"~ stos.fuel;
-	var damage = getprop("" ~ myNodeName ~ "/bombable/attributes/damage");
-	if (damage != nil and damage > .8) ret = 0;
+	var damage = attributes[myNodeName].controls.damage;
+	if (damage > .8) ret = 0;
 	msg ~=  " damage:"~ damage;
 				
 	#for weapons, if at least 1 weapon has at least 10% ammo we
 	# will continue to attack
-	weapret = 0;
-	foreach (elem;keys (weaps) ) {
+	var weapret = 0;
+	foreach (elem;keys (weaps) ) 
+	{
 		if (stos.weapons[elem] != nil and stos.weapons[elem] > .2 ) weapret = 1;
 		msg ~=  " "~elem~" "~ stos.weapons[elem];
 	}
 	if (! weapret) ret = 0;
 	#debprint (msg, " Readiness: ", ret);
-	if (ret == 0 and ! stos["messages"]["unreadymessageposted"] ) {
+	if (ret == 0 and ! stos["messages"]["unreadymessageposted"] ) 
+	{
 		var callsign = getCallSign(myNodeName);
 		var popmsg = callsign ~ " is low on weapons/fuel";
 		targetStatusPopupTip (popmsg, 10);
 		stos["messages"]["unreadymessageposted"] = 1;
 		stos["messages"]["readymessageposted"] = 0;
-
 	}
 	return ret;
 }
@@ -7707,7 +7699,7 @@ stores.revitalizeAttackReadiness = func (myNodeName,dist_m = 1000000){
 	{
 		me.repairDamage (myNodeName, .01);
 		deleteFire(myNodeName);
-		if (getprop(""~myNodeName~"/bombable/attributes/damage") < .25) deleteSmoke("damagedengine", myNodeName);
+		if (attributes[myNodeName].controls.damage < .25) deleteSmoke("damagedengine", myNodeName);
 
 		if (stos.fuel > 0.8) return(); # no need to restock
 		me.fillFuel (myNodeName, 1);
@@ -7780,8 +7772,8 @@ var courseToMainAircraft = func (myNodeName){
 # Main loop for calculating attacks, changing direction, altitude, etc.
 #
 
-var attack_loop = func ( id, myNodeName ) {
-				
+var attack_loop = func ( id, myNodeName ) 
+{
 	var loopid = getprop(""~myNodeName~"/bombable/loopids/attack-loopid");
 	id == loopid or return;
 	var atts = attributes[myNodeName].attacks;
@@ -7800,15 +7792,15 @@ var attack_loop = func ( id, myNodeName ) {
 	#Higher skill makes the AI pilot react faster/more often:
 	settimer ( func { attack_loop ( id, myNodeName ) }, loopTimeActual );
 				
+	var ctrls = attributes[myNodeName].controls;
 	if (  ! getprop (bomb_menu_pp~"ai-aircraft-attack-enabled") or ! getprop(bomb_menu_pp~"bombable-enabled") or 
-	getprop("" ~ myNodeName~"/bombable/attributes/damage") == 1 ) 
+	ctrls.damage == 1 ) 
 	{
 		atts.loopTime = atts.attackCheckTime_sec;
 		return;
 	}
 				
 	# dodging takes priority over attacking
-	var ctrls = attributes[myNodeName].controls;
 	if (ctrls.dodgeInProgress) return;
 
 	var alts = attributes[myNodeName].altitudes;
@@ -8402,12 +8394,14 @@ var aircraftRoll = func (myNodeName, rolldegrees = -60, rolltime = 5, roll_limit
 var aircraftCrashControl = func (myNodeName) {
 
 	if (!getprop(bomb_menu_pp~"bombable-enabled") ) return;
+
+	var ctrls = attributes[myNodeName].controls;
 				
 	#If we reset the damage levels, stop crashing:
-	if (getprop(""~myNodeName~"/bombable/attributes/damage") < 1 ) return;
+	if (ctrls.damage < 1 ) return;
 	
 	#If we have hit the ground, stop crashing:
-	if (attributes[myNodeName].controls.onGround) 
+	if (ctrls.onGround) 
 	{
 		setprop(""~myNodeName~ "/position/crashTimeElapsed", 0);
 		debprint ("Bombable: Ending aircraft crash control for " ~ myNodeName);
@@ -8418,7 +8412,7 @@ var aircraftCrashControl = func (myNodeName) {
 	loopTime *= (1 + rand() * .1 - .05); #rjw add noise
 	# rjw 0.1 in original version. In original, noise was only added to the function timer
 
-	var crash = attributes[myNodeName].controls.crash;
+	var crash = ctrls.crash;
 	crash.elapsedTime += loopTime;
 	crash.crashCounter += 1;	
 	# used to control debug printing
@@ -8873,16 +8867,17 @@ var add_damage = func(damageRise, myNodeName, damagetype = "weapon", impactNodeN
 	var vuls = attributes[myNodeName].vulnerabilities;
 	var spds = attributes[myNodeName].velocities;
 	var livs = attributes[myNodeName].damageLiveries;
+	var ctrls = attributes[myNodeName].controls;
 	var liveriesCount = livs.count;
 	var type = attributes[myNodeName].type;
 
 	# check for destroyed AC on ground; if so, no further action needed
-	if (attributes[myNodeName].controls.onGround) return 0;
+	
+	
+	if (ctrls.onGround) return 0;
 
 
-	var damageValue = getprop(""~myNodeName~"/bombable/attributes/damage");
-	if ( damageValue == nil ) damageValue = 0;
-
+	var damageValue = ctrls.damage;
 
 	var origDamageRise = damageRise;
 	# make sure it's in range 0-1.0
@@ -8901,7 +8896,7 @@ var add_damage = func(damageRise, myNodeName, damagetype = "weapon", impactNodeN
 		damageValue = 1.0;
 	elsif(damageValue < 0.0)
 		damageValue = 0.0;
-	setprop(""~myNodeName~"/bombable/attributes/damage", damageValue);
+		ctrls.damage = damageValue;
 	var damageIncrease = damageValue - prevDamageValue;
 
 	if (liveriesCount > 0 and liveriesCount != nil ) 
@@ -9280,8 +9275,6 @@ var initialize_func = func ( b ){
 	debprint( "Bombable: Initializing bombable attributes for ", b.objectNodeName);
 
 
-	# initialize damage level of this object
-	b.damage = 0;
 	b.updateTime_s = checkRange ( b.updateTime_s, 0, 10, 1);
 
 	# Set an individual pilot ability, -1 to 1, with 0 being average
@@ -9293,6 +9286,8 @@ var initialize_func = func ( b ){
 	{ 
 		groundLoopCounter : 0, 
 		onGround : 0, 
+		damage : 0,
+		exploded : 0,
 		damageAltAddCurrent_ft : 0, 
 		damageAltAddCumulative_ft : 0, 
 		dodgeInProgress : 0, 
@@ -9558,7 +9553,7 @@ var initialize_func = func ( b ){
 	stores.fillFuel(myNodeName, 1);
 
 	# determines how AI aircraft are controlled - Bombable sets altitudes and roll
-	if attributes[myNodeName].type = "aircraft"
+	if (attributes[myNodeName].type == "aircraft")
 	{
 		setprop (""~myNodeName~"/controls/flight/vertical-mode", "alt");
 		setprop (""~myNodeName~"/controls/flight/lateral-mode", "roll");
@@ -9997,10 +9992,6 @@ var weaponsOrientationPositionUpdate = func (myNodeName, elem) {
 	or ! getprop(bomb_menu_pp~"bombable-enabled")
 	) return;
 	
-	# var damageValue = getprop(""~myNodeName~"/bombable/attributes/damage");
-	# if (rand() < damageValue) return;
-	# this acts to delay model update for damaged AI
-
 	var thisWeapon = attributes[myNodeName].weapons[elem];
 	var aim = thisWeapon.aim;
 
@@ -10853,12 +10844,10 @@ var bombableInit = func {
 	# settimer (setupBombableMenu, 5.12);
 	setupBombableMenu();
 						
-	# these are for the "mothership" not the AI or MP objects
-	#setprop("/bombable/fire-particles/fire-trigger", 0);
-	#setprop("/bombable/attributes/damage", 0);
-						
 	# Add some useful nodes
+	# these are for the "mothership" not the AI or MP objects
 						
+	setprop("/bombable/attributes/damage", 0);
 	setprop ("/bombable/fire-particles/smoke-startsize", 11.0);
 	setprop ("/bombable/fire-particles/smoke-endsize", 50.0);
 	setprop ("/bombable/fire-particles/smoke-startsize-small", 6.5);
@@ -10875,8 +10864,6 @@ var bombableInit = func {
 	props.globals.getNode(bomb_menu_pp ~ "fire-particles/fire-trigger", 1).setBoolValue(1);
 	# props.globals.getNode(bomb_menu_pp ~ "fire-particles/flack-trigger", 1).setBoolValue(0);
 
-
-	props.globals.getNode("/bombable/attributes/damage", 1).setDoubleValue(0.0);
 
 	# turn on the loop to occasionally re-calc the m_per_deg lat & lon
 	# must be done before setMaxLatLon
