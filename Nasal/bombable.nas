@@ -2271,7 +2271,7 @@ var calcPilotSkill = func ( myNodeName )
 	var skill = getprop (bomb_menu_pp~"ai-aircraft-skill-level");
 	if (skill == nil) skill = 0;
 
-	#pilotSkill is a rand +/-1 in skill level per individual pilot
+	# pilotSkill is a rand +/-1 in skill level per individual pilot
 	# so now skill ranges 0-6
 	skill += attributes[myNodeName].controls.pilotAbility;
 			
@@ -5127,8 +5127,8 @@ var rudder_roll_climb = func (myNodeName, degrees = 15, alt_ft = -20, time = 10,
 		var currAlt_ft = getprop(""~myNodeName~"/position/altitude-ft"); #where the object is, in ft
 		
 		var newAlt_ft = currAlt_ft + alt_ft;			
-		if (newAlt_ft < alts.minimumAGL_ft ) newAlt_ft = alts.minimumAGL_ft; #minimum altitude above ground level this object is allowed to fly
-		if (newAlt_ft > alts.maximumAGL_ft ) newAlt_ft = alts.maximumAGL_ft;
+		if (newAlt_ft < alts.minimumAGL_ft ) newAlt_ft = alts.minimumAGL_ft 
+		elsif (newAlt_ft > alts.maximumAGL_ft ) newAlt_ft = alts.maximumAGL_ft;
 		#
 		# we set the target altitude, unless we are stalling and trying to move
 		# higher, then we basically stop moving up
@@ -5186,6 +5186,9 @@ var rudder_roll_climb = func (myNodeName, degrees = 15, alt_ft = -20, time = 10,
 # function makes an object dodge
 #
 var dodge = func(myNodeName) {
+	# dodgeDelay is the time to wait between dodges
+	# dodgeDelay_remainder_sec is the amount of that time left
+	# rollTime_sec is the time the AC rolls
 
 	if (  ! getprop (bomb_menu_pp~"ai-aircraft-attack-enabled")
 	or getprop("" ~ myNodeName~"/bombable/attributes/damage") == 1
@@ -5211,7 +5214,7 @@ var dodge = func(myNodeName) {
 				
 
 
-	# skill ranges 0-5; 0 = disabled, so 1-5;
+	# skill ranges 0-6
 	var skill = calcPilotSkill (myNodeName);
 	var skillMult = (skill <= .2) ? 15 : 3/skill;
 				
@@ -5254,10 +5257,8 @@ var dodge = func(myNodeName) {
 			dodgeAltAmount_ft = dodgeAltFact * evas.dodgeAltMin_ft;
 		} 
 					
-		if (evas.rollRateMax_degpersec == nil or evas.rollRateMax_degpersec <= 0)
-		evas.rollRateMax_degpersec = 40;
 		var rollTime_sec = math.abs(dodgeAmount_deg / evas.rollRateMax_degpersec);
-		dodgeDelay_remainder_sec = dodgeDelay - rollTime_sec;
+		var dodgeDelay_remainder_sec = dodgeDelay - rollTime_sec;
 		if (dodgeDelay_remainder_sec < 0) dodgeDelay_remainder_sec = .1;
 
 		var currSpeed_kt = getprop (""~myNodeName~"/velocities/true-airspeed-kt");
@@ -5290,8 +5291,6 @@ var dodge = func(myNodeName) {
 		rudder_roll_climb (myNodeName, dodgeAmount_deg, dodgeAltAmount_ft, rollTime_sec);
 
 		dodgeVertSpeed_fps = 0;
-		currRoll_deg = getprop (""~myNodeName~"/orientation/roll-deg");
-					
 					
 		if ( dodgeAltAmount_ft > 0 )  dodgeVertSpeed_fps = math.abs ( evas.dodgeVertSpeedClimb_fps * dodgeAltAmount_ft / evas.dodgeAltMax_ft);
 		if ( dodgeAltAmount_ft < 0 )  dodgeVertSpeed_fps = - math.abs ( evas.dodgeVertSpeedDive_fps * dodgeAltAmount_ft / evas.dodgeAltMin_ft );
@@ -5306,15 +5305,12 @@ var dodge = func(myNodeName) {
 		#jump up or down far too abruptly for realism
 		#if (dodgeVertSpeed_fps != 0) setprop ("" ~ myNodeName ~ "/velocities/vertical-speed-fps", dodgeVertSpeed_fps);
 
-		debprint ("Dodging: ", myNodeName, " ", dodgeAmount_deg, " ", dodgeAltAmount_ft, " ", dodgeVertSpeed_fps, "rollTime:",rollTime_sec, " dodgeDelay_remainder:",dodgeDelay_remainder_sec);
+		debprint (sprintf("Dodging: %s dodgeAmount_deg = %6.1f dodgeAltAmount_ft = %6.1f dodgeVertSpeed_fps = %6.1f rollTime_sec = %5.1f dodgeDelay_remainder = %6.1f", 
+		myNodeName, dodgeAmount_deg, dodgeAltAmount_ft, dodgeVertSpeed_fps ,rollTime_sec, dodgeDelay_remainder_sec));
 
-		#Now hold the aircraft at this roll--otherwise the AI
-		#will return it to near-level flight
+		# Return to near-level flight after a delay of 3-5x the duration of the roll. The original heading is lost
 
-		settimer ( func { aircraftRoll (myNodeName, dodgeAmount_deg, dodgeDelay_remainder_sec, evas.dodgeMax_deg); }, rollTime_sec);
-		# rjw: expect that this timer causes aircraft to jitter when enter crash routine.  Crash routine establishes a hard bank.  While
-		# Aircraft roll establishes close to zero - > the plane jitter_rolls
-					
+		settimer ( func { setprop (""~myNodeName~"/controls/flight/target-roll", 0); }, dodgeDelay );
 					
 		# Roll/climb for dodgeDelay seconds, then wait dodgeDelay seconds (to allow
 		# the aircraft's turn to develop from the roll).
@@ -7796,7 +7792,7 @@ var attack_loop = func ( id, myNodeName ) {
 	# if (looptimealt != nil and looptimealt > 0) looptime = looptimealt;
 	# setprop(""~myNodeName~"/bombable/attack-looptime", looptime);
 				
-	#skill ranges 0-5; 0 = disabled, so 1-5;
+	#skill ranges 0-6
 	var skill = calcPilotSkill (myNodeName);
 	var skillMult = (skill <= .2) ? 15 : 3/skill;
 	var loopTimeActual = skillMult * atts.loopTime;
@@ -7971,7 +7967,9 @@ var attack_loop = func ( id, myNodeName ) {
 				
 	#debprint ("rolldeg:", roll_deg);
 				
-	ctrls.courseToTarget_deg = courseToTarget_deg + (rand() * 16 - 8) * skillMult; #keeps the moves from being so robotic and makes the lower skilled AI pilots less able to aim for the Target aircraft
+	ctrls.courseToTarget_deg = courseToTarget_deg + (rand() * 8 - 4) * skillMult; 
+	#keeps the moves from being so robotic and makes the lower skilled AI pilots less able to aim for the Target aircraft
+	#if skillMult 0.5 to 15 up to 120 degree error??? Reduced by 2
 
 	#it turns out that the main AC's AGL is available in the prop tree, which is
 	#far quicker to access then the elev function, which is very slow
@@ -8320,8 +8318,9 @@ var aircraftTurnToHeading = func (myNodeName, rolldegrees = 45, targetAlt_m = "n
 # internal - for making AI aircraft roll/turn
 # rolldegrees means the absolute roll degrees to move to, from whatever
 # rolldegrees the AC currently is at.
-var aircraftRollControl = func (myNodeName, id, rolldegrees, rolltime, roll_limit_deg, delta_deg, delta_t) {
-				
+var aircraftRollControl = func (myNodeName, id, rolldegrees, rolltime, roll_limit_deg, 
+delta_deg, delta_t) 
+{
 	var loopid = getprop(""~myNodeName~"/bombable/loopids/roll-loopid");
 	id == loopid or return;
 	if (!getprop(bomb_menu_pp~"bombable-enabled") ) return;
@@ -8390,9 +8389,9 @@ var aircraftRoll = func (myNodeName, rolldegrees = -60, rolltime = 5, roll_limit
 	if (rolltime < updateinterval_sec) rolltime = updateinterval_sec;
 	var delta_deg = ( rolldegrees - currRoll_deg ) * updateinterval_sec / rolltime;
 
-	aircraftRollControl(myNodeName, loopid, rolldegrees, rolltime, roll_limit_deg, delta_deg, delta_t);
+	aircraftRollControl(myNodeName, loopid, rolldegrees, rolltime, roll_limit_deg, delta_deg, updateinterval_sec);
 				
-	debprint ("Bombable: Starting roll routine, loopid = ",loopid, " ", rolldegrees, " ", rolltime, " for " ~ myNodeName);
+	debprint (sprintf("Bombable: Starting roll routine, loopid = %d rolldegrees = %6.1f rolltime = %5.1f for %s",loopid, rolldegrees, rolltime, myNodeName));
 }
 
 ################################# aircraftCrashControl #################################
@@ -9557,6 +9556,14 @@ var initialize_func = func ( b ){
 	var myNodeName = b.objectNodeName;
 	stores.fillWeapons(myNodeName, 1);
 	stores.fillFuel(myNodeName, 1);
+
+	# determines how AI aircraft are controlled - Bombable sets altitudes and roll
+	if attributes[myNodeName].type = "aircraft"
+	{
+		setprop (""~myNodeName~"/controls/flight/vertical-mode", "alt");
+		setprop (""~myNodeName~"/controls/flight/lateral-mode", "roll");
+	}
+	
 }
 
 ######################## update_m_per_deg_latlon #########################
