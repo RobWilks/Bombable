@@ -432,10 +432,11 @@ var deleteFire = func (myNodeName = "",fireNode = "") {
 }
 
 ########################### speedDamage #########################
-#Check current speed & add damage due to excessive speed
+# For main AC
+# Check current speed & add damage due to excessive speed
 #
-var speedDamage = func {
-
+var speedDamage = func 
+{
 	if (!getprop(bomb_menu_pp~"bombable-enabled") ) return;
 	var damage_enabled = getprop (""~GF_damage_menu_pp~"damage_enabled");
 	var warning_enabled = getprop (""~GF_damage_menu_pp~"warning_enabled");
@@ -476,12 +477,11 @@ var speedDamage = func {
 			"" ~ round( currSpeed_kt ) ~ " kts (overspeed) damaged airframe!" 
 		);
 	}
-	
-
 }
 
 
 ####################################################
+#For main AC
 #Check current accelerations & add damage due to excessive acceleration
 #
 var accelerationDamage = func {
@@ -651,9 +651,11 @@ var setAttributes = func (attsObject = nil) {
 	#predefined values for a few aircraft we have set up for
 	# dogfighting
 	var aircraftname = getprop("sim/aircraft");
-	if (string.match(aircraftname,"A6M2 * " )){
+	if (string.match(aircraftname,"A6M2 * " ))
+	{
 		debprint ("Bombable: Loading A6M2 main aircraft vulnerabilities");
-		attsObject = {
+		attsObject = 
+		{
 			
 			#########################################
 			# DIMENSION DEFINITIONS
@@ -707,10 +709,12 @@ var setAttributes = func (attsObject = nil) {
 				}
 			}
 		}
-		
-		} elsif ( string.match(aircraftname,"A-10 * " ) ) {
+	
+	} elsif ( string.match(aircraftname,"A-10 * " ) ) 
+	{
 		debprint ("Bombable: Loading A-10 main aircraft vulnerabilities");
-		attsObject = {
+		attsObject = 
+		{
 			#########################################
 			# DIMENSION DEFINITIONS
 			#
@@ -766,9 +770,11 @@ var setAttributes = func (attsObject = nil) {
 			}
 		}
 		
-		} elsif ( string.match(aircraftname,"f6f * " ) ) {
+	} elsif ( string.match(aircraftname,"f6f * " ) ) 
+	{
 		debprint ("Bombable: Loading F6F Hellcat main aircraft vulnerabilities");
-		attsObject = {
+		attsObject = 
+		{
 			#########################################
 			# DIMENSION DEFINITIONS
 			#
@@ -825,9 +831,11 @@ var setAttributes = func (attsObject = nil) {
 			}
 		}
 		
-		} elsif ( string.match(aircraftname," * sopwithCamel * " ) ) {
+	} elsif ( string.match(aircraftname," * sopwithCamel * " ) ) 
+	{
 		debprint ("Bombable: Loading SopwithCamel main aircraft vulnerabilities");
-		attsObject = {
+		attsObject = 
+		{
 			
 			#########################################
 			# DIMENSION DEFINITIONS
@@ -881,10 +889,12 @@ var setAttributes = func (attsObject = nil) {
 				}
 			}
 		}
-		} elsif ( string.match(aircraftname, " * spadvii * " )  ) {
+	} elsif ( string.match(aircraftname, " * spadvii * " )  ) 
+	{
 		
 		debprint ("Bombable: Loading SPAD VII main aircraft vulnerabilities");
-		attsObject = {
+		attsObject = 
+		{
 			#########################################
 			# DIMENSION DEFINITIONS
 			#
@@ -941,9 +951,11 @@ var setAttributes = func (attsObject = nil) {
 				}
 			}
 		}
-		} elsif ( string.match(aircraftname," * fkdr * " ) ) {
+	} elsif ( string.match(aircraftname," * fkdr * " ) ) 
+	{
 		debprint ("Bombable: Loading Fokker DR.1 main aircraft vulnerabilities");
-		attsObject = {
+		attsObject = 
+		{
 			#########################################
 			# DIMENSION DEFINITIONS
 			#
@@ -1000,7 +1012,6 @@ var setAttributes = func (attsObject = nil) {
 				}
 			}
 		}
-		
 	}
 	
 
@@ -1277,13 +1288,15 @@ var revitalizeAllAIObjects = func (revitType = "aircraft", preservePosSpeed = 0)
 	#direction, in case AI piloting is turned off (they stay together rather than dispersing)
 	var waitTime_sec = 0;
 	var numRespawned = 0;
+	var myNodeName = "";
 	foreach (elem;ai) 
 	{
 		#only do this for the type named in the function call
 		type = elem.getName();
 		if (type != revitType) continue;
 		
-		aiName = type ~ "[" ~ elem.getIndex() ~ "]";
+		# aiName = type ~ "[" ~ elem.getIndex() ~ "]";
+		myNodeName = "ai/models/" ~ type ~ "[" ~ elem.getIndex() ~ "]";
 		
 		#Disperse within a given radius
 		if (preservePosSpeed == 2) 
@@ -1313,9 +1326,9 @@ var revitalizeAllAIObjects = func (revitType = "aircraft", preservePosSpeed = 0)
 		#keeps their 'real' damage total remotely), but might help in case of MP malfunction of some sort, and doesn't hurt in the meanwhile
 		resetBombableDamageFuelWeapons ("/ai/models/" ~ aiName);
 		
-		setprop ("ai/models/"~aiName~"/controls/flight/target-pitch", 0);
-		setprop ("ai/models/"~aiName~"/controls/flight/target-roll", 0);
-		setprop ("ai/models/"~aiName~"/orientation/roll-deg", 0);
+		setprop (myNodeName~"/controls/flight/target-pitch", 0);
+		setprop (myNodeName~"/controls/flight/target-roll", 0);
+		setprop (myNodeName~"/orientation/roll-deg", 0);
 
 		#settimer & increased waittime helps avoid segfault that seems to happen
 		#to FG too often when many models appear all at once
@@ -1328,8 +1341,8 @@ var revitalizeAllAIObjects = func (revitType = "aircraft", preservePosSpeed = 0)
 		
 		if (preservePosSpeed == 1)
 		{
-			var currLat = getprop ("ai/models/"~aiName~"/position/latitude-deg");
-			var currLon = getprop ("ai/models/"~aiName~"/position/longitude-deg");
+			var currLat = getprop (myNodeName~"/position/latitude-deg");
+			var currLon = getprop (myNodeName~"/position/longitude-deg");
 			var old_elev_ft = elev (currLat,currLon);
 			
 			if (referenceLat == 0 and referenceLon == 0) 
@@ -1346,10 +1359,10 @@ var revitalizeAllAIObjects = func (revitType = "aircraft", preservePosSpeed = 0)
 			newlon_deg = newlon_deg + (rand() - .5) * 500/m_per_deg_lon;
 		}
 		
-		setprop ("ai/models/"~aiName~"/position/latitude-deg",  newlat_deg );
-		setprop ("ai/models/"~aiName~"/position/longitude-deg",  newlon_deg );
+		setprop (myNodeName~"/position/latitude-deg",  newlat_deg );
+		setprop (myNodeName~"/position/longitude-deg",  newlon_deg );
 		var elev_ft = elev (newlat_deg,newlon_deg);
-		var currAlt_ft = getprop ("ai/models/"~aiName~"/position/altitude-ft");
+		var currAlt_ft = getprop (myNodeName~"/position/altitude-ft");
 		
 		if (type == "aircraft") 
 		{
@@ -1379,37 +1392,38 @@ var revitalizeAllAIObjects = func (revitType = "aircraft", preservePosSpeed = 0)
 			alt_ft = elev_ft;
 		}
 			
-		setprop ("ai/models/"~aiName~"/position/altitude-ft", alt_ft);
-		setprop ("ai/models/"~aiName~"/controls/flight/target-alt", alt_ft);
+		setprop (myNodeName~"/position/altitude-ft", alt_ft);
+		setprop (myNodeName~"/controls/flight/target-alt", alt_ft);
 
 		if (preservePosSpeed == 0 or preservePosSpeed == 2) 
 		{
 			# rjw not needed since AI model flight lateral-mode control in "roll" - not "hdg" ?
-			# setprop ("ai/models/"~aiName~"/controls/flight/target-hdg", heading_deg);
-			setprop ("ai/models/"~aiName~"/orientation/true-heading-deg", heading_deg);
+			# setprop (myNodeName~"/controls/flight/target-hdg", heading_deg);
+			setprop (myNodeName~"/orientation/true-heading-deg", heading_deg);
 		}
 		
 		#setting these stops the relocate function from relocating them back
-		setprop("ai/models/"~aiName~"/position/previous/latitude-deg", newlat_deg);
-		setprop("ai/models/"~aiName~"/position/previous/longitude-deg", newlon_deg);
-		setprop("ai/models/"~aiName~"/position/previous/altitude-ft", alt_ft);
+		setprop(myNodeName~"/position/previous/latitude-deg", newlat_deg);
+		setprop(myNodeName~"/position/previous/longitude-deg", newlon_deg);
+		setprop(myNodeName~"/position/previous/altitude-ft", alt_ft);
 		
 		var cart = geodtocart(newlat_deg, newlon_deg, alt_ft * FT2M); # lat/lon/alt(m)
 		
 		
-		setprop("ai/models/"~aiName~"/position/previous/global-x", cart[0]);
-		setprop("ai/models/"~aiName~"/position/previous/global-y", cart[1]);
-		setprop("ai/models/"~aiName~"/position/previous/global-z", cart[2]);
+		setprop(myNodeName~"/position/previous/global-x", cart[0]);
+		setprop(myNodeName~"/position/previous/global-y", cart[1]);
+		setprop(myNodeName~"/position/previous/global-z", cart[2]);
 		
 		# set the speed--if not preserving speed/position OR if speed is 0 (due to crashing etc)
-		var currSpeed_kt = getprop ("ai/models/"~aiName~"/velocities/true-airspeed-kt");
+		var currSpeed_kt = getprop (myNodeName~"/velocities/true-airspeed-kt");
 
 		if (preservePosSpeed == 0 or currSpeed_kt == 0 ) 
 		{
-			var min_vel_kt = getprop( "ai/models/"~aiName~"/bombable/attributes/velocities/minSpeed_kt");
-			var cruise_vel_kt = getprop( "ai/models/"~aiName~"/bombable/attributes/velocities/cruiseSpeed_kt");
-			var attack_vel_kt = getprop( "ai/models/"~aiName~"/bombable/attributes/velocities/attackSpeed_kt");
-			var max_vel_kt = getprop( "ai/models/"~aiName~"/bombable/attributes/velocities/maxSpeed_kt");
+			var vels = attributes[myNodeName].velocities;
+			var min_vel_kt = vels.minSpeed_kt;
+			var cruise_vel_kt = vels.cruiseSpeed_kt;
+			var attack_vel_kt = vels.attackSpeed_kt;
+			var max_vel_kt = vels.maxSpeed_kt;
 			
 			#defaults
 			if (type == "aircraft") 
@@ -1450,8 +1464,8 @@ var revitalizeAllAIObjects = func (revitType = "aircraft", preservePosSpeed = 0)
 			
 			debprint ("vel2:", vel);
 
-			setprop ("ai/models/"~aiName~"/velocities/true-airspeed-kt", vel);
-			setprop ("ai/models/"~aiName~"/controls/flight/target-spd", vel);
+			setprop (myNodeName~"/velocities/true-airspeed-kt", vel);
+			setprop (myNodeName~"/controls/flight/target-spd", vel);
 		}
 	}
 			
@@ -2592,8 +2606,6 @@ var fire_loop = func(id, myNodeName = "") {
 		setprop ("/bombable/fire-particles/smoke-startsize-very-small", smokeStartsize * (rand()/8 + 0.2));
 		setprop ("/bombable/fire-particles/smoke-startsize-large", smokeStartsize * (rand() * 4 + 1));
 				
-		#damageRate_percentpersecond = getprop (""~myNodeName~"/bombable/attributes/vulnerabilities/fireDamageRate_percentpersecond");
-				
 		damageRate_percentpersecond = attributes[myNodeName].vulnerabilities.fireDamageRate_percentpersecond;
 				
 		if (damageRate_percentpersecond == nil) damageRate_percentpersecond = 0;
@@ -2622,7 +2634,6 @@ var fire_loop = func(id, myNodeName = "") {
 
 var hitground_stop_explode = func (myNodeName, alt) 
 {
-	#var b = props.globals.getNode (""~myNodeName~"/bombable/attributes");
 	var vuls = attributes[myNodeName].vulnerabilities;
 	var ctrls = attributes[myNodeName].controls;
 			
@@ -4012,7 +4023,6 @@ var test_impact = func(changedNode, myNodeName) {
 	# if it doesn't exist we assume it is 1/3 the damage radius
 	if (!vitalDamageRadius_m) vitalDamageRadius_m = damageRadius_m/3;
 			
-	#var b = props.globals.getNode (""~myNodeName~"/bombable/attributes");
 	var vuls = attributes[myNodeName].vulnerabilities;
 			
 	ballisticMass_lb = getBallisticMass_lb(impactNodeName);
@@ -5421,11 +5431,9 @@ var mp_update_damage = func (myNodeName = "", damageRise = 0, damageTotal = 0, s
 		var smokeStartsize = rand() * 10 + 5;
 		settimer (func {setprop ("/bombable/fire-particles/smoke-startsize", smokeStartsize); }, 2.5);#turn the big explosion off sorta quickly
 					
-		#this was rem-ed out, not sure why, re-enabling it 2013/03/31
-		explosiveMass_kg = getprop(""~myNodeName~"/bombable/attributes/vulnerabilities/explosiveMass_kg");
-		#
+		var explosiveMass_kg = attributes[myNodeName].vulnerabilities.explosiveMass_kg;
 					
-		if (explosiveMass_kg == nil or explosiveMass_kg == 0) explosiveMass_kg = 10000;
+		if (explosiveMass_kg == 0) explosiveMass_kg = 10000;
 		smokeMultiplier = math.log10(explosiveMass_kg) * 10;
 		setprop ("/bombable/fire-particles/smoke-startsize", smokeStartsize * smokeMultiplier + smokeMultiplier * rand());
 
@@ -5551,7 +5559,6 @@ var mainAC_add_damage = func (damageRise = 0, damageTotal = 0, source = "", mess
 				
 	myNodeName = ""; #main aircraft
 				
-	var b = props.globals.getNode (""~myNodeName~"/bombable/attributes");
 	var vuls = attributes[myNodeName].vulnerabilities;
 
 				
@@ -7794,7 +7801,7 @@ var attack_loop = func ( id, myNodeName )
 				
 	var ctrls = attributes[myNodeName].controls;
 	if (  ! getprop (bomb_menu_pp~"ai-aircraft-attack-enabled") or ! getprop(bomb_menu_pp~"bombable-enabled") or 
-	ctrls.damage == 1 ) 
+		(ctrls.damage == 1) ) 
 	{
 		atts.loopTime = atts.attackCheckTime_sec;
 		return;
@@ -8207,7 +8214,6 @@ var aircraftTurnToHeadingControl = func (myNodeName, id, rolldegrees = 45, targe
 	#set the target altitude as well.  flight/target-alt is in ft
 	if (targetAlt_m != "none") 
 	{
-		#var b = props.globals.getNode (""~myNodeName~"/bombable/attributes");
 		var evas = attributes[myNodeName].evasions;
 		var alts = attributes[myNodeName].altitudes;
 					
@@ -8429,7 +8435,7 @@ var aircraftCrashControl = func (myNodeName) {
 
 	if (crash.speedChange < 0) 
 	{
-		var cruiseSpeed_kt = getprop(""~myNodeName~ "/bombable/attributes/velocities/cruiseSpeed_kt");
+		var cruiseSpeed_kt = attributes[myNodeName].velocities.cruiseSpeed_kt;
 		var newVertSpeed = crash.initialVertSpeed;
 		if (crash.initialVertSpeed > -120)  newVertSpeed -= 32.174 * (1 - newTrueAirspeed_fps * newTrueAirspeed_fps / crash.initialSpeed / crash.initialSpeed) * loopTime; # rjw limit at term velocity
 		var newPitchAngle = math.asin(newVertSpeed / newTrueAirspeed_fps) * R2D;
@@ -8863,7 +8869,6 @@ var add_damage = func(damageRise, myNodeName, damagetype = "weapon", impactNodeN
 	}
 					
 	debprint (sprintf("Bombable: add_damage%6.2f to %s", damageRise, myNodeName));
-	#var b = props.globals.getNode (""~myNodeName~"/bombable/attributes");
 	var vuls = attributes[myNodeName].vulnerabilities;
 	var spds = attributes[myNodeName].velocities;
 	var livs = attributes[myNodeName].damageLiveries;
@@ -8897,6 +8902,7 @@ var add_damage = func(damageRise, myNodeName, damagetype = "weapon", impactNodeN
 	elsif(damageValue < 0.0)
 		damageValue = 0.0;
 		ctrls.damage = damageValue;
+		setprop(""~myNodeName~"/bombable/attributes/damage", damageValue); # hook for animation of AI models via xml
 	var damageIncrease = damageValue - prevDamageValue;
 
 	if (liveriesCount > 0 and liveriesCount != nil ) 
@@ -9535,7 +9541,7 @@ var initialize_func = func ( b ){
 	# the object has stored the node telling where to store itself on the
 	# property tree as b.objectNodeName.  This creates "/bombable/attributes"
 	# under the nodename & saves these values there.
-	b.objectNode.getNode("bombable/attributes",1).setValues( b );
+
 						
 	# for now we are saving the attributes hash to the property tree and
 	# then also under attributes[myNodeName].  Many of the functions above
@@ -9544,7 +9550,10 @@ var initialize_func = func ( b ){
 	# performance to simply store the values in a local variable.
 	# In future for performance reasons we might just save it under local
 	# variable attributes[myNodeName] and not in the property tree at all, unless
-	# something needs to be made globally available to change at runtime.
+	# something needs to be made globally available to change at runtime (outside bombable namespace).
+
+	# rjw implemented - deleted property tree attributes
+	# b.objectNode.getNode("bombable/attributes",1).setValues( b );
 
 	
 	attributes[b.objectNodeName] = b;
@@ -9610,15 +9619,9 @@ var setMaxLatLon = func (myNodeName, damageDetectDistance_m){
 						
 	debprint ("Bombable: maxLat = ", maxLat_deg, " maxLon = ", maxLon_deg);
 						
-	#put these in nodes also so they can be easily updated by an external
-	#routine or timer
-	#props.globals.getNode(""~myNodeName~"/bombable/attributes/dimensions/maxLat",1).setDoubleValue( maxLat);
+	#put these in global hash so they are accessible
 						
 	attributes[myNodeName].dimensions['maxLat'] = maxLat_deg;
-						
-						
-	#props.globals.getNode(""~myNodeName~"/bombable/attributes/dimensions/maxLon",1).setDoubleValue( maxLon);
-						
 	attributes[myNodeName].dimensions['maxLon'] = maxLon_deg;
 						
 	# debprint ("Bombable: maxLat = ", attributes[myNodeName].dimensions.maxLat, " maxLon = ", attributes[myNodeName].dimensions.maxLon, " for ", myNodeName );
@@ -9797,8 +9800,6 @@ var ground_init_func = func( myNodeName ) {
 
 
 
-	#var b = props.globals.getNode (""~myNodeName~"/bombable/attributes");
-	#alts = b.getNode("altitudes").getValues();
 	alts = attributes[myNodeName].altitudes;
 						
 						
@@ -10119,7 +10120,6 @@ var weapons_init_func = func(myNodeName)
 	}
 						
 	#don't do this if the 'weapons' attributes are not included
-	#var b = props.globals.getNode (""~myNodeName~"/bombable/attributes");
 	var weapsSuccess = 1;
 	if (!contains (attributes[myNodeName], "weapons")) { debprint ("no attributes.weapons, exiting"); weapsSuccess = 0;}
 	else {
@@ -11062,18 +11062,18 @@ var startEngines = func(myNodeName) {
 
 ########################## killEngines ###########################
 
-var killEngines = func(myNodeName) {
-	for (var noEngine = 0; noEngine < 6; noEngine  +=  1) {
-		var revs = getprop(""~myNodeName~"/engines/engine["~noEngine~"]/rpm");
-		if (revs == nil) break;
-			if (rand() > .1) {
-			setprop(""~myNodeName~"/engines/engine["~noEngine~"]/rpm" , 0);
-			}
-			else {
-			setprop(""~myNodeName~"/engines/engine["~noEngine~"]/rpm" , 400);
-			}			
-		}
+var killEngines = func(myNodeName) 
+{
+	for (var noEngine = 0; noEngine < 6; noEngine  +=  1) 
+	{
+		if ( getprop(""~myNodeName~"/engines/engine["~noEngine~"]/rpm") == nil) continue;
+		setprop
+		(
+			""~myNodeName~"/engines/engine["~noEngine~"]/rpm" , 
+			(rand() > .1) ? 0 : 400
+		);
 	}
+}
 ########################## reduceSpeed ###########################
 
 var reduceSpeed = func(myNodeName, factorSlowDown, type) {
