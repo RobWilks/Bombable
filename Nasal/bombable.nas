@@ -581,9 +581,10 @@ var damageCheck = func () {
 #  You can set vulnerabilities for any aircraft by
 #  simply creating a file 'vulnerabilities.nas',
 #  defining vulsObject as below, and including the line
-#      bombable.setAttributes (attsObject);
-#
-var setAttributes = func (attsObject = nil) {
+#  bombable.setAttributes (attsObject);
+# otherwsie, does not get called
+var setAttributes = func (attsObject = nil) 
+{
 	debprint ("Bombable: Loading main aircraft vulnerability settings.");
 	if (attsObject == nil) {
 		attsObject = {
@@ -1014,9 +1015,13 @@ var setAttributes = func (attsObject = nil) {
 		}
 	}
 	
+	# rjw removed - now using attributes hash
+	# props.globals.getNode(""~attributes_pp, 1).setValues(attsObject);
 
-	props.globals.getNode(""~attributes_pp, 1).setValues(attsObject);
 	attributes[""] = attsObject;
+	# hash used by inc_loopid for loop counters
+	attributes[""]["loopids"] = { update_m_per_deg_latlon_loopid : 0 };
+
 	
 	# We setmaxlatlon here so that it is re-done on reinit--otherwise we
 	#get errors about maxlat being nil
@@ -1045,25 +1050,22 @@ var setAttributes = func (attsObject = nil) {
 	#
 	attsSet = getprop (""~attributes_pp~"/attributes-set");
 	if (attsSet == nil) attsSet = 0;
-	if (attsSet == 0) { setlistener("/sim/signals/reinit", func {
-	setAttributes(attsObject)} );
-	
-	#also set the default gforce/speed damage/warning enabled/disabled
-	# but only on initial startup, not on reset
-	
-	if (getprop (GF_damage_menu_pp ~"/damage_enabled") == nil)
-	props.globals.getNode(GF_damage_menu_pp ~"/damage_enabled", 1).setValue(attsObject.vulnerabilities.gforce_damage.damage_enabled);
-	if (getprop (GF_damage_menu_pp ~"/warning_enabled") == nil)
-	props.globals.getNode(GF_damage_menu_pp ~"/warning_enabled", 1).setValue(attsObject.vulnerabilities.gforce_damage.warning_enabled);
-	
-	
-	
-	
-}
-
-
+	if (attsSet == 0)
+	{ 
+		setlistener("/sim/signals/reinit", func 
+		{
+			setAttributes(attsObject)
+		} 
+		);
+		
+		#also set the default gforce/speed damage/warning enabled/disabled
+		# but only on initial startup, not on reset
+		if (getprop (GF_damage_menu_pp ~"/damage_enabled") == nil)
+		props.globals.getNode(GF_damage_menu_pp ~"/damage_enabled", 1).setValue(attsObject.vulnerabilities.gforce_damage.damage_enabled);
+		if (getprop (GF_damage_menu_pp ~"/warning_enabled") == nil)
+		props.globals.getNode(GF_damage_menu_pp ~"/warning_enabled", 1).setValue(attsObject.vulnerabilities.gforce_damage.warning_enabled);
+	}
 props.globals.getNode(""~attributes_pp~"/attributes-set", 1).setValue(1);
-
 }
 
 
@@ -2553,7 +2555,7 @@ var parse_msg = func (source, msg) {
 #
 var fire_loop = func(id, myNodeName = "") {
 	if (myNodeName == "") myNodeName = "";
-	var loopid = getprop(""~myNodeName~"/bombable/loopids/fire-loopid");
+	var loopid = attributes[myNodeName].loopids.fire_loopid;
 	id == loopid or return;
 			
 	#Set the timer function here at the top
@@ -2744,7 +2746,7 @@ var setVerticalSpeed = func (myNodeName, targetVertSpeed_fps = 70, maxChange_fps
 
 var ground_loop = func( id, myNodeName ) 
 {
-	var loopid = getprop(""~myNodeName~"/bombable/loopids/ground-loopid");
+	var loopid = attributes[myNodeName].loopids.ground_loopid;
 	id == loopid or return;
 
 	var updateTime_s = attributes[myNodeName].updateTime_s * (0.9 + 0.2 * rand());
@@ -3468,7 +3470,7 @@ var ground_loop = func( id, myNodeName )
 
 var location_loop = func(id, myNodeName) 
 {
-	var loopid = getprop(""~myNodeName~"/bombable/loopids/location-loopid");
+	var loopid = attributes[myNodeName].loopids.location_loopid;
 	id == loopid or return;
 
 	#debprint ("location_loop starting");
@@ -4718,7 +4720,7 @@ var speed_adjust = func (myNodeName, time_sec )
 #################################### speed_adjust_loop ##################################
 var speed_adjust_loop = func ( id, myNodeName, looptime_sec) 
 {
-	var loopid = getprop(""~myNodeName~"/bombable/loopids/speed-adjust-loopid");
+	var loopid = attributes[myNodeName].loopids.speed_adjust_loopid;
 	id == loopid or return;
 	#debprint ("aim-timer");
 				
@@ -4764,7 +4766,7 @@ var do_acrobatic_loop_loop = func
 )
 {
 	#same loopid as roll so one can interrupt the other
-	var loopid = getprop(""~myNodeName~"/bombable/loopids/roll-loopid");
+	var loopid = attributes[myNodeName].loopids.roll_loopid;
 	id == loopid or return;
 				
 	if (direction == "up") var dir = 1;
@@ -4937,10 +4939,8 @@ var do_acrobatic_loop = func
 	);
 
 	# loopid same as other roll type maneuvers because only one can happen at a time
-	var loopid = getprop(""~myNodeName~"/bombable/loopids/roll-loopid");
-	if (loopid == nil) loopid = 0;
-	loopid  += 1;
-	setprop(""~myNodeName~"/bombable/loopids/roll-loopid", loopid);
+	var loopid = attributes[myNodeName].loopids.roll_loopid + 1;
+	attributes[myNodeName].loopids.roll_loopid = loopid;
 				
 	if (vert_speed_add_kt == nil or vert_speed_add_kt <= 0)
 	{
@@ -5700,10 +5700,9 @@ var mp_send_damage = func (myNodeName = "", damageRise = 0 ) {
 #
 var fireAIWeapon_stop = func (id, myNodeName, index) {
 	# index of the fire particle tied to the weapon that will stop firing
-	var loopid = getprop("" ~ myNodeName ~ "/bombable/loopids/fireAIWeapon" ~ index ~ "-loopid");
+	var loopid = attributes[myNodeName].loopids["fireAIWeapon" ~ index ~ "_loopid"];
 	# debprint("" ~ myNodeName ~ "bombable/loopids/fireAIWeapon" ~ index ~ "-loopid " ~ loopid ~ " id " ~ id);
 	if (loopid != id) return;
-	#if (myNodeName == "" or myNodeName == "environment") myNodeName = "/environment";
 	setprop("bombable/fire-particles/projectile-tracer[" ~ index ~ "]/ai-weapon-firing", 0); 
 }
 
@@ -6139,7 +6138,7 @@ var weapons_loop = func (id, myNodeName1 = "", myNodeName2 = "", targetSize_m = 
 
 	#we increment loopid if we want to kill this timer loop.  So check if we need to kill/exit:
 	#myNodeName1 is the AI aircraft and myNodeName2 is the main aircraft
-	var loopid = getprop(""~myNodeName1~"/bombable/loopids/weapons-loopid");
+	var loopid = attributes[myNodeName1].loopids.weapons_loopid;
 	id == loopid or return;
 	#debprint ("aim-timer");
 				
@@ -7781,7 +7780,7 @@ var courseToMainAircraft = func (myNodeName){
 
 var attack_loop = func ( id, myNodeName ) 
 {
-	var loopid = getprop(""~myNodeName~"/bombable/loopids/attack-loopid");
+	var loopid = attributes[myNodeName].loopids.attack_loopid;
 	id == loopid or return;
 	var atts = attributes[myNodeName].attacks;
 				
@@ -8186,7 +8185,7 @@ var aircraftSetVertSpeed = func (myNodeName, dodgeAltAmount_ft, evasORatts = "ev
 
 var aircraftTurnToHeadingControl = func (myNodeName, id, rolldegrees = 45, targetAlt_m = "none" ,  roll_limit_deg = 85, correction = 0 ) 
 {
-	var loopid = getprop(""~myNodeName~"/bombable/loopids/roll-loopid");
+	var loopid = attributes[myNodeName].loopids.roll_loopid;
 	id == loopid or return;
 	if (!getprop(bomb_menu_pp~"bombable-enabled") ) return;
 
@@ -8278,10 +8277,7 @@ var aircraftTurnToHeading = func (myNodeName, rolldegrees = 45, targetAlt_m = "n
 {
 	# same as roll-loopid ID because we can't turn to heading & roll @ the same time
 	# rjw how to avoid function clash?
-	var loopid = getprop(""~myNodeName~"/bombable/loopids/roll-loopid");
-	if (loopid == nil) loopid = 0;
-	loopid  += 1;
-	setprop(""~myNodeName~"/bombable/loopids/roll-loopid", loopid);
+	var loopid = inc_loopid( myNodeName, "roll" );
 	var ctrls = attributes[myNodeName].controls;
 	ctrls.rollTimeElapsed = 0;
 				
@@ -8319,7 +8315,7 @@ var aircraftTurnToHeading = func (myNodeName, rolldegrees = 45, targetAlt_m = "n
 var aircraftRollControl = func (myNodeName, id, rolldegrees, rolltime, roll_limit_deg, 
 delta_deg, delta_t) 
 {
-	var loopid = getprop(""~myNodeName~"/bombable/loopids/roll-loopid");
+	var loopid = attributes[myNodeName].loopids.roll_loopid;
 	id == loopid or return;
 	if (!getprop(bomb_menu_pp~"bombable-enabled") ) return;
 				
@@ -8374,10 +8370,7 @@ delta_deg, delta_t)
 # Initialises aircraftRollControl
 var aircraftRoll = func (myNodeName, rolldegrees = -60, rolltime = 5, roll_limit_deg = 85) 
 {
-	var loopid = getprop(""~myNodeName~"/bombable/loopids/roll-loopid");
-	if (loopid == nil) loopid = 0;
-	loopid  +=  1;
-	setprop(""~myNodeName~"/bombable/loopids/roll-loopid", loopid);
+	var loopid = inc_loopid( myNodeName, "roll" );
 	var updateinterval_sec = .1;
 	var ctrls = attributes[myNodeName].controls;
 	ctrls.rollTimeElapsed = 0;
@@ -8533,7 +8526,7 @@ var stopDodgeAttack = func (myNodeName)
 	ctrls.dodgeInProgress = 0;
 	ctrls.attackInProgress = 0;
 	inc_loopid(myNodeName, "roll");
-	inc_loopid(myNodeName, "speed-adjust");
+	inc_loopid(myNodeName, "speed_adjust");
 	inc_loopid(myNodeName, "attack");
 }
 
@@ -9132,12 +9125,13 @@ return  damageIncrease;
 #When the loopid increments it will kill any timer functions
 #using that loopid for that object.  (Otherwise they will just
 #continue to run indefinitely even though the object itself is unloaded)
-var inc_loopid = func (nodeName = "", loopName = "") {
-	#if (nodeName == "") nodeName = "/environment";
-	var loopid = getprop(""~nodeName~"/bombable/loopids/" ~ loopName ~ "-loopid");
+var inc_loopid = func (nodeName = "", loopName = "") 
+{
+	var s = loopName ~ "_loopid";
+	var loopid = attributes[nodeName].loopids[s];
 	if ( loopid == nil ) loopid = 0;
 	loopid  +=  1;
-	setprop(""~nodeName~"/bombable/loopids/" ~ loopName ~ "-loopid", loopid);
+	attributes[nodeName].loopids[s] = loopid;
 	return loopid;
 }
 
@@ -9307,6 +9301,12 @@ var initialize_func = func ( b ){
 		courseToTarget_deg: 0,
 		pilotAbility: ability,
 	};
+
+	b["loopids"] = 
+	{
+		roll_loopid : 0,
+	};
+	# hash used by inc_loopid for loop counters
 
 	if (! contains (b, "type")) b["type"] = props.globals.getNode(""~b.objectNodeName).getName(); # key allows AI ship models to be used as ground vehicles by adding type:"groundvehicle" to Bombable attributes hash
 						
@@ -9588,7 +9588,7 @@ var update_m_per_deg_latlon = func  {
 # loop to periodically update the m_per_deg_lat & lon
 #
 var update_m_per_deg_latlon_loop = func (id) {
-	var loopid = getprop("/bombable/loopids/update_m_per_deg_latlon-loopid");
+	var loopid = attributes[""].loopids.update_m_per_deg_latlon_loopid;
 	id == loopid or return;
 	#debprint ("update_m_per_deg_latlon_loop starting");
 	settimer (func {update_m_per_deg_latlon_loop(id)}, 63.2345);
@@ -9829,7 +9829,7 @@ var ground_init_func = func( myNodeName ) {
 	
 	# this loop allows ships to adjust their height according to the vertical speed.  Experiment abandoned 050318
 	# if (type == "ship") {							
-		# var haloopid = inc_loopid (myNodeName, "height-adjust");
+		# var haloopid = inc_loopid (myNodeName, "height_adjust");
 		# settimer (func {height_adjust_loop ( haloopid, myNodeName, .1 + rand()/100); }, 12 + rand());
 		# debprint ("Bombable: Effect * adjust height * loaded for "~ myNodeName);
 
@@ -9966,7 +9966,7 @@ var attack_init_func = func(myNodeName)
 	
 	if (type == "aircraft") 
 	{							
-		var speedAdjust_loopid = inc_loopid (myNodeName, "speed-adjust");
+		var speedAdjust_loopid = inc_loopid (myNodeName, "speed_adjust");
 		settimer (func {speed_adjust_loop ( speedAdjust_loopid, myNodeName, .3 + rand() / 30); }, 12 + rand() );
 	}
 	
@@ -10590,7 +10590,6 @@ var bombable_del = func(myNodeName, id = "") {
 						
 	#we increment this each time we are inited or de-inited
 	#when the loopid is changed it kills the timer loops that have that id
-	#var loopid = inc_loopid(myNodeName, "bomb");
 	var loopid2 = inc_loopid(myNodeName, "fire");
 						
 						
@@ -10622,7 +10621,7 @@ var ground_del = func(myNodeName) {
 	# we increment this each time we are inited or de-inited
 	# when the loopid is changed it kills the timer loops that have that id
 	var loopid = inc_loopid(myNodeName, "ground");
-	var haloopid = inc_loopid(myNodeName, "height-adjust");
+	var haloopid = inc_loopid(myNodeName, "height_adjust");
 
 	#set this to 0/false when de-inited
 	setprop(""~myNodeName~"/bombable/initializers/ground-initialized", 0);
@@ -10661,7 +10660,7 @@ var attack_del = func(myNodeName)
 	#we increment this each time we are inited or de-inited
 	#when the loopid is changed it kills the timer loops that have that id
 	var loopid = inc_loopid(myNodeName, "attack");
-	var speedAdjust_loopid = inc_loopid(myNodeName, "speed-adjust");
+	var speedAdjust_loopid = inc_loopid(myNodeName, "speed_adjust");
 						
 	#set this to 0/false when de-inited
 	setprop(""~myNodeName~"/bombable/initializers/attack-initialized", 0);
@@ -10847,7 +10846,6 @@ var bombableInit = func {
 	# Add some useful nodes
 	# these are for the "mothership" not the AI or MP objects
 						
-	setprop("/bombable/attributes/damage", 0);
 	setprop ("/bombable/fire-particles/smoke-startsize", 11.0);
 	setprop ("/bombable/fire-particles/smoke-endsize", 50.0);
 	setprop ("/bombable/fire-particles/smoke-startsize-small", 6.5);
@@ -10864,6 +10862,11 @@ var bombableInit = func {
 	props.globals.getNode(bomb_menu_pp ~ "fire-particles/fire-trigger", 1).setBoolValue(1);
 	# props.globals.getNode(bomb_menu_pp ~ "fire-particles/flack-trigger", 1).setBoolValue(0);
 
+	#set attributes for main aircraft
+	attributesSet = getprop (""~attributes_pp~"/attributes_set");
+	if (attributesSet == nil or ! attributesSet ) setAttributes ();
+	setprop("/bombable/attributes/damage", 0);
+	setprop("/bombable/attributes/damageCumulative", 0);
 
 	# turn on the loop to occasionally re-calc the m_per_deg lat & lon
 	# must be done before setMaxLatLon
@@ -10878,13 +10881,13 @@ var bombableInit = func {
 	var numModelImpactListeners = 0;
 						
 	#adds the main aircraft to the impact report detection list
-	foreach (var i; bombable.impactReporters) {
+	foreach (var i; bombable.impactReporters) 
+	{
 		#debprint ("i: " , i);
 		listenerid = setlistener(i, func ( changedImpactReporterNode ) {
 		if (!getprop(bomb_menu_pp~"bombable-enabled") ) return 0;
 		test_impact( changedImpactReporterNode, "" ); });
 		#append(listenerids, listenerid);
-							
 	}
 						
 
@@ -10900,18 +10903,10 @@ var bombableInit = func {
 	#props.globals.getNode(bomb_menu_pp~, 1).setBoolValue(1);
 	#  setprop (bomb_menu_save_lock, 0); #save_lock prevents this change from being written to the menu save file
 						
-	#set attributes for main aircraft
-	attributesSet = getprop (""~attributes_pp~"/attributes_set");
-	if (attributesSet == nil or ! attributesSet ) setAttributes ();
-	setprop("/bombable/attributes/damageCumulative", 0);
-						
-						
 	#we increment this each time we are inited or de-inited
 	#when the loopid is changed it kills the timer loops that have that id
 	var loopid = inc_loopid("", "fire");
 	settimer(func{fire_loop(loopid,"");},5.04 + rand());
-
-
 						
 	#what to do when re-set is selected
 	setlistener("/sim/signals/reinit", func 
@@ -10922,7 +10917,6 @@ var bombableInit = func {
 		#settimer (setupBombableMenu, 5.32);
 		setupBombableMenu();
 	});
-						
 						
 	# action to take when main aircraft crashes (or un-crashes)
 	setlistener("/sim/crashed", func {
@@ -10974,7 +10968,8 @@ var bombableInit = func {
 	props.globals.getNode(MP_broadcast_exists_pp, 1).setBoolValue(0);
 						
 	# is multiplayer enabled (overall for FG)?
-	if ( getprop("/sim/multiplay/txhost") ) {
+	if ( getprop("/sim/multiplay/txhost") ) 
+	{
 		Binary = mp_broadcast.Binary;
 		print("Bombable: Bombable successfully set up and enabled for multiplayer dogfighting (you can disable Multiplayer Bombable in the Bombable menu)");
 		props.globals.getNode(MP_broadcast_exists_pp, 1).setBoolValue(1);
