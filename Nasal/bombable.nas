@@ -125,7 +125,8 @@ var normdeg180 = func(angle) {
 # if so, returns 1
 # if not, returns 0 and sets nodeName ~ /bombable/overall-initialized to true
 #
-var check_overall_initialized = func(nodeName) {
+var check_overall_initialized = func(nodeName) 
+{
 	nodeName = cmdarg().getPath();
 	#only allow initialization for ai & multiplayer objects
 	# in FG 2.4.0 we're having trouble with strange(!?) init requests from
@@ -154,10 +155,9 @@ var check_overall_initialized = func(nodeName) {
 	return 0;
 }
 
-var de_overall_initialize = func(nodeName) {
-
+var de_overall_initialize = func(nodeName) 
+{
 	setprop(""~nodeName~"/bombable/overall-initialized", 0);
-
 }
 
 var mpprocesssendqueue = func {
@@ -2555,8 +2555,7 @@ var parse_msg = func (source, msg) {
 #
 var fire_loop = func(id, myNodeName = "") {
 	if (myNodeName == "") myNodeName = "";
-	var loopid = attributes[myNodeName].loopids.fire_loopid;
-	id == loopid or return;
+	id == attributes[myNodeName].loopids.fire_loopid or return;
 			
 	#Set the timer function here at the top
 	#   so if there is some runtime error in the code
@@ -2746,8 +2745,7 @@ var setVerticalSpeed = func (myNodeName, targetVertSpeed_fps = 70, maxChange_fps
 
 var ground_loop = func( id, myNodeName ) 
 {
-	var loopid = attributes[myNodeName].loopids.ground_loopid;
-	id == loopid or return;
+	id == attributes[myNodeName].loopids.ground_loopid or return;
 
 	var updateTime_s = attributes[myNodeName].updateTime_s * (0.9 + 0.2 * rand());
 
@@ -3470,8 +3468,7 @@ var ground_loop = func( id, myNodeName )
 
 var location_loop = func(id, myNodeName) 
 {
-	var loopid = attributes[myNodeName].loopids.location_loopid;
-	id == loopid or return;
+	id == attributes[myNodeName].loopids.location_loopid or return;
 
 	#debprint ("location_loop starting");
 	# reset the timer so we will check this again in 15 seconds +/-
@@ -3638,8 +3635,6 @@ var altClosestApproachCalc = func {
 # put_splash puts the impact splash from test_impact
 #
 var put_splash = func (nodeName, iLat_deg,iLon_deg, iAlt_m, ballisticMass_lb, impactTerrain = "terrain", refinedSplash = 0, myNodeName = "" ){
-
-			
 	#This check to avoid duplicate splashes is not quite working in some cases
 	# perhaps because the lat is repeating exactly for different impacts, or
 	# because some weapon impacts and collisions are reported a little differently?
@@ -3647,8 +3642,6 @@ var put_splash = func (nodeName, iLat_deg,iLon_deg, iAlt_m, ballisticMass_lb, im
 	var impactObjectLat_deg = getprop (""~nodeName~"/impact/latitude-deg");
 			
 	if ((impactSplashPlaced == nil or impactSplashPlaced != impactObjectLat_deg) and iLat_deg != nil and iLon_deg != nil and iAlt_m != nil){
-
-				
 				
 		records.record_impact ( myNodeName: myNodeName, damageRise:0, damageIncrease:0, damageValue:0, impactNodeName: nodeName, ballisticMass_lb: ballisticMass_lb, lat_deg: iLat_deg, lon_deg: iLon_deg, alt_m: iAlt_m );
 
@@ -4720,8 +4713,7 @@ var speed_adjust = func (myNodeName, time_sec )
 #################################### speed_adjust_loop ##################################
 var speed_adjust_loop = func ( id, myNodeName, looptime_sec) 
 {
-	var loopid = attributes[myNodeName].loopids.speed_adjust_loopid;
-	id == loopid or return;
+	id == attributes[myNodeName].loopids.speed_adjust_loopid or return;
 	#debprint ("aim-timer");
 				
 	settimer (  func { speed_adjust_loop (id, myNodeName, looptime_sec)}, looptime_sec);
@@ -4766,8 +4758,7 @@ var do_acrobatic_loop_loop = func
 )
 {
 	#same loopid as roll so one can interrupt the other
-	var loopid = attributes[myNodeName].loopids.roll_loopid;
-	id == loopid or return;
+	id == attributes[myNodeName].loopids.roll_loopid or return;
 				
 	if (direction == "up") var dir = 1;
 	else var dir = -1;
@@ -5697,12 +5688,10 @@ var mp_send_damage = func (myNodeName = "", damageRise = 0 ) {
 
 ###################### fireAIWeapon_stop ######################
 # fireAIWeapon_stop: turns off one of the triggers in AI/Aircraft/Fire-Particles/projectile-tracer.xml
-#
+# rjw 
 var fireAIWeapon_stop = func (id, myNodeName, index) {
 	# index of the fire particle tied to the weapon that will stop firing
-	var loopid = attributes[myNodeName].loopids["fireAIWeapon" ~ index ~ "_loopid"];
-	# debprint("" ~ myNodeName ~ "bombable/loopids/fireAIWeapon" ~ index ~ "-loopid " ~ loopid ~ " id " ~ id);
-	if (loopid != id) return;
+	id == attributes[myNodeName].loopids["fireAIWeapon" ~ index ~ "_loopid"] or return;
 	setprop("bombable/fire-particles/projectile-tracer[" ~ index ~ "]/ai-weapon-firing", 0); 
 }
 
@@ -6138,8 +6127,7 @@ var weapons_loop = func (id, myNodeName1 = "", myNodeName2 = "", targetSize_m = 
 
 	#we increment loopid if we want to kill this timer loop.  So check if we need to kill/exit:
 	#myNodeName1 is the AI aircraft and myNodeName2 is the main aircraft
-	var loopid = attributes[myNodeName1].loopids.weapons_loopid;
-	id == loopid or return;
+	id == attributes[myNodeName1].loopids.weapons_loopid or return;
 	#debprint ("aim-timer");
 				
 	# var loopTime = LOOP_TIME * (15/16 + rand()/8);
@@ -7780,8 +7768,7 @@ var courseToMainAircraft = func (myNodeName){
 
 var attack_loop = func ( id, myNodeName ) 
 {
-	var loopid = attributes[myNodeName].loopids.attack_loopid;
-	id == loopid or return;
+	id == attributes[myNodeName].loopids.attack_loopid or return;
 	var atts = attributes[myNodeName].attacks;
 				
 	#debprint ("attack_loop starting");
@@ -8185,8 +8172,7 @@ var aircraftSetVertSpeed = func (myNodeName, dodgeAltAmount_ft, evasORatts = "ev
 
 var aircraftTurnToHeadingControl = func (myNodeName, id, rolldegrees = 45, targetAlt_m = "none" ,  roll_limit_deg = 85, correction = 0 ) 
 {
-	var loopid = attributes[myNodeName].loopids.roll_loopid;
-	id == loopid or return;
+	id == attributes[myNodeName].loopids.roll_loopid or return;
 	if (!getprop(bomb_menu_pp~"bombable-enabled") ) return;
 
 	var updateinterval_sec = .1;
@@ -8256,7 +8242,7 @@ var aircraftTurnToHeadingControl = func (myNodeName, id, rolldegrees = 45, targe
 	if ( math.abs(delta_heading_deg) > cutoff and rollTimeElapsed < maxTurnTime ) 
 	{
 		ctrls.rollTimeElapsed = rollTimeElapsed + updateinterval_sec;
-		settimer (func { aircraftTurnToHeadingControl(myNodeName, loopid, rolldegrees, targetAlt_m )}, updateinterval_sec );
+		settimer (func { aircraftTurnToHeadingControl(myNodeName, id, rolldegrees, targetAlt_m )}, updateinterval_sec );
 	}
 	else 
 	{
@@ -8315,8 +8301,7 @@ var aircraftTurnToHeading = func (myNodeName, rolldegrees = 45, targetAlt_m = "n
 var aircraftRollControl = func (myNodeName, id, rolldegrees, rolltime, roll_limit_deg, 
 delta_deg, delta_t) 
 {
-	var loopid = attributes[myNodeName].loopids.roll_loopid;
-	id == loopid or return;
+	id == attributes[myNodeName].loopids.roll_loopid or return;
 	if (!getprop(bomb_menu_pp~"bombable-enabled") ) return;
 				
 	var atts = attributes[myNodeName].attacks;
@@ -8354,7 +8339,7 @@ delta_deg, delta_t)
 		ctrls.rollTimeElapsed = rollTimeElapsed + delta_t;
 		settimer (func 
 		{ 
-			aircraftRollControl(myNodeName, loopid, rolldegrees, rolltime, roll_limit_deg, delta_deg, delta_t)
+			aircraftRollControl(myNodeName, id, rolldegrees, rolltime, roll_limit_deg, delta_deg, delta_t)
 		}, 
 		delta_t );
 	}
@@ -8627,36 +8612,39 @@ var un_variable_safe = func(str) {
 
 #######################################################################
 # insertionSort
-# a = a vector
+# x = a vector of keys into hash, h
 # f = a function of two variables, f(a,b) which returns > 0 if a > b
 # The default sort is by string; see below
 #
-var insertionSort = func (a = nil, f = nil ) {
-
+var insertionSort = func (x = nil, f = nil, h = nil, k = nil ) 
+{
 	#the default is to sort by string for all values, including numbers
 	#but if some of the values are numbers we have to convert them to string
-	if (f == nil) f = func(a, b) {
+	if (f == nil) f = func(a, b, h, k) 
+	{
 		if (num(a) == nil) var acomp = a else var acomp = sprintf("%f", a);
 		if (num(b) == nil) var bcomp = b else var bcomp = sprintf("%f", b);
 		cmp (acomp,bcomp);
 	};
 
-	for (var i = 1; i < size(a); i += 1) {
-		var value = a[i];
+	for (var i = 1; i < size(x); i += 1) 
+	{
+		var key1 = x[i];
 		var j = i-1;
 		var done = 0;
-		while (!done) {
-			if (f(a[j], value) > 0 ) {
-				a[j+1] = a[j];
+		while (!done) 
+		{
+			if (f(x[j], key1, h, k) < 0 ) {
+				x[j+1] = x[j];
 				j -= 1;
 				if (j < 0) done = 1;
 							
 				} else {done = 1};
-			}
-			a[j+1] = value;
 		}
-		return(a);
+		x[j+1] = key1;
 	}
+	return(x);
+}
 
 
 ############################ records ##############################
@@ -8667,23 +8655,25 @@ var insertionSort = func (a = nil, f = nil ) {
 #
 var records = {};
 
-records.init = func () {
+records.init = func () 
+{
 	me.impactTotals = {};
 	me.impactTotals.Overall = {};
 	me.impactTotals.Overall.Total_Impacts = 0;
 	me.impactTotals.Overall.Damaging_Impacts = 0;
 	me.impactTotals.Overall.Total_Damage_Added = 0;
-	me.impactTotals.Overall.sort = "0";
 	me.impactTotals.Objects = {};
-	me.impactTotals.Objects.sort = 10;
 	me.impactTotals.Ammo_Categories = {};
-	me.impactTotals.Ammo_Categories.sort = 20;
 	me.impactTotals.Ammo_Type = {};
-	me.impactTotals.Ammo_Type.sort = 30;
+	me.impactTotals.Sorted = {};
+	me.impactTotals.Sorted.Ammo_Categories = [];
+	me.impactTotals.Sorted.Objects = [];
+	me.impactTotals.Sorted.Ammo_Type = [];
 }
 				
-records.record_impact = func ( myNodeName = "", damageRise = 0, damageIncrease = 0, damageValue = 0, impactNodeName = nil, ballisticMass_lb = nil, lat_deg = nil, lon_deg = nil, alt_m = nil ) {
-					
+records.record_impact = func ( myNodeName = "", damageRise = 0, damageIncrease = 0, damageValue = 0, 
+impactNodeName = nil, ballisticMass_lb = nil, lat_deg = nil, lon_deg = nil, alt_m = nil ) 
+{
 	# we will get damaging impacts twice--once from add_damage
 	# and once from put_splash.  So we count total impacts from
 	# put_splash (damageRise == 0) and damaging impacts from
@@ -8692,7 +8682,6 @@ records.record_impact = func ( myNodeName = "", damageRise = 0, damageIncrease =
 	else me.impactTotals.Overall.Total_Impacts += 1;
 					
 	me.impactTotals.Overall.Total_Damage_Added  +=  100 * damageRise;
-					
 					
 	var weaponType = nil;
 	if (impactNodeName != nil) weaponType = getprop (""~impactNodeName~"/name");
@@ -8717,14 +8706,9 @@ records.record_impact = func ( myNodeName = "", damageRise = 0, damageIncrease =
 		if (item == weaponType)  category = "Ammo_Type";
 		if (item == ballCategory) category = "Ammo_Categories";
 						
-		var sort = count * 10 + 10; #overall is 1, then they come in order as listed in items
-						
-						
-						
 						
 		if (! contains ( me.impactTotals, category)) {
 			me.impactTotals[category] = {};
-			me.impactTotals[category].sort = sort;
 		}
 						
 		var currHash = me.impactTotals[category];
@@ -8750,88 +8734,85 @@ records.record_impact = func ( myNodeName = "", damageRise = 0, damageIncrease =
 
 }
 
-records.sort_keys = func {
-	#the sort functin is malfunctioning in some bizarre way so for now
-	#     we just return the keys unsorted
-					
-	#me.sortkey = keys(me.impactTotals);
-	#var k = keys(me.impactTotals);
-	#var l = k[:]; #a copy of the keys
-	#me.sortkey = sort(l, func(a, b) cmp(a, b));
-	#return;
-					
-					
-	#var hash = {a:1, b:2};
-	var hash = me.impactTotals;
-	var k = keys(hash);
-	#me.sortkeys = sort (k, func (a, b) {cmp (a,b)} );
-	#me.sortkeys = sort (k, func (a, b) { cmp (a.sort, b.sort) } );
-	#me.sortkey = sort(k, func(a, b) cmp(hash[a].sort, hash[b].sort));
-	#            if ( hash[a]["sort"] < hash[b]["sort"]) -1;
-	#            elsif (hash[a]["sort"] > hash[b]["sort"]) 1;
-	#            else 0;
-#        }  );
-#
-				
-				
-me.sortkey = insertionSort(k, func(a, b) {
-	#sort by string for all values, including numbers
-	#but if some of the values are numbers we have to convert them to string
-	if (num(hash[a].sort) == nil) var acomp = hash[a].sort else var acomp = sprintf("%f", hash[a].sort);
-	if (num(hash[b].sort) == nil) var bcomp = hash[b].sort else var bcomp = sprintf("%f", hash[b].sort);
-	cmp (acomp,bcomp);
-});
+records.sort_keys = func 
+{
+	# rjw the records class defines 4 categories for reporting
+	# all except "Overall" are sorted by Total_Damage_Added (largest first)
+	# the sorted keys are stored under key 'Stored'
+	# var k below contains the 4 categories
+
+	var impactDB = me.impactTotals;
+
+	foreach (var k; keys(impactDB))
+	{
+		if ((k == "Overall") or (k == "Sorted")) continue;
+		var childKeys = keys(impactDB[k]); 
+		impactDB.Sorted["" ~ k] = insertionSort
+		(
+			childKeys,
+			func(a, b, impactDB, k)
+			{
+				var acomp = impactDB[k][a].Total_Damage_Added;
+				var bcomp = impactDB[k][b].Total_Damage_Added;
+				return ( acomp < bcomp) ? -1 : 1;
+			},
+			impactDB,
+			k
+		);
+	}			
 }
 			
-records.display_results = func {
-				
-debug.dump (me.impactTotals);
-me.show_totals_dialog();
-				
+records.display_results = func 
+{
+	debug.dump (me.impactTotals);
+	me.show_totals_dialog();
 }
 			
-records.add_property_tree = func (location, hash ) {
-# not working, we have spaces in our names
-props.globals.getNode(location,1).removeChildren();
-props.globals.getNode(location,1).setValues( hash );
-return props.globals.getNode(location);
+records.add_property_tree = func (location, hash ) 
+{
+	# not working, we have spaces in our names
+	props.globals.getNode(location,1).removeChildren();
+	props.globals.getNode(location,1).setValues( hash );
+	return props.globals.getNode(location);
 }
 
-records.create_printable_summary = func (obj, sortkey = nil, prefix = "") {
-var msg = "";
-if (typeof(obj) != "hash") return;
-if (sortkey == nil) sortkey = keys(obj);
-				
-foreach (var i; sortkey) {
-
-	#if (typeof (obj[i]) == "hash")  msg  ~=  "\n" ~ me.create_printable_summary (obj[i],keys(obj));
-	#elsif (i != "sort") {
-		#var num = sprintf("%1.0f", obj[i]);
-		#msg  ~=  "  " ~ un_variable_safe(i) ~ ": " ~ num ~ "\n";
-	#}
-	if (typeof(obj[i]) == "hash" ) {
-		msg  ~=  prefix ~ un_variable_safe (i) ~ ": \n";
-		msg  ~=  me.create_printable_summary (obj[i],keys(obj[i]), prefix~"  ");
-		} elsif ( i != "sort" ) {
-		var num = sprintf("%1.0f", obj[i]);
-		msg  ~=  prefix ~ "  " ~ un_variable_safe(i) ~ ": " ~ num ~ "\n";
+records.create_printable_summary = func (obj, sortkey = nil, prefix = "") 
+# for some of the objects the keys have been sorted using func sort_keys
+# if not use unsorted keys 
+{
+	var msg = "";
+	if (typeof(obj) != "hash") return;
+	if (sortkey == nil) sortkey = keys(obj);
+					
+	foreach (var i; sortkey) 
+	{
+		if (i == "Sorted") continue;
+		if (typeof(obj[i]) == "hash" ) 
+		{
+			msg  ~=  prefix ~ un_variable_safe (i) ~ ": \n";
+			msg  ~=  me.create_printable_summary (obj[i], me.impactTotals.Sorted["" ~ i], prefix~"  ");
+		}
+		else 
+		{
+			var num = sprintf("%1.0f", obj[i]);
+			msg  ~=  prefix ~ "  " ~ un_variable_safe(i) ~ ": " ~ num ~ "\n";
+		}
 	}
-
-}
-return msg;
+	return msg;
 }
 			
-records.show_totals_dialog = func {
-var totals = {
-	title: "Bombable Impact Statistics Summary",
-	line: "Note: Rounds which do not impact terrain or an AI object are not recorded"
-};
-me.sort_keys();
-totals.text = me.create_printable_summary (me.impactTotals, me.sortkey);
-node = me.add_property_tree ("/bombable/records", me.impactTotals);
-node = me.add_property_tree ("/bombable/dialogs/records", totals);
-gui.showHelpDialog ("/bombable/dialogs/records");
-				
+records.show_totals_dialog = func 
+{
+	var totals = 
+	{
+		title: "Bombable Impact Statistics Summary",
+		line: "Note: Rounds which do not impact terrain or an AI object are not recorded"
+	};
+	me.sort_keys();
+	totals.text = me.create_printable_summary (me.impactTotals);
+	node = me.add_property_tree ("/bombable/records", me.impactTotals);
+	node = me.add_property_tree ("/bombable/dialogs/records", totals);
+	gui.showHelpDialog ("/bombable/dialogs/records");
 }
 			
 
@@ -8933,22 +8914,17 @@ var add_damage = func(damageRise, myNodeName, damagetype = "weapon", impactNodeN
 
 		# a large hit can knock-out a weapon
 		if ( (damageRise > 0.1) and (rand() > .5) )
+		{
+			if(contains(attributes[myNodeName],"weapons"))
 			{
-				if(contains(attributes[myNodeName],"weapons"))
-				{
-					var weaps = attributes[myNodeName].weapons;
-					var nWeapons = size(weaps) ;
-					var index = int (rand() * nWeapons) ;
-					weaps[""~keys(weaps)[index]]["destroyed"] = 1;
-				}
+				var weaps = attributes[myNodeName].weapons;
+				var nWeapons = size(weaps) ;
+				var index = int (rand() * nWeapons) ;
+				weaps[""~keys(weaps)[index]]["destroyed"] = 1;
 			}
+		}
 	}
 
-						
-						
-						
-						
-						
 	# for moving objects (ships & aircraft), reduce velocity each time damage added
 	# eventually  stopping when damage = 1.
 	# But don't reduce speed below minSpeed.
@@ -9113,8 +9089,7 @@ var add_damage = func(damageRise, myNodeName, damagetype = "weapon", impactNodeN
 	{
 		mp_send_damage(myNodeName, damageRise);
 	}
-						
-return  damageIncrease;
+	return  damageIncrease;
 }
 
 
@@ -9588,8 +9563,7 @@ var update_m_per_deg_latlon = func  {
 # loop to periodically update the m_per_deg_lat & lon
 #
 var update_m_per_deg_latlon_loop = func (id) {
-	var loopid = attributes[""].loopids.update_m_per_deg_latlon_loopid;
-	id == loopid or return;
+	id == attributes[""].loopids.update_m_per_deg_latlon_loopid or return;
 	#debprint ("update_m_per_deg_latlon_loop starting");
 	settimer (func {update_m_per_deg_latlon_loop(id)}, 63.2345);
 
