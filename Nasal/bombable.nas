@@ -3718,6 +3718,7 @@ var exit_test_impact = func(nodeName, myNodeName){
 var getBallisticMass_lb = func (impactNodeName) {
 
 	#weight/mass of the ballistic object, in lbs
+	# rjw 'ballistic mass' is not a recognised term 
 	#var ballisticMass_lb = impactNode.getNode("mass-slug").getValue() * 32.174049;
 			
 	var ballisticMass_lb = 0;
@@ -5022,7 +5023,6 @@ var choose_attack_acrobatic = func
 				
 	if (time > maxTime) time = maxTime;
 
-	#var currElev_m = elev (any_aircraft_position(myNodeName).lat(),geo.aircraft_position(myNodeName).lon() ) * FT2M;
 	var currElev_m = elevGround (myNodeName);
 	#rjw mod: if the arguments for elev are lat and long of current aircraft position why not read property tree directly?
 	#geo.aircraft_position(); Returns the main aircraft's current position in the form of a geo.Coord object
@@ -5797,17 +5797,14 @@ var checkAim = func ( thisWeapon, myNodeName1 = "", myNodeName2 = "",
 	#Weapons malfunction in proportion to the damageValue, to 100% of the time when damage = 100%
 	#debprint ("Bombable: AI weapons, ", myNodeName1, ", ", myNodeName2);
 	if (rand() < damageValue) return (targetSighted) ;
-				
-	#if (myNodeName1 == "/environment" or myNodeName1 == "environment") myNodeName1 = "";
-	#if (myNodeName2 == "/environment" or myNodeName2 == "environment") myNodeName2 = "";
 
 
-	#quick way to tell if an impact is close to our object 
+	#quick way to tell if an impact is close to our target 
 	#we do this first and then exit if not close, to reduce overall processing time
 
-	var alat_deg = getprop(""~myNodeName1~"/position/latitude-deg"); # AI
+	var alat_deg = getprop(""~myNodeName1~"/position/latitude-deg"); # shooter
 	var alon_deg = getprop(""~myNodeName1~"/position/longitude-deg");
-	var targetLat_deg = getprop(""~myNodeName2~"/position/latitude-deg"); # main AC
+	var targetLat_deg = getprop(""~myNodeName2~"/position/latitude-deg"); # target
 	var targetLon_deg = getprop(""~myNodeName2~"/position/longitude-deg");
 	# m_per_deg_lat/lon are bombable general variables
 	
@@ -5826,9 +5823,9 @@ var checkAim = func ( thisWeapon, myNodeName1 = "", myNodeName2 = "",
 				
 	if (targetSize_m == nil or targetSize_m.horz <= 0 or targetSize_m.vert <= 0 or thisWeapon.maxDamageDistance_m <= 0) return (targetSighted);				
 				
-	# calculate targetDispRefFrame, the displacement vector from node1 (AI) to node2 (mainAC) in a lon-lat-alt (x-y-z) frame of reference aka 'reference frame'
-	# the AI model is at < 0,0,0 > 
-	# and the main AC or target is at < deltaX,deltaY,deltaAlt > in relation to it.
+	# calculate targetDispRefFrame, the displacement vector from node1 (shooter) to node2 (target) in a lon-lat-alt (x-y-z) frame of reference aka 'reference frame'
+	# the shooter is at < 0,0,0 > 
+	# and the target is at < deltaX,deltaY,deltaAlt > in relation to it.
 
 	var deltaY_m = deltaLat_deg * m_per_deg_lat;
 	var deltaX_m = deltaLon_deg * m_per_deg_lon;
@@ -5841,7 +5838,7 @@ var checkAim = func ( thisWeapon, myNodeName1 = "", myNodeName2 = "",
 	var distance_m = vectorModulus (targetDispRefFrame);
 				
 				
-	# debprint ("Bombable: AI weapons, distance: ", distance_m, " for ", myNodeName1);
+	# debprint ("Bombable: target distance: ", distance_m, " for ", myNodeName1);
 				
 	if (distance_m > thisWeapon.maxDamageDistance_m ) return (targetSighted);
 	
@@ -5858,6 +5855,7 @@ var checkAim = func ( thisWeapon, myNodeName1 = "", myNodeName2 = "",
 		return (targetSighted);
 		
 		#rjw with the return above the following code in the block is unused
+
 		#more complicated way - maybe we'll try it later:
 		#case of within vital damage, it's case closed, both aircraft totalled
 		var retDam = 0;
@@ -5866,17 +5864,23 @@ var checkAim = func ( thisWeapon, myNodeName1 = "", myNodeName2 = "",
 		if (damRad_m <= 0) damRad_m = .5;
 		if (vDamRad_m >= damRad_m) vDamRad_m = damRad_m * .95;
 					
-		if (distance_m < vDamRad_m){
+		if (distance_m < vDamRad_m)
+		{
 			add_damage(1, myNodeName1, "collision");
 			retDam = 1;
-			} else {
+		} 
+		else
+		{
 			# case of only within damageRadius but not vitalDamageRadius, we'll do as with impact damage
 			# and possibly just assess partial damage depending on the distance involved.
 			var damPot = (damRad_m-distance_m) / (damRad_m-vDamRad_m); #ranges 0 (fringe) to 1 (at vitalDamageRadius)
-			if (rand() < damPot) {
+			if (rand() < damPot) 
+			{
 				add_damage(1, myNodeName1, "collision");
 				retDam = 1;
-				} else{
+			}
+			else
+			{
 				add_damage(rand() * damPot, myNodeName1, "collision");
 				retDam = rand() * damPot;
 			}
@@ -6287,8 +6291,9 @@ var weapons_loop = func (id, myNodeName1 = "", myNodeName2 = "", targetSize_m = 
 			if (rand() < thisWeapon.aim.pHit) 
 			{
 				var ai_callsign = getCallSign (myNodeName1);
-							
-				var damageAdd = thisWeapon.aim.pHit * weaponPower * thisWeapon.maxDamage_percent / 100;
+
+				# pHit (0-1); weaponPower (0-1); maxDamage_percent (0-100); damageVulnerability (0-100)
+				var damageAdd = thisWeapon.aim.pHit * weaponPower * thisWeapon.maxDamage_percent * attributes[myNodeName2].vulnerabilities.damageVulnerability / 1000;
 							
 				# Some chance of doing more damage (and a higher chance the closer the hit)
 				# if (r < thisWeapon.aim.pHit / 5 ) damageAdd  *=  3 * rand(); # rjw omitted
@@ -6301,27 +6306,39 @@ var weapons_loop = func (id, myNodeName1 = "", myNodeName2 = "", targetSize_m = 
 					mainAC_add_damage ( damageAdd, 0, "weapons",
 					"Hit from " ~ ai_callsign ~ " - " ~ weaponName ~"!");								
 				}
-				elsif (thisWeapon.weaponType == 1) # only rockets are able to damage AI targets
+				else
 				{
-					# var damageAdd = .1 * attributes[myNodeName2].vulnerabilities.damageVulnerability * thisWeapon.mass * 2.2 / 10, # used elsewhere, note mass in kg 
-					add_damage
-					(
-						damageAdd * thisWeapon.mass / 500, 
-						# for a rocket, damage is set by closest approach, weapon mass and weapon power; 500 kg is a large rocket
-						myNodeName2, 
-						"weapon", 
-						myNodeName1, 
-						thisWeapon.mass, 
-						thisWeapon.position.latitude_deg, 
-						thisWeapon.position.longitude_deg, 
-						thisWeapon.position.altitude_ft
-					);
+					if (thisWeapon.weaponType == 1)
+					{
+						add_damage
+						(
+							damageAdd, 
+							myNodeName2, 
+							"weapon", 
+							myNodeName1, 
+							thisWeapon.mass * 2.2, 
+							thisWeapon.position.latitude_deg, 
+							thisWeapon.position.longitude_deg, 
+							thisWeapon.position.altitude_ft
+						);
+					}
+					else
+					{
+						add_damage
+						(
+							damageAdd, 
+							myNodeName2, 
+							"weapon", 
+							myNodeName1,
+							0.25 # value for a 20mm cannon - see get_ballisticMass func
+						);
+					}
 				}
 			}
 		}
 		# var t_weap = (ot.timestamp.elapsedUSec()/ot.resolution_uS);
 		# debprint(sprintf("Bombable: "~elem~" t_weap = %6.3f msec", t_weap));
-	}
+	} # next weapon
 }
 
 ############################ launchRocket ##############################
@@ -7714,43 +7731,32 @@ var elevGround = func (myNodeName) {
 	return geo.elevation(lat, lon);
 }
 
-##################### any_aircraft_position ##########################
-#returns myNodeName position as a geo.Coord
-# works for any aircraft; for main aircraft myNodeName = ""
-var any_aircraft_position = func (myNodeName) {
-	#if (myNodeName == "/environment" or myNodeName == "environment") myNodeName = "";
-				
-	#if (myNodeName == "") debprint ("Bombable: Updating main aircraft 2700");
-				
-	var lat = getprop(""~myNodeName~"/position/latitude-deg");
-	var lon = getprop(""~myNodeName~"/position/longitude-deg");
-	var alt = getprop(""~myNodeName~"/position/altitude-ft") * FT2M;
-	return geo.Coord.new().set_latlon(lat, lon, alt);
+##################### course1to2 ##########################
+# returns a hash containing the distance between AI objects 1 and 2
+# and the heading (absolute bearing) for 1 to travel to 2
+# replaces calls to geo methods (4-5x faster)
+
+var course1to2 = func (myNodeName1, myNodeName2) 
+{
+	var lat1 = getprop(""~myNodeName1~"/position/latitude-deg");
+	var lon1 = getprop(""~myNodeName1~"/position/longitude-deg");
+	var alt1 = getprop(""~myNodeName1~"/position/altitude-ft");
+	var lat2 = getprop(""~myNodeName2~"/position/latitude-deg");
+	var lon2 = getprop(""~myNodeName2~"/position/longitude-deg");
+	var alt2 = getprop(""~myNodeName2~"/position/altitude-ft");
+	var dx = (lon2 - lon1) * m_per_deg_lon;
+	var dy = (lat2 - lat1) * m_per_deg_lat;
+	var dz = (alt2 - alt1) * FT2M;
+	var hdg = math.atan2( dx, dy) * R2D;
+	if (hdg < 0) hdg += 360;
+	var dist_xy = math.sqrt (dx * dx + dy * dy);
+	return
+	{
+		distance : [dist_xy, -dz], # minus for comparison with original code
+		heading : hdg,
+	}
 }
 
-####################################################
-#returns vector [direct distance (m), altitude difference (m)]
-# from main aircraft to myNodeName
-var distAItoMainAircraft = func (myNodeName){
-	mainAircraftPosition = geo.aircraft_position();
-	aiAircraftPosition = any_aircraft_position(myNodeName);
-				
-	return [ aiAircraftPosition.direct_distance_to(mainAircraftPosition),
-	aiAircraftPosition.alt() - mainAircraftPosition.alt() ];
-}
-
-######################### courseToMainAircraft ###########################
-# returns course from myNodeName to main aircraft
-# rjw costly algorithm!
-# improve by reading positions from property tree?
-# The bearing will be in the range 0–360
-
-var courseToMainAircraft = func (myNodeName){
-	mainAircraftPosition = geo.aircraft_position();
-	aiAircraftPosition = any_aircraft_position(myNodeName);
-				
-	return aiAircraftPosition.course_to(mainAircraftPosition);
-}
 
 ######################### attack_loop ###########################
 # Main loop for calculating attacks, changing direction, altitude, etc.
@@ -7788,9 +7794,12 @@ var attack_loop = func ( id, myNodeName )
 	if (ctrls.dodgeInProgress) return;
 
 	var alts = ats.altitudes;
-				
-	var dist = distAItoMainAircraft (myNodeName);
-	var courseToTarget_deg = courseToMainAircraft(myNodeName); # absolute bearing
+
+	# If target is self then target mainAC			
+	var targetNode = (TARGET_NODE == myNodeName) ? "" : TARGET_NODE;
+	var distHdg = course1to2 (myNodeName, targetNode); # returns a hash
+	var dist = distHdg.distance;
+	var courseToTarget_deg = distHdg.heading; # absolute bearing
 	
 	#debprint ("Bombable: Checking attack parameters: ", dist[0], " ", atts.maxDistance_m, " ",atts.minDistance_m, " ",dist[1], " ",-atts.altitudeLowerCutoff_m, " ",dist[1] < atts.altitudeHigherCutoff_m );
 				
@@ -7803,7 +7812,7 @@ var attack_loop = func ( id, myNodeName )
 	# whether or not to continue the attack when within minDistance:
 	# If we are heading straight towards the Target aircraft
 	# we continue (within continueAttackAngle_deg of straight on)
-	# or if we are still way above or below the main AC,
+	# or if we are still way below or above the main AC,
 	# we continue the attack
 	# otherwise we break off the attack/evade
 	var continueAttack = 0;
@@ -7927,10 +7936,6 @@ var attack_loop = func ( id, myNodeName )
 	{
 		roll_deg = 4 * math.abs(deltaHeading_deg);
 	}
-				
-				
-				
-	#var aiAircraftPosition = any_aircraft_position(myNodeName);
 				
 	var attackCheckTimeEngaged_sec = atts.attackCheckTimeEngaged_sec;
 				
@@ -8195,8 +8200,6 @@ var aircraftTurnToHeadingControl = func (myNodeName, id, rolldegrees = 45, targe
 					
 		targetAlt_ft = targetAlt_m * M2FT;
 					
-					
-		# currElev_m = elev (any_aircraft_position(myNodeName).lat(),geo.aircraft_position(myNodeName).lon() ) * FT2M;
 		var currElev_m = elevGround (myNodeName);
 		if (targetAlt_m - currElev_m < alts.minimumAGL_m ) targetAlt_ft = (alts.minimumAGL_m + currElev_m) * M2FT
 		elsif (targetAlt_m - currElev_m > alts.maximumAGL_m ) targetAlt_ft = (alts.maximumAGL_m + currElev_m) * M2FT;
@@ -10742,8 +10745,8 @@ var attributes = {};
 #global variable used for sighting weapons
 var LOOP_TIME = 0.5; # timing of weapons loop and guide rocket
 var N_STEPS = 8; # resolution of flight path calculation
-# var TARGET_NODE = "/ai/models/aircraft" ;
-var TARGET_NODE = "" ;
+var TARGET_NODE = "/ai/models/aircraft" ;
+# var TARGET_NODE = "" ;
 var ot = emexec.OperationTimer.new("VSD");
 
 
