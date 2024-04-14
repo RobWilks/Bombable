@@ -184,25 +184,31 @@
              front_gun_left :  #internal name - this can be any name you want; must be a valid nasal variable name
               {               
                 name : ".50 inch M2/AN Browning Machine Gun", # name presented to users, ie in on-screen messages
-                maxDamage_percent : 18, # maximum percentage damage one hit from the aircraft's main weapon/machine guns will do to an opponent
+                maxDamage_percent : 8, # maximum percentage damage one hit from the aircraft's main weapon/machine guns will do to an opponent
                 #Based on observation from within FG, a good F6F pass can easily do 18% damage to most aircraft
                 maxDamageDistance_m : 1500, # maximum distance at which the aircrafts main weapon/maching guns will be able to damage an opponent. Making this large is very expensive for FG's framerate and the chance of a hit at great than 100 meters, vanishingly small.  So set it carefully.
-                weaponAngle_deg  :  { heading: 0, elevation: 0 }, # direction the aircraft's main weapon is aimed.   
+                weaponAngle_deg  :  { heading: 0, elevation: 0, headingMin: 0, headingMax: 0, elevationMin: 0, elevationMax: 0  }, # direction the aircraft's main weapon is aimed.   
                                                                   # 0,0 = straight ahead, 90,0=directly right, 0,90=directly up, 0,180=directly back, etc.
-                weaponOffset_m : {x:-3, y:3, z:0}, # Offset of the weapon from the main aircraft center
+                weaponOffset_m : {x:-2.83833, y:-2.53702, z: -0.204998}, # Offset of the weapon from the main aircraft center
                 weaponSize_m : {start:.1, end:.1}, # Visual size of the weapon's projectile, in meters, at start & end of its path
+				nRounds : 1200, #3 stations
+				roundsPerSec : 6, #assuming 3 firing
+				accuracy : 3, 
 
               }, 
             front_gun_right :  #internal name - this can be any name you want; must be a valid nasal variable name
               {               
                 name : ".50 inch M2/AN Browning Machine Gun", # name presented to users, ie in on-screen messages
-                maxDamage_percent : 18, # maximum percentage damage one hit from the aircraft's main weapon/machine guns will do to an opponent
+                maxDamage_percent : 8, # maximum percentage damage one hit from the aircraft's main weapon/machine guns will do to an opponent
                 #Based on observation from within FG, a good F6F pass can easily do 18% damage to most aircraft
                 maxDamageDistance_m : 1500, # maximum distance at which the aircrafts main weapon/maching guns will be able to damage an opponent. Making this large is very expensive for FG's framerate and the chance of a hit at great than 100 meters, vanishingly small.  So set it carefully.
-                weaponAngle_deg  :  { heading: 0, elevation: 0 }, # direction the aircraft's main weapon is aimed.   
+                weaponAngle_deg  :  { heading: 0, elevation: 0, headingMin: 0, headingMax: 0, elevationMin: 0, elevationMax: 0  }, # direction the aircraft's main weapon is aimed.   
                                                                   # 0,0 = straight ahead, 90,0=directly right, 0,90=directly up, 0,180=directly back, etc.
-                weaponOffset_m : {x:3, y:3, z:0}, # Offset of the weapon from the main aircraft center
+                weaponOffset_m : {x:-2.83833, y: 2.53702 m, z: -0.204998}, # Offset of the weapon from the main aircraft center
                 weaponSize_m : {start:.1, end:.1}, # Visual size of the weapon's projectile, in meters, at start & end of its path
+				nRounds : 1200, #3 stations
+				roundsPerSec : 6, #assuming 3 firing
+				accuracy : 3,
 
               },      
           },            
