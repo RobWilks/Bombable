@@ -3718,7 +3718,7 @@ var exit_test_impact = func(nodeName, myNodeName){
 var getBallisticMass_lb = func (impactNodeName) {
 
 	#weight/mass of the ballistic object, in lbs
-	# rjw 'ballistic mass' is not a recognised term 
+	# rjw 'ballistic mass' is not a recognised term - assume it is the mass of the bullet (i.e. exclusing cartridge and explosive)
 	#var ballisticMass_lb = impactNode.getNode("mass-slug").getValue() * 32.174049;
 			
 	var ballisticMass_lb = 0;
@@ -3751,6 +3751,7 @@ var getBallisticMass_lb = func (impactNodeName) {
 		elsif (find ("500 lb", impactType ) != -1 ) ballisticMass_lb = 500;
 		elsif (find ("1000 lb", impactType ) != -1 ) ballisticMass_lb = 1000;
 		elsif (find ("2000 lb", impactType ) != -1 ) ballisticMass_lb = 2000;
+		elsif (find ("M830", impactType ) != -1 ) ballisticMass_lb = 25; # https://en.wikipedia.org/wiki/M830
 		elsif (find ("aim-9", impactType ) != -1 ) ballisticMass_lb = 20.8;
 		elsif (find ("AIM", impactType ) != -1 ) ballisticMass_lb = 20.8;
 		elsif (find ("WP-1", impactType ) != -1 ) ballisticMass_lb = 23.9;
@@ -3760,13 +3761,13 @@ var getBallisticMass_lb = func (impactNodeName) {
 		elsif (find ("LAU", impactType ) != -1 ) ballisticMass_lb = 86; #http://www.dtic.mil/dticasd/sbir/sbir041/srch/af276.pdf
 		elsif (find ("smoke", impactType ) != -1 ) ballisticMass_lb = 0.0;
 		elsif (find (".50 BMG", impactType ) != -1 ) ballisticMass_lb = 0.130072735;
-		elsif (find (".50", impactType ) != -1 ) ballisticMass_lb = 0.130072735;
-		elsif (find ("303", impactType ) != -1 ) ballisticMass_lb = 0.0264554715; #http://en.wikipedia.org/wiki/Vickers_machine_gun
+		elsif (find (".50", impactType ) != -1 ) ballisticMass_lb = 0.1; #https://en.wikipedia.org/wiki/M2_Browning
+		elsif (find ("303", impactType ) != -1 ) ballisticMass_lb = 0.08125; #http://en.wikipedia.org/wiki/Vickers_machine_gun
 		elsif (find ("gun", impactType ) != -1 ) ballisticMass_lb = .025;
 		elsif (find ("bullet", impactType) != -1 ) ballisticMass_lb = 0.0249122356;
 		elsif (find ("tracer", impactType) != -1 ) ballisticMass_lb = 0.0249122356;
 		elsif (find ("round", impactType) != -1 ) ballisticMass_lb = 0.9369635;
-		elsif (find ("cannon", impactType ) != -1 ) ballisticMass_lb = 0.282191696;
+		elsif (find ("cannon", impactType ) != -1 ) ballisticMass_lb = 0.127; #https://en.wikipedia.org/wiki/Oerlikon_20_mm_cannon
 		elsif (find ("bomb", impactType ) != -1 ) ballisticMass_lb = 250;
 		elsif (find ("heavy-bomb", impactType ) != -1 ) ballisticMass_lb = 750;
 		elsif (find ("rocket", impactType ) != -1 ) ballisticMass_lb = 50;
@@ -4354,7 +4355,7 @@ var test_impact = func(changedNode, myNodeName) {
 					}
 							
 					else{
-						var damFactor = (100-closestApproach_m)/100;
+						var damFactor = (100 - closestApproach_m)/100;
 						if (damFactor < 0) damFactor = 0;
 						if (rand() < damFactor) damAdd = add_damage(0.0001 * vuls.damageVulnerability * ballisticMass_lb/350 * easyMode, myNodeName, "weapon", impactNodeName, ballisticMass_lb, iLat_deg, iLon_deg, iAlt_m);
 					}
@@ -4719,11 +4720,10 @@ var speed_adjust = func (myNodeName, time_sec )
 var speed_adjust_loop = func ( id, myNodeName, looptime_sec) 
 {
 	id == attributes[myNodeName].loopids.speed_adjust_loopid or return;
-	#debprint ("aim-timer");
 				
 	settimer (  func { speed_adjust_loop (id, myNodeName, looptime_sec)}, looptime_sec);
 
-	#debprint ("weapons_loop starting");
+	#debprint ("speed_adjust_loop starting");
 
 	if (! getprop (bomb_menu_pp~"ai-aircraft-attack-enabled") or ! getprop(bomb_menu_pp~"bombable-enabled") ) return;
 				
@@ -5481,7 +5481,6 @@ var mainAC_add_damage = func (damageRise = 0, damageTotal = 0, source = "", mess
 	if (!getprop(bomb_menu_pp~"bombable-enabled") ) return 0;
 				
 	var damageValue = attributes[""].damage;
-	if (damageValue == nil ) damageValue = 0;
 				
 	prevDamageValue = damageValue;
 				
@@ -6070,7 +6069,7 @@ var checkAim = func ( thisWeapon, myNodeName1 = "", myNodeName2 = "",
 			weapPowerSkill)
 		);
 	}
-	# change orientation of weapon
+	# change orientation of weapon if not fixed
 	# a skilled gunner changes the direction of their weapon more frequently 
 	# weapons on slaved turrets ('children') must update more frequently since their aim is lost on movement of the parent turret
 	if ( rand() < weapPowerSkill * ((thisWeapon.parent != "") ? 1 : .5))
@@ -6117,16 +6116,22 @@ var checkAim = func ( thisWeapon, myNodeName1 = "", myNodeName2 = "",
 # to calculate target distance. That seems far more frugal of CPU time than
 # geoCoord and directdistanceto, which both seem quite expensive of CPU.
 			
-var weapons_loop = func (id, myNodeName1 = "", myNodeName2 = "", targetSize_m = nil) {
+var weapons_loop = func (id, myNodeName1 = "", targetSize_m = nil) {
 	var ats = attributes[myNodeName1];
 	#we increment loopid if we want to kill this timer loop.  So check if we need to kill/exit:
-	#myNodeName1 is the AI aircraft and myNodeName2 is the main aircraft
+	#myNodeName1 is the AI aircraft and myNodeName2 is its target
 	id == ats.loopids.weapons_loopid or return;
 	#debprint ("aim-timer");
 				
 	# var loopTime = LOOP_TIME * (15/16 + rand()/8);
 	var loopTime = LOOP_TIME ;
-	settimer (  func { weapons_loop (id, myNodeName1, myNodeName2, targetSize_m )}, loopTime);
+	settimer (  func { weapons_loop (id, myNodeName1, targetSize_m )}, loopTime);
+
+	# if (ats.targetIndex == -1) return; # no target assigned
+	# var myNodeName2 = nodes[ats.targetIndex];
+
+	# need to get AI targetSize
+	var myNodeName2 = (ats.targetIndex == -1) ? "" : nodes[ats.targetIndex];
 
 	#debprint ("weapons_loop starting");
 
@@ -6231,28 +6236,30 @@ var weapons_loop = func (id, myNodeName1 = "", myNodeName2 = "", targetSize_m = 
 		}
 
 
-		# debprint ("Bombable: Weapons_loop ", myNodeName1, " weapPowerSkill = ",weapPowerSkill, " weaponPower = ", weaponPower, " thisWeapon.aim.pHit = ", thisWeapon.aim.pHit);
+		debprint ("Bombable: Weapons_loop ", myNodeName1, " weapPowerSkill = ",weapPowerSkill, " weaponPower = ", weaponPower, " thisWeapon.aim.pHit = ", thisWeapon.aim.pHit);
 		# debprint (
-			# "Bombable: Weapons_loop " ~ myNodeName1 ~ " " ~ elem, 
-			# " heading = ", thisWeapon.weaponAngle_deg.heading, 
-			# " elevation = ", thisWeapon.weaponAngle_deg.elevation
+		# 	"Bombable: Weapons_loop " ~ myNodeName1 ~ " " ~ elem, 
+		# 	" heading = ", thisWeapon.weaponAngle_deg.heading, 
+		# 	" elevation = ", thisWeapon.weaponAngle_deg.elevation
 		# );
 		
 		if (thisWeapon.aim.pHit == -1) break; #flag for no line of sight; assume none of the gunners can see the target so abort loop
 
 
 
-		#debprint ("aim-check weapon");
+		# debprint ("aim-check weapon");
 		# fire weapon
 		# bad gunners waste more ammo by firing when low pHit
 		# pFire = a * skillLevel + b
 		# range of skill level 0.1 to 1.0 
 		# a skilled gunner with an effective weapon will fire at a higher likely damage threshold; a weak combination at 30%
 		# then a = 10 * (pHigh - pLow ) / 9 ; b = (10 * pLow - pHigh ) / 9
+		# include maxDamage_percent for weapons that are designed for spray, not precision
 
 		# if (thisWeapon.aim.pHit > ( 0.044444 * weapPowerSkill + .1555555 )) # 60% / 20%
 		# if (thisWeapon.aim.pHit * thisWeapon.maxDamage_percent > ( 0.55555 * weapPowerSkill + 3.444444 )) # 90% / 40% ; 10% damage
 		if ( (thisWeapon.aim.pHit * thisWeapon.maxDamage_percent) > (2.77777 * weapPowerSkill + 0.222222) ) # 60% / 10% ; 5% damage
+
 		# if (0) # omit for testing
 		{
 			if (thisWeapon.weaponType == 0)
@@ -6293,7 +6300,13 @@ var weapons_loop = func (id, myNodeName1 = "", myNodeName2 = "", targetSize_m = 
 				var ai_callsign = getCallSign (myNodeName1);
 
 				# pHit (0-1); weaponPower (0-1); maxDamage_percent (0-100); damageVulnerability (0-100)
-				var damageAdd = thisWeapon.aim.pHit * weaponPower * thisWeapon.maxDamage_percent * attributes[myNodeName2].vulnerabilities.damageVulnerability / 1000;
+				var ballisticMass_lb = thisWeapon.maxDamage_percent * thisWeapon.maxDamage_percent / 100;
+				# approximate ballisticMass_lb:
+				# 0.08 lb for a 303 Vickers - see getBallisticMass_lb func 
+				# 0.13 lb for a WWII 20mm Oerlikon cannon
+				# 25 lb for a M830 round from the M256 120mm gun used on the M1 Abram
+				# corresponding maxDamage_percent figures: 3%, 4%, 50%
+				var damageAdd = thisWeapon.aim.pHit * weaponPower * ballisticMass_lb * attributes[myNodeName2].vulnerabilities.damageVulnerability / 100;
 							
 				# Some chance of doing more damage (and a higher chance the closer the hit)
 				# if (r < thisWeapon.aim.pHit / 5 ) damageAdd  *=  3 * rand(); # rjw omitted
@@ -6301,14 +6314,14 @@ var weapons_loop = func (id, myNodeName1 = "", myNodeName2 = "", targetSize_m = 
 				weaponName = thisWeapon.name;
 				if (weaponName == nil) weaponName = "Main Weapon";
 
-				if (TARGET_NODE == "")
+				if (myNodeName2 == "")
 				{
 					mainAC_add_damage ( damageAdd, 0, "weapons",
 					"Hit from " ~ ai_callsign ~ " - " ~ weaponName ~"!");								
 				}
 				else
 				{
-					if (thisWeapon.weaponType == 1)
+					if (thisWeapon.weaponType == 1) # rocket
 					{
 						add_damage
 						(
@@ -6330,7 +6343,7 @@ var weapons_loop = func (id, myNodeName1 = "", myNodeName2 = "", targetSize_m = 
 							myNodeName2, 
 							"weapon", 
 							myNodeName1,
-							0.25 # value for a 20mm cannon - see get_ballisticMass func
+							ballisticMass_lb
 						);
 					}
 				}
@@ -6517,7 +6530,7 @@ var guideRocket = func
 	var targetLon_deg = getprop("" ~ myNodeName2 ~ "/position/longitude-deg");
 	var targetAlt_m = getprop("" ~ myNodeName2 ~ "/position/altitude-ft") * FT2M;
 	var targetPitch = getprop("" ~ myNodeName2 ~ "/orientation/pitch-deg") * D2R;
-	var addTrue = (TARGET_NODE == "") ? "" : "true-";
+	var addTrue = (myNodeName2 == "") ? "" : "true-";
 	var targetHeading = getprop(""~myNodeName2~"/orientation/"~addTrue~"heading-deg") * D2R;
 	var targetSpeed = getprop(""~myNodeName2~"/velocities/"~addTrue~"airspeed-kt") * KT2MPS;
 	var target_delta_dist = targetSpeed * delta_t;
@@ -7747,7 +7760,11 @@ var course1to2 = func (myNodeName1, myNodeName2)
 	var dx = (lon2 - lon1) * m_per_deg_lon;
 	var dy = (lat2 - lat1) * m_per_deg_lat;
 	var dz = (alt2 - alt1) * FT2M;
-	var hdg = math.atan2( dx, dy) * R2D;
+	var intercept = findIntercept3(myNodeName2, [dx, dy, dz], attributes[myNodeName1].velocities.attackSpeed_kt * KT2MPS);
+	var hdg = (intercept.time < 0) ?
+		math.atan2( dx, dy) * R2D;
+		math.atan2 ( intercept.vector[0], intercept.vector[1]) * R2D :
+	debprint (sprintf( "intercept hdg %6.1f intercept time %6.1f", hdg, intercept.time ));
 	if (hdg < 0) hdg += 360;
 	var dist_xy = math.sqrt (dx * dx + dy * dy);
 	return
@@ -7771,10 +7788,6 @@ var attack_loop = func ( id, myNodeName )
 				
 	#debprint ("attack_loop starting");
 
-	# var looptimealt = getprop(""~myNodeName~"/bombable/attack-looptime");
-	# if (looptimealt != nil and looptimealt > 0) looptime = looptimealt;
-	# setprop(""~myNodeName~"/bombable/attack-looptime", looptime);
-				
 	#skill ranges 0-6
 	var skill = calcPilotSkill (myNodeName);
 	var skillMult = (skill <= .2) ? 15 : 3/skill;
@@ -7793,10 +7806,14 @@ var attack_loop = func ( id, myNodeName )
 	# dodging takes priority over attacking
 	if (ctrls.dodgeInProgress) return;
 
+	# if (ats.targetIndex == -1) return; # no target assigned
+	# var targetNode = nodes[ats.targetIndex];	
+
+	# set the node to attack
+	var targetNode = (ats.targetIndex == -1) ? "" : nodes[ats.targetIndex];
+
 	var alts = ats.altitudes;
 
-	# If target is self then target mainAC			
-	var targetNode = (TARGET_NODE == myNodeName) ? "" : TARGET_NODE;
 	var distHdg = course1to2 (myNodeName, targetNode); # returns a hash
 	var dist = distHdg.distance;
 	var courseToTarget_deg = distHdg.heading; # absolute bearing
@@ -8614,7 +8631,7 @@ var un_variable_safe = func(str) {
 # 
 # The default sort is by string using the values of h.x, but not using k; see below
 #
-var insertionSort = func (x = nil, f = nil, h = nil, k = nil ) 
+var insertionSort = func (x = nil, f = nil, h = nil, k = nil, direction = 1 ) 
 {
 	#the default is to sort by string for all values, including numbers
 	#but if some of the values are numbers we have to convert them to string
@@ -8648,7 +8665,37 @@ var insertionSort = func (x = nil, f = nil, h = nil, k = nil )
 	return(x);
 }
 
-
+#######################################################################
+# newSort
+# x = a vector of indices
+# y is a vector containing the values of x
+# direction == 1 is an ascending sort
+var newSort = func (x = nil, y = nil, direction = 1 ) 
+{
+	for (var i = 1; i < size(x); i += 1) 
+	{
+		var index = x[i];
+		var j = i-1;
+		var done = 0;
+		var swap = 0;
+		while (!done) 
+		{
+			swap = ((direction == 1) ? (y[x[j]] > y[index]) : (y[x[j]] < y[index]));
+			if (swap)
+			{
+				x[j+1] = x[j];
+				j -= 1;
+				if (j < 0) done = 1;
+			}
+			else 
+			{
+				done = 1;
+			}
+		}
+		x[j+1] = index;
+	}
+	return(x);
+}
 ############################ records ##############################
 # CLASS records
 #
@@ -9291,6 +9338,10 @@ var initialize_func = func ( b ){
 
 	b.damage = 0;
 	b.exploded = 0;
+	b.team = "W"; # neutral
+	b.myIndex = -1;
+	b.targetIndex = -1;
+	b.shooterIndex = -1;
 
 	if (! contains (b, "type")) b["type"] = props.globals.getNode(""~b.objectNodeName).getName(); # key allows AI ship models to be used as ground vehicles by adding type:"groundvehicle" to Bombable attributes hash
 						
@@ -9551,6 +9602,9 @@ var initialize_func = func ( b ){
 		setprop (""~myNodeName~"/controls/flight/vertical-mode", "alt");
 		setprop (""~myNodeName~"/controls/flight/lateral-mode", "roll");
 	}
+
+	addToTargets(myNodeName); # add AI model to list of targets and ID its team.  Targets are assigned 57.37 sec after main initialization
+
 	
 }
 
@@ -9606,10 +9660,10 @@ var setMaxLatLon = func (myNodeName, damageDetectDistance_m){
 
 
 ######################### bombable_init ############################
-var bombable_init = func (myNodeName = "") {
+var bombable_init = func (myNodeName = "")
+{
 	debprint ("Bombable: Delaying bombable_init . . . ", myNodeName);
 	settimer (func {bombable_init_func(myNodeName);}, 35 + rand(),1);
-
 }
 
 ######################### bombable_init_func ############################
@@ -9617,9 +9671,8 @@ var bombable_init = func (myNodeName = "") {
 #
 # features/parameters are set by a bombableObject and
 # a previous call to initialize (above)
-var bombable_init_func = func(myNodeName) {
-						
-
+var bombable_init_func = func(myNodeName)
+{
 	#only allow initialization for ai & multiplayer objects
 	# in FG 2.4.0 we're having trouble with strange(!?) init requests from
 	# joysticks & the like
@@ -10272,17 +10325,14 @@ var weapons_init_func = func(myNodeName)
 		# TODO: Obviously, this needs to be set per aircraft in an XML file, along with aircraft
 		# specific damage vulnerability etc.
 
-		var mainAircraftSize_m = { vert : 4, horz : 8 };
+		var mainAircraftSize_m = { vert : 8, horz : 16 };
 		
 		setWeaponPowerSkill (myNodeName);							
 							
 		#we increment this each time we are inited or de-inited
 		#when the loopid is changed it kills the timer loops that have that id
 		var loopid = inc_loopid (myNodeName, "weapons");
-		if (myNodeName != TARGET_NODE)
-		{
-			settimer (  func { weapons_loop (loopid, myNodeName, TARGET_NODE, mainAircraftSize_m)}, 5 + rand());
-		}
+		settimer (  func { weapons_loop (loopid, myNodeName, mainAircraftSize_m)}, 5 + rand());
 	}
 						
 	debprint ("Bombable: Effect * weapons * loaded for ", myNodeName);
@@ -10745,8 +10795,6 @@ var attributes = {};
 #global variable used for sighting weapons
 var LOOP_TIME = 0.5; # timing of weapons loop and guide rocket
 var N_STEPS = 8; # resolution of flight path calculation
-var TARGET_NODE = "/ai/models/aircraft" ;
-# var TARGET_NODE = "" ;
 var ot = emexec.OperationTimer.new("VSD");
 
 
@@ -10788,7 +10836,17 @@ settimer (func {mpprocesssendqueue()}, 5.2534241); #wait ~5 seconds before initi
 # Add damage when aircraft is accelerated beyond reasonable bounds
 var damageCheckTime = 1 + rand()/10;
 settimer (func {damageCheck () }, 60.11); #wait 30 sec before first damage check because sometimes there is a very high transient g-force on initial startup
-					
+
+####################################
+# global variables for managing targets for AI objects
+var blueTeam = [];
+var redTeam = [];
+var whiteTeam = [];
+var nodes = [];
+settimer (func {assignTargets () }, 57.37); #wait till objects loaded
+
+
+#################################### bombableInit ####################################
 var bombableInit = func {
 	debprint("Bombable: Initializing variables.");
 	screenHProp = props.globals.getNode("/sim/startup/ysize");
@@ -10930,7 +10988,8 @@ var bombableInit = func {
 		settimer (func {mp_send_main_aircraft_damage_update (0)}, 4.554);
 							
 	});
-						
+
+					
 						
 	print ("Bombable (ver. "~ bombableVersion ~") loaded - bombable, weapons, damage, fire, and explosion effects");
 
@@ -11363,8 +11422,8 @@ var findIntercept = func (myNodeName1, myNodeName2, displacement, dist_m, interc
 	var speed1 = getprop(""~myNodeName1~"/velocities/true-airspeed-kt") * KT2MPS; # AI
 	var pitch1 = getprop(""~myNodeName1~"/orientation/pitch-deg") * D2R;
 	var heading1 = getprop(""~myNodeName1~"/orientation/true-heading-deg") * D2R;
-	var addTrue = (TARGET_NODE == "") ? "" : "true-";
-	var speed2 = getprop(""~myNodeName2~"/velocities/"~addTrue~"airspeed-kt") * KT2MPS; # main AC
+	var addTrue = (myNodeName2 == "") ? "" : "true-";
+	var speed2 = getprop(""~myNodeName2~"/velocities/"~addTrue~"airspeed-kt") * KT2MPS;
 	var pitch2 = getprop(""~myNodeName2~"/orientation/pitch-deg") * D2R;
 	var heading2 = getprop(""~myNodeName2~"/orientation/"~addTrue~"heading-deg") * D2R;
 	var vxy1 = math.cos(pitch1) * speed1;
@@ -11450,6 +11509,59 @@ var findIntercept2 = func (r21, modr21, speed1, velocity2)
 				] 
 	}); # in earth reference frame
 }	
+
+########################## findIntercept3 ###########################
+# calculate velocity vector for aircraft1 to intercept aircraft2
+# given: displacement vector between aircraft1 and aircraft2, and speed of aircraft1  
+# returns: hash of time to intercept, and velocity vector
+# time < 0 indicates no intercept is possible
+
+var findIntercept3 = func (myNodeName2, displacement, speed1)
+{
+	var dist_m = math.sqrt
+	(
+		displacement[0] * displacement[0] +
+		displacement[1] * displacement[1] +
+		displacement[2] * displacement[2]
+	);
+	var addTrue = (myNodeName2 == "") ? "" : "true-";
+	var speed2 = getprop(""~myNodeName2~"/velocities/"~addTrue~"airspeed-kt") * KT2MPS;
+	var pitch2 = getprop(""~myNodeName2~"/orientation/pitch-deg") * D2R;
+	var heading2 = getprop(""~myNodeName2~"/orientation/"~addTrue~"heading-deg") * D2R;
+	var vxy2 = math.cos(pitch2) * speed2;
+	var velocity2 = [
+					vxy2 * math.sin(heading2),
+					vxy2 * math.cos(heading2),
+					math.sin(pitch2) * speed2
+					];
+	var deltaV = speed2 * speed2 - speed1 * speed1;
+	if (deltaV * deltaV < 1e-10) return ({time:-1, vector:[0, 0, 0]});
+	var time_sec = findRoots(
+		deltaV,
+		2 * dotProduct(displacement, velocity2),
+		dist_m * dist_m); # in reference frame of AC1
+	# if (time_sec.isReal != 1) debprint ("not real");
+	if (time_sec.isReal != 1) return ({time:-2, vector:[0, 0, 0]});
+	# debprint(sprintf("Roots are %5.3f and %5.3f", time_sec.x1, time_sec.x2));
+	var chooseRoot = time_sec.x2;
+	if (time_sec.x1 < 0) 
+	{
+		if (time_sec.x2 < 0) return ({time:-3, vector:[0, 0, 0]});
+	}
+	else 
+	{
+		if ((time_sec.x2 < 0) or (time_sec.x2 > time_sec.x1)) chooseRoot = time_sec.x1;
+	}
+	return (
+	{
+	time:chooseRoot, 
+	vector:[
+				displacement[0] / chooseRoot + velocity2[0], 
+				displacement[1] / chooseRoot + velocity2[1],
+				displacement[2] / chooseRoot + velocity2[2]
+				] 
+	}); # in earth reference frame
+}
 
 ########################## vectorModulus ###########################
 
@@ -11576,4 +11688,210 @@ var approxTanh = func(x)
 	);
 }
 
+########################## shuffle ###########################
+# return vector of n indices semi-randomly shuffled
+# an insertion sort of a vector of random numbers would be more rigorous 
+
+var shuffle = func(n)
+{
+	var result = [];
+	setsize (result, n);
+	forindex (var i; result)
+	{
+		result[i] = i;
+	}
+	forindex (var i; result)
+	{
+		var randIndex = int(rand() * n);
+		var j= result[i];
+		result[i] = result[randIndex];
+		result[randIndex] = j;
+	}
+	return(result);
+}
+########################## shuffleNew ###########################
+# shuffles elements of vector x 
+# a random number is assigned to each element of x
+# the random numbers are sorted to give the new order of the elements
+
+var shuffleNew = func(x)
+{
+	var y = [];
+	var z = [];
+	var randNos = []; 
+	var n = size(x);
+	setsize (y, n);
+	setsize (z, n);
+	setsize (randNos, n);
+	forindex (var i; y)
+	{
+		y[i] = i;
+		randNos[i] = rand();
+	}
+	y = (newSort(y, randNos));
+	forindex (var i; z)
+	{
+		z[i] = x[y[i]];
+	}
+	return (z);
+}
+
+########################## addToTargets ###########################
+# create a list of AI objects and their targets (other AI objects)
+# there are 2 opposing teams, red and blue, and a neutral team, white
+# each object is assigned a unique index, stored in the team's list
+# the last character of the callsign determines which team the object is in
+# nodes records the nodeName for each index; reverse lookup (nodename -> index) is by attributes
+
+var addToTargets = func(myNodeName)
+{
+	var myIndex = getprop("/bombable/targets/index");
+	if (myIndex == nil) myIndex = 0;
+	var ats = attributes[myNodeName];
+	ats.index = myIndex;
+	append(nodes, myNodeName);
+	setprop("/bombable/targets/index", myIndex + 1);
+	var callsign = getprop(""~myNodeName~"/callsign"); 
+	if (right(callsign, 2) == "_B") 
+	{
+		ats.team = "B";
+		append(blueTeam, myIndex);
+	}
+	elsif (right(callsign, 2) == "_R") 
+	{
+		ats.team = "R";
+		append(redTeam, myIndex);
+	}
+	else 
+	{
+		ats.team = "W";
+		append(whiteTeam, myIndex);
+	}
+}
+########################## assignTargets ###########################
+# assigns a target for each object in blue and red teams
+# attributes.shooterIndex is the index of the node shooting at an object
+# each object can only target one from the opposing team
+# the list of targets is shuffled before being assigned
+# delay the call to this function to allow objects to be initialised
+# but AI objects only seem to be initialized if within view
+# targets for blue team then vice versa
+# redTeam, blueTeam, nodes are global vars
+# objects with no AI target will target main AC
+
+var assignTargets = func ()
+{
+	var foundTarget = -1;
+	var count = 0;
+	var sizeBlue = size(blueTeam);
+	var sizeRed = size(redTeam);
+	var noTarget = (sizeBlue > sizeRed) ? sizeBlue - sizeRed : 0;
+
+
+	blueTeam = shuffleNew(blueTeam);
+	redTeam = shuffleNew(redTeam);
+
+	for (var i = noTarget; i < sizeBlue; i = i + 1)
+	{
+		foundTarget = assignOneTarget (blueTeam[i], redTeam);
+		if (foundTarget == -1) break; # no more targets
+		count += 1;
+	}
+	debprint("Bombable: ", count, " red targets assigned",((foundTarget == -1) ? " - ran out of targets!" : ""));
+	count = 0;
+
+	# Reverse one loop to create chains, else will pair targets and shooters. 
+	forindex (var i; redTeam)
+	{
+		foundTarget = assignOneTarget (redTeam[sizeRed - 1 - i], blueTeam);
+		if (foundTarget == -1) break; # no more targets
+		count += 1;
+	}	
+	debprint("Bombable: ", count, " blue targets assigned",((foundTarget == -1) ? " - ran out of targets!" : ""));
+	count = 0;
+	forindex (var i; whiteTeam)
+	{
+		if (rand() > .333) 
+		{
+			var teamIndex = int(rand() * ( sizeBlue + sizeRed ));
+			if (teamIndex < sizeBlue)
+			{
+				attributes[nodes[whiteTeam[i]]].targetIndex = blueTeam[teamIndex]; 
+				count += 1;
+			}
+			else
+			{
+				teamIndex -= sizeBlue;
+				if (teamIndex < sizeRed) 
+				{
+					attributes[nodes[whiteTeam[i]]].targetIndex = redTeam[teamIndex];
+					count += 1;
+				}
+			}
+		}
+	}	
+	debprint("Bombable: ", count, " white targets assigned");
+}
+
+
+########################## assignOneTarget ###########################
+# assigns a target for one object from the opposing team
+# targetIndex is the index of my target; -1 indicates not assigned
+# shooterIndex is the index of the object shooting at me
+# targets is a list of indices of targets
+
+var assignOneTarget = func (myIndex, targets)
+{
+	var myNodeName = nodes[myIndex];
+	forindex (var i; targets)
+	{
+		if (attributes[nodes[targets[i]]].shooterIndex == -1)
+		{
+			attributes[nodes[targets[i]]].shooterIndex = myIndex;
+			attributes[myNodeName].targetIndex = targets[i];
+			return (targets[i]);
+		}
+	}
+	return (-1); # could allow a target to be assigned more than one shooter
+}
+
+########################## findNewTarget ###########################
+var findNewTarget = func (myIndex)
+{
+	var targets = [];
+	var myTeam = attributes[nodes[myIndex]].team;
+	if (myTeam == "B") 
+	{
+		targets = redTeam;
+	}
+	elsif (myTeam == "R") 
+	{
+		targets = blueTeam;
+	}  
+	else
+	{
+		debprint("Bombable: Error: only assign targets for blue and red teams - myTeam = ", myTeam);
+	}
+	var foundTarget = assignOneTarget (myIndex, targets);
+	debprint("Bombable: ", count, " seek new target for ", nodes[myIndex], ((foundTarget == -1) ? " - ran out of targets!" : "success"));
+}
+
+########################## resetTarget ###########################
+# I am the target
+# called when I am destroyed
+# not necessarily by shooter
+# reset target and shooter indices
+
+var resetTarget = func (myIndex)
+{
+	var ats = attributes[nodes[myIndex]];
+	var myTarget = ats.targetIndex;
+	var myShooter = ats.shooterIndex;
+	ats.targetIndex = -1;
+	ats.shooterIndex = -1;
+	attributes[nodes[myShooter]].targetIndex = -1;
+	attributes[nodes[myTarget]].shooterIndex = -1;
+	debprint("Bombable: ", nodes[myIndex], " no longer a target");
+	findNewTarget(myShooter);
+}
 ########################## END ###########################
