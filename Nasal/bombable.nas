@@ -7772,8 +7772,8 @@ var course1to2 = func (myNodeName1, myNodeName2)
 	var dz = (alt2 - alt1) * FT2M;
 	var intercept = findIntercept3(myNodeName2, [dx, dy, dz], attributes[myNodeName1].velocities.attackSpeed_kt * KT2MPS);
 	var hdg = (intercept.time < 0) ?
-		math.atan2( dx, dy) * R2D;
-		math.atan2 ( intercept.vector[0], intercept.vector[1]) * R2D :
+		math.atan2( dx, dy) * R2D :
+		math.atan2 ( intercept.vector[0], intercept.vector[1]) * R2D ;
 	debprint (sprintf( "intercept hdg %6.1f intercept time %6.1f", hdg, intercept.time ));
 	if (hdg < 0) hdg += 360;
 	var dist_xy = math.sqrt (dx * dx + dy * dy);
@@ -10042,8 +10042,6 @@ var weaponsOrientationPositionUpdate = func (myNodeName, elem) {
 		# the second is lon-lat-alt (x-y-z), aka 'reference frame'
 		var newElev = math.asin(aim.weaponDirModelFrame[2]) * R2D;
 		var newHeading = math.atan2(aim.weaponDirModelFrame[0], aim.weaponDirModelFrame[1]) * R2D;
-		var newElev_ref = math.asin(aim.weaponDirRefFrame[2]) * R2D;
-		var newHeading_ref = math.atan2(aim.weaponDirRefFrame[0], aim.weaponDirRefFrame[1]) * R2D;
 		thisWeapon.weaponAngle_deg.heading = newHeading;
 		thisWeapon.weaponAngle_deg.elevation = newElev;
 
@@ -10054,8 +10052,12 @@ var weaponsOrientationPositionUpdate = func (myNodeName, elem) {
 	
 	# next, point the projectile
 	# the projectile models follow the aircraft using these orientation and position data from the property tree
+
+	var newElev_ref = math.asin(aim.weaponDirRefFrame[2]) * R2D;
+	var newHeading_ref = math.atan2(aim.weaponDirRefFrame[0], aim.weaponDirRefFrame[1]) * R2D;
 	setprop("" ~ myNodeName ~ "/" ~ elem ~ "/orientation/pitch-deg", newElev_ref);
 	setprop("" ~ myNodeName ~ "/" ~ elem ~ "/orientation/true-heading-deg", newHeading_ref);
+
 	# note weapon offset in m; altitude is in feet
 	setprop("" ~ myNodeName ~ "/" ~ elem ~ "/position/altitude-ft",
 	getprop("" ~ myNodeName ~ "/position/altitude-ft") + aim.weaponOffsetRefFrame[2] * M2FT);
@@ -10341,7 +10343,7 @@ var weapons_init_func = func(myNodeName)
 		# TODO: Obviously, this needs to be set per aircraft in an XML file, along with aircraft
 		# specific damage vulnerability etc.
 
-		var mainAircraftSize_m = { vert : 8, horz : 16 };
+		var mainAircraftSize_m = { vert : 4, horz : 8 };
 		
 		setWeaponPowerSkill (myNodeName);							
 							
@@ -11705,32 +11707,11 @@ var approxTanh = func(x)
 }
 
 ########################## shuffle ###########################
-# return vector of n indices semi-randomly shuffled
-# an insertion sort of a vector of random numbers would be more rigorous 
-
-var shuffle = func(n)
-{
-	var result = [];
-	setsize (result, n);
-	forindex (var i; result)
-	{
-		result[i] = i;
-	}
-	forindex (var i; result)
-	{
-		var randIndex = int(rand() * n);
-		var j= result[i];
-		result[i] = result[randIndex];
-		result[randIndex] = j;
-	}
-	return(result);
-}
-########################## shuffleNew ###########################
 # shuffles elements of vector x 
 # a random number is assigned to each element of x
 # the random numbers are sorted to give the new order of the elements
 
-var shuffleNew = func(x)
+var shuffle = func(x)
 {
 	var y = [];
 	var z = [];
@@ -11804,8 +11785,8 @@ var assignTargets = func ()
 	var noTarget = (sizeBlue > sizeRed) ? sizeBlue - sizeRed : 0;
 
 
-	blueTeam = shuffleNew(blueTeam);
-	redTeam = shuffleNew(redTeam);
+	blueTeam = shuffle(blueTeam);
+	redTeam = shuffle(redTeam);
 
 	for (var i = noTarget; i < sizeBlue; i = i + 1)
 	{
