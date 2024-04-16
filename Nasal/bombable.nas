@@ -3718,7 +3718,7 @@ var exit_test_impact = func(nodeName, myNodeName){
 var getBallisticMass_lb = func (impactNodeName) {
 
 	#weight/mass of the ballistic object, in lbs
-	# rjw 'ballistic mass' is not a recognised term - assume it is the mass of the bullet (i.e. exclusing cartridge and explosive)
+	# rjw 'ballistic mass' is not a recognised term - assume it is the mass of the bullet (i.e. excluding cartridge and explosive)
 	#var ballisticMass_lb = impactNode.getNode("mass-slug").getValue() * 32.174049;
 			
 	var ballisticMass_lb = 0;
@@ -6069,36 +6069,46 @@ var checkAim = func ( thisWeapon, myNodeName1 = "", myNodeName2 = "",
 			weapPowerSkill)
 		);
 	}
-	# change orientation of weapon if not fixed
-	# a skilled gunner changes the direction of their weapon more frequently 
-	# weapons on slaved turrets ('children') must update more frequently since their aim is lost on movement of the parent turret
-	if ( rand() < weapPowerSkill * ((thisWeapon.parent != "") ? 1 : .5))
-	{ 
-		# ensure that newDir is in range of movement of weapon
-		var newElev = math.asin(newDir[2]) * R2D;
-		var newHeading = math.atan2(newDir[0], newDir[1]) * R2D;
-
-		if (newElev < thisWeapon.weaponAngle_deg.elevationMin)
-			newElev = thisWeapon.weaponAngle_deg.elevationMin;
-		elsif (newElev > thisWeapon.weaponAngle_deg.elevationMax)
-			newElev = thisWeapon.weaponAngle_deg.elevationMax;
-
-		var headingVal = keepInsideRange(thisWeapon.weaponAngle_deg.headingMin, thisWeapon.weaponAngle_deg.headingMax, newHeading);
-		if (!headingVal.insideRange) newHeading = headingVal.newHdg;
-		
-		
-		var cosNewElev = math.cos(newElev* D2R);
-		newDir = 
-		[
-			cosNewElev * math.sin(newHeading* D2R),
-			cosNewElev * math.cos(newHeading* D2R),
-			math.sin(newElev* D2R)
-		];
-
-		thisWeapon.aim.weaponDirModelFrame = newDir;
-		thisWeapon.aim.weaponDirRefFrame = rotate_zxy(newDir, -pitch_deg, -roll_deg, myHeading_deg);
+	if (thisWeapon.aim.fixed == 1)
+	# no change to weaponDirModelFrame (set in weapons_init_func)
+	# but need to calculate direction of weapon in reference frame
+	# usually this will be in direction of travel of AI object 
+	# exceptions: rockets, ACs with vertically firing cannon
+	{
+		thisWeapon.aim.weaponDirRefFrame = rotate_zxy(weapDir, -pitch_deg, -roll_deg, myHeading_deg);
 	}
+	else
+	{
+		# change orientation of weapon if not fixed
+		# a skilled gunner changes the direction of their weapon more frequently 
+		# weapons on slaved turrets ('children') must update more frequently since their aim is lost on movement of the parent turret
+		if ( rand() < weapPowerSkill * ((thisWeapon.parent != "") ? 1 : .5))
+		{ 
+			# ensure that newDir is in range of movement of weapon
+			var newElev = math.asin(newDir[2]) * R2D;
+			var newHeading = math.atan2(newDir[0], newDir[1]) * R2D;
 
+			if (newElev < thisWeapon.weaponAngle_deg.elevationMin)
+				newElev = thisWeapon.weaponAngle_deg.elevationMin;
+			elsif (newElev > thisWeapon.weaponAngle_deg.elevationMax)
+				newElev = thisWeapon.weaponAngle_deg.elevationMax;
+
+			var headingVal = keepInsideRange(thisWeapon.weaponAngle_deg.headingMin, thisWeapon.weaponAngle_deg.headingMax, newHeading);
+			if (!headingVal.insideRange) newHeading = headingVal.newHdg;
+			
+			
+			var cosNewElev = math.cos(newElev* D2R);
+			newDir = 
+			[
+				cosNewElev * math.sin(newHeading* D2R),
+				cosNewElev * math.cos(newHeading* D2R),
+				math.sin(newElev* D2R)
+			];
+
+			thisWeapon.aim.weaponDirModelFrame = newDir;
+			thisWeapon.aim.weaponDirRefFrame = rotate_zxy(newDir, -pitch_deg, -roll_deg, myHeading_deg);
+		}
+	}
 	return (targetSighted); 	
 }
 
@@ -10026,18 +10036,21 @@ var weaponsOrientationPositionUpdate = func (myNodeName, elem) {
 	var thisWeapon = attributes[myNodeName].weapons[elem];
 	var aim = thisWeapon.aim;
 
-	# first, point the weapon.  The first frame is relative to the model, 
-	# the second is lon-lat-alt (x-y-z), aka 'reference frame'
-	var newElev = math.asin(aim.weaponDirModelFrame[2]) * R2D;
-	var newHeading = math.atan2(aim.weaponDirModelFrame[0], aim.weaponDirModelFrame[1]) * R2D;
-	var newElev_ref = math.asin(aim.weaponDirRefFrame[2]) * R2D;
-	var newHeading_ref = math.atan2(aim.weaponDirRefFrame[0], aim.weaponDirRefFrame[1]) * R2D;
-	thisWeapon.weaponAngle_deg.heading = newHeading;
-	thisWeapon.weaponAngle_deg.elevation = newElev;
+	if (!aim.fixed)
+	{	
+		# first, point the weapon.  The first frame is relative to the model, 
+		# the second is lon-lat-alt (x-y-z), aka 'reference frame'
+		var newElev = math.asin(aim.weaponDirModelFrame[2]) * R2D;
+		var newHeading = math.atan2(aim.weaponDirModelFrame[0], aim.weaponDirModelFrame[1]) * R2D;
+		var newElev_ref = math.asin(aim.weaponDirRefFrame[2]) * R2D;
+		var newHeading_ref = math.atan2(aim.weaponDirRefFrame[0], aim.weaponDirRefFrame[1]) * R2D;
+		thisWeapon.weaponAngle_deg.heading = newHeading;
+		thisWeapon.weaponAngle_deg.elevation = newElev;
 
-	setprop("" ~ myNodeName ~ "/" ~ elem ~ "/cannon-elev-deg" , newElev);
-	setprop("" ~ myNodeName ~ "/" ~ elem ~ "/turret-pos-deg" , -newHeading);
-	# position in model frame of reference
+		setprop("" ~ myNodeName ~ "/" ~ elem ~ "/cannon-elev-deg" , newElev);
+		setprop("" ~ myNodeName ~ "/" ~ elem ~ "/turret-pos-deg" , -newHeading);
+		# position in model frame of reference
+	}
 	
 	# next, point the projectile
 	# the projectile models follow the aircraft using these orientation and position data from the property tree
@@ -10230,16 +10243,19 @@ var weapons_init_func = func(myNodeName)
 		# store initial values
 		weapAngles["initialHeading"] = weapAngles.heading;
 		weapAngles["initialElevation"] = weapAngles.elevation;
+
+		var weapFixed = ((weapAngles.elevationMin == weapAngles.elevationMax) and (weapAngles.headingMin == weapAngles.headingMax));
 			
 		thisWeapon.destroyed = 0;
 
 		thisWeapon["aim"] = {
 			pHit:0, 
-			weaponDirModelFrame:[0,0,0], 
+			weaponDirModelFrame:weapDir, 
 			weaponOffsetRefFrame:[0,0,0], 
 			weaponDirRefFrame:[0,0,0], 
 			lastTargetVelocity:[0,0,0],
-			interceptSpeed:0, 
+			interceptSpeed:0,
+			fixed:weapFixed, 
 			}; 
 		# new hash used to record direction weapon is pointing
 		# in the frame of reference of model and the frame of reference of the scene
