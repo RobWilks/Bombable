@@ -415,8 +415,8 @@ var put_tied_weapon = func(myNodeName = "", elem = "", path = "AI/Aircraft/Fire-
 #it has been on fire for a while, and damage is not re-set)
 var deleteFire = func (myNodeName = "",fireNode = "") {
 
-	#if (myNodeName == "") myNodeName = "/environment";
-	if (fireNode == "") {
+	if (fireNode == "") 
+	{
 		fireNodeName = getprop(""~myNodeName~"/bombable/fire-particles/fire-particles-model");
 		if (fireNodeName == nil) return;
 		fireNode = props.globals.getNode(fireNodeName);
@@ -1519,8 +1519,6 @@ var revitalizeAllAIObjects = func (revitType = "aircraft", preservePosSpeed = 0)
 # #aircraft.
 
 var resetBombableDamageFuelWeapons = func (myNodeName) {
-			
-			
 			
 	#if (myNodeName == "" or myNodeName == "environment") myNodeName = "/environment";
 	debprint ("Bombable: Resetting damage level and fires for ", myNodeName);
@@ -2628,20 +2626,6 @@ var fire_loop = func(id, myNodeName = "") {
 	}
 			
 
-}
-
-############################### attributes_loop ###########################
-# Reads in AI object position and orientation data from property tree and stores in attributes
-# high frequency!
-var attributes_loop = func(id, myNodeName) 
-{
-	var ats = attributes[myNodeName];
-	id == ats.loopids.attributes_loopid or return; 
-	var update_sec = 0.1;
-	settimer(func{attributes_loop(id, myNodeName);},update_sec);
-	ats.lat = getprop(""~myNodeName~"/position/latitude-deg");
-	ats.lon = getprop(""~myNodeName~"/position/longitude-deg");
-	ats.alt = getprop(""~myNodeName~"/position/altitude-ft") * FT2M;						
 }
 
 ############################### hitground_stop_explode ###########################
@@ -5195,7 +5179,8 @@ var rudder_roll_climb = func (myNodeName, degrees = 15, alt_ft = -20, time = 10,
 ############################### dodge #################################
 # function makes an object dodge
 #
-var dodge = func(myNodeName) {
+var dodge = func(myNodeName) 
+{
 	# dodgeDelay is the time to wait between dodges
 	# dodgeDelay_remainder_sec is the amount of that time left
 	# rollTime_sec is the time the AC rolls
@@ -5274,16 +5259,15 @@ var dodge = func(myNodeName) {
 		var currSpeed_kt = getprop (""~myNodeName~"/velocities/true-airspeed-kt");
 		if (currSpeed_kt == nil) currSpeed_kt = 0;
 					
-		# more skilled pilots to acrobatics more often
+		# more skilled pilots do acrobatics more often
 		# in the Zero 130 kt is about the minimum speed needed to
 		# complete a loop without stalling.  TODO: This may vary by AC.
 		# This could be linked to stall speed and maybe some other things.
-		# As a first trying we're going with 2X minSpeed_kt as the lowest
+		# As a first try we're going with 2X minSpeed_kt as the lowest
 		# loop speed, and also 75% of cruise speed as a minimum.
-		# We're putting a max width & length for doing acrobatics as large
+		# We're putting a max width & length for acrobatics as large
 		# bomber type a/c don't usually do acrobatics & loops.
-		# TODO: This really all needs to be specified per a/c on the bombableinclude
-		# file.
+		# TODO: This really all needs to be specified per a/c on the bombableinclude file.
 		
 		# rjw: check whether to start acrobatics
 		if (currSpeed_kt > 2 * vels.minSpeed_kt and
@@ -5316,25 +5300,27 @@ var dodge = func(myNodeName) {
 		debprint (sprintf("Dodging: %s dodgeAmount_deg = %6.1f dodgeAltAmount_ft = %6.1f dodgeVertSpeed_fps = %6.1f rollTime_sec = %5.1f dodgeDelay_remainder = %6.1f", 
 		myNodeName, dodgeAmount_deg, dodgeAltAmount_ft, dodgeVertSpeed_fps ,rollTime_sec, dodgeDelay_remainder_sec));
 
-		# Return to near-level flight after a delay of 3-5x the duration of the roll. The original heading is lost
 
-		settimer ( func { setprop (""~myNodeName~"/controls/flight/target-roll", 0); }, dodgeDelay );
-					
-		# Roll/climb for dodgeDelay seconds, then wait dodgeDelay seconds (to allow
-		# the aircraft's turn to develop from the roll).
-		# After this delay FG's aircraft AI will automatically return
-		# it to near-level flight
-		#
+
 		stores.reduceFuel (myNodeName, dodgeDelay ); #deduct the amount of fuel from the tank, for this dodge
-		settimer ( func 
-		{
-			ctrls.dodgeInProgress = 0;
-			# This resets the aircraft to 0 deg roll (via FG's
-			# AI system target roll; leaves target altitude
-			# unchanged  )
-			# rudder_roll_climb (myNodeName, -dodgeAmount_deg, dodgeAltAmount_ft, rollTime_sec);						
-		}
-		, rollTime_sec + dodgeDelay_remainder_sec );
+					
+		# Roll/climb for rollTime_sec seconds, then wait dodgeDelay - rollTime seconds 
+		# (to allow the aircraft's turn to develop from the roll).
+		# After this delay FG's aircraft AI will automatically return it to near-level flight
+		# Return to near-level flight after a delay of 3-5x the duration of the roll. 
+		#
+
+		settimer
+			( func 
+				{
+				ctrls.dodgeInProgress = 0;
+				setprop (""~myNodeName~"/controls/flight/target-roll", 0); 
+				# This resets the aircraft to 0 deg roll (via FG's
+				# AI system target roll; leaves target altitude
+				# unchanged  )
+				},
+				dodgeDelay
+			);
 		} 
 		else 
 		{  
@@ -6064,13 +6050,12 @@ var weapons_loop = func (id, myNodeName1 = "", targetSize_m = nil) {
 	# currently both are attributes of the AC, ship or vehicle, not the individual weapon
 
 	# info about shooter and target objects used by checkAim
-	var alat_deg = ats.lat; # shooter
-	var alon_deg = ats.lon;
-	var aAlt_m = ats.alt;
-	var ats2 = attributes[myNodeName2];
-	var targetLat_deg = ats2.lat; # target
-	var targetLon_deg = ats2.lon;
-	var targetAlt_m = ats2.alt;
+	var alat_deg = getprop(""~myNodeName1~"/position/latitude-deg"); # shooter
+	var alon_deg = getprop(""~myNodeName1~"/position/longitude-deg");
+	var aAlt_m = getprop(""~myNodeName1~"/position/altitude-ft") * FT2M;
+	var targetLat_deg = getprop(""~myNodeName2~"/position/latitude-deg"); # target
+	var targetLon_deg = getprop(""~myNodeName2~"/position/longitude-deg");
+	var targetAlt_m = getprop(""~myNodeName2~"/position/altitude-ft") * FT2M;
 
 	# m_per_deg_lat/lon are bombable general variables
 	var deltaX_m = (targetLon_deg - alon_deg) * m_per_deg_lon;
@@ -9744,10 +9729,6 @@ var bombable_init_func = func(myNodeName)
 	loopid = inc_loopid(myNodeName, "fire");
 	#start the loop to check for fire damage
 	settimer(func{fire_loop(loopid,myNodeName);},5.2 + rand());
-						
-	#start loop to read position and orientation from property tree into attributes
-	loopid = inc_loopid(myNodeName, "attributes");
-	settimer(func{attributes_loop(loopid,myNodeName);},2.7 + rand());
 						
 	debprint ("Bombable: Effect * bombable * loaded for "~myNodeName~" loopid = "~ loopid);
 
