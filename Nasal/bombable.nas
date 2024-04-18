@@ -1686,13 +1686,23 @@ var init_bombable_dialog = func () {
 }
 ###################################### targetStatusPopupTip #########################################
 		
-var targetStatusPopupTip = func (label, delay = 5, override = nil) {
-			
-	var tmpl = props.Node.new({
-		name : "PopTipTarget", modal : 0, layout : "hbox",
+var targetStatusPopupTip = func (msg, delay = 5, override = nil) 
+{
+	# remove oldest line from buffer
+	var line2 = find("\n", tipMessage) + 1;
+	tipMessage = substr(tipMessage, line2) ~ "\n" ~ msg;
+	var tmpl = props.Node.new
+	(
+		{
+		name : "PopTipTarget", 
+		modal : 0,
+		draggable : 1,
+        width : 768,
+        height : 84,
 		y: 70,
-		text : { label : label, padding : 6 }
-	});
+		text : { x : 6, y: 60, label : tipMessage,},
+		}
+	);
 	if (override != nil) tmpl.setValues(override);
 			
 	popdown(tipArgTarget);
@@ -1705,14 +1715,18 @@ var targetStatusPopupTip = func (label, delay = 5, override = nil) {
 	# Final argument is a flag to use "real" time, not simulated time
 	settimer(func { if(currTimerTarget == thisTimerTarget) { popdown(tipArgTarget) } }, delay, 1);
 }
+
 ###################################### selfStatusPopupTip #########################################
 
-var selfStatusPopupTip = func (label, delay = 10, override = nil) {
+var selfStatusPopupTip = func (msg, delay = 10, override = nil) {
 	#return; #gui prob
 	var tmpl = props.Node.new({
-		name : "PopTipSelf", modal : 0, layout : "hbox",
-		y: 140,
-		text : { label : label, padding : 6 }
+		name : "PopTipSelf", 
+		modal : 0, 
+        width : 768,
+        height : 24,
+		y: 160,
+		text : { label : msg, padding : 6 }
 	});
 	if (override != nil) tmpl.setValues(override);
 			
@@ -5306,7 +5320,7 @@ var dodge = func(myNodeName)
 					
 		# Roll/climb for rollTime_sec seconds, then wait dodgeDelay - rollTime seconds 
 		# (to allow the aircraft's turn to develop from the roll).
-		# After this delay FG's aircraft AI will automatically return it to near-level flight
+		# After this delay FG's aircraft AI will automatically return it to near-level flight.
 		# Return to near-level flight after a delay of 3-5x the duration of the roll. 
 		#
 
@@ -7750,11 +7764,23 @@ var elevGround = func (myNodeName) {
 var course1to2 = func (myNodeName1, myNodeName2) 
 {
 	# weapons_loop also reads the co-ords from the prop tree and stores them in the attributes hash
-	var ats = attributes[myNodeName1];
-	var intercept = findIntercept3(myNodeName2, ats.targetDispRefFrame, attributes[myNodeName1].velocities.attackSpeed_kt * KT2MPS);
-	var dx = ats.targetDispRefFrame[0];
-	var dy = ats.targetDispRefFrame[1];
-	var dz = ats.targetDispRefFrame[2];
+	var lat1 = getprop(""~myNodeName1~"/position/latitude-deg");
+	var lon1 = getprop(""~myNodeName1~"/position/longitude-deg");
+	var alt1 = getprop(""~myNodeName1~"/position/altitude-ft");
+	var lat2 = getprop(""~myNodeName2~"/position/latitude-deg");
+	var lon2 = getprop(""~myNodeName2~"/position/longitude-deg");
+	var alt2 = getprop(""~myNodeName2~"/position/altitude-ft");
+	var dx = (lon2 - lon1) * m_per_deg_lon;
+	var dy = (lat2 - lat1) * m_per_deg_lat;
+	var dz = (alt2 - alt1) * FT2M;
+	var intercept = findIntercept3(myNodeName2, [dx, dy, dz], attributes[myNodeName1].velocities.attackSpeed_kt * KT2MPS);
+
+	# var ats = attributes[myNodeName1];
+	# var intercept = findIntercept3(myNodeName2, ats.targetDispRefFrame, attributes[myNodeName1].velocities.attackSpeed_kt * KT2MPS);
+	# var dx = ats.targetDispRefFrame[0];
+	# var dy = ats.targetDispRefFrame[1];
+	# var dz = ats.targetDispRefFrame[2];
+
 	var hdg = (intercept.time < 0) ?
 		math.atan2( dx, dy) * R2D :
 		math.atan2 ( intercept.vector[0], intercept.vector[1]) * R2D ;
@@ -7902,17 +7928,36 @@ var attack_loop = func ( id, myNodeName )
 		setprop (""~myNodeName~"/controls/flight/target-roll", rand() * 2 - 1);
 					
 		#If not attacking, every once in a while we turn the AI AC in the general
-		#direction of the Main AC
+		#direction of the target
 		#This is to keep the AI AC from getting too dispersed.
 		#TODO: We could do lots of things here, like have the AC join up in squadrons,
 		#return to a certain staging area, patrol a certain area, or whatever.
 
-		if (rand() < 0.1 and atts.maxDistance_m) # if attack check time 5 sec then < 0.1 gives an average delay of 50 sec til AC turns back into the fray
+		if (rand() < 0.2 and atts.maxDistance_m) 
+		# if attack check time 5 sec then < 0.2 gives an average delay of 25 sec til AC turns back into the fray
+		
+		if (targetNode == "")
+		# target is main AC
 		{
-			ctrls.courseToTarget_deg = courseToTarget_deg;
-			aircraftTurnToHeading ( myNodeName, 60 );
-			debprint ("Bombable: ", myNodeName, " Turning in direction of main AC");
+			# check distance from main AC. If exceeds max distance then turn to main AC - not target
+			# corrals action close to main AC, which might be a neutral observer
+			var distHdgMain = course1to2 (myNodeName, "");
+			if ( distHdgMain.distance[0] > atts.maxDistance_m )
+			{
+				ctrls.courseToTarget_deg = distHdgMain.heading;
+				aircraftTurnToHeading ( myNodeName, 60 );
+				debprint ("Bombable: ", myNodeName, " Turning in direction of main AC");
+			}
 		}
+		else
+		# target is AI
+			{
+				ctrls.courseToTarget_deg = courseToTarget_deg;
+				aircraftTurnToHeading ( myNodeName, 60 );
+				debprint ("Bombable: ", myNodeName, " Turning in direction of target");
+			}
+		
+		if ( dist[0] > atts.maxDistance_m ) stores.revitalizeAttackReadiness(myNodeName, dist[0]);
 
 		# are we ahead of or behind the target AC?  If behind, there is little point
 		# in dodging.  aheadBehindTarget_deg will be 0 degrees if we're directly
@@ -7921,9 +7966,10 @@ var attack_loop = func ( id, myNodeName )
 
 		var aheadBehindTarget_deg = normdeg180 (targetHeading_deg - courseToTarget_deg);
 					
-		if (dist[0] < atts.minDistance_m and rand() < skill/5 and math.abs(aheadBehindTarget_deg) > 110)  dodge( myNodeName);
-					
-		if ( dist[0] > atts.maxDistance_m ) stores.revitalizeAttackReadiness(myNodeName, dist[0]);
+		if (dist[0] < atts.minDistance_m and rand() < skill/5 and math.abs(aheadBehindTarget_deg) > 110)  
+		{
+			dodge( myNodeName);
+		}
 					
 		atts.loopTime = atts.attackCheckTime_sec;
 		ctrls.attackInProgress = 0;
@@ -8877,7 +8923,7 @@ records.show_totals_dialog = func
 # even if the engine dies completely.  A tank might stop forward motion almost
 # instantly.
 
-var add_damage = func(damageRise, myNodeName, damagetype = "weapon", impactNodeName = nil, ballisticMass_lb = nil, lat_deg = nil, lon_deg = nil, alt_m = nil  ) 
+var add_damage = func(damageRise, myNodeName, damagetype = "weapon", impactNodeName = nil, ballisticMass_lb = nil, lat_deg = nil, lon_deg = nil, alt_m = nil, myNodeName2 = nil  ) 
 {
 	if (!getprop(bomb_menu_pp~"bombable-enabled") ) return 0;
 	if (myNodeName == "") 
@@ -8886,7 +8932,6 @@ var add_damage = func(damageRise, myNodeName, damagetype = "weapon", impactNodeN
 		return damAdd;
 	}
 					
-	debprint (sprintf("Bombable: add_damage%6.2f to %s", damageRise, myNodeName));
 	var ats = attributes[myNodeName];
 	var vuls = ats.vulnerabilities;
 	var spds = ats.velocities;
@@ -8896,10 +8941,8 @@ var add_damage = func(damageRise, myNodeName, damagetype = "weapon", impactNodeN
 	var type = ats.type;
 
 	# check for destroyed AC on ground; if so, no further action needed
-	
-	
 	if (ctrls.onGround) return 0;
-
+	
 
 	var damageValue = ats.damage;
 
@@ -8916,7 +8959,7 @@ var add_damage = func(damageRise, myNodeName, damagetype = "weapon", impactNodeN
 	damageValue  +=  damageRise;
 					
 	#make sure it's in range 0-1.0
-	if(damageValue > 1.0)
+	if (damageValue > 1.0)
 	{
 		damageValue = 1.0;
 	}
@@ -8941,6 +8984,8 @@ var add_damage = func(damageRise, myNodeName, damagetype = "weapon", impactNodeN
 					
 	var callsign = getCallSign (myNodeName);
 	var weapPowerSkill = ctrls.weapons_pilot_ability;				
+	var msg2 = "";
+	if (myNodeName2 != nil) msg2 = " Shooter: " ~ getCallSign (myNodeName2).trim;
 						
 	if ( damageIncrease > 0 ) 
 	{
@@ -8955,7 +9000,7 @@ var add_damage = func(damageRise, myNodeName, damagetype = "weapon", impactNodeN
 			elsif (damageRise < .1) damageRiseDisplay = sprintf ("%1.1f",damageRise * 100);
 							
 							
-			var msg = "Damage added: " ~ damageRiseDisplay ~ "% - Total damage: " ~ round ( damageValue * 100 ) ~ "% for " ~  string.trim(callsign) ~ ", skill level " ~ math.ceil(10 * weapPowerSkill);
+			var msg = "Damage added: " ~ damageRiseDisplay ~ "% for " ~  string.trim(callsign) ~ " Total: " ~ round ( damageValue * 100 ) ~ "%, Skill: " ~ math.ceil(10 * weapPowerSkill) ~ msg2;
 			debprint ("Bombable: " ~ msg ~ " (" ~ myNodeName ~ ", " ~ origDamageRise ~")" );
 							
 			targetStatusPopupTip (msg, 20);
@@ -10771,6 +10816,7 @@ var tipArgTarget = nil;
 var tipArgSelf = nil;
 var currTimerTarget = 0;
 var currTimerSelf = 0;
+var tipMessage = "\n\n\n\n";
 
 var lockNum = 0;
 var lockWaitTime = 1;
