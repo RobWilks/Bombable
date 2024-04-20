@@ -465,7 +465,7 @@ var speedDamage = func
 		# after that there is little point AND it will overwrite
 		# any "you're out of commission" message
 		if ( attributes[""].damage < 1)
-		selfStatusPopupTip (msg, 5 );
+		mainStatusPopupTip (msg, 5 );
 	}
 
 	if (damage_enabled and currSpeed_kt > speedDamageThreshold_kt ) 
@@ -525,7 +525,7 @@ var accelerationDamage = func {
 		# after that there is little point AND it will overwrite
 		# any "you're out of commission" message
 		if ( attributes[""].damage < 1)
-		selfStatusPopupTip (msg, 5 );
+		mainStatusPopupTip (msg, 5 );
 	}
 
 	if (damage_enabled and currAccel_g > accelDamageThreshold_g ) {
@@ -1246,7 +1246,7 @@ var reset_damage_fires = func  {
 	debprint ("Bombable: Damage level & smoke reset for main object"~msg_add);
 
 	var msg = "Your damage reset to 0%";
-	selfStatusPopupTip (msg, 30);
+	mainStatusPopupTip (msg, 30);
 	
 }
 
@@ -1599,7 +1599,7 @@ var resetMainAircraftDamage = func {
 	resetBombableDamageFuelWeapons ("");
 			
 	msg = "Damage reset to 0 for main aircraft - you'll need to turn on your magnetos/restart your engines";
-	selfStatusPopupTip (msg, 2);
+	mainStatusPopupTip (msg, 2);
 	debprint ("Bombable: "~msg);
 
 }
@@ -1689,8 +1689,8 @@ var init_bombable_dialog = func () {
 var targetStatusPopupTip = func (msg, delay = 5, override = nil) 
 {
 	# remove oldest line from buffer
-	var line2 = find("\n", tipMessage) + 1;
-	tipMessage = substr(tipMessage, line2) ~ "\n" ~ msg;
+	var line2 = find("\n", tipMessageAI) + 1;
+	tipMessageAI = substr(tipMessageAI, line2) ~ "\n" ~ msg;
 	var tmpl = props.Node.new
 	(
 		{
@@ -1700,7 +1700,7 @@ var targetStatusPopupTip = func (msg, delay = 5, override = nil)
         width : 768,
         height : 84,
 		y: 70,
-		text : { x : 6, y: 60, label : tipMessage,},
+		text : { x : 6, y: 60, label : tipMessageAI,},
 		}
 	);
 	if (override != nil) tmpl.setValues(override);
@@ -1716,17 +1716,19 @@ var targetStatusPopupTip = func (msg, delay = 5, override = nil)
 	settimer(func { if(currTimerTarget == thisTimerTarget) { popdown(tipArgTarget) } }, delay, 1);
 }
 
-###################################### selfStatusPopupTip #########################################
+###################################### mainStatusPopupTip #########################################
 
-var selfStatusPopupTip = func (msg, delay = 10, override = nil) {
-	#return; #gui prob
+var mainStatusPopupTip = func (msg, delay = 10, override = nil) {
+	# remove oldest line from buffer
+	var line2 = find("\n", tipMessageMain) + 1;
+	tipMessageMain = substr(tipMessageMain, line2) ~ "\n" ~ msg;
 	var tmpl = props.Node.new({
 		name : "PopTipSelf", 
 		modal : 0, 
         width : 768,
-        height : 24,
+        height : 84,
 		y: 160,
-		text : { label : msg, padding : 6 }
+		text : { x : 6, y: 60, label : tipMessageMain, padding : 6 }
 	});
 	if (override != nil) tmpl.setValues(override);
 			
@@ -2275,18 +2277,14 @@ var setupBombableMenu = func {
 	var target = props.globals.getNode("" ~ bomb_menu_pp);
 	io.read_properties(bombable_settings_file, target);
 
-			
-
-			
-			
 }
 
 ######################## calcPilotSkill #############################
 # FUNCTION calcPilotSkill
 # returns the skill level of the AI pilot
-# adjusted for the pilot individual skill level AND
-# the current level of damage
-#
+# adjusted for the pilot individual skill level,
+# the current level of fuel and damage and whether part of
+# defending or attacking team
 
 var calcPilotSkill = func ( myNodeName ) 
 {
@@ -2296,8 +2294,8 @@ var calcPilotSkill = func ( myNodeName )
 	var skill = getprop (bomb_menu_pp~"ai-aircraft-skill-level");
 	if (skill == nil) skill = 0;
 
-	# pilotSkill is a rand +/-1 in skill level per individual pilot
-	# so now skill ranges 0-6
+	# pilotAbility is a rand +/-1 in skill level per individual pilot
+	# so skill ranges 0-6
 	skill += ctrls.pilotAbility;
 			
 	#ability to manoeuvre goes down as attack fuel reserves are depleted
@@ -2306,9 +2304,12 @@ var calcPilotSkill = func ( myNodeName )
 			
 	#skill goes down to 0 as damage goes from 80% to 100%
 	if (ats.damage > 0.8) skill  *=  (1 - ats.damage)/ 0.2;
-			
+
+	# give team B, the defending team, higher skills than team R and team W
+	if ((ats.team == "B") and (skill < 6)) skill += (6 - skill) / 2;
+	if (ats.team == "R") skill /= 2;
+
 	return skill;
-			
 }
 
 ########################### trueAirspeed2indicatedAirspeed ###############################
@@ -2635,7 +2636,7 @@ var fire_loop = func(id, myNodeName = "") {
 		#we don't add damage to multiplayer--we let the remote object do it & send
 		#  it back to us
 		else {
-			if (type != "multiplayer") add_damage( damageRate_percentpersecond/100 * fireLoopUpdateTime_sec , myNodeName,"nonweapon" );
+			if (type != "multiplayer") add_damage( damageRate_percentpersecond/100 * fireLoopUpdateTime_sec, "nonweapon", myNodeName );
 		}
 	}
 			
@@ -2658,7 +2659,7 @@ var hitground_stop_explode = func (myNodeName, alt)
 	startFire( myNodeName ); #if it wasn't on fire before it is now
 	setprop (""~myNodeName~"/position/altitude-ft",  alt  );
 	ctrls.onGround = 1; #this affects the slow-down system which is handled by add-damage, and will stop any forward movement very quickly
-	add_damage(1, myNodeName, "nonweapon");  #and once we have buried ourselves in the ground we are surely dead; this also will stop any & all forward movement
+	add_damage(1, "nonweapon", myNodeName);  #and once we have buried ourselves in the ground we are surely dead; this also will stop any & all forward movement
 	killEngines(myNodeName);
 	stopDodgeAttack(myNodeName);	
 
@@ -3280,7 +3281,7 @@ var ground_loop = func( id, myNodeName )
 		if ((targetAlt_ft - alts.initialAlt_ft) > 3) 
 		{
 			vels.maxSpeedReduce_percent = 20;
-			add_damage(1, myNodeName, "nonweapon");
+			add_damage(1, "nonweapon", myNodeName);
 			return(); # no need to sink now			
 		}
 	}
@@ -4215,7 +4216,8 @@ var test_impact = func(changedNode, myNodeName) {
 
 			#debprint ("Bombable: Damaging hit, "~ " Distance = ", closestApproach_m, "by ", impactNodeName~ " on ", myNodeName," terrain = ", impactTerrain, " damageRadius = ", damageRadius_m," weaponDamageCapability ", weaponDamageCapability, " damagePotential ", damagePotential, " OIdP ", outsideIDdamagePotential, " Par damage: ", weaponDamageCapability * vuls.damageVulnerability);
 
-			damAdd = add_damage( damageCaused, myNodeName, "weapon", impactNodeName, ballisticMass_lb, iLat_deg, iLon_deg, iAlt_m  );
+			damAdd = add_damage( damageCaused, "weapon", myNodeName, , impactNodeName, ballisticMass_lb, iLat_deg, iLon_deg, iAlt_m  );
+
 					
 			#checking/setting this prevents the same splash from being repeatedly re-drawn
 			# as we check the impact from different AI objects
@@ -4321,55 +4323,55 @@ var test_impact = func(changedNode, myNodeName) {
 				elsif (ballisticMass_lb < 10 and ballisticMass_lb >= 1.2 )  
 				{
 					if(closestApproach_m <= 10 + damageRadius_m)
-					damAdd = add_damage(.1 * vuls.damageVulnerability * ballisticMass_lb / 10 * easyMode, myNodeName, "weapon", impactNodeName, ballisticMass_lb, iLat_deg, iLon_deg, iAlt_m);
+					damAdd = add_damage(.1 * vuls.damageVulnerability * ballisticMass_lb / 10 * easyMode, "weapon", myNodeName, , impactNodeName, ballisticMass_lb, iLat_deg, iLon_deg, iAlt_m);
 
 					elsif((closestApproach_m > 10 + damageRadius_m) and (closestApproach_m < 30 + damageRadius_m)){
 						var damFactor = (30 - closestApproach_m)/30;
 						if (damFactor < 0) damFactor = 0;
-						if (rand() < damFactor) damAdd = add_damage(0.0002 * vuls.damageVulnerability * ballisticMass_lb/10 * easyMode, myNodeName, "weapon", impactNodeName, ballisticMass_lb, iLat_deg, iLon_deg, iAlt_m);
+						if (rand() < damFactor) damAdd = add_damage(0.0002 * vuls.damageVulnerability * ballisticMass_lb/10 * easyMode, "weapon", , myNodeName, impactNodeName, ballisticMass_lb, iLat_deg, iLon_deg, iAlt_m);
 					}
 							
 					} elsif  (ballisticMass_lb < 50 and ballisticMass_lb >= 10 ) {
 					if(closestApproach_m <= .75 + damageRadius_m)
-					damAdd = add_damage(.3 * vuls.damageVulnerability * ballisticMass_lb /50 * easyMode, myNodeName, "weapon", impactNodeName, ballisticMass_lb, iLat_deg, iLon_deg, iAlt_m);
+					damAdd = add_damage(.3 * vuls.damageVulnerability * ballisticMass_lb /50 * easyMode, "weapon", myNodeName, , impactNodeName, ballisticMass_lb, iLat_deg, iLon_deg, iAlt_m);
 
 					elsif((closestApproach_m > .75 + damageRadius_m) and (closestApproach_m <= 10 + damageRadius_m))
-					damAdd = add_damage(.0001 * vuls.damageVulnerability * ballisticMass_lb /50 * easyMode, myNodeName, "weapon", impactNodeName, ballisticMass_lb, iLat_deg, iLon_deg, iAlt_m);
+					damAdd = add_damage(.0001 * vuls.damageVulnerability * ballisticMass_lb /50 * easyMode, "weapon",  myNodeName, , impactNodeName, ballisticMass_lb, iLat_deg, iLon_deg, iAlt_m);
 
 					elsif((closestApproach_m > 10 + damageRadius_m) and (closestApproach_m < 30 + damageRadius_m))
-					damAdd = add_damage(0.00005 * vuls.damageVulnerability * ballisticMass_lb /50 * easyMode, myNodeName, "weapon", impactNodeName, ballisticMass_lb, iLat_deg, iLon_deg, iAlt_m);
+					damAdd = add_damage(0.00005 * vuls.damageVulnerability * ballisticMass_lb /50 * easyMode, "weapon", myNodeName, , impactNodeName, ballisticMass_lb, iLat_deg, iLon_deg, iAlt_m);
 
 					elsif((closestApproach_m > 30 + damageRadius_m) and (closestApproach_m < 60 + damageRadius_m)){
 						var damFactor = (60 - closestApproach_m)/60;
 						if (damFactor < 0) damFactor = 0;
-						if (rand() < damFactor) damAdd = add_damage(0.0002 * vuls.damageVulnerability * ballisticMass_lb/50 * easyMode, myNodeName, "weapon", impactNodeName, ballisticMass_lb, iLat_deg, iLon_deg, iAlt_m);
+						if (rand() < damFactor) damAdd = add_damage(0.0002 * vuls.damageVulnerability * ballisticMass_lb/50 * easyMode, "weapon", myNodeName, , impactNodeName, ballisticMass_lb, iLat_deg, iLon_deg, iAlt_m);
 					}
 
 					else{
 						var damFactor = (100 - closestApproach_m)/100;
 						if (damFactor < 0) damFactor = 0;
-						if (rand() < damFactor) damAdd = add_damage(0.0001 * vuls.damageVulnerability * ballisticMass_lb/350 * easyMode, myNodeName, "weapon", impactNodeName, ballisticMass_lb, iLat_deg, iLon_deg, iAlt_m);
+						if (rand() < damFactor) damAdd = add_damage(0.0001 * vuls.damageVulnerability * ballisticMass_lb/350 * easyMode, "weapon", myNodeName, , impactNodeName, ballisticMass_lb, iLat_deg, iLon_deg, iAlt_m);
 					}
 
 					} elsif (ballisticMass_lb < 200 and ballisticMass_lb >= 50 ) {
 					if(closestApproach_m <= 1.5 + damageRadius_m)
-					damAdd = add_damage(1 * vuls.damageVulnerability * ballisticMass_lb/200 * easyMode, myNodeName, "weapon", impactNodeName, ballisticMass_lb, iLat_deg, iLon_deg, iAlt_m);
+					damAdd = add_damage(1 * vuls.damageVulnerability * ballisticMass_lb/200 * easyMode, "weapon", myNodeName, , impactNodeName, ballisticMass_lb, iLat_deg, iLon_deg, iAlt_m);
 					elsif((closestApproach_m > 1.5 + damageRadius_m) and (closestApproach_m <= 10 + damageRadius_m))
-					damAdd = add_damage(.01 * vuls.damageVulnerability * ballisticMass_lb /200 * easyMode, myNodeName, "weapon", impactNodeName, ballisticMass_lb, iLat_deg, iLon_deg, iAlt_m);
+					damAdd = add_damage(.01 * vuls.damageVulnerability * ballisticMass_lb /200 * easyMode, "weapon", myNodeName, ,  impactNodeName, ballisticMass_lb, iLat_deg, iLon_deg, iAlt_m);
 							
 					elsif((closestApproach_m > 10 + damageRadius_m) and (closestApproach_m < 30 + damageRadius_m))
-					damAdd = add_damage(0.0001 * vuls.damageVulnerability * ballisticMass_lb/200 * easyMode, myNodeName, "weapon", impactNodeName, ballisticMass_lb, iLat_deg, iLon_deg, iAlt_m);
+					damAdd = add_damage(0.0001 * vuls.damageVulnerability * ballisticMass_lb/200 * easyMode, "weapon", myNodeName, ,  impactNodeName, ballisticMass_lb, iLat_deg, iLon_deg, iAlt_m);
 					elsif((closestApproach_m > 30 + damageRadius_m) and (closestApproach_m < 60 + damageRadius_m)){
 						var damFactor = (75-closestApproach_m)/75;
 						if (damFactor < 0) damFactor = 0;
 
-						if (rand() < damFactor) damAdd = add_damage(0.0002 * vuls.damageVulnerability * ballisticMass_lb/200 * easyMode, myNodeName, "weapon", impactNodeName, ballisticMass_lb, iLat_deg, iLon_deg, iAlt_m);
+						if (rand() < damFactor) damAdd = add_damage(0.0002 * vuls.damageVulnerability * ballisticMass_lb/200 * easyMode, "weapon", myNodeName, ,  impactNodeName, ballisticMass_lb, iLat_deg, iLon_deg, iAlt_m);
 					}
 							
 					else{
 						var damFactor = (100 - closestApproach_m)/100;
 						if (damFactor < 0) damFactor = 0;
-						if (rand() < damFactor) damAdd = add_damage(0.0001 * vuls.damageVulnerability * ballisticMass_lb/350 * easyMode, myNodeName, "weapon", impactNodeName, ballisticMass_lb, iLat_deg, iLon_deg, iAlt_m);
+						if (rand() < damFactor) damAdd = add_damage(0.0001 * vuls.damageVulnerability * ballisticMass_lb/350 * easyMode, "weapon", myNodeName, ,  impactNodeName, ballisticMass_lb, iLat_deg, iLon_deg, iAlt_m);
 					}
 
 					} elsif ((ballisticMass_lb >= 200) and (ballisticMass_lb < 350)) {
@@ -4381,21 +4383,21 @@ var test_impact = func(changedNode, myNodeName) {
 					# http://www.f-16.net/f-16_forum_viewtopic-t-10801.html
 
 					if(closestApproach_m <= 2 + damageRadius_m)
-					damAdd = add_damage(2 * vuls.damageVulnerability * ballisticMass_lb/350 * easyMode, myNodeName, "weapon", impactNodeName, ballisticMass_lb, iLat_deg, iLon_deg, iAlt_m);
+					damAdd = add_damage(2 * vuls.damageVulnerability * ballisticMass_lb/350 * easyMode, "weapon", myNodeName, ,  impactNodeName, ballisticMass_lb, iLat_deg, iLon_deg, iAlt_m);
 					elsif((closestApproach_m > 2 + damageRadius_m) and (closestApproach_m <= 12 + damageRadius_m))
-					damAdd = add_damage(.015 * vuls.damageVulnerability * ballisticMass_lb /350 * easyMode, myNodeName, "weapon", impactNodeName, ballisticMass_lb, iLat_deg, iLon_deg, iAlt_m);
+					damAdd = add_damage(.015 * vuls.damageVulnerability * ballisticMass_lb /350 * easyMode, "weapon", myNodeName, ,  impactNodeName, ballisticMass_lb, iLat_deg, iLon_deg, iAlt_m);
 					elsif((closestApproach_m > 12 + damageRadius_m) and (closestApproach_m < 25 + damageRadius_m))
-					damAdd = add_damage(0.0005 * vuls.damageVulnerability * ballisticMass_lb/350 * easyMode, myNodeName, "weapon", impactNodeName, ballisticMass_lb, iLat_deg, iLon_deg, iAlt_m);
+					damAdd = add_damage(0.0005 * vuls.damageVulnerability * ballisticMass_lb/350 * easyMode, "weapon", myNodeName, ,  impactNodeName, ballisticMass_lb, iLat_deg, iLon_deg, iAlt_m);
 					elsif((closestApproach_m > 25 + damageRadius_m) and (closestApproach_m < 70 + damageRadius_m))  {
 						var damFactor = (90-closestApproach_m)/90;
 						if (damFactor < 0) damFactor = 0;
 
-						if (rand() < damFactor) damAdd = add_damage(0.0002 * vuls.damageVulnerability * ballisticMass_lb/350 * easyMode, myNodeName, "weapon", impactNodeName, ballisticMass_lb, iLat_deg, iLon_deg, iAlt_m);
+						if (rand() < damFactor) damAdd = add_damage(0.0002 * vuls.damageVulnerability * ballisticMass_lb/350 * easyMode, "weapon", myNodeName, ,  impactNodeName, ballisticMass_lb, iLat_deg, iLon_deg, iAlt_m);
 					}
 					else{
 						var damFactor = (250-closestApproach_m)/250;
 						if (damFactor < 0) damFactor = 0;
-						if (rand() < damFactor) damAdd = add_damage(0.0001 * vuls.damageVulnerability * ballisticMass_lb/350 * easyMode, myNodeName, "weapon", impactNodeName, ballisticMass_lb, iLat_deg, iLon_deg, iAlt_m);
+						if (rand() < damFactor) damAdd = add_damage(0.0001 * vuls.damageVulnerability * ballisticMass_lb/350 * easyMode, "weapon", myNodeName, ,  impactNodeName, ballisticMass_lb, iLat_deg, iLon_deg, iAlt_m);
 					}
 
 					} elsif((ballisticMass_lb >= 350) and (ballisticMass_lb < 750)) {
@@ -4403,22 +4405,22 @@ var test_impact = func(changedNode, myNodeName) {
 					# crater = 4 m, lethal blast = 20 m, casualty radius (50%) = 60 m, blast shrapnel ~100m, fragmentation  ~=  500 m
 					# http://www.khyber.org/publications/006-010/usbombing.shtml
 					if(closestApproach_m <= 4 + damageRadius_m )
-					damAdd = add_damage(4 * vuls.damageVulnerability * ballisticMass_lb /750 * easyMode, myNodeName, "weapon", impactNodeName, ballisticMass_lb, iLat_deg, iLon_deg, iAlt_m);
+					damAdd = add_damage(4 * vuls.damageVulnerability * ballisticMass_lb /750 * easyMode, "weapon", myNodeName, ,  impactNodeName, ballisticMass_lb, iLat_deg, iLon_deg, iAlt_m);
 					elsif((closestApproach_m > 4 + damageRadius_m) and (closestApproach_m <= 20 + damageRadius_m))
-					damAdd = add_damage(.02 * vuls.damageVulnerability * ballisticMass_lb /750 * easyMode, myNodeName, "weapon", impactNodeName, ballisticMass_lb, iLat_deg, iLon_deg, iAlt_m);
+					damAdd = add_damage(.02 * vuls.damageVulnerability * ballisticMass_lb /750 * easyMode, "weapon", myNodeName, ,  impactNodeName, ballisticMass_lb, iLat_deg, iLon_deg, iAlt_m);
 					elsif((closestApproach_m > 20 + damageRadius_m) and (closestApproach_m <= 60 + damageRadius_m))
-					damAdd = add_damage(0.001 * vuls.damageVulnerability * ballisticMass_lb /750 * easyMode, myNodeName, "weapon", impactNodeName, ballisticMass_lb, iLat_deg, iLon_deg, iAlt_m);
+					damAdd = add_damage(0.001 * vuls.damageVulnerability * ballisticMass_lb /750 * easyMode, "weapon", myNodeName, ,  impactNodeName, ballisticMass_lb, iLat_deg, iLon_deg, iAlt_m);
 					elsif((closestApproach_m > 60 + damageRadius_m) and (closestApproach_m <= 100 + damageRadius_m)) {
 						var damFactor = (120-closestApproach_m)/120;
 						if (damFactor < 0) damFactor = 0;
 
-						if (rand() < damFactor) damAdd = add_damage(0.0002 * vuls.damageVulnerability * ballisticMass_lb/350 * easyMode, myNodeName, "weapon", impactNodeName, ballisticMass_lb, iLat_deg, iLon_deg, iAlt_m);
+						if (rand() < damFactor) damAdd = add_damage(0.0002 * vuls.damageVulnerability * ballisticMass_lb/350 * easyMode, "weapon", myNodeName, ,  impactNodeName, ballisticMass_lb, iLat_deg, iLon_deg, iAlt_m);
 					}
 							
 					else{
 						var damFactor = (500-closestApproach_m)/500;
 						if (damFactor < 0) damFactor = 0;
-						if (rand() < damFactor) damAdd = add_damage(0.0001 * vuls.damageVulnerability * ballisticMass_lb/350 * easyMode, myNodeName, "weapon", impactNodeName, ballisticMass_lb, iLat_deg, iLon_deg, iAlt_m);
+						if (rand() < damFactor) damAdd = add_damage(0.0001 * vuls.damageVulnerability * ballisticMass_lb/350 * easyMode, "weapon", myNodeName, ,  impactNodeName, ballisticMass_lb, iLat_deg, iLon_deg, iAlt_m);
 					}
 							
 					} elsif((ballisticMass_lb >= 750) and (ballisticMass_lb < 1500)) {
@@ -4427,23 +4429,23 @@ var test_impact = func(changedNode, myNodeName) {
 					# http://www.khyber.org/publications/006-010/usbombing.shtml
 
 					if(closestApproach_m <= 11 + damageRadius_m )
-					damAdd = add_damage(8 * vuls.damageVulnerability * ballisticMass_lb/1500 * easyMode, myNodeName, "weapon", impactNodeName, ballisticMass_lb, iLat_deg, iLon_deg, iAlt_m);
+					damAdd = add_damage(8 * vuls.damageVulnerability * ballisticMass_lb/1500 * easyMode, "weapon", myNodeName, ,  impactNodeName, ballisticMass_lb, iLat_deg, iLon_deg, iAlt_m);
 					elsif((closestApproach_m > 11 + damageRadius_m) and (closestApproach_m <= 27 + damageRadius_m))
-					damAdd = add_damage(.02 * vuls.damageVulnerability * ballisticMass_lb /1500 * easyMode, myNodeName, "weapon", impactNodeName, ballisticMass_lb, iLat_deg, iLon_deg, iAlt_m);
+					damAdd = add_damage(.02 * vuls.damageVulnerability * ballisticMass_lb /1500 * easyMode, "weapon", myNodeName, ,  impactNodeName, ballisticMass_lb, iLat_deg, iLon_deg, iAlt_m);
 
 					elsif((closestApproach_m > 27 + damageRadius_m) and (closestApproach_m <= 190 + damageRadius_m))
-					damAdd = add_damage(0.001 * vuls.damageVulnerability * ballisticMass_lb/1500 * easyMode, myNodeName, "weapon", impactNodeName, ballisticMass_lb, iLat_deg, iLon_deg, iAlt_m);
+					damAdd = add_damage(0.001 * vuls.damageVulnerability * ballisticMass_lb/1500 * easyMode, "weapon", myNodeName, ,  impactNodeName, ballisticMass_lb, iLat_deg, iLon_deg, iAlt_m);
 					elsif((closestApproach_m > 190 + damageRadius_m) and (closestApproach_m <= 230 + damageRadius_m)){
 						var damFactor = (230-closestApproach_m)/230;
 						if (damFactor < 0) damFactor = 0;
 
-						if (rand() < damFactor) damAdd = add_damage(0.0002 * vuls.damageVulnerability * ballisticMass_lb/350 * easyMode, myNodeName, "weapon", impactNodeName, ballisticMass_lb, iLat_deg, iLon_deg, iAlt_m);
+						if (rand() < damFactor) damAdd = add_damage(0.0002 * vuls.damageVulnerability * ballisticMass_lb/350 * easyMode, "weapon", myNodeName, ,  impactNodeName, ballisticMass_lb, iLat_deg, iLon_deg, iAlt_m);
 					}
 							
 					else {
 						var damFactor = (1000-closestApproach_m)/1000;
 						if (damFactor < 0) damFactor = 0;
-						if (rand() < damFactor) damAdd = add_damage(0.0001 * vuls.damageVulnerability * ballisticMass_lb/350 * easyMode, myNodeName, "weapon", impactNodeName, ballisticMass_lb, iLat_deg, iLon_deg, iAlt_m);
+						if (rand() < damFactor) damAdd = add_damage(0.0001 * vuls.damageVulnerability * ballisticMass_lb/350 * easyMode, "weapon", myNodeName, ,  impactNodeName, ballisticMass_lb, iLat_deg, iLon_deg, iAlt_m);
 					}
 
 					} elsif(ballisticMass_lb >= 1500 ) {
@@ -4452,23 +4454,23 @@ var test_impact = func(changedNode, myNodeName) {
 					# http://www.khyber.org/publications/006-010/usbombing.shtml
 
 					if(closestApproach_m <= 18 + damageRadius_m )
-					damAdd = add_damage(16 * vuls.damageVulnerability * ballisticMass_lb/3000 * easyMode, myNodeName, "weapon", impactNodeName, ballisticMass_lb, iLat_deg, iLon_deg, iAlt_m);
+					damAdd = add_damage(16 * vuls.damageVulnerability * ballisticMass_lb/3000 * easyMode, "weapon", myNodeName, ,  impactNodeName, ballisticMass_lb, iLat_deg, iLon_deg, iAlt_m);
 					elsif((closestApproach_m > 18 + damageRadius_m) and (closestApproach_m <= 34 + damageRadius_m))
-					damAdd = add_damage(.02 * vuls.damageVulnerability * ballisticMass_lb /3000 * easyMode, myNodeName, "weapon", impactNodeName, ballisticMass_lb, iLat_deg, iLon_deg, iAlt_m);
+					damAdd = add_damage(.02 * vuls.damageVulnerability * ballisticMass_lb /3000 * easyMode, "weapon", myNodeName, ,  impactNodeName, ballisticMass_lb, iLat_deg, iLon_deg, iAlt_m);
 
 					elsif((closestApproach_m > 34 + damageRadius_m) and (closestApproach_m <= 380 + damageRadius_m))
-					damAdd = add_damage(0.001 * vuls.damageVulnerability * ballisticMass_lb/3000 * easyMode, myNodeName, "weapon", impactNodeName, ballisticMass_lb, iLat_deg, iLon_deg, iAlt_m);
+					damAdd = add_damage(0.001 * vuls.damageVulnerability * ballisticMass_lb/3000 * easyMode, "weapon", myNodeName, ,  impactNodeName, ballisticMass_lb, iLat_deg, iLon_deg, iAlt_m);
 					elsif((closestApproach_m > 380 + damageRadius_m) and (closestApproach_m <= 500 + damageRadius_m)){
 						var damFactor = (500-closestApproach_m)/500;
 						if (damFactor < 0) damFactor = 0;
 
-						if (rand() < damFactor) damAdd = add_damage(0.0002 * vuls.damageVulnerability * ballisticMass_lb/350 * easyMode, myNodeName, "weapon", impactNodeName, ballisticMass_lb, iLat_deg, iLon_deg, iAlt_m);
+						if (rand() < damFactor) damAdd = add_damage(0.0002 * vuls.damageVulnerability * ballisticMass_lb/350 * easyMode, "weapon", myNodeName, ,  impactNodeName, ballisticMass_lb, iLat_deg, iLon_deg, iAlt_m);
 					}
 							
 					else {
 						var damFactor = (1500-closestApproach_m)/1500;
 						if (damFactor < 0) damFactor = 0;
-						if (rand() < damFactor) damAdd = add_damage(0.0001 * vuls.damageVulnerability * ballisticMass_lb/350 * easyMode, myNodeName, "weapon", impactNodeName, ballisticMass_lb, iLat_deg, iLon_deg, iAlt_m);
+						if (rand() < damFactor) damAdd = add_damage(0.0001 * vuls.damageVulnerability * ballisticMass_lb/350 * easyMode, "weapon", myNodeName, ,  impactNodeName, ballisticMass_lb, iLat_deg, iLon_deg, iAlt_m);
 					}
 							
 				}
@@ -5407,7 +5409,7 @@ var mp_update_damage = func (myNodeName = "", damageRise = 0, damageTotal = 0, s
 		# whereas %1.0f rounds to zero decimal places
 		msg = sprintf( "Damage for "~string.trim(callsign)~" is %1.0f%%", damageValue * 100);
 					
-		if (myNodeName == "") selfStatusPopupTip (msg, 30);
+		if (myNodeName == "") mainStatusPopupTip (msg, 30);
 		else targetStatusPopupTip (msg, 30);
 		debprint ("Bombable: " ~ msg ~ " (" ~ myNodeName ~ ")" );
 					
@@ -5525,7 +5527,7 @@ var mainAC_add_damage = func (damageRise = 0, damageTotal = 0, source = "", mess
 		elsif (damageValue < .1) msg = sprintf( addMsg1 ~ " Damage added %1.1f%% - Total damage %1.0f%%", damageIncrease * 100 , damageValue * 100);
 		elsif (damageValue < 1) msg = sprintf( addMsg1 ~ " Damage added %1.0f%% - Total damage %1.0f%%", damageIncrease * 100, damageValue * 100);
 		else msg = sprintf( " ==  ==  ==  == " ~ addMsg2 ~ " Damage added %1.0f%% - Total damage %1.0f%% ==  ==  ==  == ", damageIncrease * 100, damageValue * 100 );
-		selfStatusPopupTip (msg, 15);
+		mainStatusPopupTip (msg, 15);
 		debprint ("Bombable: " ~ msg );
 					
 		if (damageValue == 1) {
@@ -5534,7 +5536,7 @@ var mainAC_add_damage = func (damageRise = 0, damageTotal = 0, source = "", mess
 			settimer ( func {
 				if (getprop("/controls/engines/engine[0]/magnetos") == 0 ) {
 					msg = " ==  ==  ==  == Damage 100% - your engines and magnetos have been switched off ==  ==  ==  == ";
-					selfStatusPopupTip (msg, 10);
+					mainStatusPopupTip (msg, 10);
 					debprint ("Bombable: " ~ msg );
 				}
 			} , 15);
@@ -6088,10 +6090,10 @@ var weapons_loop = func (id, myNodeName1 = "", targetSize_m = nil) {
 	if (ats.distance_m < ats.dimensions.crashRadius_m)
 	{
 		#simple way
-		add_damage(1, myNodeName1, "collision");
+		add_damage(1, "collision", myNodeName1);
 		if (myNodeName2 !="")
 		{
-			add_damage(1, myNodeName2, "collision");
+			add_damage(1, "collision", myNodeName2);
 		}
 		else
 		{
@@ -6112,7 +6114,7 @@ var weapons_loop = func (id, myNodeName1 = "", targetSize_m = nil) {
 					
 		if (distance_m < vDamRad_m)
 		{
-			add_damage(1, myNodeName1, "collision");
+			add_damage(1, "collision", myNodeName1);
 			retDam = 1;
 		} 
 		else
@@ -6122,18 +6124,18 @@ var weapons_loop = func (id, myNodeName1 = "", targetSize_m = nil) {
 			var damPot = (damRad_m-distance_m) / (damRad_m-vDamRad_m); #ranges 0 (fringe) to 1 (at vitalDamageRadius)
 			if (rand() < damPot) 
 			{
-				add_damage(1, myNodeName1, "collision");
+				add_damage(1, "collision", myNodeName1);
 				retDam = 1;
 			}
 			else
 			{
-				add_damage(rand() * damPot, myNodeName1, "collision");
+				add_damage(rand() * damPot, "collision", myNodeName1);
 				retDam = rand() * damPot;
 			}
 		}
 					
 		msg = sprintf("You collided! Damage added %1.0f%%", retDam * 100 );
-		selfStatusPopupTip (msg, 10);
+		mainStatusPopupTip (msg, 10);
 		thisWeapon.aim.pHit = retDam;
 		return;
 	}
@@ -6154,7 +6156,7 @@ var weapons_loop = func (id, myNodeName1 = "", targetSize_m = nil) {
 		}
 	}
 
-	# the heading, pitch and roll of the shooter are used to detrmine the orientation of its weapon in the ground frame of reference 
+	# the heading, pitch and roll of the shooter are used to determine the orientation of its weapon in the ground frame of reference 
 	# AI aircraft animate model using pitch and roll; for AI ships and ground_vehicles code animation here
 	# roll increases clockwise in the direction of travel
 
@@ -6246,30 +6248,30 @@ var weapons_loop = func (id, myNodeName1 = "", targetSize_m = nil) {
 			}
 		}
 
-
-		debprint ("Bombable: Weapons_loop ", myNodeName1, " weapPowerSkill = ",weapPowerSkill, " weaponPower = ", weaponPower, " thisWeapon.aim.pHit = ", thisWeapon.aim.pHit);
+		if (thisWeapon.aim.pHit == -1) break; #flag for no line of sight; assume none of the gunners can see the target so abort loop
+		if (thisWeapon.aim.pHit > 0.005)
+		debprint (sprintf("Bombable: Weapons_loop %s  weapPowerSkill = %4.1f  weaponPower =  %4.1f pHit = %6.3f", myNodeName1, weapPowerSkill, weaponPower, thisWeapon.aim.pHit));
 		# debprint (
 		# 	"Bombable: Weapons_loop " ~ myNodeName1 ~ " " ~ elem, 
 		# 	" heading = ", thisWeapon.weaponAngle_deg.heading, 
 		# 	" elevation = ", thisWeapon.weaponAngle_deg.elevation
 		# );
 		
-		if (thisWeapon.aim.pHit == -1) break; #flag for no line of sight; assume none of the gunners can see the target so abort loop
 
 
 
 		# debprint ("aim-check weapon");
 		# fire weapon
 		# bad gunners waste more ammo by firing when low pHit
-		# pFire = a * skillLevel + b
-		# range of skill level 0.1 to 1.0 
-		# a skilled gunner with an effective weapon will fire at a higher likely damage threshold; a weak combination at 30%
+		# pFire = a * (power-skill level) + b
+		# range of power-skill level 0.1 to 1.0 
+		# a skilled gunner with an effective weapon will fire at a higher likely damage threshold, pHigh; a weak combination at pLow
 		# then a = 10 * (pHigh - pLow ) / 9 ; b = (10 * pLow - pHigh ) / 9
 		# include maxDamage_percent for weapons that are designed for spray, not precision
 
 		# if (thisWeapon.aim.pHit > ( 0.044444 * weapPowerSkill + .1555555 )) # 60% / 20%
-		# if (thisWeapon.aim.pHit * thisWeapon.maxDamage_percent > ( 0.55555 * weapPowerSkill + 3.444444 )) # 90% / 40% ; 10% damage
-		if ( (thisWeapon.aim.pHit * thisWeapon.maxDamage_percent) > (2.77777 * weapPowerSkill + 0.222222) ) # 60% / 10% ; 5% damage
+		# if (thisWeapon.aim.pHit * thisWeapon.maxDamage_percent > ( 0.55555 * weapPowerSkill + 3.444444 )) # 90% / 40% ; 10% max damage
+		if ( (thisWeapon.aim.pHit * thisWeapon.maxDamage_percent) > (0.277777 * weapPowerSkill + 0.0222222) ) # 6% / 1% ; 5% max damage
 
 		# if (0) # omit for testing
 		{
@@ -6337,9 +6339,10 @@ var weapons_loop = func (id, myNodeName1 = "", targetSize_m = nil) {
 						add_damage
 						(
 							damageAdd, 
-							myNodeName2, 
 							"weapon", 
+							myNodeName2, 
 							myNodeName1, 
+							, 
 							thisWeapon.mass * 2.2, 
 							thisWeapon.position.latitude_deg, 
 							thisWeapon.position.longitude_deg, 
@@ -6351,9 +6354,10 @@ var weapons_loop = func (id, myNodeName1 = "", targetSize_m = nil) {
 						add_damage
 						(
 							damageAdd, 
-							myNodeName2, 
 							"weapon", 
+							myNodeName2, 
 							myNodeName1,
+							,
 							ballisticMass_lb
 						);
 					}
@@ -7830,7 +7834,13 @@ var attack_loop = func ( id, myNodeName )
 	# var targetNode = nodes[ats.targetIndex];	
 
 	# set the node to attack
-	var targetNode = (ats.targetIndex == -1) ? "" : nodes[ats.targetIndex];
+	var targetNode = "";
+	var addTrue = "";
+	if (ats.targetIndex != -1)
+	{
+		targetNode = nodes[ats.targetIndex];
+		addTrue = "true-";
+	}
 
 	var alts = ats.altitudes;
 
@@ -7841,27 +7851,27 @@ var attack_loop = func ( id, myNodeName )
 	#debprint ("Bombable: Checking attack parameters: ", dist[0], " ", atts.maxDistance_m, " ",atts.minDistance_m, " ",dist[1], " ",-atts.altitudeLowerCutoff_m, " ",dist[1] < atts.altitudeHigherCutoff_m );
 				
 				
-	var myHeading_deg = getprop (""~myNodeName~"/orientation/true-heading-deg");
+	var myHeading_deg = getprop ("" ~ myNodeName ~ "/orientation/true-heading-deg");
 	var deltaHeading_deg = myHeading_deg - courseToTarget_deg;
 	deltaHeading_deg = math.mod (deltaHeading_deg + 180, 360) - 180;
-	var targetHeading_deg = getprop("/orientation/heading-deg");
+	var targetHeading_deg = getprop("" ~ targetNode ~ "/orientation/" ~ addTrue ~ "heading-deg");
 				
 	# whether or not to continue the attack when within minDistance:
-	# If we are heading straight towards the Target aircraft
-	# we continue (within continueAttackAngle_deg of straight on)
+	# If we are heading towards the target aircraft
+	# (within continueAttackAngle_deg of straight on) we continue 
 	# or if we are still way below or above the main AC,
 	# we continue the attack
 	# otherwise we break off the attack/evade
 	var continueAttack = 0;
 	if ( dist[0] < atts.minDistance_m ) 
 	{
-		var newAltLowerCutoff_m = atts.altitudeLowerCutoff_m / 4;
+		var newAltLowerCutoff_m = atts.altitudeLowerCutoff_m / 4; # how much lower the shooter is than the target
 		if (newAltLowerCutoff_m < 150) newAltLowerCutoff_m = 200;
 		var newAltHigherCutoff_m = atts.altitudeHigherCutoff_m / 4;
 		if (newAltHigherCutoff_m < 150) newAltHigherCutoff_m = 200;
 					
 		if (math.abs ( deltaHeading_deg ) < atts.continueAttackAngle_deg
-		or dist[1] < -newAltLowerCutoff_m or dist[1] > newAltHigherCutoff_m ) continueAttack = 1;
+		or dist[1] < -newAltLowerCutoff_m or dist[1] > newAltHigherCutoff_m ) continueAttack = 1; # dist[1] is alt shooter - alt target
 	}
 				
 	# readiness = 0 means AC has little fuel or ammo left.  It will cease
@@ -7891,7 +7901,7 @@ var attack_loop = func ( id, myNodeName )
 	# This only applies to the start of an attack.  Once attacking, presumably
 	# we are paying enough attention to continue.
 	var attentionFactor = 1;
-	if (rand() < .20 - 2 * skill / 100) attentionFactor = 0;
+	if (rand() < .20 - skill / 50) attentionFactor = 0;
 				
 	# The further away we are, the less likely to notice the MainAC and start
 	# an attack.
@@ -7899,8 +7909,14 @@ var attack_loop = func ( id, myNodeName )
 	# we are paying enough attention to continue.
 	var distanceFactor = 1;
 	if (rand() < dist[0] / atts.maxDistance_m) distanceFactor = 0;
-	if (dist[1] < 0) if  (rand() < -dist[1]/atts.altitudeLowerCutoff_m)  distanceFactor = 0;
-	elsif (rand() < dist[1]/atts.altitudeHigherCutoff_m)  distanceFactor = 0;
+	if (dist[1] < 0) 
+	{
+		if  (rand() < -dist[1]/atts.altitudeLowerCutoff_m)  distanceFactor = 0;
+	}
+	else
+	{
+		if (rand() < dist[1]/atts.altitudeHigherCutoff_m)  distanceFactor = 0;
+	}
 				
 	#TODO: Other factors could be added here, like less likely to attack if
 	#    behind a cloud, more likely if rest of squadron is, etc.
@@ -7923,10 +7939,20 @@ var attack_loop = func ( id, myNodeName )
 		#always dodge when close to Target aircraft--unless we're aiming at it
 		#ie, after passing it by, we make a dodge.  Less skilled pilots dodge less often.
 					
+		# are we ahead of or behind the target AC?  If behind, there is little point
+		# in dodging.  aheadBehindTarget_deg will be 0 degrees if we're directly
+		# behind, 90 deg if directly to the side.  
+		# We dodge only if > 110 degrees, which puts us pretty much in frontish.
+					
+		if (dist[0] < atts.minDistance_m)
+		{
+			var aheadBehindTarget_deg = normdeg180 (targetHeading_deg - courseToTarget_deg);
+		 	if (rand() < skill/5 and math.abs(aheadBehindTarget_deg) > 110) dodge( myNodeName);
+		}
 		# When the AC is done attacking & dodging it will continue to fly in
 		# circles unless we do this
-		setprop (""~myNodeName~"/controls/flight/target-roll", rand() * 2 - 1);
-					
+		elsif (attack_inprogress or rand() < 0.1) setprop (""~myNodeName~"/controls/flight/target-roll", rand() * 2 - 1); # rjw reduced frequency
+
 		#If not attacking, every once in a while we turn the AI AC in the general
 		#direction of the target
 		#This is to keep the AI AC from getting too dispersed.
@@ -7935,42 +7961,26 @@ var attack_loop = func ( id, myNodeName )
 
 		if (rand() < 0.2 and atts.maxDistance_m) 
 		# if attack check time 5 sec then < 0.2 gives an average delay of 25 sec til AC turns back into the fray
-		
-		if (targetNode == "")
-		# target is main AC
 		{
-			# check distance from main AC. If exceeds max distance then turn to main AC - not target
-			# corrals action close to main AC, which might be a neutral observer
-			var distHdgMain = course1to2 (myNodeName, "");
-			if ( distHdgMain.distance[0] > atts.maxDistance_m )
+			ctrls.courseToTarget_deg = courseToTarget_deg;
+			var whereNow = "target";
+			if (ats.team == "B")
 			{
-				ctrls.courseToTarget_deg = distHdgMain.heading;
-				aircraftTurnToHeading ( myNodeName, 60 );
-				debprint ("Bombable: ", myNodeName, " Turning in direction of main AC");
+				# check distance from main AC. 
+				# team B, the defending team, stays close to main AC
+				# keeps action close to main AC, which might be a neutral observer
+				var distHdgMain = course1to2 (myNodeName, "");
+				if ( distHdgMain.distance[0] > atts.maxDistance_m / 4 )
+				{
+					ctrls.courseToTarget_deg = distHdgMain.heading;
+					whereNow = "main AC";
+				}
 			}
+			aircraftTurnToHeading ( myNodeName, 60 );
+			debprint ("Bombable: ", myNodeName, " Turning in direction of " ~ whereNow);
 		}
-		else
-		# target is AI
-			{
-				ctrls.courseToTarget_deg = courseToTarget_deg;
-				aircraftTurnToHeading ( myNodeName, 60 );
-				debprint ("Bombable: ", myNodeName, " Turning in direction of target");
-			}
 		
 		if ( dist[0] > atts.maxDistance_m ) stores.revitalizeAttackReadiness(myNodeName, dist[0]);
-
-		# are we ahead of or behind the target AC?  If behind, there is little point
-		# in dodging.  aheadBehindTarget_deg will be 0 degrees if we're directly
-		# behind, 90 deg if directly to the side.  
-		# We dodge only if > 110 degrees, which puts us pretty much in frontish.
-
-		var aheadBehindTarget_deg = normdeg180 (targetHeading_deg - courseToTarget_deg);
-					
-		if (dist[0] < atts.minDistance_m and rand() < skill/5 and math.abs(aheadBehindTarget_deg) > 110)  
-		{
-			dodge( myNodeName);
-		}
-					
 		atts.loopTime = atts.attackCheckTime_sec;
 		ctrls.attackInProgress = 0;
 		return;
@@ -8551,8 +8561,9 @@ var aircraftCrashControl = func (myNodeName) {
 	else 
 	{
 		# we should be crashed at this point but just in case:
-		if ( currAlt_ft <= -1371 ) add_damage(1, myNodeName,"crash");
+		if ( currAlt_ft <= -1371 ) add_damage(1, "crash", myNodeName);
 	}
+	
 }
 ################################## stopDodgeAttack ################################
 
@@ -8923,7 +8934,19 @@ records.show_totals_dialog = func
 # even if the engine dies completely.  A tank might stop forward motion almost
 # instantly.
 
-var add_damage = func(damageRise, myNodeName, damagetype = "weapon", impactNodeName = nil, ballisticMass_lb = nil, lat_deg = nil, lon_deg = nil, alt_m = nil, myNodeName2 = nil  ) 
+var add_damage = func
+(
+	damageRise, 
+	damagetype = "weapon", 
+	myNodeName = nil, # target 
+	myNodeName2 = nil, # shooter
+	impactNodeName = nil, # projectile
+	ballisticMass_lb = nil, 
+	lat_deg = nil, 
+	lon_deg = nil, 
+	alt_m = nil 
+)
+
 {
 	if (!getprop(bomb_menu_pp~"bombable-enabled") ) return 0;
 	if (myNodeName == "") 
@@ -8985,7 +9008,7 @@ var add_damage = func(damageRise, myNodeName, damagetype = "weapon", impactNodeN
 	var callsign = getCallSign (myNodeName);
 	var weapPowerSkill = ctrls.weapons_pilot_ability;				
 	var msg2 = "";
-	if (myNodeName2 != nil) msg2 = " Shooter: " ~ getCallSign (myNodeName2).trim;
+	if (myNodeName2 != nil) msg2 = " Shooter: " ~ string.trim(getCallSign (myNodeName2)) ;
 						
 	if ( damageIncrease > 0 ) 
 	{
@@ -9202,8 +9225,6 @@ var inc_loopid = func (nodeName = "", loopName = "")
 	attributes[nodeName].loopids[s] = loopid;
 	return loopid;
 }
-
-
 
 ######################## set_livery #############################
 # Set livery color (including normal through
@@ -10816,7 +10837,8 @@ var tipArgTarget = nil;
 var tipArgSelf = nil;
 var currTimerTarget = 0;
 var currTimerSelf = 0;
-var tipMessage = "\n\n\n\n";
+var tipMessageAI = "\n\n\n\n";
+var tipMessageMain = "\n\n\n\n";
 
 var lockNum = 0;
 var lockWaitTime = 1;
@@ -10901,7 +10923,7 @@ var bombableInit = func {
 		your FlightGear startup
 		manager) and restart.";
 		print (msg);
-		#selfStatusPopupTip (msg, 10 );
+		#mainStatusPopupTip (msg, 10 );
 	}
 
 						
