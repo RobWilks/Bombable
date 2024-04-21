@@ -2306,8 +2306,8 @@ var calcPilotSkill = func ( myNodeName )
 	if (ats.damage > 0.8) skill  *=  (1 - ats.damage)/ 0.2;
 
 	# give team B, the defending team, higher skills than team R and team W
-	if ((ats.team == "B") and (skill < 6)) skill += (6 - skill) / 2;
-	if (ats.team == "R") skill /= 2;
+	# if ((ats.team == "B") and (skill < 6)) skill += (6 - skill) / 2;
+	# if (ats.team == "R") skill /= 2;
 
 	return skill;
 }
@@ -5247,8 +5247,8 @@ var dodge = func(myNodeName)
 				
 	var dodgeAltAmount_ft = 0;
 				
-	if (type == "aircraft") {
-		
+	if (type == "aircraft") 
+	{
 		if (evas.dodgeAltMax_ft !=0) 
 		{
 			var dodgeAltDirection = (evas.dodgeAltMax_ft - evas.dodgeAltMin_ft) * rand() + evas.dodgeAltMin_ft;
@@ -5290,41 +5290,42 @@ var dodge = func(myNodeName)
 		currSpeed_kt > .75 * vels.cruiseSpeed_kt
 		and rand() < skill/7 and skill >= 3
 		and dims.length_m < 22 and dims.width_m < 18 ) 
-			{
+		{
 			choose_random_acrobatic(myNodeName);
 			return;
-			}
+		}
 					
 		#set rudder or roll degrees to that amount
 		rudder_roll_climb (myNodeName, dodgeAmount_deg, dodgeAltAmount_ft, rollTime_sec);
 
-		dodgeVertSpeed_fps = 0;
-					
-		if ( dodgeAltAmount_ft > 0 )  dodgeVertSpeed_fps = math.abs ( evas.dodgeVertSpeedClimb_fps * dodgeAltAmount_ft / evas.dodgeAltMax_ft);
-		if ( dodgeAltAmount_ft < 0 )  dodgeVertSpeed_fps = - math.abs ( evas.dodgeVertSpeedDive_fps * dodgeAltAmount_ft / evas.dodgeAltMin_ft );
-					
-		#velocities/vertical-speed-fps seems to be fps * 1000 for some reason?  At least, approximately, 300,000 seems to be about 300 fps climb, for instance.
-		# and we reduce the amount of climb/dive possible depending on the current roll angle (can't climb/dive rapidly if rolled to 90 degrees . . . )
-		#dodgeVertSpeed_fps *= 1000 * math.abs(math.cos(currRoll_deg* D2R));
-		#dodgeVertSpeed_fps *=  math.abs(math.cos(currRoll_deg* D2R));
-					
-		#vert-speed prob
-		#just putting a large number directly into vertical-speed-fps makes the aircraft
-		#jump up or down far too abruptly for realism
-		#if (dodgeVertSpeed_fps != 0) setprop ("" ~ myNodeName ~ "/velocities/vertical-speed-fps", dodgeVertSpeed_fps);
+		#rjw next block not used
+			
+			dodgeVertSpeed_fps = 0;
+						
+			if ( dodgeAltAmount_ft > 0 )  dodgeVertSpeed_fps = math.abs ( evas.dodgeVertSpeedClimb_fps * dodgeAltAmount_ft / evas.dodgeAltMax_ft);
+			if ( dodgeAltAmount_ft < 0 )  dodgeVertSpeed_fps = - math.abs ( evas.dodgeVertSpeedDive_fps * dodgeAltAmount_ft / evas.dodgeAltMin_ft );
+						
+			#velocities/vertical-speed-fps seems to be fps * 1000 for some reason?  At least, approximately, 300,000 seems to be about 300 fps climb, for instance.
+			# and we reduce the amount of climb/dive possible depending on the current roll angle (can't climb/dive rapidly if rolled to 90 degrees . . . )
+			#dodgeVertSpeed_fps *= 1000 * math.abs(math.cos(currRoll_deg* D2R));
+			#dodgeVertSpeed_fps *=  math.abs(math.cos(currRoll_deg* D2R));
+						
+			#vert-speed prob
+			#just putting a large number directly into vertical-speed-fps makes the aircraft
+			#jump up or down far too abruptly for realism
+			#if (dodgeVertSpeed_fps != 0) setprop ("" ~ myNodeName ~ "/velocities/vertical-speed-fps", dodgeVertSpeed_fps);
+		
+		#end unused
 
-		debprint (sprintf("Dodging: %s dodgeAmount_deg = %6.1f dodgeAltAmount_ft = %6.1f dodgeVertSpeed_fps = %6.1f rollTime_sec = %5.1f dodgeDelay_remainder = %6.1f", 
-		myNodeName, dodgeAmount_deg, dodgeAltAmount_ft, dodgeVertSpeed_fps ,rollTime_sec, dodgeDelay_remainder_sec));
 
-
-
-		stores.reduceFuel (myNodeName, dodgeDelay ); #deduct the amount of fuel from the tank, for this dodge
 					
 		# Roll/climb for rollTime_sec seconds, then wait dodgeDelay - rollTime seconds 
 		# (to allow the aircraft's turn to develop from the roll).
+
+		settimer ( func { aircraftRoll (myNodeName, dodgeAmount_deg, dodgeDelay_remainder_sec, evas.dodgeMax_deg); }, rollTime_sec);
+		
 		# After this delay FG's aircraft AI will automatically return it to near-level flight.
 		# Return to near-level flight after a delay of 3-5x the duration of the roll. 
-		#
 
 		settimer
 			( func 
@@ -5337,9 +5338,14 @@ var dodge = func(myNodeName)
 				},
 				dodgeDelay
 			);
-		} 
-		else 
-		{  
+
+		stores.reduceFuel (myNodeName, dodgeDelay ); #deduct the amount of fuel from the tank, for this dodge
+
+		debprint (sprintf("Dodging: %s dodgeAmount_deg = %6.1f dodgeAltAmount_ft = %6.1f dodgeVertSpeed_fps = %6.1f rollTime_sec = %5.1f dodgeDelay_remainder = %6.1f", 
+		myNodeName, dodgeAmount_deg, dodgeAltAmount_ft, dodgeVertSpeed_fps ,rollTime_sec, dodgeDelay_remainder_sec));
+	} 
+	else 
+	{  
 		# for ships	and groundvehicles		
 		# set rudder degrees for a change in direction
 		# the dodge starts immediately and stops at turnTime, set according to type of turn
@@ -5354,9 +5360,9 @@ var dodge = func(myNodeName)
 				},
 				turnTime 
 			);	
-		}
-				
-		# debprint ("Bombable: Dodge alt:", dodgeAltAmount_ft, " degrees:", dodgeAmount_deg, " delay:", dodgeDelay);
+	}
+			
+	# debprint ("Bombable: Dodge alt:", dodgeAltAmount_ft, " degrees:", dodgeAmount_deg, " delay:", dodgeDelay);
 }
 
 ##################### getCallSign ##########################
@@ -7875,7 +7881,7 @@ var attack_loop = func ( id, myNodeName )
 	}
 				
 	# readiness = 0 means AC has little fuel or ammo left.  It will cease
-	# attacking UNLESS the main AC comes very close by & attacks it.
+	# attacking UNLESS the target comes very close by & attacks it.
 	# However there is no point in attacking if no ammo at all, in that
 	# case only dodging/evading will happen.
 	var readinessAttack = 1;
@@ -7901,9 +7907,9 @@ var attack_loop = func ( id, myNodeName )
 	# This only applies to the start of an attack.  Once attacking, presumably
 	# we are paying enough attention to continue.
 	var attentionFactor = 1;
-	if (rand() < .20 - skill / 50) attentionFactor = 0;
+	if (rand() < 0.2 - skill / 50) attentionFactor = 0;
 				
-	# The further away we are, the less likely to notice the MainAC and start
+	# The further away we are, the less likely to notice the target and start
 	# an attack.
 	# This only applies to the start of an attack.  Once attacking, presumably
 	# we are paying enough attention to continue.
@@ -7981,18 +7987,21 @@ var attack_loop = func ( id, myNodeName )
 		}
 		
 		if ( dist[0] > atts.maxDistance_m ) stores.revitalizeAttackReadiness(myNodeName, dist[0]);
+
 		atts.loopTime = atts.attackCheckTime_sec;
 		ctrls.attackInProgress = 0;
 		return;
 	}
 				
-	stores.reduceFuel (myNodeName, loopTimeActual ); #deduct the amount of fuel from the tank
 				
-	#attack
+	#ATTACK
 	#
 	#debprint ("Bombable: Starting attack run of Target aircraft with " ~ myNodeName );
 	# (1-rand() * rand()) makes it choose values at the higher end of the range more often
 				
+	stores.reduceFuel (myNodeName, loopTimeActual ); #deduct the amount of fuel from the tank
+	
+	var attackCheckTimeEngaged_sec = atts.attackCheckTimeEngaged_sec;
 	var roll_deg = (1 - rand() * rand()) * (atts.rollMax_deg - atts.rollMin_deg) + atts.rollMin_deg;
 				
 	#debprint ("rolldeg:", roll_deg);
@@ -8004,7 +8013,6 @@ var attack_loop = func ( id, myNodeName )
 		roll_deg = 4 * math.abs(deltaHeading_deg);
 	}
 				
-	var attackCheckTimeEngaged_sec = atts.attackCheckTimeEngaged_sec;
 				
 	#Easy mode makes the attack manuevers less aggressive
 	#if (skill == 2) roll_deg *= 0.9;
@@ -8024,9 +8032,17 @@ var attack_loop = func ( id, myNodeName )
 	#elevTarget_m = elev (geo.aircraft_position().lat(),geo.aircraft_position().lon() ) * FT2M;
 	#targetAGL_m = targetAlt_m-elevTarget_m;
 				
-	var targetAlt_m = getprop ("/position/altitude-ft") * FT2M;
-	var targetAGL_m = getprop ("/position/altitude-agl-ft") * FT2M;
-	var elevTarget_m = targetAlt_m - targetAGL_m; # height of ground at main AC position
+	var targetAlt_m = getprop (targetNode ~ "/position/altitude-ft") * FT2M;
+	if (targetNode == "")
+	{
+		var targetAGL_m = getprop ("/position/altitude-agl-ft") * FT2M;
+		var elevTarget_m = targetAlt_m - targetAGL_m; # height of ground at main AC position
+	}
+	else
+	{
+		var elevTarget_m = elevGround ( targetNode ) ;
+		var targetAGL_m = targetAlt_m - elevTarget_m;
+	}
 	var currAlt_m = getprop(""~myNodeName~"/position/altitude-ft") * FT2M;
 
 	ctrls.attackInProgress = 1;
@@ -8047,7 +8063,8 @@ var attack_loop = func ( id, myNodeName )
 	# 		ctrls.attackClimbDiveTargetAGL_m
 	# 	)
 	# );			
-	if ( !attack_inprogress or math.abs ( deltaHeading_deg ) >= 90 ) 
+
+	if ( !attack_inprogress or math.abs ( deltaHeading_deg ) >= 90 ) # rjw the second term allows the target to evade attack by a sharp 90 degree turn
 	{
 		# if we've already started an attack loop, keep doing it with the same
 		# targetAGL, unless we have arrived within 500 meters of that elevation
@@ -8159,7 +8176,7 @@ var attack_loop = func ( id, myNodeName )
 				
 	aircraftSetVertSpeed (myNodeName, targetAlt_m - currAlt_m, "evas" );
 
-	# turn to heading is called too frequently (t = 0.5 sec).  It aborts any existing turn.  However the AI AC is attacking so must track the target			
+	# turn to heading is called too frequently (t = 0.5 sec) for 0.1 s update time.  It aborts any existing turn.  However the AI AC is attacking so must track the target			
 	if (rand() < 0.2) aircraftTurnToHeading ( myNodeName, roll_deg, targetAlt_m );
 				
 				
@@ -8266,8 +8283,8 @@ var aircraftTurnToHeadingControl = func (myNodeName, id, rolldegrees = 45, targe
 		var alts = attributes[myNodeName].altitudes;
 					
 		targetAlt_ft = targetAlt_m * M2FT;
-					
 		var currElev_m = elevGround (myNodeName);
+		if (currElev_m == nil) debprint("currElev" ~ myNodeName); # error debug 
 		if (targetAlt_m - currElev_m < alts.minimumAGL_m ) targetAlt_ft = (alts.minimumAGL_m + currElev_m) * M2FT
 		elsif (targetAlt_m - currElev_m > alts.maximumAGL_m ) targetAlt_ft = (alts.maximumAGL_m + currElev_m) * M2FT;
 					
@@ -8969,7 +8986,6 @@ var add_damage = func
 
 	var damageValue = ats.damage;
 
-	var origDamageRise = damageRise;
 	# make sure it's in range 0-1.0
 	if(damageRise > 1.0)
 		damageRise = 1.0;
@@ -9005,10 +9021,15 @@ var add_damage = func
 
 	if (damagetype == "weapon") records.record_impact ( myNodeName, damageRise, damageIncrease, damageValue, impactNodeName, ballisticMass_lb, lat_deg, lon_deg, alt_m );
 					
-	var callsign = getCallSign (myNodeName);
+	var callsign = string.trim(getCallSign (myNodeName));
+	var callsign2 = "";
 	var weapPowerSkill = ctrls.weapons_pilot_ability;				
 	var msg2 = "";
-	if (myNodeName2 != nil) msg2 = " Shooter: " ~ string.trim(getCallSign (myNodeName2)) ;
+	if (myNodeName2 != nil) 
+	{
+		callsign2 = string.trim(getCallSign (myNodeName2));
+		msg2 = " Shooter: " ~ callsign2 ;
+	}
 						
 	if ( damageIncrease > 0 ) 
 	{
@@ -9023,10 +9044,19 @@ var add_damage = func
 			elsif (damageRise < .1) damageRiseDisplay = sprintf ("%1.1f",damageRise * 100);
 							
 							
-			var msg = "Damage added: " ~ damageRiseDisplay ~ "% for " ~  string.trim(callsign) ~ " Total: " ~ round ( damageValue * 100 ) ~ "%, Skill: " ~ math.ceil(10 * weapPowerSkill) ~ msg2;
-			debprint ("Bombable: " ~ msg ~ " (" ~ myNodeName ~ ", " ~ origDamageRise ~")" );
+			var msg = "Damage added: " ~ damageRiseDisplay ~ "% for " ~  callsign ~ " Total: " ~ round ( damageValue * 100 ) ~ "%, Skill: " ~ math.ceil(10 * weapPowerSkill) ~ msg2;
+			debprint ( "Bombable: " ~ msg ~ " " ~ myNodeName );
 							
 			targetStatusPopupTip (msg, 20);
+
+			if (myNodeName2 != nil and damageRise > 0.05 and rand() < 0.5)
+			# reset my original target and
+			# set my new target as the shooter
+			{
+				attributes[nodes[ats.targetIndex]].shooterIndex = -1;
+				ats.targetIndex = attributes[myNodeName2].targetIndex;
+				debprint (callsign, " set target to ", callsign2);
+			}
 		}
 
 		# a large hit can knock-out a weapon
@@ -9040,6 +9070,7 @@ var add_damage = func
 				weaps[""~keys(weaps)[index]]["destroyed"] = 1;
 			}
 		}
+
 	}
 
 	# for moving objects (ships & aircraft), reduce velocity each time damage added
@@ -11872,6 +11903,14 @@ var assignTargets = func ()
 		}
 	}	
 	debprint("Bombable: ", count, " white targets assigned");
+
+	# apply handicap to the attacking red team by reducing pilot skills by a fixed percentage
+	var redHandicap = 20;
+	forindex (var i; redTeam)
+	{
+		attributes[nodes[redTeam[i]]].controls.pilotAbility *= ( 1 - redHandicap / 100 );
+	}
+	debprint("Bombable: Handicap of ", redHandicap, "% applied to red team");
 }
 
 
