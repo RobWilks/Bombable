@@ -5958,7 +5958,8 @@ var checkAim = func ( thisWeapon, myNodeName1 = "", myNodeName2 = "",
 		var sqrt_a = 0.7071 / thisWeapon.accuracy;
 		var pRound = erf(( targetOffset_rad + targetSize_rad ) * sqrt_a) -  erf(( targetOffset_rad - targetSize_rad ) * sqrt_a);
 		pRound *= (1 - getprop (""~myNodeName1~"/velocities/true-airspeed-kt") / ats.velocities.maxSpeed_kt); # reduce probability if platform moving
-		thisWeapon.aim.pHit = 1 - math.pow( 1 - pRound , LOOP_TIME * thisWeapon.roundsPerSec);
+		# thisWeapon.aim.pHit = 1 - math.pow( 1 - pRound , LOOP_TIME * thisWeapon.roundsPerSec);
+		thisWeapon.aim.pHit = pRound * LOOP_TIME * thisWeapon.roundsPerSec; # converts pHit to <nHit>
 
 		debprint 
 		(
@@ -6043,7 +6044,7 @@ var weapons_loop = func (id, myNodeName1 = "", targetSize_m = nil) {
 	# var myNodeName2 = nodes[ats.targetIndex];
 
 	# need to get AI targetSize
-	var myNodeName2 = (ats.targetIndex == -1) ? "" : nodes[ats.targetIndex];
+	var myNodeName2 = (ats.targetIndex == 666) ? "" : nodes[ats.targetIndex];
 
 	#debprint ("weapons_loop starting");
 
@@ -6277,7 +6278,7 @@ var weapons_loop = func (id, myNodeName1 = "", targetSize_m = nil) {
 
 		# if (thisWeapon.aim.pHit > ( 0.044444 * weapPowerSkill + .1555555 )) # 60% / 20%
 		# if (thisWeapon.aim.pHit * thisWeapon.maxDamage_percent > ( 0.55555 * weapPowerSkill + 3.444444 )) # 90% / 40% ; 10% max damage
-		if ( (thisWeapon.aim.pHit * thisWeapon.maxDamage_percent) > (0.277777 * weapPowerSkill + 0.0222222) ) # 6% / 1% ; 5% max damage
+		if ( (thisWeapon.aim.pHit * thisWeapon.maxDamage_percent) > (0.277777 * weapPowerSkill + 0.022222) ) # 6% / 1% ; 5% max damage
 
 		# if (0) # omit for testing
 		{
@@ -6314,7 +6315,8 @@ var weapons_loop = func (id, myNodeName1 = "", targetSize_m = nil) {
 			# There is a smaller chance of doing a fairly high level of damage (up to 3X the regular max),
 			# and the better/closer the hit, the greater chance of doing that significant damage.
 			# pHit is the probability of a hit in time interval LOOP_TIME
-			if (rand() < thisWeapon.aim.pHit) 
+			if (1)
+			# if (rand() < thisWeapon.aim.pHit) 
 			{
 				var ai_callsign = getCallSign (myNodeName1);
 
@@ -7855,7 +7857,12 @@ var attack_loop = func ( id, myNodeName )
 	var courseToTarget_deg = distHdg.heading; # absolute bearing
 	
 	#debprint ("Bombable: Checking attack parameters: ", dist[0], " ", atts.maxDistance_m, " ",atts.minDistance_m, " ",dist[1], " ",-atts.altitudeLowerCutoff_m, " ",dist[1] < atts.altitudeHigherCutoff_m );
-				
+	if (ctrls.stayInFormation)
+	{
+		if ( dist[0] > atts.maxDistance_m ) return;
+		debprint ("Bombable: "~getCallSign(myNodeName)~" breaking formation"); 
+		ctrls.stayInFormation = 0; 			
+	}
 				
 	var myHeading_deg = getprop ("" ~ myNodeName ~ "/orientation/true-heading-deg");
 	var deltaHeading_deg = myHeading_deg - courseToTarget_deg;
@@ -7931,9 +7938,9 @@ var attack_loop = func ( id, myNodeName )
 				
 	# criteria for not attacking
 	# if we fail to meet any of these criteria we do a few things then exit without attacking. Logic: not (A and B) = not A or not B 
-	debprint ("Bombable: Attack criteria: ", (dist[0] < atts.maxDistance_m ), " ", ( dist[0] > atts.minDistance_m or continueAttack ) , " ",
-	(dist[1] > -atts.altitudeLowerCutoff_m), " ", (dist[1] < atts.altitudeHigherCutoff_m), " ",  
-	readinessAttack, " ", ( (attentionFactor and distanceFactor) or attack_inprogress ), " for ", myNodeName, " ");
+	# debprint ("Bombable: Attack criteria: ", (dist[0] < atts.maxDistance_m ), " ", ( dist[0] > atts.minDistance_m or continueAttack ) , " ",
+	# (dist[1] > -atts.altitudeLowerCutoff_m), " ", (dist[1] < atts.altitudeHigherCutoff_m), " ",  
+	# readinessAttack, " ", ( (attentionFactor and distanceFactor) or attack_inprogress ), " for ", myNodeName, " ");
 	
 	if ( ! (( dist[0] < atts.maxDistance_m ) and ( dist[0] > atts.minDistance_m or continueAttack ) and
 	(dist[1] > -atts.altitudeLowerCutoff_m) and (dist[1] < atts.altitudeHigherCutoff_m)  and  
@@ -8156,7 +8163,7 @@ var attack_loop = func ( id, myNodeName )
 	else
 	{
 		ctrls.attackClimbDiveInProgress = 0;
-		debprint ("Bombable: Ending attack turn/loop for ", myNodeName);
+		# debprint ("Bombable: Ending attack turn/loop for ", myNodeName);
 	}
 				
 	targetAlt_m = targetAGL_m + elevTarget_m;
@@ -8306,7 +8313,7 @@ var aircraftTurnToHeadingControl = func (myNodeName, id, rolldegrees = 45, targe
 					
 		aircraftSetVertSpeed (myNodeName, dodgeAltAmount_ft, "atts");
 
-		debprint ("Attacking: Change height for", myNodeName, " by ", dodgeAltAmount_ft);
+		# debprint ("Attacking: Change height for", myNodeName, " by ", dodgeAltAmount_ft);
 	}
 				
 				
@@ -9019,8 +9026,11 @@ var add_damage = func
 	if (damageIncrease > 0.05 and type == "aircraft") reduceRPM(myNodeName);
 	#rjw: big hit so spin down an engine				
 
-	if (damagetype == "weapon") records.record_impact ( myNodeName, damageRise, damageIncrease, damageValue, impactNodeName, ballisticMass_lb, lat_deg, lon_deg, alt_m );
-					
+	if (damagetype == "weapon") 
+	{
+		ctrls.stayInFormation = 0;
+		records.record_impact ( myNodeName, damageRise, damageIncrease, damageValue, impactNodeName, ballisticMass_lb, lat_deg, lon_deg, alt_m );
+	}
 	var callsign = string.trim(getCallSign (myNodeName));
 	var callsign2 = "";
 	var weapPowerSkill = ctrls.weapons_pilot_ability;				
@@ -9086,6 +9096,7 @@ var add_damage = func
 
 	if ( damageValue == 1 and damageIncrease > 0) 
 	{
+		resetTargetShooter(ats.index);  
 		if (type == "aircraft") 
 		{
 			# rjw: aircraft will now crash
@@ -9419,6 +9430,7 @@ var initialize_func = func ( b ){
 		courseToTarget_deg: 0,
 		pilotAbility: ability,
 		weapons_pilot_ability : 0.2,
+		stayInFormation : 1,
 	};
 
 	b.loopids = 
@@ -9862,6 +9874,11 @@ var bombable_init_func = func(myNodeName)
 
 var ground_init = func (myNodeName = "") {
 
+	if (getprop("/bombable/targets/index") != getprop("/ai/models/count"))
+	{
+		settimer (func {ground_init(myNodeName);}, 5, 1);
+		return;
+	}	
 	debprint ("Bombable: Delaying ground_init . . . ", myNodeName);
 	settimer (func {bombable.ground_init_func(myNodeName);}, 45 + rand(),1);
 
@@ -10015,6 +10032,11 @@ var location_init_func = func(myNodeName)
 
 var attack_init = func (myNodeName = "") 
 {
+	if (getprop("/bombable/targets/index") != getprop("/ai/models/count"))
+	{
+		settimer (func {attack_init(myNodeName);}, 5, 1);
+		return;
+	}
 	debprint ("Bombable: Delaying attack_init . . . ", myNodeName);
 	settimer (func {bombable.attack_init_func(myNodeName);}, 55 + rand(),1 );
 }
@@ -10191,8 +10213,13 @@ var weaponsTrigger_listener = func (changedNode,listenedNode){
 
 var weapons_init = func (myNodeName = "") {
 
+	if (getprop("/bombable/targets/index") != getprop("/ai/models/count"))
+	{
+		settimer (func {weapons_init(myNodeName);}, 5, 1);
+		return;
+	}
 	debprint ("Bombable: Delaying weapons_init . . . ", myNodeName);
-	settimer (func {weapons_init_func(myNodeName);}, 30 + rand(), 1); #rjw changed delay from 60s to 30s - 15s causes a Nasal error - : bad/missing argument to contains() 
+	settimer (func {weapons_init_func(myNodeName);}, 60 + rand(), 1);
 
 }
 
@@ -10238,9 +10265,10 @@ var weapons_init_func = func(myNodeName)
 						
 	#don't do this if the 'weapons' attributes are not included
 	var weapsSuccess = 1;
-	if (!contains (attributes[myNodeName], "weapons")) { debprint ("no attributes.weapons, exiting"); weapsSuccess = 0;}
+	var ats = attributes[myNodeName];
+	if (!contains (ats, "weapons")) { debprint ("no attributes.weapons, exiting"); weapsSuccess = 0;}
 	else {
-		weaps = attributes[myNodeName].weapons;
+		var weaps = ats.weapons;
 		if (weaps == nil or typeof(weaps) != "hash") {
 			debprint ("attributes.weapons not a hash"); 
 			weapsSuccess = 0; 
@@ -10265,7 +10293,7 @@ var weapons_init_func = func(myNodeName)
 
 	foreach (elem;keys (weaps) ) 
 	{
-		var thisWeapon = attributes[myNodeName].weapons[elem]; # a pointer into the attributes hash
+		var thisWeapon = weaps[elem]; # a pointer into the attributes hash
 		if (thisWeapon["weaponType"] == nil) thisWeapon["weaponType"] = 0;
 		# key to allow inclusion of new types of weapons such as rockets
 
@@ -10274,13 +10302,13 @@ var weapons_init_func = func(myNodeName)
 			if (rocket_init_func (thisWeapon, rocketCount))
 			{
 				rocketCount += 1;
-				attributes[myNodeName].attacks["rocketsInAir"] = 0; # used to trigger rocket launch 
+				ats.attacks["rocketsInAir"] = 0; # used to trigger rocket launch 
 				# each rocket is a separate weapon with a separate AI model - not tied to the parent AC/ship
 			}
 			else
 			{
 				debprint ("Weaps: ", myNodeName, " failed to init ", thisWeapon.name);
-				delete(attributes[myNodeName].weapons, elem);
+				delete(weaps, elem);
 				continue;
 			}
 		}
@@ -10350,16 +10378,16 @@ var weapons_init_func = func(myNodeName)
 		{
 			thisWeapon["parent"] = "";
 		}
-		elsif (!contains ( attributes[myNodeName].weapons, thisWeapon["parent"] ))
+		elsif (!contains ( weaps, thisWeapon["parent"] ))
 		{
 			debprint ("Weaps: ", myNodeName ~ "/" ~ elem ~ "parent not found - weapon failed to init");
-			delete(attributes[myNodeName].weapons, elem);
+			delete(weaps, elem);
 			continue;
 		}
 		elsif (thisWeapon["parent"] == "" ~ elem)
 		{
 			debprint ("Weaps: ", myNodeName ~ "/" ~ elem ~ "parent declared as self - weapon failed to init");
-			delete(attributes[myNodeName].weapons, elem);
+			delete(weaps, elem);
 			continue;
 		}	
 		debprint ("Weaps: ", myNodeName, " initialized ", thisWeapon.name);
@@ -10371,7 +10399,7 @@ var weapons_init_func = func(myNodeName)
 
 	if (rocketCount) 
 	{
-		if (attributes[myNodeName].dimensions["safeDistance_m"] == nil) attributes[myNodeName].dimensions["safeDistance_m"] = 200;
+		if (ats.dimensions["safeDistance_m"] == nil) ats.dimensions["safeDistance_m"] = 200;
 	}
 
 	props.globals.getNode(""~myNodeName~"/bombable/weapons/listenerids",1);
@@ -10414,15 +10442,30 @@ var weapons_init_func = func(myNodeName)
 		#overall height & width of main aircraft in meters
 		# TODO: Obviously, this needs to be set per aircraft in an XML file, along with aircraft
 		# specific damage vulnerability etc.
+		# the target size depends on its orientation relative to the shooter
+		# assume the target is flying horizontally but on any heading relative to the shooter 
+		# pHit is calculated on the average solid angle subtended by the target  
+		# recalculate the size if new target assigned
 
-		var mainAircraftSize_m = { vert : 4, horz : 8 };
+		# get targetSize
+		var targetNode = (ats.targetIndex == -1) ? "" : nodes[ats.targetIndex];
+		var targetSize_m = { vert : 4, horz : 8 }; 
+		if (attributes[targetNode]["dimensions"]["height_m"] != nil) # check probably not needed since default dimensions are provided by setAttributes
+		{
+			targetSize_m = 
+			{
+				vert : attributes[targetNode].dimensions.height_m ,
+				horz : math.sqrt(attributes[targetNode].dimensions.width_m * attributes[targetNode].dimensions.length_m) ,
+			};
+		}
+		debprint ("Bombable: Target size ", targetSize_m.vert, " by ", targetSize_m.horz, " for ", myNodeName );
 		
 		setWeaponPowerSkill (myNodeName);							
 							
 		#we increment this each time we are inited or de-inited
 		#when the loopid is changed it kills the timer loops that have that id
 		var loopid = inc_loopid (myNodeName, "weapons");
-		settimer (  func { weapons_loop (loopid, myNodeName, mainAircraftSize_m)}, 5 + rand());
+		settimer (  func { weapons_loop (loopid, myNodeName, targetSize_m)}, 5 + rand());
 	}
 						
 	debprint ("Bombable: Effect * weapons * loaded for ", myNodeName);
@@ -10936,6 +10979,28 @@ var blueTeam = [];
 var redTeam = [];
 var whiteTeam = [];
 var nodes = [];
+var lat = getprop("/position/latitude-deg");
+var lon = getprop("/position/longitude-deg");
+var alt = getprop("/position/altitude-ft");
+# store original locations so that they can be restored when scenario starts
+var nObjects = getprop("/ai/models/count");
+if (nObjects != nil)
+{
+	for (var i = 0; i < nObjects; i = i + 1)
+	{
+		var myNodeName = "/ai/models/aircraft["~i~"]";	
+		setprop(""~myNodeName~"/position/previous/latitude-deg",
+		getprop(""~myNodeName~"/position/latitude-deg"));
+		setprop(""~myNodeName~"/position/previous/longitude-deg",
+		getprop(""~myNodeName~"/position/longitude-deg"));
+		setprop(""~myNodeName~"/position/previous/altitude-ft",
+		getprop(""~myNodeName~"/position/altitude-ft"));
+
+		setprop(""~myNodeName~"/latitude-deg", lat + (rand() - 0.5) * 1e-3);
+		setprop(""~myNodeName~"/longitude-deg", lon + (rand() - 0.5) * 1e-3);
+		setprop(""~myNodeName~"/altitude-ft", alt + (rand() * 100));
+	}
+}
 settimer (func {assignTargets () }, 57.37); #wait till objects loaded
 
 
@@ -11841,18 +11906,25 @@ var addToTargets = func(myNodeName)
 	}
 }
 ########################## assignTargets ###########################
-# assigns a target for each object in blue and red teams
+# assigns a target for each object in blue, red  and white teams
 # attributes.shooterIndex is the index of the node shooting at an object
-# each object can only target one from the opposing team
+# the red and blue teams are opposing teams
+# the white team is 'neutral' and will attack red, blue and the main AC 
 # the list of targets is shuffled before being assigned
 # delay the call to this function to allow objects to be initialised
-# but AI objects only seem to be initialized if within view
 # targets for blue team then vice versa
-# redTeam, blueTeam, nodes are global vars
-# objects with no AI target will target main AC
+# redTeam, blueTeam, whiteTeam nodes are global vars
+# -1 is target not assigned
+# objects with no AI target may be assigned in later action
+#
 
 var assignTargets = func ()
 {
+	if (getprop("/bombable/targets/index") != nObjects)
+	{
+		settimer (func {assignTargets();}, 5, 1);
+		return;
+	}
 	var foundTarget = -1;
 	var count = 0;
 	var sizeBlue = size(blueTeam);
@@ -11901,6 +11973,11 @@ var assignTargets = func ()
 				}
 			}
 		}
+		else
+		{
+			attributes[nodes[whiteTeam[i]]].targetIndex = 666; # used to ID the main AC
+		}
+		attributes[nodes[whiteTeam[i]]].shooterIndex = -2; # cannot be assigned
 	}	
 	debprint("Bombable: ", count, " white targets assigned");
 
@@ -11911,14 +11988,27 @@ var assignTargets = func ()
 		attributes[nodes[redTeam[i]]].controls.pilotAbility *= ( 1 - redHandicap / 100 );
 	}
 	debprint("Bombable: Handicap of ", redHandicap, "% applied to red team");
+
+	for (var i = 0; i < nObjects; i = i + 1)
+	{
+		var myNodeName = "/ai/models/aircraft["~i~"]";	
+		if (getprop(myNodeName ~ "/id") == nil) break;
+		setprop(""~myNodeName~"/position/latitude-deg",
+		getprop(""~myNodeName~"/position/previous/latitude-deg"));
+		setprop(""~myNodeName~"/position/longitude-deg",
+		getprop(""~myNodeName~"/position/previous/longitude-deg"));
+		setprop(""~myNodeName~"/position/altitude-ft",
+		getprop(""~myNodeName~"/position/previous/altitude-ft"));
+	}
+	debprint("Bombable: AI object positions set to initial values");
 }
 
 
 ########################## assignOneTarget ###########################
-# assigns a target for one object from the opposing team
-# targetIndex is the index of my target; -1 indicates not assigned
-# shooterIndex is the index of the object shooting at me
-# targets is a list of indices of targets
+# I am the shooter
+# func assigns a target from the list of indices of targets
+# shooterIndex of -1 indicates object is not being shot at!
+# returns the index of my new target
 
 var assignOneTarget = func (myIndex, targets)
 {
@@ -11935,8 +12025,31 @@ var assignOneTarget = func (myIndex, targets)
 	return (-1); # could allow a target to be assigned more than one shooter
 }
 
+########################## assignOneShooter ###########################
+# I am the target
+# func assigns a shooter from the list of indices of shooters
+# targetIndex of -1 indicates object has no target assigned
+# returns the index of my new shooter
+
+
+var assignOneShooter = func (myIndex, shooters)
+{
+	var myNodeName = nodes[myIndex];
+	forindex (var i; shooters)
+	{
+		if (attributes[nodes[shooters[i]]].targetIndex == -1)
+		{
+			attributes[nodes[shooters[i]]].targetIndex = myIndex;
+			attributes[myNodeName].shooterIndex = shooters[i];
+			return (shooters[i]);
+		}
+	}
+	return (-1);
+}
+
 ########################## findNewTarget ###########################
 var findNewTarget = func (myIndex)
+# I am the shooter
 {
 	var targets = [];
 	var myTeam = attributes[nodes[myIndex]].team;
@@ -11947,31 +12060,68 @@ var findNewTarget = func (myIndex)
 	elsif (myTeam == "R") 
 	{
 		targets = blueTeam;
+	}
+	elsif (myTeam == "W") 
+	{
+		targets = append ( blueTeam,  redTeam);
 	}  
 	else
 	{
-		debprint("Bombable: Error: only assign targets for blue and red teams - myTeam = ", myTeam);
+		debprint("Bombable: Error findNewTarget: can only assign targets for blue, red and white teams - myTeam = ", myTeam);
+		return(-1);
 	}
 	var foundTarget = assignOneTarget (myIndex, targets);
-	debprint("Bombable: ", count, " seek new target for ", nodes[myIndex], ((foundTarget == -1) ? " - ran out of targets!" : "success"));
+	debprint("Bombable: foundTarget ", (foundTarget !=-1) ? nodes(foundTarget) : "fail", " for ", nodes[myIndex]);
+	return(foundTarget);
 }
 
-########################## resetTarget ###########################
+########################## findNewShooter ###########################
+var findNewShooter = func (myIndex)
 # I am the target
-# called when I am destroyed
-# not necessarily by shooter
-# reset target and shooter indices
+{
+	var targets = [];
+	var myTeam = attributes[nodes[myIndex]].team;
+	if (myTeam == "B") 
+	{
+		targets = redTeam;
+	}
+	elsif (myTeam == "R") 
+	{
+		targets = blueTeam;
+	}
+	elsif (myTeam == "W") 
+	{
+		targets = append ( blueTeam,  redTeam);
+	}  
+	else
+	{
+		debprint("Bombable: Error findNewShooter: can only assign targets for blue, red and white teams - myTeam = ", myTeam);
+		return(-1);
+	}
+	var foundShooter = assignOneShooter (myIndex, targets);
+	debprint("Bombable: foundShooter ", (foundShooter !=-1) ? nodes(foundShooter) : "fail", " for ", nodes[myIndex]);
+	return(foundShooter);
+}
 
-var resetTarget = func (myIndex)
+########################## resetTargetShooter ###########################
+# called when I am destroyed - not necessarily by my shooter
+# find new target for my shooter
+# find new shooter for my target
+# -1 is unassigned
+# -2 is not available
+# 666 is main AC
+
+var resetTargetShooter = func (myIndex)
 {
 	var ats = attributes[nodes[myIndex]];
 	var myTarget = ats.targetIndex;
 	var myShooter = ats.shooterIndex;
-	ats.targetIndex = -1;
-	ats.shooterIndex = -1;
+	ats.targetIndex = -2; # not available
+	ats.shooterIndex = -2; 
 	attributes[nodes[myShooter]].targetIndex = -1;
 	attributes[nodes[myTarget]].shooterIndex = -1;
 	debprint("Bombable: ", nodes[myIndex], " no longer a target");
 	findNewTarget(myShooter);
+	findNewShooter(myTarget);
 }
 ########################## END ###########################
