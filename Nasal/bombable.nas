@@ -10979,28 +10979,30 @@ var blueTeam = [];
 var redTeam = [];
 var whiteTeam = [];
 var nodes = [];
+var nObjects = getprop("/ai/models/count");
+
+# get co-ords of main AC
 var lat = getprop("/position/latitude-deg");
 var lon = getprop("/position/longitude-deg");
 var alt = getprop("/position/altitude-ft");
-# store original locations so that they can be restored when scenario starts
-var nObjects = getprop("/ai/models/count");
-if (nObjects != nil)
-{
-	for (var i = 0; i < nObjects; i = i + 1)
-	{
-		var myNodeName = "/ai/models/aircraft["~i~"]";	
-		setprop(""~myNodeName~"/position/previous/latitude-deg",
-		getprop(""~myNodeName~"/position/latitude-deg"));
-		setprop(""~myNodeName~"/position/previous/longitude-deg",
-		getprop(""~myNodeName~"/position/longitude-deg"));
-		setprop(""~myNodeName~"/position/previous/altitude-ft",
-		getprop(""~myNodeName~"/position/altitude-ft"));
 
-		setprop(""~myNodeName~"/latitude-deg", lat + (rand() - 0.5) * 1e-3);
-		setprop(""~myNodeName~"/longitude-deg", lon + (rand() - 0.5) * 1e-3);
-		setprop(""~myNodeName~"/altitude-ft", alt + (rand() * 100));
-	}
+# store original locations so that they can be restored when scenario starts
+var ai = props.globals.getNode ("/ai/models").getChildren();
+foreach (elem;ai) 
+{
+	var myNodeName = "/ai/models/" ~ elem.getName() ~ "[" ~ elem.getIndex() ~ "]";
+	setprop(""~myNodeName~"/position/previous/latitude-deg",
+	getprop(""~myNodeName~"/position/latitude-deg"));
+	setprop(""~myNodeName~"/position/previous/longitude-deg",
+	getprop(""~myNodeName~"/position/longitude-deg"));
+	setprop(""~myNodeName~"/position/previous/altitude-ft",
+	getprop(""~myNodeName~"/position/altitude-ft"));
+	# move object to main AC
+	setprop(""~myNodeName~"/latitude-deg", lat + (rand() - 0.5) * 1e-3);
+	setprop(""~myNodeName~"/longitude-deg", lon + (rand() - 0.5) * 1e-3);
+	setprop(""~myNodeName~"/altitude-ft", alt + (rand() * 100));
 }
+
 settimer (func {assignTargets () }, 57.37); #wait till objects loaded
 
 
@@ -11922,7 +11924,7 @@ var assignTargets = func ()
 {
 	if (getprop("/bombable/targets/index") != nObjects)
 	{
-		settimer (func {assignTargets();}, 5, 1);
+		settimer (func {assignTargets();}, 5, 1); # wait til all 3D models have been loaded
 		return;
 	}
 	var foundTarget = -1;
@@ -11989,10 +11991,10 @@ var assignTargets = func ()
 	}
 	debprint("Bombable: Handicap of ", redHandicap, "% applied to red team");
 
-	for (var i = 0; i < nObjects; i = i + 1)
+	var ai = props.globals.getNode ("/ai/models").getChildren();
+	foreach (elem;ai) 
 	{
-		var myNodeName = "/ai/models/aircraft["~i~"]";	
-		if (getprop(myNodeName ~ "/id") == nil) break;
+		var myNodeName = "/ai/models/" ~ elem.getName() ~ "[" ~ elem.getIndex() ~ "]";
 		setprop(""~myNodeName~"/position/latitude-deg",
 		getprop(""~myNodeName~"/position/previous/latitude-deg"));
 		setprop(""~myNodeName~"/position/longitude-deg",
