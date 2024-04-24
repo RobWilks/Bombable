@@ -1295,7 +1295,7 @@ var revitalizeAllAIObjects = func (revitType = "aircraft", preservePosSpeed = 0)
 	foreach (elem;ai) 
 	{
 		#only do this for the type named in the function call
-		type = elem.getName();
+		var type = elem.getName();
 		if (type != revitType) continue;
 		
 		# aiName = type ~ "[" ~ elem.getIndex() ~ "]";
@@ -10981,29 +10981,72 @@ var whiteTeam = [];
 var nodes = [];
 var nObjects = getprop("/ai/models/count");
 
-# get co-ords of main AC
-var lat = getprop("/position/latitude-deg");
-var lon = getprop("/position/longitude-deg");
-var alt = getprop("/position/altitude-ft");
 
-# store original locations so that they can be restored when scenario starts
-var ai = props.globals.getNode ("/ai/models").getChildren();
-foreach (elem;ai) 
+
+settimer (func {moveToMainAC () }, 0.15); #wait till objects loaded
+settimer (func {assignTargets () }, 57.37); #wait till objects loaded
+
+#################################### moveToMainAC ####################################
+var moveToMainAC = func()
 {
-	var myNodeName = "/ai/models/" ~ elem.getName() ~ "[" ~ elem.getIndex() ~ "]";
-	setprop(""~myNodeName~"/position/previous/latitude-deg",
-	getprop(""~myNodeName~"/position/latitude-deg"));
-	setprop(""~myNodeName~"/position/previous/longitude-deg",
-	getprop(""~myNodeName~"/position/longitude-deg"));
-	setprop(""~myNodeName~"/position/previous/altitude-ft",
-	getprop(""~myNodeName~"/position/altitude-ft"));
-	# move object to main AC
-	setprop(""~myNodeName~"/latitude-deg", lat + (rand() - 0.5) * 1e-3);
-	setprop(""~myNodeName~"/longitude-deg", lon + (rand() - 0.5) * 1e-3);
-	setprop(""~myNodeName~"/altitude-ft", alt + (rand() * 100));
+	# moves AI objects to main AC for faster initialization
+	# store original locations so that objects can be restored when scenario starts
+
+	var myNodeName = "";
+	var ai = props.globals.getNode ("/ai/models").getChildren();
+	foreach (elem;ai) 
+	{
+		var type = elem.getName();
+		if (type == "aircraft" or type == "ship") 
+		{
+			myNodeName = "/ai/models/" ~ type ~ "[" ~ elem.getIndex() ~ "]";
+			setprop(""~myNodeName~"/position/previous/latitude-deg",
+			getprop(""~myNodeName~"/position/latitude-deg"));
+			setprop(""~myNodeName~"/position/previous/longitude-deg",
+			getprop(""~myNodeName~"/position/longitude-deg"));
+			setprop(""~myNodeName~"/position/previous/altitude-ft",
+			getprop(""~myNodeName~"/position/altitude-ft"));
+			setprop(""~myNodeName~"/controls/flight/previous/target-spd",
+			getprop(""~myNodeName~"/controls/flight/target-spd"));
+			setprop(""~myNodeName~"/velocities/previous/true-airspeed-kt",
+			getprop(""~myNodeName~"/velocities/true-airspeed-kt"));
+			# debprint("moveToMainAC", myNodeName);
+		}
+	# get co-ords near main AC
+	var lat = getprop("/position/latitude-deg") + (rand() - 0.5) * 1e-4;
+	var lon = getprop("/position/longitude-deg") + (rand() - 0.5) * 1e-4;
+	var alt = getprop("/position/altitude-ft") + (rand() * 20);
+	}
+
+	settimer( func {forcedStay(30, lat, lon, alt);}, 0.15);
 }
 
-settimer (func {assignTargets () }, 57.37); #wait till objects loaded
+
+#################################### forcedStay ####################################
+
+var forcedStay = func(count, lat, lon, alt)
+# move objects to main AC every 1s to stop AI moving them away
+{
+	var ai = props.globals.getNode ("/ai/models").getChildren();
+	foreach (elem;ai) 
+	{
+		var type = elem.getName();
+		if (type == "aircraft" or type == "ship") 
+		{
+			myNodeName = "/ai/models/" ~ type ~ "[" ~ elem.getIndex() ~ "]";
+			setprop(""~myNodeName~"/controls/flight/target-spd", 0);
+			setprop(""~myNodeName~"/velocities/true-airspeed-kt", 0);
+			setprop(""~myNodeName~"/latitude-deg", lat);
+			setprop(""~myNodeName~"/longitude-deg", lon);
+			setprop(""~myNodeName~"/altitude-ft", alt);
+			# debprint("forcedStay", myNodeName);
+		}
+	}
+	count -= 1;
+	if (count > 0) settimer(func{forcedStay(count, lat, lon, alt);}, 1);
+	# debprint("forcedStay: count = ",count);
+	return;
+}
 
 
 #################################### bombableInit ####################################
@@ -11994,7 +12037,13 @@ var assignTargets = func ()
 	var ai = props.globals.getNode ("/ai/models").getChildren();
 	foreach (elem;ai) 
 	{
-		var myNodeName = "/ai/models/" ~ elem.getName() ~ "[" ~ elem.getIndex() ~ "]";
+		var type = elem.getName();
+		if (type != "aircraft" and type != "ship") continue;
+		var myNodeName = "/ai/models/" ~ type ~ "[" ~ elem.getIndex() ~ "]";		
+		setprop(""~myNodeName~"/controls/flight/target-spd",
+		getprop(""~myNodeName~"/controls/flight/previous/target-spd"));
+		setprop(""~myNodeName~"/velocities/true-airspeed-kt",
+		getprop(""~myNodeName~"/velocities/previous/true-airspeed-kt"));		
 		setprop(""~myNodeName~"/position/latitude-deg",
 		getprop(""~myNodeName~"/position/previous/latitude-deg"));
 		setprop(""~myNodeName~"/position/longitude-deg",
