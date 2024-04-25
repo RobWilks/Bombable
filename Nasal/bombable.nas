@@ -10981,72 +10981,9 @@ var whiteTeam = [];
 var nodes = [];
 var nObjects = getprop("/ai/models/count");
 
-
-
-settimer (func {moveToMainAC () }, 0.15); #wait till objects loaded
+# settimer (func {moveToMainAC () }, 0.15); #wait till objects loaded
 settimer (func {assignTargets () }, 57.37); #wait till objects loaded
 
-#################################### moveToMainAC ####################################
-var moveToMainAC = func()
-{
-	# moves AI objects to main AC for faster initialization
-	# store original locations so that objects can be restored when scenario starts
-
-	var myNodeName = "";
-	var ai = props.globals.getNode ("/ai/models").getChildren();
-	foreach (elem;ai) 
-	{
-		var type = elem.getName();
-		if (type == "aircraft" or type == "ship") 
-		{
-			myNodeName = "/ai/models/" ~ type ~ "[" ~ elem.getIndex() ~ "]";
-			setprop(""~myNodeName~"/position/previous/latitude-deg",
-			getprop(""~myNodeName~"/position/latitude-deg"));
-			setprop(""~myNodeName~"/position/previous/longitude-deg",
-			getprop(""~myNodeName~"/position/longitude-deg"));
-			setprop(""~myNodeName~"/position/previous/altitude-ft",
-			getprop(""~myNodeName~"/position/altitude-ft"));
-			setprop(""~myNodeName~"/controls/flight/previous/target-spd",
-			getprop(""~myNodeName~"/controls/flight/target-spd"));
-			setprop(""~myNodeName~"/velocities/previous/true-airspeed-kt",
-			getprop(""~myNodeName~"/velocities/true-airspeed-kt"));
-			# debprint("moveToMainAC", myNodeName);
-		}
-	# get co-ords near main AC
-	var lat = getprop("/position/latitude-deg") + (rand() - 0.5) * 1e-4;
-	var lon = getprop("/position/longitude-deg") + (rand() - 0.5) * 1e-4;
-	var alt = getprop("/position/altitude-ft") + (rand() * 20);
-	}
-
-	settimer( func {forcedStay(30, lat, lon, alt);}, 0.15);
-}
-
-
-#################################### forcedStay ####################################
-
-var forcedStay = func(count, lat, lon, alt)
-# move objects to main AC every 1s to stop AI moving them away
-{
-	var ai = props.globals.getNode ("/ai/models").getChildren();
-	foreach (elem;ai) 
-	{
-		var type = elem.getName();
-		if (type == "aircraft" or type == "ship") 
-		{
-			myNodeName = "/ai/models/" ~ type ~ "[" ~ elem.getIndex() ~ "]";
-			setprop(""~myNodeName~"/controls/flight/target-spd", 0);
-			setprop(""~myNodeName~"/velocities/true-airspeed-kt", 0);
-			setprop(""~myNodeName~"/latitude-deg", lat);
-			setprop(""~myNodeName~"/longitude-deg", lon);
-			setprop(""~myNodeName~"/altitude-ft", alt);
-			# debprint("forcedStay", myNodeName);
-		}
-	}
-	count -= 1;
-	if (count > 0) settimer(func{forcedStay(count, lat, lon, alt);}, 1);
-	# debprint("forcedStay: count = ",count);
-	return;
-}
 
 
 #################################### bombableInit ####################################
@@ -12034,24 +11971,7 @@ var assignTargets = func ()
 	}
 	debprint("Bombable: Handicap of ", redHandicap, "% applied to red team");
 
-	var ai = props.globals.getNode ("/ai/models").getChildren();
-	foreach (elem;ai) 
-	{
-		var type = elem.getName();
-		if (type != "aircraft" and type != "ship") continue;
-		var myNodeName = "/ai/models/" ~ type ~ "[" ~ elem.getIndex() ~ "]";		
-		setprop(""~myNodeName~"/controls/flight/target-spd",
-		getprop(""~myNodeName~"/controls/flight/previous/target-spd"));
-		setprop(""~myNodeName~"/velocities/true-airspeed-kt",
-		getprop(""~myNodeName~"/velocities/previous/true-airspeed-kt"));		
-		setprop(""~myNodeName~"/position/latitude-deg",
-		getprop(""~myNodeName~"/position/previous/latitude-deg"));
-		setprop(""~myNodeName~"/position/longitude-deg",
-		getprop(""~myNodeName~"/position/previous/longitude-deg"));
-		setprop(""~myNodeName~"/position/altitude-ft",
-		getprop(""~myNodeName~"/position/previous/altitude-ft"));
-	}
-	debprint("Bombable: AI object positions set to initial values");
+	startScenario();
 }
 
 
@@ -12176,3 +12096,129 @@ var resetTargetShooter = func (myIndex)
 	findNewShooter(myTarget);
 }
 ########################## END ###########################
+
+var startScenario = func()
+{
+	var scenario = 
+	{
+		group1:
+		{
+		team :			"R",
+		arrivalTime :	75, # sec
+		airSpeed : 		250 * KT2MPS,
+		airportName :	"CA35",
+		heading :		220,# 0 - 360 degrees
+		alt :			6000,
+		offsets :
+					[
+						[0, 0, 0], # offset behind, offset to right, in metres, i.e. model co-ord system
+						[200, 200, 0],
+						[200, -200, 0],
+						[400, 400, 0],
+						[400, -400, 0],
+						[600, 600, 0]
+					],
+		},
+		group2:
+		{
+		team :			"B",
+		arrivalTime :	75, # sec
+		airSpeed : 		280 * KT2MPS,
+		airportName :	"CA35",
+		heading :		70,
+		alt :			7000,
+		offsets :
+					[
+						[0, 0, 0],
+						[100, -100],
+						[150, -100]
+					],
+		},
+		group3:
+		{
+		team :			"B",
+		arrivalTime :	100, # sec
+		airSpeed : 		280 * KT2MPS,
+		airportName :	"CA35",
+		heading :		350,
+		alt :			8000,
+		offsets :
+					[
+						[0, 0, 0],
+						[100, 200, 0],
+						[200, -100, 0]
+					],
+		},
+	}
+	var countB = 0;
+	var countR = 0;
+	var countW = 0;
+	var myNodeName = "";
+    var dist = airSpeed * arrivalTime;
+    var from = airportinfo(airportName); # Marin Ranch
+    var GeoCoord = geo.Coord.new();
+    var GeoCoord2 = geo.Coord.new();
+	GeoCoord.set_latlon(from.lat, from.lon);
+	GeoCoord.apply_course_distance(heading + 180, dist);    #frontreardist in meters
+	foreach (var group ; scenario)
+	{
+		var team = scenario[group].team;
+		if (team != "B" or team != "R" or team != "W")
+		{
+			debprint("Bombable: startScenario: Error in scenario description for group "~group~" - no team");
+			break;
+		}
+		foreach (var o ; scenario[group].offsets);  
+		{
+			#calculate lon, lat
+			GeoCoord2.set_latlon ( GeoCoord.lat(), GeoCoord.lon());
+			var myHeading = math.atan2(o[1], -o[0]) * R2D;
+			var deltaHeading = heading + myHeading ;
+			dist2me = math.sqrt(o[0]*o[0] + o[1]*o[1]); 
+			GeoCoord2.apply_course_distance(deltaHeading, dist2me);    #frontreardist in meters
+			#get node
+			if (team == "B")
+			{
+				if (countB >= size(blueTeam)) 
+				{
+					debprint("Blue team too small for scenario");
+					countB += 1;
+					break;
+				}
+				myNodeName = nodes[blueTeam[countB]];
+				countB += 1;
+			}
+			elsif (team == "R")
+			{
+				if (countR >= size(redTeam)) 
+				{
+					debprint("Red team too small for scenario");
+					countR += 1;
+					break;
+				}
+				myNodeName = nodes[redTeam[countR]];
+				countR += 1;
+			}
+			elsif (team == "W")
+			{
+				if (countW >= size(whiteTeam)) 
+				{
+					debprint("White team too small for scenario");
+					countW += 1;
+					break;
+				}
+				myNodeName = nodes[whiteTeam[countW]];
+				countW += 1;
+			}
+			setprop(""~myNodeName~"/controls/flight/target-spd", scenario[group].airSpeed);
+			setprop(""~myNodeName~"/velocities/true-airspeed-kt", scenario[group].airSpeed);
+			setprop(""~myNodeName~"/orientation/true-heading-deg", scenario[group].heading);
+			setprop(""~myNodeName~"/position/latitude-deg", GeoCoord2.lat());
+			setprop(""~myNodeName~"/position/longitude-deg", GeoCoord2.lon());
+			setprop(""~myNodeName~"/position/altitude-ft", scenario[group].alt + o[2]);
+		}
+	}
+	if (countB == size(blueTeam)) debprint("Success: Blue team assigned");
+	if (countR == size(redTeam)) debprint("Success: Red team assigned");
+	if (countW == size(whiteTeam)) debprint("Success: White team assigned");
+}
