@@ -7859,8 +7859,10 @@ var attack_loop = func ( id, myNodeName )
 	#debprint ("Bombable: Checking attack parameters: ", dist[0], " ", atts.maxDistance_m, " ",atts.minDistance_m, " ",dist[1], " ",-atts.altitudeLowerCutoff_m, " ",dist[1] < atts.altitudeHigherCutoff_m );
 	if (ctrls.stayInFormation)
 	{
-		if ( dist[0] > atts.maxDistance_m ) return;
-		debprint ("Bombable: "~getCallSign(myNodeName)~" breaking formation"); 
+		if ( dist[0] > atts.maxDistance_m / 4 ) return;
+		var msg = getCallSign(myNodeName)~" breaking formation";
+		targetStatusPopupTip (msg, 5);
+		debprint ("Bombable: "~msg); 
 		ctrls.stayInFormation = 0; 			
 	}
 				
@@ -10458,7 +10460,7 @@ var weapons_init_func = func(myNodeName)
 				horz : math.sqrt(attributes[targetNode].dimensions.width_m * attributes[targetNode].dimensions.length_m) ,
 			};
 		}
-		debprint ("Bombable: Target size ", targetSize_m.vert, " by ", targetSize_m.horz, " for ", myNodeName );
+		# debprint ("Bombable: Target size ", targetSize_m.vert, " by ", targetSize_m.horz, " for ", myNodeName );
 		
 		setWeaponPowerSkill (myNodeName);							
 							
@@ -10981,8 +10983,9 @@ var whiteTeam = [];
 var nodes = [];
 var nObjects = getprop("/ai/models/count");
 
-# settimer (func {moveToMainAC () }, 0.15); #wait till objects loaded
-settimer (func {assignTargets () }, 57.37); #wait till objects loaded
+settimer (func {mainStatusPopupTip ("Pan around you to load the AI and scenario . . .", 15 );}, 5);
+
+settimer (func {assignTargets () }, 37.37); #wait till objects loaded
 
 
 
@@ -12042,7 +12045,7 @@ var findNewTarget = func (myIndex)
 		return(-1);
 	}
 	var foundTarget = assignOneTarget (myIndex, targets);
-	debprint("Bombable: foundTarget ", (foundTarget !=-1) ? nodes(foundTarget) : "fail", " for ", nodes[myIndex]);
+	debprint("Bombable: foundTarget ", (foundTarget !=-1) ? nodes[foundTarget] : "fail", " for ", nodes[myIndex]);
 	return(foundTarget);
 }
 
@@ -12095,7 +12098,14 @@ var resetTargetShooter = func (myIndex)
 	findNewTarget(myShooter);
 	findNewShooter(myTarget);
 }
-########################## END ###########################
+########################## startScenario ###########################
+# a scenario consists of:
+# a set of groups of objects 
+# each group is assigned to a team (can be the same team)
+# and is provided with co-ordinates relative to an airport, by assuming that
+# the group is on course to the airport at a distance set by its arrival time and speed
+# each object in the group is given an offset in metres relative to the lead object
+# the number of offsets defines the number of objects in the group
 
 var startScenario = func()
 {
@@ -12104,25 +12114,25 @@ var startScenario = func()
 		group1:
 		{
 		team :			"R",
-		arrivalTime :	75, # sec
+		arrivalTime :	105, # sec
 		airSpeed : 		250 * KT2MPS,
 		airportName :	"CA35",
 		heading :		220,# 0 - 360 degrees
-		alt :			6000,
+		alt :			6000, # in feet
 		offsets :
 					[
 						[0, 0, 0], # offset behind, offset to right, in metres, i.e. model co-ord system
-						[200, 200, 0],
-						[200, -200, 0],
-						[400, 400, 0],
-						[400, -400, 0],
-						[600, 600, 0]
+						[100, 100, 2],
+						[100, -100, 1],
+						[200, 200, -5],
+						[200, -200, 4],
+						[300, 300, 2]
 					],
 		},
 		group2:
 		{
 		team :			"B",
-		arrivalTime :	75, # sec
+		arrivalTime :	105, # sec
 		airSpeed : 		280 * KT2MPS,
 		airportName :	"CA35",
 		heading :		70,
@@ -12130,14 +12140,14 @@ var startScenario = func()
 		offsets :
 					[
 						[0, 0, 0],
-						[100, -100],
-						[150, -100]
+						[50, -50, -3],
+						[75, -50, 2]
 					],
 		},
 		group3:
 		{
 		team :			"B",
-		arrivalTime :	100, # sec
+		arrivalTime :	150, # sec
 		airSpeed : 		280 * KT2MPS,
 		airportName :	"CA35",
 		heading :		350,
@@ -12145,30 +12155,32 @@ var startScenario = func()
 		offsets :
 					[
 						[0, 0, 0],
-						[100, 200, 0],
-						[200, -100, 0]
+						[50, 100, 1],
+						[100, -50, -2]
 					],
 		},
-	}
+	};
 	var countB = 0;
 	var countR = 0;
 	var countW = 0;
 	var myNodeName = "";
-    var dist = airSpeed * arrivalTime;
-    var from = airportinfo(airportName); # Marin Ranch
     var GeoCoord = geo.Coord.new();
     var GeoCoord2 = geo.Coord.new();
-	GeoCoord.set_latlon(from.lat, from.lon);
-	GeoCoord.apply_course_distance(heading + 180, dist);    #frontreardist in meters
-	foreach (var group ; scenario)
+	foreach (var group ; keys(scenario))
 	{
+		var from = airportinfo(scenario[group].airportName);
 		var team = scenario[group].team;
-		if (team != "B" or team != "R" or team != "W")
+		if (team != "B" and team != "R" and team != "W")
 		{
-			debprint("Bombable: startScenario: Error in scenario description for group "~group~" - no team");
+			debprint("Bombable: startScenario: Error in scenario definition for "~group~" - no team");
 			break;
 		}
-		foreach (var o ; scenario[group].offsets);  
+		# location lead aircraft
+		GeoCoord.set_latlon(from.lat, from.lon);
+		var dist = scenario[group].airSpeed * scenario[group].arrivalTime;
+		var heading = scenario[group].heading;
+		GeoCoord.apply_course_distance(heading + 180, dist);
+		foreach (var o ; scenario[group].offsets)  
 		{
 			#calculate lon, lat
 			GeoCoord2.set_latlon ( GeoCoord.lat(), GeoCoord.lon());
@@ -12215,10 +12227,14 @@ var startScenario = func()
 			setprop(""~myNodeName~"/orientation/true-heading-deg", scenario[group].heading);
 			setprop(""~myNodeName~"/position/latitude-deg", GeoCoord2.lat());
 			setprop(""~myNodeName~"/position/longitude-deg", GeoCoord2.lon());
-			setprop(""~myNodeName~"/position/altitude-ft", scenario[group].alt + o[2]);
+			setprop(""~myNodeName~"/controls/flight/target-alt", scenario[group].alt + o[2] * M2FT);
+			setprop(""~myNodeName~"/position/altitude-ft", scenario[group].alt + o[2] * M2FT);
 		}
 	}
-	if (countB == size(blueTeam)) debprint("Success: Blue team assigned");
-	if (countR == size(redTeam)) debprint("Success: Red team assigned");
-	if (countW == size(whiteTeam)) debprint("Success: White team assigned");
+	if (size(blueTeam) and (countB == size(blueTeam))) debprint("Success: Blue team scenario loaded");
+	if (size(redTeam) and (countR == size(redTeam))) debprint("Success: Red team scenario loaded");
+	if (size(whiteTeam) and (countW == size(whiteTeam))) debprint("Success: White team scenario loaded");
+
+	mainStatusPopupTip ("Scenario loaded . . .", 15 );
 }
+########################## END ###########################
