@@ -7859,8 +7859,10 @@ var attack_loop = func ( id, myNodeName )
 	#debprint ("Bombable: Checking attack parameters: ", dist[0], " ", atts.maxDistance_m, " ",atts.minDistance_m, " ",dist[1], " ",-atts.altitudeLowerCutoff_m, " ",dist[1] < atts.altitudeHigherCutoff_m );
 	if (ctrls.stayInFormation)
 	{
-		if ( dist[0] > atts.maxDistance_m ) return;
-		debprint ("Bombable: "~getCallSign(myNodeName)~" breaking formation"); 
+		if ( dist[0] > atts.maxDistance_m / 4 ) return;
+		var msg = getCallSign(myNodeName)~" breaking formation";
+		targetStatusPopupTip (msg, 5);
+		debprint ("Bombable: "~msg); 
 		ctrls.stayInFormation = 0; 			
 	}
 				
@@ -9060,12 +9062,12 @@ var add_damage = func
 			targetStatusPopupTip (msg, 20);
 
 			if (myNodeName2 != nil and damageRise > 0.05 and rand() < 0.5)
-			# reset my original target and
-			# set my new target as the shooter
 			{
-				attributes[nodes[ats.targetIndex]].shooterIndex = -1;
-				ats.targetIndex = attributes[myNodeName2].targetIndex;
-				debprint (callsign, " set target to ", callsign2);
+				var ats2 = attributes[myNodeName2];
+				resetTargetShooter(ats.index, 0); # find a new shooter for my old target
+				ats.targetIndex = ats2.index; # set my new target to the shooter causing this damage
+				append (ats2.shooterIndex, ats.index); # add me to the new target's list of shooters
+				debprint (callsign, " set  ", callsign2, " as new target");
 			}
 		}
 
@@ -9096,7 +9098,7 @@ var add_damage = func
 
 	if ( damageValue == 1 and damageIncrease > 0) 
 	{
-		resetTargetShooter(ats.index);  
+		resetTargetShooter(ats.index, 1);  
 		if (type == "aircraft") 
 		{
 			# rjw: aircraft will now crash
@@ -9441,10 +9443,10 @@ var initialize_func = func ( b ){
 
 	b.damage = 0;
 	b.exploded = 0;
-	b.team = "W"; # neutral
+	b.team = nil;
 	b.myIndex = -1;
 	b.targetIndex = -1;
-	b.shooterIndex = -1;
+	b.shooterIndex = [];
 
 	if (! contains (b, "type")) b["type"] = props.globals.getNode(""~b.objectNodeName).getName(); 
 	# key allows AI ship models to be used as ground vehicles by adding type:"groundvehicle" to Bombable attributes hash
@@ -10458,7 +10460,7 @@ var weapons_init_func = func(myNodeName)
 				horz : math.sqrt(attributes[targetNode].dimensions.width_m * attributes[targetNode].dimensions.length_m) ,
 			};
 		}
-		debprint ("Bombable: Target size ", targetSize_m.vert, " by ", targetSize_m.horz, " for ", myNodeName );
+		# debprint ("Bombable: Target size ", targetSize_m.vert, " by ", targetSize_m.horz, " for ", myNodeName );
 		
 		setWeaponPowerSkill (myNodeName);							
 							
@@ -10975,14 +10977,17 @@ settimer (func {damageCheck () }, 60.11); #wait 30 sec before first damage check
 
 ####################################
 # global variables for managing targets for AI objects
-var blueTeam = [];
-var redTeam = [];
-var whiteTeam = [];
+var teams = {};
+var allPlayers = 
+[
+	[],
+	[]
+];
 var nodes = [];
-var nObjects = getprop("/ai/models/count");
 
-# settimer (func {moveToMainAC () }, 0.15); #wait till objects loaded
-settimer (func {assignTargets () }, 57.37); #wait till objects loaded
+settimer (func {mainStatusPopupTip ("Pan around you to load the AI and scenario . . .", 15 );}, 5);
+
+settimer (func {startScenario () }, 37.37); #wait till objects loaded
 
 
 
@@ -11856,10 +11861,13 @@ var shuffle = func(x)
 }
 
 ########################## addToTargets ###########################
-# create a list of AI objects and their targets (other AI objects)
-# there are 2 opposing teams, red and blue, and a neutral team, white
-# each object is assigned a unique index, stored in the team's list
-# the last character of the callsign determines which team the object is in
+# create a list of AI objects, shooters and targets
+# each object is assigned a unique index, stored in hash 'teams'
+# objects are grouped into teams, which are named A - Z
+# each team is a key in the hash, which contains a vector of the indices for that team
+# teams are grouped into two opposing sides:  0: A-M and 1: N-Z
+# allPlayers contains all objects, with indices '0' and '1', indicating the side
+# the team name (A-Z) should be the last character of the object's callsign
 # nodes records the nodeName for each index; reverse lookup (nodename -> index) is by attributes
 
 var addToTargets = func(myNodeName)
@@ -11871,129 +11879,101 @@ var addToTargets = func(myNodeName)
 	append(nodes, myNodeName);
 	setprop("/bombable/targets/index", myIndex + 1);
 	var callsign = getprop(""~myNodeName~"/callsign"); 
-	if (right(callsign, 2) == "_B") 
+	var teamName = right(callsign, 1);
+	#check valid team
+	if (find(teamName, "ABCDEFGHIJKLMNOPQRSTUVWXYZ") == -1)
 	{
-		ats.team = "B";
-		append(blueTeam, myIndex);
+		debprint(callsign, " not a valid team - require (A-Z)");
+		return;
 	}
-	elsif (right(callsign, 2) == "_R") 
-	{
-		ats.team = "R";
-		append(redTeam, myIndex);
-	}
-	else 
-	{
-		ats.team = "W";
-		append(whiteTeam, myIndex);
-	}
+	if (teams[teamName] == nil) teams[teamName] = {indices: [], target: nil, count: 0};
+	append(teams[teamName].indices, myIndex);
+	var side = (find(teamName, "ABCDEFGHIJKLM") == -1);
+	append(allPlayers[side], myIndex);
+	ats.team = teamName;
 }
-########################## assignTargets ###########################
-# assigns a target for each object in blue, red  and white teams
-# attributes.shooterIndex is the index of the node shooting at an object
-# the red and blue teams are opposing teams
-# the white team is 'neutral' and will attack red, blue and the main AC 
+########################## initTargets ###########################
+# assigns a target for each object in each team
+# attributes.shooterIndex is a vector containing the indices of the nodes shooting at the object
+# targetTeam is a team on the opposing side set by the scenario
 # the list of targets is shuffled before being assigned
-# delay the call to this function to allow objects to be initialised
-# targets for blue team then vice versa
-# redTeam, blueTeam, whiteTeam nodes are global vars
 # -1 is target not assigned
 # objects with no AI target may be assigned in later action
 #
 
-var assignTargets = func ()
+var initTargets = func ()
 {
-	if (getprop("/bombable/targets/index") != nObjects)
-	{
-		settimer (func {assignTargets();}, 5, 1); # wait til all 3D models have been loaded
-		return;
-	}
 	var foundTarget = -1;
-	var count = 0;
-	var sizeBlue = size(blueTeam);
-	var sizeRed = size(redTeam);
-	var noTarget = (sizeBlue > sizeRed) ? sizeBlue - sizeRed : 0;
-
-
-	blueTeam = shuffle(blueTeam);
-	redTeam = shuffle(redTeam);
-
-	for (var i = noTarget; i < sizeBlue; i = i + 1)
+	foreach (var side; [0, 1]) allPlayers[side] = shuffle(allPlayers[side]);
+	foreach (teamName; keys(teams))
 	{
-		foundTarget = assignOneTarget (blueTeam[i], redTeam);
-		if (foundTarget == -1) break; # no more targets
-		count += 1;
-	}
-	debprint("Bombable: ", count, " red targets assigned",((foundTarget == -1) ? " - ran out of targets!" : ""));
-	count = 0;
-
-	# Reverse one loop to create chains, else will pair targets and shooters. 
-	forindex (var i; redTeam)
-	{
-		foundTarget = assignOneTarget (redTeam[sizeRed - 1 - i], blueTeam);
-		if (foundTarget == -1) break; # no more targets
-		count += 1;
-	}	
-	debprint("Bombable: ", count, " blue targets assigned",((foundTarget == -1) ? " - ran out of targets!" : ""));
-	count = 0;
-	forindex (var i; whiteTeam)
-	{
-		if (rand() > .333) 
+		var targetTeam = teams[teamName].target;
+		var side = (find(targetTeam, "ABCDEFGHIJKLM") == -1);
+		forindex (var i; teams[teamName].indices)
 		{
-			var teamIndex = int(rand() * ( sizeBlue + sizeRed ));
-			if (teamIndex < sizeBlue)
+			if (targetTeam != nil)
 			{
-				attributes[nodes[whiteTeam[i]]].targetIndex = blueTeam[teamIndex]; 
-				count += 1;
+				foundTarget = assignOneTarget (teams[teamName].indices[i], teams[targetTeam].indices); # can assign several shooters to a target
 			}
 			else
 			{
-				teamIndex -= sizeBlue;
-				if (teamIndex < sizeRed) 
-				{
-					attributes[nodes[whiteTeam[i]]].targetIndex = redTeam[teamIndex];
-					count += 1;
-				}
+				foundTarget = assignOneTarget (teams[teamName].indices[i], allPlayers[side]);
+			}
+			
+			if (foundTarget == -1) 
+			{
+				debprint("Bombable: initTargets: Fail - no targets assigned for index#"~teams[teamName].indices[i]~" team "~teamName);
+				break; # no targets
 			}
 		}
-		else
-		{
-			attributes[nodes[whiteTeam[i]]].targetIndex = 666; # used to ID the main AC
-		}
-		attributes[nodes[whiteTeam[i]]].shooterIndex = -2; # cannot be assigned
-	}	
-	debprint("Bombable: ", count, " white targets assigned");
-
-	# apply handicap to the attacking red team by reducing pilot skills by a fixed percentage
-	var redHandicap = 20;
-	forindex (var i; redTeam)
-	{
-		attributes[nodes[redTeam[i]]].controls.pilotAbility *= ( 1 - redHandicap / 100 );
+		debprint(i, " targets in ", (targetTeam != nil ) ? targetTeam : "side" ~ side, " assigned for team "~teamName );
 	}
-	debprint("Bombable: Handicap of ", redHandicap, "% applied to red team");
-
-	startScenario();
+	# apply handicap to side (1) by reducing pilot skills by a fixed percentage
+	var handicap = 20;
+	forindex (var i; allPlayers[1])
+	{
+		attributes[nodes[allPlayers[1][i]]].controls.pilotAbility *= ( 1 - handicap / 100 );
+	}
+	debprint("Bombable: Handicap of ", handicap, "% applied to side (1)");
 }
 
 
 ########################## assignOneTarget ###########################
 # I am the shooter
-# func assigns a target from the list of indices of targets
-# shooterIndex of -1 indicates object is not being shot at!
-# returns the index of my new target
+# func assigns a target given a list of indices of targets
+# it selects the target with the smallest number of shooters
+# and returns the index of the new target
+# reverse loop avoids pairing
+# a target _will_ be assigned
+# if there are more shooters than targets then some targets will have more than one shooter 
 
 var assignOneTarget = func (myIndex, targets)
 {
+	if (size(targets) == 0) return(-1);
 	var myNodeName = nodes[myIndex];
-	forindex (var i; targets)
+	var i = 0;
+	var j = 999;
+	var k = -1;
+	var s = 0;
+	for (var h = 0; h < size(targets); h = h + 1)
 	{
-		if (attributes[nodes[targets[i]]].shooterIndex == -1)
+		i = size(targets) - h - 1;
+		if (attributes[nodes[targets[i]]].damage == 1) continue; # if object destroyed cannot be a target
+		s = size(attributes[nodes[targets[i]]].shooterIndex);
+		if (s < j) 
 		{
-			attributes[nodes[targets[i]]].shooterIndex = myIndex;
-			attributes[myNodeName].targetIndex = targets[i];
-			return (targets[i]);
+			j = s;
+			k = i;
 		}
 	}
-	return (-1); # could allow a target to be assigned more than one shooter
+	if (k == -1) 
+	{
+		attributes[myNodeName].targetIndex = -1;
+		return (-1); # no targets available
+	}
+	append(attributes[nodes[targets[k]]].shooterIndex, myIndex);
+	attributes[myNodeName].targetIndex = targets[k];
+	return (targets[k]);
 }
 
 ########################## assignOneShooter ###########################
@@ -12005,44 +11985,38 @@ var assignOneTarget = func (myIndex, targets)
 
 var assignOneShooter = func (myIndex, shooters)
 {
+	if (size(shooters) == 0) return(-1);
 	var myNodeName = nodes[myIndex];
-	forindex (var i; shooters)
+	foreach (var i; shooters)
 	{
-		if (attributes[nodes[shooters[i]]].targetIndex == -1)
+		if (attributes[nodes[i]].targetIndex == -1)
 		{
-			attributes[nodes[shooters[i]]].targetIndex = myIndex;
-			attributes[myNodeName].shooterIndex = shooters[i];
-			return (shooters[i]);
+			attributes[nodes[i]].targetIndex = myIndex;
+			append(attributes[myNodeName].shooterIndex, i);
+			return (i);
 		}
 	}
 	return (-1);
 }
 
 ########################## findNewTarget ###########################
-var findNewTarget = func (myIndex)
 # I am the shooter
+# return index of new target or -1
+var findNewTarget = func (myIndex)
 {
-	var targets = [];
 	var myTeam = attributes[nodes[myIndex]].team;
-	if (myTeam == "B") 
+	var targetTeam = teams[myTeam].target;
+	var otherSide = (find(myTeam, "ABCDEFGHIJKLM") != -1);
+	var foundTarget = -1;
+	if (targetTeam != nil)
 	{
-		targets = redTeam;
+		foundTarget = assignOneTarget (myIndex, teams[targetTeam].indices);
 	}
-	elsif (myTeam == "R") 
+	if (foundTarget == -1)
 	{
-		targets = blueTeam;
+		foundTarget = assignOneTarget (myIndex, allPlayers[otherSide]);
 	}
-	elsif (myTeam == "W") 
-	{
-		targets = append ( blueTeam,  redTeam);
-	}  
-	else
-	{
-		debprint("Bombable: Error findNewTarget: can only assign targets for blue, red and white teams - myTeam = ", myTeam);
-		return(-1);
-	}
-	var foundTarget = assignOneTarget (myIndex, targets);
-	debprint("Bombable: foundTarget ", (foundTarget !=-1) ? nodes(foundTarget) : "fail", " for ", nodes[myIndex]);
+	debprint("Bombable: foundTarget ", (foundTarget != -1) ? nodes[foundTarget] : "fail", " for ", nodes[myIndex]);
 	return(foundTarget);
 }
 
@@ -12050,26 +12024,18 @@ var findNewTarget = func (myIndex)
 var findNewShooter = func (myIndex)
 # I am the target
 {
-	var targets = [];
 	var myTeam = attributes[nodes[myIndex]].team;
-	if (myTeam == "B") 
+	var shooterTeam = teams[myTeam].target;
+	var otherSide = (find(myTeam, "ABCDEFGHIJKLM") != -1);
+	var foundShooter = -1;
+	if (shooterTeam != nil)
 	{
-		targets = redTeam;
+		foundShooter = assignOneShooter (myIndex, teams[shooterTeam].indices);
 	}
-	elsif (myTeam == "R") 
+	if (foundShooter == -1)
 	{
-		targets = blueTeam;
+		foundShooter = assignOneShooter (myIndex, allPlayers[otherSide]);
 	}
-	elsif (myTeam == "W") 
-	{
-		targets = append ( blueTeam,  redTeam);
-	}  
-	else
-	{
-		debprint("Bombable: Error findNewShooter: can only assign targets for blue, red and white teams - myTeam = ", myTeam);
-		return(-1);
-	}
-	var foundShooter = assignOneShooter (myIndex, targets);
 	debprint("Bombable: foundShooter ", (foundShooter !=-1) ? nodes(foundShooter) : "fail", " for ", nodes[myIndex]);
 	return(foundShooter);
 }
@@ -12082,47 +12048,86 @@ var findNewShooter = func (myIndex)
 # -2 is not available
 # 666 is main AC
 
-var resetTargetShooter = func (myIndex)
+var resetTargetShooter = func (myIndex, destroyed)
 {
 	var ats = attributes[nodes[myIndex]];
 	var myTarget = ats.targetIndex;
-	var myShooter = ats.shooterIndex;
-	ats.targetIndex = -2; # not available
-	ats.shooterIndex = -2; 
-	attributes[nodes[myShooter]].targetIndex = -1;
-	attributes[nodes[myTarget]].shooterIndex = -1;
-	debprint("Bombable: ", nodes[myIndex], " no longer a target");
-	findNewTarget(myShooter);
-	findNewShooter(myTarget);
+	var myShooters = ats.shooterIndex;
+	var ats2 = attributes[nodes[myTarget]];
+	var myTargetsShooters = ats2.shooterIndex;
+	var foundTarget = -1;
+	var foundShooter = -1;
+	
+	if (destroyed) 
+	{
+		ats.targetIndex = -2; # stops me being assigned a new target
+		debprint("Bombable: ", nodes[myIndex], " no longer a target");
+
+		# find new target for my shooters
+		foreach (var i; myShooters) 
+		{
+			debprint("findNewTarget:  myIndex= ",myIndex," myShooterIndex", i);
+			foundTarget = findNewTarget(i);
+			debprint("New target index "~foundTarget);
+		}
+	}
+
+	# remove me from my target's list of shooters
+	# if my target no longer has a shooter, find one
+	var result = remove(myTargetsShooters, myIndex);
+	if (size(result) == 0)
+	{
+		foundShooter = findNewShooter(myTarget);
+		if (foundShooter != -1) append(result, foundShooter);
+		debprint("New shooter index "~foundShooter);
+	}
+	ats2.shooterIndex = result;
 }
-########################## END ###########################
+########################## startScenario ###########################
+# a scenario consists of:
+# a set of groups of objects 
+# each group is assigned to a team (can be the same team)
+# and is provided with co-ordinates relative to an airport, by assuming that
+# the group is on course to the airport at a distance set by its arrival time and speed
+# each object in the group is given an offset in metres relative to the lead object
+# the number of offsets defines the number of objects in the group
+# delay the call to this function to allow objects to be initialised
+
 
 var startScenario = func()
 {
+	if (getprop("/bombable/targets/index") != getprop("/ai/models/count"))
+	{
+		settimer (func {startScenario();}, 5, 1); # wait til all 3D models have been loaded
+		return;
+	}	
+	debprint("Loading Bombable scenario . . .");
 	var scenario = 
 	{
 		group1:
 		{
-		team :			"R",
-		arrivalTime :	75, # sec
+		team :			"A",
+		target :		"Y",
+		arrivalTime :	105, # sec
 		airSpeed : 		250 * KT2MPS,
 		airportName :	"CA35",
 		heading :		220,# 0 - 360 degrees
-		alt :			6000,
+		alt :			6000, # in feet
 		offsets :
 					[
 						[0, 0, 0], # offset behind, offset to right, in metres, i.e. model co-ord system
-						[200, 200, 0],
-						[200, -200, 0],
-						[400, 400, 0],
-						[400, -400, 0],
-						[600, 600, 0]
+						[100, 100, 2],
+						[100, -100, 1],
+						[200, 200, -5],
+						[200, -200, 4],
+						[300, 300, 2]
 					],
 		},
 		group2:
 		{
-		team :			"B",
-		arrivalTime :	75, # sec
+		team :			"Y",
+		target :		"A",
+		arrivalTime :	105, # sec
 		airSpeed : 		280 * KT2MPS,
 		airportName :	"CA35",
 		heading :		70,
@@ -12130,14 +12135,15 @@ var startScenario = func()
 		offsets :
 					[
 						[0, 0, 0],
-						[100, -100],
-						[150, -100]
+						[50, -50, -3],
+						[75, -50, 2]
 					],
 		},
 		group3:
 		{
-		team :			"B",
-		arrivalTime :	100, # sec
+		team :			"Z",
+		target :		"A",
+		arrivalTime :	150, # sec
 		airSpeed : 		280 * KT2MPS,
 		airportName :	"CA35",
 		heading :		350,
@@ -12145,30 +12151,45 @@ var startScenario = func()
 		offsets :
 					[
 						[0, 0, 0],
-						[100, 200, 0],
-						[200, -100, 0]
+						[50, 100, 1],
+						[100, -50, -2]
 					],
 		},
-	}
-	var countB = 0;
-	var countR = 0;
-	var countW = 0;
+	};
 	var myNodeName = "";
-    var dist = airSpeed * arrivalTime;
-    var from = airportinfo(airportName); # Marin Ranch
     var GeoCoord = geo.Coord.new();
     var GeoCoord2 = geo.Coord.new();
-	GeoCoord.set_latlon(from.lat, from.lon);
-	GeoCoord.apply_course_distance(heading + 180, dist);    #frontreardist in meters
-	foreach (var group ; scenario)
+	foreach (var group ; keys(scenario))
 	{
-		var team = scenario[group].team;
-		if (team != "B" or team != "R" or team != "W")
+		var from = airportinfo(scenario[group].airportName);
+		var teamName = scenario[group].team;
+		if (find(teamName, "ABCDEFGHIJKLMNOPQRSTUVWXYZ") == -1)
 		{
-			debprint("Bombable: startScenario: Error in scenario description for group "~group~" - no team");
+			debprint("Bombable: startScenario: Error in scenario definition for "~group~" - no team");
 			break;
 		}
-		foreach (var o ; scenario[group].offsets);  
+		if(!contains(teams, teamName))
+		{
+			debprint("Bombable: startScenario: Error scenario team "~teamName~" not found in objects");
+			break;
+		}
+		var targetTeam = scenario[group].target;
+		if (find(targetTeam, "ABCDEFGHIJKLMNOPQRSTUVWXYZ") != -1)
+		{
+			if(!contains(teams, targetTeam))
+			{
+				debprint("Bombable: startScenario: Error scenario team "~targetTeam~" not found in objects");
+				break;
+			}
+			teams[teamName].target = targetTeam;
+			debprint("Bombable: startScenario: Target team for "~group~" is "~targetTeam);
+		}
+		# location lead aircraft
+		GeoCoord.set_latlon(from.lat, from.lon);
+		var dist = scenario[group].airSpeed * scenario[group].arrivalTime;
+		var heading = scenario[group].heading;
+		GeoCoord.apply_course_distance(heading + 180, dist);
+		foreach (var o ; scenario[group].offsets)  
 		{
 			#calculate lon, lat
 			GeoCoord2.set_latlon ( GeoCoord.lat(), GeoCoord.lon());
@@ -12177,48 +12198,39 @@ var startScenario = func()
 			dist2me = math.sqrt(o[0]*o[0] + o[1]*o[1]); 
 			GeoCoord2.apply_course_distance(deltaHeading, dist2me);    #frontreardist in meters
 			#get node
-			if (team == "B")
-			{
-				if (countB >= size(blueTeam)) 
-				{
-					debprint("Blue team too small for scenario");
-					countB += 1;
-					break;
-				}
-				myNodeName = nodes[blueTeam[countB]];
-				countB += 1;
-			}
-			elsif (team == "R")
-			{
-				if (countR >= size(redTeam)) 
-				{
-					debprint("Red team too small for scenario");
-					countR += 1;
-					break;
-				}
-				myNodeName = nodes[redTeam[countR]];
-				countR += 1;
-			}
-			elsif (team == "W")
-			{
-				if (countW >= size(whiteTeam)) 
-				{
-					debprint("White team too small for scenario");
-					countW += 1;
-					break;
-				}
-				myNodeName = nodes[whiteTeam[countW]];
-				countW += 1;
-			}
+			var count = teams[teamName].count;
+			myNodeName = nodes[teams[teamName].indices[count]];
+			count += 1;
+			teams[teamName].count = count;
 			setprop(""~myNodeName~"/controls/flight/target-spd", scenario[group].airSpeed);
 			setprop(""~myNodeName~"/velocities/true-airspeed-kt", scenario[group].airSpeed);
 			setprop(""~myNodeName~"/orientation/true-heading-deg", scenario[group].heading);
 			setprop(""~myNodeName~"/position/latitude-deg", GeoCoord2.lat());
 			setprop(""~myNodeName~"/position/longitude-deg", GeoCoord2.lon());
-			setprop(""~myNodeName~"/position/altitude-ft", scenario[group].alt + o[2]);
+			setprop(""~myNodeName~"/controls/flight/target-alt", scenario[group].alt + o[2] * M2FT);
+			setprop(""~myNodeName~"/position/altitude-ft", scenario[group].alt + o[2] * M2FT);
 		}
 	}
-	if (countB == size(blueTeam)) debprint("Success: Blue team assigned");
-	if (countR == size(redTeam)) debprint("Success: Red team assigned");
-	if (countW == size(whiteTeam)) debprint("Success: White team assigned");
+	foreach (var t; keys(teams))
+	{
+		if (teams[t].count != size(teams[t].indices)) debprint("Bombable: startScenario: Count for "~teams[t]~" in scenario: "~count~" is not equal to objects loaded: "~teams[t].indices);
+	}
+
+	mainStatusPopupTip ("Scenario loaded . . .", 15 );
+
+	initTargets();
 }
+########################## remove ###########################
+# removes all occurrences of element from vector
+# returns vector
+var remove = func(vector, element)
+{
+var result = [];
+foreach (var elem; vector)
+{
+	if (elem != element) append(result, elem);
+}
+return(result);
+}
+
+########################## END ###########################
