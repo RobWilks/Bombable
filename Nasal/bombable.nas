@@ -7979,15 +7979,16 @@ var attack_loop = func ( id, myNodeName )
 		#TODO: We could do lots of things here, like have the AC join up in squadrons,
 		#return to a certain staging area, patrol a certain area, or whatever.
 
-		if (rand() < 0.2 and atts.maxDistance_m) 
+		if ((rand() < ((ctrls.kamikase == -1) ? 0.5 : 0.2)) and atts.maxDistance_m) 
 		# if attack check time 5 sec then < 0.2 gives an average delay of 25 sec til AC turns back into the fray
+		# 10 sec for kamikase pilots 
 		{
 			ctrls.courseToTarget_deg = courseToTarget_deg;
 			var whereNow = "target";
-			if (ats.team == "B")
+			if (!ats.side)
 			{
 				# check distance from main AC. 
-				# team B, the defending team, stays close to main AC
+				# (0), the defending side, stays close to main AC
 				# keeps action close to main AC, which might be a neutral observer
 				var distHdgMain = course1to2 (myNodeName, "");
 				if ( distHdgMain.distance[0] > atts.maxDistance_m / 4 )
@@ -8507,8 +8508,6 @@ var aircraftCrashControl = func (myNodeName)
 		var newPitchAngle = crash.initialPitch + crash.pitchChange / ( 1 + 5 / crash.elapsedTime );
 		var newVertSpeed = math.sin(newPitchAngle * D2R) * newTrueAirspeed_fps;
 	}
-	var delta_ft = newVertSpeed * loopTime;	
-	# delta_ft is the vertical drop in time interval loopTime
 
 	
 	
@@ -8528,11 +8527,15 @@ var aircraftCrashControl = func (myNodeName)
 	
 	
 	
+	var delta_ft = newVertSpeed * loopTime;	
+	# delta_ft is the vertical drop in time interval loopTime
 	
 	# Change target-altitude
 	var currAlt_ft = getprop(""~myNodeName~ "/position/altitude-ft");
-	setprop (""~myNodeName~ "/controls/flight/target-alt", currAlt_ft + delta_ft);
+	# setprop (""~myNodeName~ "/controls/flight/target-alt", currAlt_ft + delta_ft);
 	# debprint("Bombable: CrashControl: delta = ",delta_ft, " ",currAlt_ft," ", myNodeName);
+
+	setprop (""~myNodeName~ "/controls/flight/target-alt", currAlt_ft - 4 * delta_ft); # force the AC down
 
 	# Change vertical speed
 	setprop (""~myNodeName~ "/velocities/vertical-speed-fps", newVertSpeed);
@@ -8574,7 +8577,7 @@ var aircraftCrashControl = func (myNodeName)
 
 	# elevation of -1371 ft is a failsafe (lowest elevation on earth); so is
 	# elapsed, so that we don't get stuck in this routine forever
-	if ( attributes[myNodeName].controls.onGround != 1 and currAlt_ft > -1371 and crash.elapsedTime < 240 ) 
+	if ( attributes[myNodeName].controls.onGround != 1 and currAlt_ft > -1371 and crash.elapsedTime < 600 ) 
 	{
 		settimer (func { aircraftCrashControl(myNodeName)}, loopTime );
 	}
@@ -8633,7 +8636,7 @@ var aircraftCrash = func (myNodeName)
 		pitchChange : pitchChange , 
 		initialSpeed : speed ,
 		vertSpeed : initialVertSpeed ,
-		maxVertSpeed : speedChange * 0.47, # i.e. sin(70 deg) / 2, assuming max pitch 70 deg & max 50% reduction of airspeed to reach terminal velocity 
+		maxVertSpeed : speedChange * 0.94, # i.e. sin(70 deg), assuming max pitch 70 deg & max 50% reduction of airspeed to reach terminal velocity 
 		speedChange : speedChange ,
 		elapsedTime : 0 ,
 		crashCounter : 0 ,
@@ -11494,7 +11497,7 @@ var setWeaponPowerSkill = func(myNodeName)
 	var weapPowerSkill = ( power + skill / 5.0 ) / 2.0 + rand() * 0.4 - 0.2 ;
 	if (weapPowerSkill > 1) weapPowerSkill = 1 elsif (weapPowerSkill < 0) weapPowerSkill = 0;
 
-	if (find(attributes[myNodeName].team, "ABCDEFGHIJKLM") == -1) weapPowerSkill *= ( 1 - handicap / 100 ); # apply handicap for side (1)
+	if (attributes[myNodeName].side == 1) weapPowerSkill *= ( 1 - handicap / 100 ); # apply handicap for side (1)
 	
 	attributes[myNodeName].controls.weapons_pilot_ability = weapPowerSkill;
 
@@ -11889,6 +11892,7 @@ var addToTargets = func(myNodeName)
 	var side = (find(teamName, "ABCDEFGHIJKLM") == -1);
 	append(allPlayers[side], myIndex);
 	ats.team = teamName;
+	ats.side = side;
 }
 ########################## initTargets ###########################
 # assigns a target for each object in each team
@@ -12005,7 +12009,7 @@ var findNewTarget = func (myIndex)
 {
 	var myTeam = attributes[nodes[myIndex]].team;
 	var targetTeam = teams[myTeam].target;
-	var otherSide = (find(myTeam, "ABCDEFGHIJKLM") != -1);
+	var otherSide = !attributes[nodes[myIndex]].side;
 	var foundTarget = -1;
 	if (targetTeam != nil)
 	{
@@ -12025,7 +12029,7 @@ var findNewShooter = func (myIndex)
 {
 	var myTeam = attributes[nodes[myIndex]].team;
 	var shooterTeam = teams[myTeam].target;
-	var otherSide = (find(myTeam, "ABCDEFGHIJKLM") != -1);
+	var otherSide = !attributes[nodes[myIndex]].side;
 	var foundShooter = -1;
 	if (shooterTeam != nil)
 	{
