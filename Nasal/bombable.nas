@@ -8467,7 +8467,8 @@ var aircraftRoll = func (myNodeName, rolldegrees = -60, rolltime = 5, roll_limit
 # elapsed measures the time elapsed since the aircraft first 'crashed'
 # called the first time when damage reaches 100%
 
-var aircraftCrashControl = func (myNodeName) {
+var aircraftCrashControl = func (myNodeName) 
+{
 
 	if (!getprop(bomb_menu_pp~"bombable-enabled") ) return;
 	var ats = attributes[myNodeName];
@@ -8479,35 +8480,25 @@ var aircraftCrashControl = func (myNodeName) {
 	#If we have hit the ground, stop crashing:
 	if (ctrls.onGround) 
 	{
-		setprop(""~myNodeName~ "/position/crashTimeElapsed", 0);
 		debprint ("Bombable: Ending aircraft crash control for " ~ myNodeName);
 		return();
 	}
 
-	var loopTime = .1;
-	loopTime *= (1 + rand() * .1 - .05); #rjw add noise
-	# rjw 0.1 in original version. In original, noise was only added to the function timer
+	var loopTime = (0.095 + rand() * .01); #rjw add noise
 
 	var crash = ctrls.crash;
 	crash.elapsedTime += loopTime;
 	crash.crashCounter += 1;	
-	# used to control debug printing
-
-	# initialPitch = getprop(""~myNodeName~ "/position/initialPitch");	
-	# initialSpeed = getprop(""~myNodeName~ "/position/initialSpeed");	
-	# initialVertSpeed = getprop(""~myNodeName~ "/position/initialVertSpeed");	
-	# pitchChange = getprop(""~myNodeName~ "/position/pitchChange");
-	# speedChange = getprop(""~myNodeName~ "/position/speedChange");	
 	
-	var oldPitchAngle = getprop (""~myNodeName~ "/orientation/pitch-deg");
-	var oldTrueAirspeed_fps = getprop(""~myNodeName~ "/velocities/true-airspeed-kt") * KT2FPS;
 	var newTrueAirspeed_fps = crash.initialSpeed + crash.speedChange / ( 1 + 5 / crash.elapsedTime );
 
 	if (crash.speedChange < 0) 
 	{
-		var cruiseSpeed_kt = attributes[myNodeName].velocities.cruiseSpeed_kt;
-		var newVertSpeed = crash.initialVertSpeed;
-		if (crash.initialVertSpeed > -120)  newVertSpeed -= 32.174 * (1 - newTrueAirspeed_fps * newTrueAirspeed_fps / crash.initialSpeed / crash.initialSpeed) * loopTime; # rjw limit at term velocity
+		var newVertSpeed = crash.vertSpeed;
+		if (newVertSpeed > -crash.maxVertSpeed)  # limit at terminal velocity
+		{
+			newVertSpeed -= grav_fpss * (1 - newTrueAirspeed_fps * newTrueAirspeed_fps / crash.initialSpeed / crash.initialSpeed) * loopTime; 
+		}
 		var newPitchAngle = math.asin(newVertSpeed / newTrueAirspeed_fps) * R2D;
 		if (rand() < .002) reduceRPM(myNodeName);
 	}
@@ -8545,7 +8536,7 @@ var aircraftCrashControl = func (myNodeName) {
 
 	# Change vertical speed
 	setprop (""~myNodeName~ "/velocities/vertical-speed-fps", newVertSpeed);
-	crash.initialVertSpeed = newVertSpeed;	
+	crash.vertSpeed = newVertSpeed;	
 	
 	# Change target-speed
 	# target_spd = getprop(""~myNodeName~ "/controls/flight/target-spd");
@@ -8583,12 +8574,10 @@ var aircraftCrashControl = func (myNodeName) {
 
 	# elevation of -1371 ft is a failsafe (lowest elevation on earth); so is
 	# elapsed, so that we don't get stuck in this routine forever
-	# rjw increased from 240 to 600.  Provides time to observe crash
-	if ( attributes[myNodeName].controls.onGround != 1 and currAlt_ft > -1371 and crash.elapsedTime < 600 ) 
+	if ( attributes[myNodeName].controls.onGround != 1 and currAlt_ft > -1371 and crash.elapsedTime < 240 ) 
 	{
 		settimer (func { aircraftCrashControl(myNodeName)}, loopTime );
 	}
-	# rjw note timer is called once after the set time elapses rather than recursively
 	else 
 	{
 		# we should be crashed at this point but just in case:
@@ -8614,14 +8603,15 @@ var stopDodgeAttack = func (myNodeName)
 ################################## aircraftCrash ################################
 # rjw initializes the aircraft crash loop
 
-var aircraftCrash = func (myNodeName) {
+var aircraftCrash = func (myNodeName) 
+{
 	if (!getprop(bomb_menu_pp~"bombable-enabled") ) return;
 
 	stopDodgeAttack(myNodeName);
 
 	var pitch = getprop(""~myNodeName~ "/orientation/pitch-deg");
 	var speed = getprop(""~myNodeName~ "/velocities/true-airspeed-kt") * KT2FPS;
-	var vertSpeed = getprop(""~myNodeName~ "/velocities/vertical-speed-fps");
+	var initialVertSpeed = getprop(""~myNodeName~ "/velocities/vertical-speed-fps");
 
 	var r = rand();
 	if (rand() > .7 ) 
@@ -8642,34 +8632,17 @@ var aircraftCrash = func (myNodeName) {
 		initialPitch : pitch ,
 		pitchChange : pitchChange , 
 		initialSpeed : speed ,
-		initialVertSpeed : vertSpeed ,
+		vertSpeed : initialVertSpeed ,
+		maxVertSpeed : speedChange * 0.47, # i.e. sin(70 deg) / 2, assuming max pitch 70 deg & max 50% reduction of airspeed to reach terminal velocity 
 		speedChange : speedChange ,
 		elapsedTime : 0 ,
 		crashCounter : 0 ,
 	};
-	# setprop(""~myNodeName~ "/position/initialPitch", initialPitch);	
-
-	# setprop(""~myNodeName~ "/position/pitchChange", pitchChange);
-
-	# setprop(""~myNodeName~ "/position/initialSpeed", initialSpeed * KT2FPS);	
-
-	# setprop(""~myNodeName~ "/position/initialVertSpeed", initialVertSpeed);
-
-	# setprop(""~myNodeName~ "/position/speedChange", speedChange);	
-
-	# initialise crash time elapsed timer
-	# elapsed = 0;
-	
-
-	# setprop(""~myNodeName~ "/position/crashTimeElapsed", elapsed);	
-
-	# setprop(""~myNodeName~ "/position/crashCounter", 0);	
 
 	debprint ("Bombable: Starting crash control, ",
 	"pitchChange = ",pitchChange,
 	"speedChange = ",speedChange	
 	);
-	
 	
 	aircraftCrashControl(myNodeName);
 				
