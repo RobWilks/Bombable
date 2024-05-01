@@ -2292,7 +2292,7 @@ var calcPilotSkill = func ( myNodeName )
 	var ctrls = ats.controls;	
 	#skill ranges 0-5; 0 = disabled, so 1-5;
 	var skill = getprop (bomb_menu_pp~"ai-aircraft-skill-level");
-	if (skill == nil) skill = 0;
+	if (skill == nil) skill = 1;
 
 	# pilotAbility is a rand +/-1 in skill level per individual pilot
 	# so skill ranges 0-6
@@ -5160,7 +5160,7 @@ var rudder_roll_climb = func (myNodeName, degrees = 15, alt_ft = -20, time = 10,
 	# spd < 5 uses fixed turn radius, see AIship parms
 	# spd > 5 achieves max turn rate at 15 kts
 	# unfortunate: the turn radius is a strong function of speed ( v - 15 )^2
-	# ctrls.dodgeInProgress is a flag set by Dodge()
+	# ctrls.dodgeInProgress is a flag set by dodge()
 	{
 		if ( attributes[myNodeName].controls.dodgeInProgress )
 		{
@@ -7967,7 +7967,7 @@ var attack_loop = func ( id, myNodeName )
 		if (dist[0] < atts.minDistance_m)
 		{
 			var aheadBehindTarget_deg = normdeg180 (targetHeading_deg - courseToTarget_deg);
-		 	if (rand() < skill/5 and math.abs(aheadBehindTarget_deg) > 110) dodge( myNodeName);
+		 	if (rand() < skill/5 and math.abs(aheadBehindTarget_deg) > 110) dodge(myNodeName);
 		}
 		# When the AC is done attacking & dodging it will continue to fly in
 		# circles unless we do this
@@ -8485,7 +8485,7 @@ var aircraftCrashControl = func (myNodeName)
 		return();
 	}
 
-	var loopTime = (0.095 + rand() * .01); #rjw add noise
+	var loopTime = 0.095 + rand() * .01; #rjw add noise
 
 	var crash = ctrls.crash;
 	crash.elapsedTime += loopTime;
@@ -8509,10 +8509,6 @@ var aircraftCrashControl = func (myNodeName)
 		var newVertSpeed = math.sin(newPitchAngle * D2R) * newTrueAirspeed_fps;
 	}
 
-	
-	
-	
-				
 	# Using initial airspeed + x ft/sec as the terminal velocity (x <= 120 fps) & running this loop ~10X per second
 	# t/(t+5) is a crude approximation of tanh(t), which is the real equation
 	# to use for terminal velocity under gravity with drag proportional to v squared.  However tanh is very expensive
@@ -8523,19 +8519,15 @@ var aircraftCrashControl = func (myNodeName)
 	# See http://www.dept.aoe.vt.edu/~lutze/AOE3104/glidingflight.pdf
 	# Could measure dive speeds for different engine rpm and pitch angle for the aircraft model and include as attribute?
 				
-	
-	
-	
-	
 	var delta_ft = newVertSpeed * loopTime;	
 	# delta_ft is the vertical drop in time interval loopTime
 	
 	# Change target-altitude
 	var currAlt_ft = getprop(""~myNodeName~ "/position/altitude-ft");
 	# setprop (""~myNodeName~ "/controls/flight/target-alt", currAlt_ft + delta_ft);
+	setprop (""~myNodeName~ "/controls/flight/target-alt", currAlt_ft + 4 * delta_ft); # force the AC down
 	# debprint("Bombable: CrashControl: delta = ",delta_ft, " ",currAlt_ft," ", myNodeName);
 
-	setprop (""~myNodeName~ "/controls/flight/target-alt", currAlt_ft - 4 * delta_ft); # force the AC down
 
 	# Change vertical speed
 	setprop (""~myNodeName~ "/velocities/vertical-speed-fps", newVertSpeed);
@@ -8549,31 +8541,26 @@ var aircraftCrashControl = func (myNodeName)
 	
 	# Change pitch
 	setprop (""~myNodeName~ "/orientation/pitch-deg", newPitchAngle );
-	setprop (""~myNodeName~ "/controls/flight/target-pitch", newPitchAngle );
+	# setprop (""~myNodeName~ "/controls/flight/target-pitch", newPitchAngle ); # not sure useful since vertical-mode is 'alt'
 	# rjw:  maximum pitch is 70 degrees
 	# if (pitchAngle > -70) pitchAngle +=  pitchPerLoop;
 	# setprop (""~myNodeName~ "/orientation/pitch-deg", pitchAngle); 
-
 
 	# Make it roll
 	var rollAngle = getprop (""~myNodeName~ "/orientation/roll-deg");
 	if (rand() < (loopTime / 5) or math.abs(rollAngle) > 70) setprop (""~myNodeName~ "/controls/flight/target-roll", (rand() - .5) * 140); 
 	
-	
-	
 	if (math.fmod(crash.crashCounter , 10) == 0) 
 	debprint
 	(
-		"Bombable: CrashControl: ",
-		"newTrueAirspeed_fps = ", newTrueAirspeed_fps,
-		"newVertSpeed = ", newVertSpeed,
-		"newPitchAngle = ", newPitchAngle,	
-		"target-alt = ", currAlt_ft + delta_ft
-	);
-
-	
-	
-				
+		sprintf(
+		"Bombable: CrashControl for %s: newTrueAirspeed_fps = %6.1f newVertSpeed = %6.1f newPitchAngle = %6.1f target-alt = %5.0f",
+		getCallSign(myNodeName),
+		newTrueAirspeed_fps,
+		newVertSpeed,
+		newPitchAngle,	
+		currAlt_ft + 4 * delta_ft
+	));
 
 	# elevation of -1371 ft is a failsafe (lowest elevation on earth); so is
 	# elapsed, so that we don't get stuck in this routine forever
@@ -8636,19 +8623,19 @@ var aircraftCrash = func (myNodeName)
 		pitchChange : pitchChange , 
 		initialSpeed : speed ,
 		vertSpeed : initialVertSpeed ,
-		maxVertSpeed : speedChange * 0.94, # i.e. sin(70 deg), assuming max pitch 70 deg & max 50% reduction of airspeed to reach terminal velocity 
+		maxVertSpeed : -speedChange * 0.94, # i.e. sin(70 deg), assuming max pitch 70 deg & max 50% reduction of airspeed to reach terminal velocity 
 		speedChange : speedChange ,
 		elapsedTime : 0 ,
 		crashCounter : 0 ,
 	};
 
-	debprint ("Bombable: Starting crash control, ",
-	"pitchChange = ",pitchChange,
-	"speedChange = ",speedChange	
-	);
+	debprint (sprintf("Bombable: Starting crash control for %s, pitchChange = %5.1f, speedChange = %5.1f",
+		getCallSign(myNodeName),
+		pitchChange,
+		speedChange	
+	));
 	
 	aircraftCrashControl(myNodeName);
-				
 }
 
 ################################ variable_safe ##################################
@@ -9030,21 +9017,24 @@ var add_damage = func
 		# only display about 1 in 20 of the messages.
 		# If we don't do this the small damageRises from fires overwhelm the message area
 		# and we don't know what's going on.
-		if (damagetype == "weapon" or damageRise > 0.1 or rand() < .05)
+		if (damagetype == "weapon") 
 		{
-			damageRiseDisplay = round( damageRise * 100 );
-			if (damageRise < .01) damageRiseDisplay = sprintf ("%1.2f",damageRise * 100);
-			elsif (damageRise < .1) damageRiseDisplay = sprintf ("%1.1f",damageRise * 100);
-							
-							
-			var msg = "Damage added: " ~ damageRiseDisplay ~ "% for " ~  callsign ~ " Total: " ~ round ( damageValue * 100 ) ~ "%, Skill: " ~ math.ceil(10 * weapPowerSkill) ~ msg2;
-			debprint ( "Bombable: " ~ msg ~ " " ~ myNodeName );
-							
-			targetStatusPopupTip (msg, 20);
+			if (damageRise > 0.1 or rand() < .05)
+			{
+				damageRiseDisplay = round( damageRise * 100 );
+				if (damageRise < .01) damageRiseDisplay = sprintf ("%1.2f",damageRise * 100);
+				elsif (damageRise < .1) damageRiseDisplay = sprintf ("%1.1f",damageRise * 100);
+								
+								
+				var msg = "Damage added: " ~ damageRiseDisplay ~ "% for " ~  callsign ~ " Total: " ~ round ( damageValue * 100 ) ~ "%, Skill: " ~ math.ceil(10 * weapPowerSkill) ~ msg2;
+				debprint ( "Bombable: " ~ msg ~ " " ~ myNodeName );
+								
+				targetStatusPopupTip (msg, 20);
+			}
 
 			# if (myNodeName2 != nil and damageRise > 0.025 and rand() < 0.5 and !ats.fixed)
 			# assume any ww1/2 aircraft with fixed weapons are better sticking on their target and dodging any new shooters
-			if (myNodeName2 != nil and damageRise > 0.025 and rand() < 0.5 and !ats.controls.attackInProgress)
+			if (damageRise > 0.025 and rand() < 0.5 and myNodeName2 != nil and !ats.controls.attackInProgress)
 			{
 				# change target
 				# if not already attacking another
@@ -9054,20 +9044,19 @@ var add_damage = func
 				append (ats2.shooterIndex, ats.index); # add me to the new target's list of shooters
 				debprint (callsign, " set ", callsign2, " as new target");
 			}
+
+			if ((rand() < calcPilotSkill (myNodeName) / 6)) dodge (myNodeName);
 		}
 
+		if (damageRise > 0.1 and rand() > .5 and contains(ats,"weapons"))
 		# a large hit can knock-out a weapon
-		if ( (damageRise > 0.1) and (rand() > .5) )
 		{
-			if(contains(ats,"weapons"))
-			{
-				var weaps = ats.weapons;
-				var nWeapons = size(weaps) ;
-				var index = int (rand() * nWeapons) ;
-				weaps[""~keys(weaps)[index]]["destroyed"] = 1;
-			}
+			var weaps = ats.weapons;
+			var nWeapons = size(weaps) ;
+			var index = int (rand() * nWeapons) ;
+			weaps[""~keys(weaps)[index]]["destroyed"] = 1;
+			debprint(callsign," "~keys(weaps)[index]~" destroyed");
 		}
-
 	}
 
 	# for moving objects (ships & aircraft), reduce velocity each time damage added
