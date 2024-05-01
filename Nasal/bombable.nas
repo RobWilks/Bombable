@@ -80,7 +80,7 @@ var debprint = func {
 
 	setprop ("/sim/startup/terminal-ansi-colors",0);
 	
-	if (getprop(""~bomb_menu_pp~"debug")) {
+	if (bombableMenu["debug"]) {
 		outputs = "";
 		foreach (var elem;arg) {
 			if (elem != nil) {
@@ -168,7 +168,7 @@ var mpprocesssendqueue = func {
 	
 	if (!getprop(MP_share_pp)) return "";
 	if (!getprop (MP_broadcast_exists_pp)) return "";
-	if (!getprop(bomb_menu_pp~"bombable-enabled") ) return;
+	if (!bombableMenu["bombable-enabled"] ) return;
 
 	if (size(mpsendqueue) > 0) {
 		setprop (MP_message_pp, mpsendqueue[0]);
@@ -183,7 +183,7 @@ var mpsend = func (msg) {
 	#
 	if (!getprop(MP_share_pp)) return "";
 	if (!getprop (MP_broadcast_exists_pp)) return "";
-	if (!getprop(bomb_menu_pp~"bombable-enabled") ) return;
+	if (!bombableMenu["bombable-enabled"] ) return;
 	
 	append(mpsendqueue, msg ~ systime());
 }
@@ -192,7 +192,7 @@ var mpreceive = func (mpMessageNode) {
 	
 	if (!getprop(MP_share_pp)) return "";
 	if (!getprop (MP_broadcast_exists_pp)) return "";
-	if (!getprop(bomb_menu_pp ~ "bombable-enabled") ) return;
+	if (!bombableMenu["bombable-enabled"]) return;
 	
 	msg = mpMessageNode.getValue();
 	mpMessageNodeName = mpMessageNode.getPath();
@@ -437,7 +437,7 @@ var deleteFire = func (myNodeName = "",fireNode = "") {
 #
 var speedDamage = func 
 {
-	if (!getprop(bomb_menu_pp~"bombable-enabled") ) return;
+	if (!bombableMenu["bombable-enabled"] ) return;
 	var damage_enabled = getprop (""~GF_damage_menu_pp~"damage_enabled");
 	var warning_enabled = getprop (""~GF_damage_menu_pp~"warning_enabled");
 	
@@ -486,12 +486,12 @@ var speedDamage = func
 #
 var accelerationDamage = func {
 
-	if (!getprop(bomb_menu_pp~"bombable-enabled") ) return;
+	if (!bombableMenu["bombable-enabled"] ) return;
 	var damage_enabled = getprop (""~GF_damage_menu_pp~"damage_enabled");
 	var warning_enabled = getprop (""~GF_damage_menu_pp~"warning_enabled");
 	
 	if (! damage_enabled and ! warning_enabled ) return;
-	if (!getprop(bomb_menu_pp~"bombable-enabled") ) return;
+	if (!bombableMenu["bombable-enabled"] ) return;
 	
 	#debprint ("Bombable: Checking acceleration");
 	#The acceleration nodes are updated once per second
@@ -540,7 +540,7 @@ var accelerationDamage = func {
 #
 var damageCheck = func () {
 	settimer (func {damageCheck (); }, damageCheckTime);
-	if (!getprop(bomb_menu_pp~"bombable-enabled") ) return;
+	if (!bombableMenu["bombable-enabled"] ) return;
 	#debprint ("Bombable: Checking damage.");
 	accelerationDamage();
 	speedDamage();
@@ -2061,22 +2061,23 @@ var dialog = {
 	}
 
 
-};   #oh yeah, that final ; is REALLy needed
+};  
 ##################################### bombable_dialog_save ##########################################
+# save button triggers the listeners on the menu prop tree
 
-var bombable_dialog_save = func {
-	#return; #gui prob
+var bombable_dialog_save = func 
+{
 	debprint ("Bombable: iowriting, writing . . . ");
 	io.write_properties(bombable_settings_file, ""~bomb_menu_pp);
+	mirrorMenu(); #write to hash
 }
-
 
 ##################################### init_bombable_dialog_listeners ##########################################
 
 var init_bombable_dialog_listeners = func {
-	#return; #gui prob
 	#We replaced this scheme for writing the menu selections whenever they
 	#are changed, to just using the 'save' button
+
 	#what to do when any bombable setting is changed
 	#setlistener(""~bomb_menu_pp, func {
 				
@@ -2276,7 +2277,14 @@ var setupBombableMenu = func {
 	debprint ("Bombable: ioreading . . . ");
 	var target = props.globals.getNode("" ~ bomb_menu_pp);
 	io.read_properties(bombable_settings_file, target);
+	mirrorMenu();
+}
+######################## mirrorMenu #############################
+# creates a mirror of the propTree in bombableMenu hash
 
+var mirrorMenu = func()
+{
+	bombableMenu = props.globals.getNode(bomb_menu_pp, 0).getValues();
 }
 
 ######################## calcPilotSkill #############################
@@ -2291,7 +2299,7 @@ var calcPilotSkill = func ( myNodeName )
 	var ats = attributes[myNodeName];
 	var ctrls = ats.controls;	
 	#skill ranges 0-5; 0 = disabled, so 1-5;
-	var skill = getprop (bomb_menu_pp~"ai-aircraft-skill-level");
+	var skill = bombableMenu["ai-aircraft-skill-level"];
 	if (skill == nil) skill = 1;
 
 	# pilotAbility is a rand +/-1 in skill level per individual pilot
@@ -2356,7 +2364,7 @@ var elev = func (lat, lon) {
 var damage_msg = func (callsign, damageAdd, damageTotal, smoke = 0, fire = 0, messageType = 1) {
 	if (!getprop(MP_share_pp)) return;
 	if (!getprop (MP_broadcast_exists_pp)) return;
-	if (!getprop(bomb_menu_pp~"bombable-enabled") ) return;
+	if (!bombableMenu["bombable-enabled"] ) return;
 			
 	n = 0;
 			
@@ -2430,7 +2438,7 @@ var damage_msg = func (callsign, damageAdd, damageTotal, smoke = 0, fire = 0, me
 var reset_msg = func () {
 	if (!getprop(MP_share_pp)) return "";
 	if (!getprop (MP_broadcast_exists_pp)) return "";
-	if (!getprop(bomb_menu_pp~"bombable-enabled") ) return;
+	if (!bombableMenu["bombable-enabled"] ) return;
 			
 	n = 0;
 			
@@ -2448,7 +2456,7 @@ var reset_msg = func () {
 var parse_msg = func (source, msg) {
 	if (!getprop(MP_share_pp)) return;
 	if (!getprop (MP_broadcast_exists_pp)) return;
-	if (!getprop(bomb_menu_pp~"bombable-enabled") ) return;
+	if (!bombableMenu["bombable-enabled"] ) return;
 	debprint("Bombable: typeof source: ", typeof(source));
 	debprint ("Bombable: source: ", source, " msg: ",msg);
 	var ourcallsign = getprop ("/sim/multiplay/callsign");
@@ -2775,7 +2783,7 @@ var ground_loop = func( id, myNodeName )
 	settimer(func { ground_loop(id, myNodeName)}, updateTime_s );
 
 	# Allow this function to be disabled via menu since it can kill framerate at times
-	if (! getprop ( bomb_menu_pp~"ai-ground-loop-enabled") or ! getprop(bomb_menu_pp~"bombable-enabled") ) return;
+	if (! bombableMenu["ai-ground-loop-enabled"] or ! bombableMenu["bombable-enabled"] ) return;
 
 	var type = ats.type;
 
@@ -3494,7 +3502,7 @@ var location_loop = func(id, myNodeName)
 	settimer(func {location_loop(id, myNodeName); }, 15 + rand() );
 			
 	#get out of here if Bombable is disabled
-	if (! getprop(bomb_menu_pp~"bombable-enabled") ) return;
+	if (! bombableMenu["bombable-enabled"] ) return;
 			
 	var node = props.globals.getNode(myNodeName);
 			
@@ -3857,7 +3865,7 @@ var cartesianDistance = func  (elem...){
 var test_impact = func(changedNode, myNodeName) {
 
 	# Allow this function to be disabled via bombable menu
-	if ( ! getprop(bomb_menu_pp~"bombable-enabled") ) return;
+	if ( ! bombableMenu["bombable-enabled"] ) return;
 
 	var impactNodeName = changedNode.getValue();
 	#var impactNode = props.globals.getNode(impactNodeName);
@@ -4063,7 +4071,7 @@ var test_impact = func(changedNode, myNodeName) {
 	{
 		# Easy Mode increases the damage radius (2X), making it easier to score hits,
 		# but doesn't increase the damage done by armament
-		if (getprop(""~bomb_menu_pp~"easy-mode")) {
+		if (bombableMenu["easy-mode"]) {
 			#easyMode *= 2;
 			damageRadius_m *= 2;
 			vitalDamageRadius_m *= 2;
@@ -4071,7 +4079,7 @@ var test_impact = func(changedNode, myNodeName) {
 				
 		# Super Easy mode increases both the damage radius AND the damage done
 		# by 3X
-		if (getprop(""~bomb_menu_pp~"super-easy-mode")){
+		if (bombableMenu["super-easy-mode"]) {
 			easyMode *= 3;
 			easyModeProbability *= 3;
 			damageRadius_m *= 3;
@@ -4738,7 +4746,7 @@ var speed_adjust_loop = func ( id, myNodeName, looptime_sec)
 
 	#debprint ("speed_adjust_loop starting");
 
-	if (! getprop (bomb_menu_pp~"ai-aircraft-attack-enabled") or ! getprop(bomb_menu_pp~"bombable-enabled") ) return;
+	if (! getprop (bomb_menu_pp~"ai-aircraft-attack-enabled") or ! bombableMenu["bombable-enabled"] ) return;
 				
 	speed_adjust (myNodeName, looptime_sec);
 
@@ -5201,9 +5209,9 @@ var dodge = func(myNodeName)
 	# rollTime_sec is the time the AC rolls
 	var ats = attributes[myNodeName];
 	var ctrls = ats.controls;	
-	if (  ! getprop (bomb_menu_pp~"ai-aircraft-attack-enabled")
+	if ( ! bombableMenu["ai-aircraft-attack-enabled"]
 	or (ats.damage == 1)
-	or ! getprop(bomb_menu_pp~"bombable-enabled") )
+	or ! bombableMenu["bombable-enabled"] )
 	return;
 	# rjw: unsure where to find attack-enabled on bombable menu. However it is set for B-17 scenario
 				
@@ -5364,6 +5372,18 @@ var dodge = func(myNodeName)
 	# debprint ("Bombable: Dodge alt:", dodgeAltAmount_ft, " degrees:", dodgeAmount_deg, " delay:", dodgeDelay);
 }
 
+################################## stopDodgeAttack ################################
+
+var stopDodgeAttack = func (myNodeName) 
+{
+	var ctrls = attributes[myNodeName].controls;
+	ctrls.dodgeInProgress = 0;
+	ctrls.attackInProgress = 0;
+	inc_loopid(myNodeName, "roll");
+	inc_loopid(myNodeName, "speed_adjust");
+	inc_loopid(myNodeName, "attack");
+}
+
 ##################### getCallSign ##########################
 # FUNCTION getCallSign
 # returns call sign for AI, MP, or Main AC
@@ -5466,7 +5486,7 @@ var mp_send_main_aircraft_damage_update = func (damageRise = 0 ) {
 
 	if (!getprop(MP_share_pp)) return "";
 	if (!getprop (MP_broadcast_exists_pp)) return "";
-	if (!getprop(bomb_menu_pp~"bombable-enabled") ) return;
+	if (!bombableMenu["bombable-enabled"] ) return;
 
 				
 	damageTotal = attributes[""].damage;
@@ -5499,7 +5519,7 @@ var mp_send_main_aircraft_damage_update = func (damageRise = 0 ) {
 # (This should always be <= our damage total, so it is a failsafe
 # in case of some packet loss)
 var mainAC_add_damage = func (damageRise = 0, damageTotal = 0, source = "", message = "") {
-	if (!getprop(bomb_menu_pp~"bombable-enabled") ) return 0;
+	if (!bombableMenu["bombable-enabled"] ) return 0;
 				
 	var damageValue = attributes[""].damage;
 				
@@ -5662,7 +5682,7 @@ var mp_send_damage = func (myNodeName = "", damageRise = 0 ) {
 				
 	if (!getprop(MP_share_pp)) return "";
 	if (!getprop (MP_broadcast_exists_pp)) return "";
-	if (!getprop(bomb_menu_pp~"bombable-enabled") ) return;
+	if (!bombableMenu["bombable-enabled"] ) return;
 				
 				
 	#messageType 1 is letting another MP aircraft know you have damaged it
@@ -6047,7 +6067,7 @@ var weapons_loop = func (id, myNodeName1 = "", targetSize_m = nil) {
 
 	#debprint ("weapons_loop starting");
 
-	if (! getprop ( bomb_menu_pp~"ai-aircraft-weapons-enabled") or ! getprop(bomb_menu_pp~"bombable-enabled") ) return;
+	if (! bombableMenu["ai-aircraft-weapons-enabled"] or ! bombableMenu["bombable-enabled"] ) return;
 				
 				
 
@@ -6060,7 +6080,7 @@ var weapons_loop = func (id, myNodeName1 = "", targetSize_m = nil) {
 	if (damageValue == 1) return;
 	
 	# weaponPower varies between 0 and 1
-	var weaponPower = getprop ("" ~bomb_menu_pp~ "ai-weapon-power");
+	var weaponPower = bombableMenu["ai-weapon-power"];
 	if (weaponPower == nil) weaponPower = 0.2;
 				
 	# weapPowerSkill varies 0-1, average varies with power-skill combo
@@ -6096,15 +6116,20 @@ var weapons_loop = func (id, myNodeName1 = "", targetSize_m = nil) {
 	if (ats.distance_m < ats.dimensions.crashRadius_m)
 	{
 		#simple way
-		add_damage(1, "collision", myNodeName1);
+		var msg = (attributes[myNodeName2].controls.kamikase == -1) ?
+		"Kamikase strike " : "Collision ";
+		msg = msg ~ " with " ~ getCallSign (myNodeName1) ~ " !";
+		targetStatusPopupTip (msg, 5); # add_damage will immediately report damage stats
+		var damageRatio = attributes[myNodeName2].vulnerabilities.explosiveMass_kg / 
+		attributes[myNodeName1].vulnerabilities.explosiveMass_kg; 
+		add_damage(10 * damageRatio, "collision", myNodeName1); # can withstand collision with object <10% of my mass
 		if (myNodeName2 !="")
 		{
-			add_damage(1, "collision", myNodeName2);
+			add_damage(10 / damageRatio, "collision", myNodeName2);
 		}
 		else
 		{
-			mainAC_add_damage ( 1, 0, "collision",
-			"Collided with " ~ getCallSign (myNodeName1));
+			mainAC_add_damage ( 10 / damageRatio, 0, "collision", msg);
 		}
 		return;
 		#rjw with the return above the following code in the block is unused
@@ -7820,7 +7845,7 @@ var attack_loop = func ( id, myNodeName )
 	#Higher skill makes the AI pilot react faster/more often:
 	settimer ( func { attack_loop ( id, myNodeName ) }, loopTimeActual );
 				
-	if (  ! getprop (bomb_menu_pp~"ai-aircraft-attack-enabled") or ! getprop(bomb_menu_pp~"bombable-enabled") or 
+	if ( ! bombableMenu["ai-aircraft-attack-enabled"] or ! bombableMenu["bombable-enabled"] or 
 		(ats.damage == 1) ) 
 	{
 		atts.loopTime = atts.attackCheckTime_sec;
@@ -8268,7 +8293,7 @@ var aircraftSetVertSpeed = func (myNodeName, dodgeAltAmount_ft, evasORatts = "ev
 var aircraftTurnToHeadingControl = func (myNodeName, id, rolldegrees = 45, targetAlt_m = "none" ,  roll_limit_deg = 85, correction = 0 ) 
 {
 	id == attributes[myNodeName].loopids.roll_loopid or return;
-	if (!getprop(bomb_menu_pp~"bombable-enabled") ) return;
+	if (!bombableMenu["bombable-enabled"] ) return;
 
 	var updateinterval_sec = .1;
 	var maxTurnTime = 60; #max time to stay in this loop/a failsafe
@@ -8395,7 +8420,7 @@ var aircraftRollControl = func (myNodeName, id, rolldegrees, rolltime, roll_limi
 delta_deg, delta_t) 
 {
 	id == attributes[myNodeName].loopids.roll_loopid or return;
-	if (!getprop(bomb_menu_pp~"bombable-enabled") ) return;
+	if (!bombableMenu["bombable-enabled"] ) return;
 				
 	var atts = attributes[myNodeName].attacks;
 	var ctrls = attributes[myNodeName].controls;
@@ -8465,13 +8490,26 @@ var aircraftRoll = func (myNodeName, rolldegrees = -60, rolltime = 5, roll_limit
 
 ################################# aircraftCrashControl #################################
 # rjw: the aircraft crashes progressively, i.e. falls/glides to earth
+# rjw: the aircraft descent is either a powered dive or unpowered glide with the AC air speed potentially increasing or decreasing
+# See http://www.dept.aoe.vt.edu/~lutze/AOE3104/glidingflight.pdf
+# Could measure dive speeds for different engine rpm and pitch angle for the aircraft model and include as attribute?
+#
+# Using initial airspeed + x ft/sec as the terminal velocity (x <= maxVertSpeed) & running this loop ~2X per second
 # elapsed measures the time elapsed since the aircraft first 'crashed'
 # called the first time when damage reaches 100%
+# delta_ft is the vertical drop in time interval loopTime
+#
+# t/(t+5) is a crude approximation of tanh(t), which is the real equation
+# to use for terminal velocity under gravity with drag proportional to v squared.  However tanh is very expensive
+# and since we have to approximate the coefficient of drag and other variables
+# related to the damaged aircraft anyway, based on very incomplete information,
+# this approximation is about good enough and definitely much faster than tanh
+			
 
 var aircraftCrashControl = func (myNodeName) 
 {
 
-	if (!getprop(bomb_menu_pp~"bombable-enabled") ) return;
+	if (!bombableMenu["bombable-enabled"] ) return;
 	var ats = attributes[myNodeName];
 	var ctrls = ats.controls;	
 				
@@ -8485,11 +8523,12 @@ var aircraftCrashControl = func (myNodeName)
 		return();
 	}
 
-	var loopTime = 0.095 + rand() * .01; #rjw add noise
+	# var loopTime = 0.095 + rand() * .01; #rjw add noise
+	var loopTime = 0.475 + rand() * .05; #rjw reduced frequency - looks OK - else could keep high frequency for picth and speed change
 
 	var crash = ctrls.crash;
 	crash.elapsedTime += loopTime;
-	crash.crashCounter += 1;	
+	# crash.crashCounter += 1;	# removed - debug only
 	
 	var newTrueAirspeed_fps = crash.initialSpeed + crash.speedChange / ( 1 + 5 / crash.elapsedTime );
 
@@ -8509,58 +8548,40 @@ var aircraftCrashControl = func (myNodeName)
 		var newVertSpeed = math.sin(newPitchAngle * D2R) * newTrueAirspeed_fps;
 	}
 
-	# Using initial airspeed + x ft/sec as the terminal velocity (x <= 120 fps) & running this loop ~10X per second
-	# t/(t+5) is a crude approximation of tanh(t), which is the real equation
-	# to use for terminal velocity under gravity with drag proportional to v squared.  However tanh is very expensive
-	# and since we have to approximate the coefficient of drag and other variables
-	# related to the damaged aircraft anyway, based on very incomplete information,
-	# this approximation is about good enough and definitely much faster than tanh
-	# rjw: the aircraft descent is modelled as a powered dive with the air speed potentially increasing
-	# See http://www.dept.aoe.vt.edu/~lutze/AOE3104/glidingflight.pdf
-	# Could measure dive speeds for different engine rpm and pitch angle for the aircraft model and include as attribute?
-				
-	var delta_ft = newVertSpeed * loopTime;	
-	# delta_ft is the vertical drop in time interval loopTime
 	
-	# Change target-altitude
-	var currAlt_ft = getprop(""~myNodeName~ "/position/altitude-ft");
-	# setprop (""~myNodeName~ "/controls/flight/target-alt", currAlt_ft + delta_ft);
-	setprop (""~myNodeName~ "/controls/flight/target-alt", currAlt_ft + 4 * delta_ft); # force the AC down
-	# debprint("Bombable: CrashControl: delta = ",delta_ft, " ",currAlt_ft," ", myNodeName);
-
-
-	# Change vertical speed
+	# Change speeds
 	setprop (""~myNodeName~ "/velocities/vertical-speed-fps", newVertSpeed);
-	crash.vertSpeed = newVertSpeed;	
-	
-	# Change target-speed
-	# target_spd = getprop(""~myNodeName~ "/controls/flight/target-spd");
 	setprop (""~myNodeName~ "/velocities/true-airspeed-kt", newTrueAirspeed_fps * FPS2KT);
-	setprop (""~myNodeName~ "/controls/flight/target-spd", newTrueAirspeed_fps * FPS2KT);
+	crash.vertSpeed = newVertSpeed;	
 
-	
 	# Change pitch
 	setprop (""~myNodeName~ "/orientation/pitch-deg", newPitchAngle );
 	# setprop (""~myNodeName~ "/controls/flight/target-pitch", newPitchAngle ); # not sure useful since vertical-mode is 'alt'
 	# rjw:  maximum pitch is 70 degrees
 	# if (pitchAngle > -70) pitchAngle +=  pitchPerLoop;
 	# setprop (""~myNodeName~ "/orientation/pitch-deg", pitchAngle); 
+	
+	# Change target speed and alt
+	setprop (""~myNodeName~ "/controls/flight/target-spd", newTrueAirspeed_fps * FPS2KT);
+	var currAlt_ft = getprop(""~myNodeName~ "/position/altitude-ft");
+	var delta_ft = newVertSpeed * loopTime;	
+	setprop (""~myNodeName~ "/controls/flight/target-alt", currAlt_ft + 4 * delta_ft); # force the AC down
 
 	# Make it roll
 	var rollAngle = getprop (""~myNodeName~ "/orientation/roll-deg");
 	if (rand() < (loopTime / 5) or math.abs(rollAngle) > 70) setprop (""~myNodeName~ "/controls/flight/target-roll", (rand() - .5) * 140); 
 	
-	if (math.fmod(crash.crashCounter , 10) == 0) 
-	debprint
-	(
-		sprintf(
-		"Bombable: CrashControl for %s: newTrueAirspeed_fps = %6.1f newVertSpeed = %6.1f newPitchAngle = %6.1f target-alt = %5.0f",
-		getCallSign(myNodeName),
-		newTrueAirspeed_fps,
-		newVertSpeed,
-		newPitchAngle,	
-		currAlt_ft + 4 * delta_ft
-	));
+	# if (math.fmod(crash.crashCounter , 10) == 0) 
+	# debprint
+	# (
+	# 	sprintf(
+	# 	"Bombable: CrashControl for %s: newTrueAirspeed_fps = %6.1f newVertSpeed = %6.1f newPitchAngle = %6.1f target-alt = %5.0f",
+	# 	getCallSign(myNodeName),
+	# 	newTrueAirspeed_fps,
+	# 	newVertSpeed,
+	# 	newPitchAngle,	
+	# 	currAlt_ft + 4 * delta_ft
+	# ));
 
 	# elevation of -1371 ft is a failsafe (lowest elevation on earth); so is
 	# elapsed, so that we don't get stuck in this routine forever
@@ -8575,27 +8596,13 @@ var aircraftCrashControl = func (myNodeName)
 	}
 	
 }
-################################## stopDodgeAttack ################################
-
-var stopDodgeAttack = func (myNodeName) 
-{
-	var ctrls = attributes[myNodeName].controls;
-	ctrls.dodgeInProgress = 0;
-	ctrls.attackInProgress = 0;
-	inc_loopid(myNodeName, "roll");
-	inc_loopid(myNodeName, "speed_adjust");
-	inc_loopid(myNodeName, "attack");
-}
-
-
-
 
 ################################## aircraftCrash ################################
 # rjw initializes the aircraft crash loop
 
 var aircraftCrash = func (myNodeName) 
 {
-	if (!getprop(bomb_menu_pp~"bombable-enabled") ) return;
+	if (!bombableMenu["bombable-enabled"] ) return;
 
 	stopDodgeAttack(myNodeName);
 
@@ -8626,7 +8633,6 @@ var aircraftCrash = func (myNodeName)
 		maxVertSpeed : -speedChange * 0.94, # i.e. sin(70 deg), assuming max pitch 70 deg & max 50% reduction of airspeed to reach terminal velocity 
 		speedChange : speedChange ,
 		elapsedTime : 0 ,
-		crashCounter : 0 ,
 	};
 
 	debprint (sprintf("Bombable: Starting crash control for %s, pitchChange = %5.1f, speedChange = %5.1f",
@@ -8942,7 +8948,7 @@ var add_damage = func
 )
 
 {
-	if (!getprop(bomb_menu_pp~"bombable-enabled") ) return 0;
+	if (!bombableMenu["bombable-enabled"] ) return 0;
 	if (myNodeName == "") 
 	{
 		var damAdd = mainAC_add_damage(damageRise, 0,"weapons", "Damaged by own weapons!");
@@ -9017,21 +9023,21 @@ var add_damage = func
 		# only display about 1 in 20 of the messages.
 		# If we don't do this the small damageRises from fires overwhelm the message area
 		# and we don't know what's going on.
+		if (damagetype == "weapon" or damageRise > 0.1 or rand() < .05)
+		{
+			damageRiseDisplay = round( damageRise * 100 );
+			if (damageRise < .01) damageRiseDisplay = sprintf ("%1.2f",damageRise * 100);
+			elsif (damageRise < .1) damageRiseDisplay = sprintf ("%1.1f",damageRise * 100);
+							
+							
+			var msg = "Damage added: " ~ damageRiseDisplay ~ "% for " ~  callsign ~ " Total: " ~ round ( damageValue * 100 ) ~ "%, Skill: " ~ math.ceil(10 * weapPowerSkill) ~ msg2;
+			debprint ( "Bombable: " ~ msg ~ " " ~ myNodeName );
+							
+			targetStatusPopupTip (msg, 20);
+		}
+
 		if (damagetype == "weapon") 
 		{
-			if (damageRise > 0.1 or rand() < .05)
-			{
-				damageRiseDisplay = round( damageRise * 100 );
-				if (damageRise < .01) damageRiseDisplay = sprintf ("%1.2f",damageRise * 100);
-				elsif (damageRise < .1) damageRiseDisplay = sprintf ("%1.1f",damageRise * 100);
-								
-								
-				var msg = "Damage added: " ~ damageRiseDisplay ~ "% for " ~  callsign ~ " Total: " ~ round ( damageValue * 100 ) ~ "%, Skill: " ~ math.ceil(10 * weapPowerSkill) ~ msg2;
-				debprint ( "Bombable: " ~ msg ~ " " ~ myNodeName );
-								
-				targetStatusPopupTip (msg, 20);
-			}
-
 			# if (myNodeName2 != nil and damageRise > 0.025 and rand() < 0.5 and !ats.fixed)
 			# assume any ww1/2 aircraft with fixed weapons are better sticking on their target and dodging any new shooters
 			if (damageRise > 0.025 and rand() < 0.5 and myNodeName2 != nil and !ats.controls.attackInProgress)
@@ -9258,7 +9264,7 @@ var inc_loopid = func (nodeName = "", loopName = "")
 #  bombable.set_livery (cmdarg().getPath(), liveries);
 
 var set_livery = func (myNodeName, liveries) {
-	if (!getprop(bomb_menu_pp~"bombable-enabled") ) return;
+	if (!bombableMenu["bombable-enabled"] ) return;
 						
 						
 	if (! contains (bombable.attributes, myNodeName)) {
@@ -9809,7 +9815,7 @@ var bombable_init_func = func(myNodeName)
 	{
 		#debprint ("i: " , i);
 		listenerid = setlistener(i, func ( changedImpactReporterNode ) {
-			if (!getprop(bomb_menu_pp~"bombable-enabled") ) return 0;
+			if (!bombableMenu["bombable-enabled"] ) return 0;
 		test_impact( changedImpactReporterNode, myNodeName ); });
 		append(listenerids, listenerid);
 	}
@@ -9824,7 +9830,7 @@ var bombable_init_func = func(myNodeName)
 
 	#what to do when re-set is selected
 	setlistener("/sim/signals/reinit", func {
-		if (!getprop(bomb_menu_pp~"bombable-enabled") ) return 0;
+		if (!bombableMenu["bombable-enabled"] ) return 0;
 		resetBombableDamageFuelWeapons (myNodeName);
 		if (type == "multiplayer") mp_send_damage(myNodeName, 0);
 		debprint ("Bombable: Damage level and smoke reset for "~ myNodeName);
@@ -10105,7 +10111,7 @@ var weaponsOrientationPositionUpdate = func (myNodeName, elem) {
 	# no need to do this if any of these are turned off in the bombable menu
 	# though we may update weapons_loop to rely on these numbers as well
 	if (! getprop ( trigger1_pp~"ai-weapon-fire-visual"~trigger2_pp)
-	or ! getprop(bomb_menu_pp~"bombable-enabled")
+	or ! bombableMenu["bombable-enabled"]
 	) return;
 	
 	var thisWeapon = attributes[myNodeName].weapons[elem];
@@ -10177,7 +10183,7 @@ var weaponsTrigger_listener = func (changedNode,listenedNode){
 	# fair-sized job.
 	
 	# rjw TODO include MP ACs in the stack of projectile tracer models 
-	if (!getprop(bomb_menu_pp~"bombable-enabled") ) return 0;
+	if (!bombableMenu["bombable-enabled"] ) return 0;
 	# debprint ("Bombable: WeaponsTrigger_listener: ",changedNode.getValue(), " ", changedNode.getPath());
 	if ( changedNode.getValue()) {
 		setprop("/bombable/fire-particles/ai-weapon-firing",1);
@@ -10412,7 +10418,8 @@ var weapons_init_func = func(myNodeName)
 			# listenerid = setlistener ( listenNodeName ~ appendnum, weaponsTrigger_listener, 1, 0 );  #final 0 makes it listen only when the value is changed
 								
 			#So we're doing it the basic way: just listen directly to the generic/int node, 10-19:
-			listenerid = setlistener (""~myNodeName~"/sim/multiplay/generic/int["~genericintNum~"]", weaponsTrigger_listener, 1, 0 );  #final 0 makes it listen only when the listened value is changed; for MP it is written every frame but only changed occasionally
+			listenerid = setlistener (""~myNodeName~"/sim/multiplay/generic/int["~genericintNum~"]", weaponsTrigger_listener, 1, 0 );  
+			#final 0 makes it listen only when the listened value is changed; for MP it is written every frame but only changed occasionally
 			append(listenerids, listenerid);
 		}
 		props.globals.getNode(""~myNodeName~"/bombable/weapons/listenerids",1).setValues({listenerids: listenerids});
@@ -10973,7 +10980,10 @@ settimer (func
 	debprint ("Bombable: Delaying start scenario . . . ", getprop("/sim/ai/scenario"));
 }, 5);
 
+bombableMenu = {}; # used for menu items accessed frequently
+
 setprop("/sim/ai/scenario-initialized", 0);
+
 settimer (func {startScenario () }, 37.37); #wait till objects loaded
 
 
@@ -11047,7 +11057,7 @@ var bombableInit = func {
 	{
 		#debprint ("i: " , i);
 		listenerid = setlistener(i, func ( changedImpactReporterNode ) {
-		if (!getprop(bomb_menu_pp~"bombable-enabled") ) return 0;
+		if (!bombableMenu["bombable-enabled"] ) return 0;
 		test_impact( changedImpactReporterNode, "" ); });
 		#append(listenerids, listenerid);
 	}
@@ -11085,7 +11095,7 @@ var bombableInit = func {
 		if (getprop("/sim/crashed")) 
 		{
 							
-			if (!getprop(bomb_menu_pp~"bombable-enabled") ) return 0;
+			if (!bombableMenu["bombable-enabled"] ) return 0;
 			mainAC_add_damage(1, 1, "crash", "You crashed!");   #adds the damage to the main aircraft
 								
 			debprint ("Bombable: You crashed - on fire and damage set to 100%");
@@ -11106,17 +11116,17 @@ var bombableInit = func {
 	# when a lot of firing is going on)
 	#
 	setlistener("/bombable/attributes/damage", func {
-		if (!getprop(bomb_menu_pp~"bombable-enabled") ) return 0;
+		if (!bombableMenu["bombable-enabled"] ) return 0;
 		settimer (func {mp_send_main_aircraft_damage_update (0)}, 4.36);
 							
 	});
 	setlistener("/bombable/fire-particles/fire-burning", func {
-		if (!getprop(bomb_menu_pp~"bombable-enabled") ) return 0;
+		if (!bombableMenu["bombable-enabled"] ) return 0;
 		settimer (func {mp_send_main_aircraft_damage_update (0)}, 3.53);
 							
 	});
 	setlistener("/bombable/fire-particles/damagedengine-burning", func {
-		if (!getprop(bomb_menu_pp~"bombable-enabled") ) return 0;
+		if (!bombableMenu["bombable-enabled"] ) return 0;
 		settimer (func {mp_send_main_aircraft_damage_update (0)}, 4.554);
 							
 	});
@@ -11462,9 +11472,9 @@ var erf = func (xVal)
 
 var setWeaponPowerSkill = func(myNodeName)
 {
-	var power = getprop ("" ~bomb_menu_pp~ "ai-weapon-power");
+	var power = bombableMenu["ai-weapon-power"];
 	if (power == nil) power = 0.2;
-	var skill = getprop ("" ~bomb_menu_pp~ "ai-aircraft-skill-level");
+	var skill = bombableMenu["ai-aircraft-skill-level"];
 	if (skill == nil) skill = 1;
 
 	# power ranges 0.2 to 1; skill ranges 1 to 5
@@ -12028,7 +12038,7 @@ var findNewShooter = func (myIndex)
 	{
 		foundShooter = assignOneShooter (myIndex, allPlayers[otherSide]);
 	}
-	debprint("Bombable: foundShooter ", (foundShooter !=-1) ? nodes(foundShooter) : "fail", " for ", nodes[myIndex]);
+	debprint("Bombable: foundShooter ", (foundShooter !=-1) ? nodes[foundShooter] : "fail", " for ", nodes[myIndex]);
 	return(foundShooter);
 }
 
@@ -12098,7 +12108,7 @@ var startScenario = func()
 	}	
 	var scenarioName = getprop("/sim/ai/scenario");
 	debprint("Bombable: starting scenario "~scenarioName);
-	if (scenarioName == "BOMB-MarinCounty-Zeros-F6Fsv4")
+	if (scenarioName == "BOMB-MarinCountySixZerosSixF6Fs")
 	{
 		var scenario = 
 		{
@@ -12245,8 +12255,8 @@ var startScenario = func()
 			offsets :
 						[
 							[0, 0, 0], # offset behind, offset to right, in metres, i.e. model co-ord system
-							[75, 75, 2],
-							[75, -75, 1]
+							[40, 40, 2],
+							[40, -40, 1]
 						],
 			},
 			group3: #Zeros
@@ -12261,8 +12271,8 @@ var startScenario = func()
 			offsets :
 						[
 							[0, 0, 0],
-							[50, 100, 1],
-							[70, -80, 1]
+							[30, 50, 1],
+							[45, -30, -2]
 						],
 			},
 			group4: #Zeros
@@ -12276,9 +12286,9 @@ var startScenario = func()
 			alt :			8000,
 			offsets :
 						[
-							[0, 0, 0],
-							[50, 100, 1],
-							[70, -80, 1]
+							[0, 0, 2],
+							[30, 40, 1],
+							[30, -45, 1]
 						],
 			},
 		};
