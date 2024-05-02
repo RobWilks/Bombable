@@ -1023,7 +1023,11 @@ var setAttributes = func (attsObject = nil)
 	attributes[""].loopids = { update_m_per_deg_latlon_loopid : 0 };
 	attributes[""].damage = 0;
 	attributes[""].exploded = 0;
-
+	attributes[""].team = "A";
+	attributes[""].side = 0;
+	attributes[""].myIndex = 0;
+	attributes[""].targetIndex = nil;
+	attributes[""].shooterIndex = [];
 	
 	# We setmaxlatlon here so that it is re-done on reinit--otherwise we
 	#get errors about maxlat being nil
@@ -1067,7 +1071,7 @@ var setAttributes = func (attsObject = nil)
 		if (getprop (GF_damage_menu_pp ~"/warning_enabled") == nil)
 		props.globals.getNode(GF_damage_menu_pp ~"/warning_enabled", 1).setValue(attsObject.vulnerabilities.gforce_damage.warning_enabled);
 	}
-props.globals.getNode(""~attributes_pp~"/attributes-set", 1).setValue(1);
+	props.globals.getNode(""~attributes_pp~"/attributes-set", 1).setValue(1);
 }
 
 
@@ -6063,7 +6067,7 @@ var weapons_loop = func (id, myNodeName1 = "", targetSize_m = nil) {
 	# need to get AI targetSize
 
 	if (ats.targetIndex < 0) return; # no target available
-	var myNodeName2 = (ats.targetIndex == 666) ? "" : nodes[ats.targetIndex];
+	var myNodeName2 = (ats.targetIndex == 0) ? "" : nodes[ats.targetIndex];
 
 	#debprint ("weapons_loop starting");
 
@@ -6242,7 +6246,7 @@ var weapons_loop = func (id, myNodeName1 = "", targetSize_m = nil) {
 					{
 						if ( rand() < (weapPowerSkill * weapPowerSkill) / (ats.attacks["rocketsInAir"] + 1) / (ats.attacks["rocketsInAir"] + 1))
 						{
-							if ((myNodeName2 == "") or (getprop(""~myNodeName2~"/bombable/initializers/attack-initialized") == 1)) #check target initialized (sporting)
+							if ((myNodeName2 == "") or (getprop(""~myNodeName2~"/bombable/initializers/bombable-initialized") == 1)) #check target initialized (sporting)
 							{
 								launchRocket(myNodeName1, elem, loopTime);
 							}
@@ -10966,13 +10970,17 @@ settimer (func {damageCheck () }, 60.11); #wait 30 sec before first damage check
 
 ####################################
 # global variables for managing targets for AI objects
-var teams = {};
+var teams = 
+{
+	A:{indices: [0], target: nil, count: 1},
+}; 
+# the main AC is assigned team A, side 0 and index 0
 var allPlayers = 
 [
-	[],
+	[0],
 	[]
 ];
-var nodes = [];
+var nodes = [""]; #1st element is main AC
 
 settimer (func 
 {
@@ -11866,14 +11874,15 @@ var shuffle = func(x)
 # objects are grouped into teams, which are named A - Z
 # each team is a key in the hash, which contains a vector of the indices for that team
 # teams are grouped into two opposing sides:  0: A-M and 1: N-Z
+# the main AC is in a team by itself - team A
 # allPlayers contains all objects, with indices '0' and '1', indicating the side
-# the team name (A-Z) should be the last character of the object's callsign
+# the team name (B-Z) should be the last character of the object's callsign
 # nodes records the nodeName for each index; reverse lookup (nodename -> index) is by attributes
 
 var addToTargets = func(myNodeName)
 {
 	var myIndex = getprop("/bombable/targets/index");
-	if (myIndex == nil) myIndex = 0;
+	if (myIndex == nil) myIndex = 1; # 0 is for main AC
 	var ats = attributes[myNodeName];
 	ats.index = myIndex;
 	append(nodes, myNodeName);
@@ -11881,9 +11890,9 @@ var addToTargets = func(myNodeName)
 	var callsign = getprop(""~myNodeName~"/callsign"); 
 	var teamName = right(callsign, 1);
 	#check valid team
-	if (find(teamName, "ABCDEFGHIJKLMNOPQRSTUVWXYZ") == -1)
+	if (find(teamName, "BCDEFGHIJKLMNOPQRSTUVWXYZ") == -1)
 	{
-		debprint(callsign, " not a valid team - require (A-Z)");
+		debprint(callsign, " not a valid team - require (B-Z) - A is the main aircraft");
 		return;
 	}
 	if (teams[teamName] == nil) teams[teamName] = {indices: [], target: nil, count: 0};
@@ -11894,7 +11903,7 @@ var addToTargets = func(myNodeName)
 	ats.side = side;
 }
 ########################## initTargets ###########################
-# assigns a target for each object in each team
+# assigns a target for each object in each team, except for the main AC, team A
 # attributes.shooterIndex is a vector containing the indices of the nodes shooting at the object
 # targetTeam is a team on the opposing side set by the scenario
 # the list of targets is shuffled before being assigned
@@ -11908,6 +11917,7 @@ var initTargets = func ()
 	foreach (var side; [0, 1]) allPlayers[side] = shuffle(allPlayers[side]);
 	foreach (teamName; keys(teams))
 	{
+		if (teamName == "A") continue;
 		var targetTeam = teams[teamName].target;
 		var side = (find(targetTeam, "ABCDEFGHIJKLM") == -1);
 		forindex (var i; teams[teamName].indices)
@@ -11947,6 +11957,7 @@ var initTargets = func ()
 # a target _will_ be assigned
 # if there are more shooters than targets then some targets will have more than one shooter 
 # max no of shooters for one target
+# only called by AI objects - not by main AC
 
 var assignOneTarget = func (myIndex, targets)
 {
@@ -11983,6 +11994,7 @@ var assignOneTarget = func (myIndex, targets)
 # func assigns a shooter from the list of indices of shooters
 # targetIndex of -1 indicates object has no target assigned
 # returns the index of my new shooter
+# main AC cannot be assigned since its target index is nil
 
 
 var assignOneShooter = func (myIndex, shooters)
@@ -12048,7 +12060,7 @@ var findNewShooter = func (myIndex)
 # find new shooter for my target
 # -1 is unassigned
 # -2 is not available
-# 666 is main AC
+# index 0 is main AC
 
 var resetTargetShooter = func (myIndex, destroyed)
 {
@@ -12114,7 +12126,7 @@ var startScenario = func()
 		{
 			group1:
 			{
-			team :			"A",
+			team :			"D",
 			target :		"Y",
 			arrivalTime :	90, # sec
 			airSpeed : 		250 * KT2MPS,
@@ -12134,7 +12146,7 @@ var startScenario = func()
 			group2:
 			{
 			team :			"Y",
-			target :		"A",
+			target :		"D",
 			arrivalTime :	90, # sec
 			airSpeed : 		280 * KT2MPS,
 			airportName :	"CA35",
@@ -12150,7 +12162,7 @@ var startScenario = func()
 			group3:
 			{
 			team :			"Z",
-			target :		"A",
+			target :		"D",
 			arrivalTime :	110, # sec
 			airSpeed : 		280 * KT2MPS,
 			airportName :	"CA35",
@@ -12172,7 +12184,7 @@ var startScenario = func()
 		{
 			group1: #Zeros
 			{
-			team :			"A",
+			team :			"D",
 			target :		"Y",
 			arrivalTime :	90, # sec
 			airSpeed : 		250 * KT2MPS,
@@ -12191,7 +12203,7 @@ var startScenario = func()
 			group2: #B17s
 			{
 			team :			"Y",
-			target :		"A",
+			target :		"D",
 			arrivalTime :	90, # sec
 			airSpeed : 		182 * KT2MPS,
 			airportName :	"CA35",
@@ -12209,7 +12221,7 @@ var startScenario = func()
 			group3: #F6Fs
 			{
 			team :			"Z",
-			target :		"A",
+			target :		"D",
 			arrivalTime :	120, # sec
 			airSpeed : 		280 * KT2MPS,
 			airportName :	"CA35",
@@ -12230,7 +12242,7 @@ var startScenario = func()
 			group1: #B17s
 			{
 			team :			"Y",
-			target :		"A",
+			target :		"D",
 			arrivalTime :	90, # sec
 			airSpeed : 		182 * KT2MPS,
 			airportName :	"CA35",
@@ -12245,7 +12257,7 @@ var startScenario = func()
 			},
 			group2: #Zeros
 			{
-			team :			"A",
+			team :			"D",
 			target :		"Y",
 			arrivalTime :	90, # sec
 			airSpeed : 		250 * KT2MPS,
@@ -12293,6 +12305,76 @@ var startScenario = func()
 			},
 		};
 	}
+	elsif (scenarioName == "BOMB-MarinCountyNineA6M5ThreeB17")
+	{
+		var scenario = 
+		{
+			group1: #B17s
+			{
+			team :			"B",
+			target :		"X",
+			arrivalTime :	90, # sec
+			airSpeed : 		182 * KT2MPS,
+			airportName :	"CA35",
+			heading :		70,
+			alt :			5000,
+			offsets :
+						[
+							[0, 0, 0],
+							[80, -80, -3],
+							[80, 80, 2]
+						],
+			},
+			group2: #Zeros
+			{
+			team :			"X",
+			target :		"B",
+			arrivalTime :	90, # sec
+			airSpeed : 		250 * KT2MPS,
+			airportName :	"CA35",
+			heading :		90,# 0 - 360 degrees
+			alt :			6000, # in feet
+			offsets :
+						[
+							[0, 0, 0], # offset behind, offset to right, in metres, i.e. model co-ord system
+							[40, 40, 2],
+							[40, -40, 1]
+						],
+			},
+			group3: #Zeros
+			{
+			team :			"Y",
+			target :		"B",
+			arrivalTime :	110, # sec
+			airSpeed : 		250 * KT2MPS,
+			airportName :	"CA35",
+			heading :		90,
+			alt :			6100,
+			offsets :
+						[
+							[0, 0, 0],
+							[30, 50, 1],
+							[45, -30, -2]
+						],
+			},
+			group4: #Zeros
+			{
+			team :			"Z",
+			target :		"B",
+			arrivalTime :	130, # sec
+			airSpeed : 		280 * KT2MPS,
+			airportName :	"CA35",
+			heading :		350,
+			alt :			8000,
+			offsets :
+						[
+							[0, 0, 2],
+							[30, 40, 1],
+							[30, -45, 1]
+						],
+			},
+		};
+	}
 	else
 	{
 		debprint("Bombable: startScenario: Error "~scenarioName~" not in database");
@@ -12304,7 +12386,12 @@ var startScenario = func()
 	{
 		var from = airportinfo(scenario[group].airportName);
 		var teamName = scenario[group].team;
-		if (find(teamName, "ABCDEFGHIJKLMNOPQRSTUVWXYZ") == -1)
+		if (teamName == "A")
+		{
+			debprint("Bombable: startScenario: Error in scenario definition for "~group~" - \"A\" reserved for main AC");
+			break;
+		}
+		if (find(teamName, "BCDEFGHIJKLMNOPQRSTUVWXYZ") == -1)
 		{
 			debprint("Bombable: startScenario: Error in scenario definition for "~group~" - no team");
 			break;
@@ -12323,7 +12410,8 @@ var startScenario = func()
 				break;
 			}
 			teams[teamName].target = targetTeam;
-			debprint("Bombable: startScenario: Target team for "~group~" is "~targetTeam);
+			var msg = (targetTeam == "A") ? "main AC" : targetTeam;
+			debprint("Bombable: startScenario: Target team for "~group~" is " ~ msg);
 		}
 		# location lead aircraft
 		GeoCoord.set_latlon(from.lat, from.lon);
