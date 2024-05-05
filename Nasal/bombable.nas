@@ -2924,7 +2924,7 @@ var ground_loop = func( id, myNodeName )
 				
 		var target_alt_AGL_ft = initial_altitude_ft - alt_ft - alts.wheelsOnGroundAGL_ft; 
 				
-		# debprint (sprintf("Bombable: Initial Altitude:%6.0f Target AGL:%6.0f Object = %s", initial_altitude_ft, target_alt_AGL_ft, myNodeName));
+		debprint (sprintf("Bombable: Initial Altitude:%6.0f Target AGL:%6.0f Object = %s", initial_altitude_ft, target_alt_AGL_ft, myNodeName));
 		# debprint ("Bombable: ", alt_ft, " ", toRightAlt_ft, " ",toLeftAlt_ft, " ",toFrontAlt_ft," ", toLeftAlt_ft, " ", alts.wheelsOnGroundAGL_ft);
 		
 		if (type != "aircraft") 
@@ -9636,21 +9636,23 @@ var initialize_func = func ( b ){
 		var n = 0;
 		foreach (elem ; keys(b.weapons)) {
 			n += 1;
-			if (b.weapons[elem].name == nil ) b.weapons[elem].name = "Weapon " ~ n;
-			if (b.weapons[elem].maxDamage_percent == nil ) b.weapons[elem].maxDamage_percent = 5;
+			if (b.weapons[elem]["name"] == nil ) b.weapons[elem].name = "Weapon " ~ n;
+			if (b.weapons[elem]["maxDamage_percent"] == nil ) b.weapons[elem].maxDamage_percent = 5;
 			if (b.weapons[elem].maxDamage_percent < 0) b.weapons[elem].maxDamage_percent = 0;
 			if (b.weapons[elem].maxDamage_percent > 100) b.weapons[elem].maxDamage_percent = 100;
-			if (b.weapons[elem].maxDamageDistance_m == nil ) b.weapons[elem].maxDamageDistance_m = 500;
+			if (b.weapons[elem]["maxDamageDistance_m"] == nil ) b.weapons[elem].maxDamageDistance_m = 500;
 			if (b.weapons[elem].maxDamage_percent <= 0) b.weapons[elem].maxDamageDistance_m = 1;
-			if (b.weapons[elem].weaponAngle_deg.heading == nil ) b.weapons[elem].weaponAngle_deg.heading = 0;
-			if (b.weapons[elem].weaponAngle_deg.elevation == nil ) b.weapons[elem].weaponAngle_deg.elevation = 0;
-			if (b.weapons[elem].weaponAngle_deg.headingMin == nil ) b.weapons[elem].weaponAngle_deg.headingMin = -60;
-			if (b.weapons[elem].weaponAngle_deg.headingMax == nil ) b.weapons[elem].weaponAngle_deg.headingMax = 60;
-			if (b.weapons[elem].weaponAngle_deg.elevationMin == nil ) b.weapons[elem].weaponAngle_deg.elevationMin = -20;
-			if (b.weapons[elem].weaponAngle_deg.elevationMax == nil ) b.weapons[elem].weaponAngle_deg.elevationMax = 20;
-			if (b.weapons[elem].weaponOffset_m.x == nil ) b.weapons[elem].weaponOffset_m.x = 0;
-			if (b.weapons[elem].weaponOffset_m.y == nil ) b.weapons[elem].weaponOffset_m.y = 0;
-			if (b.weapons[elem].weaponOffset_m.z == nil ) b.weapons[elem].weaponOffset_m.z = 0;
+			if (b.weapons[elem]["weaponAngle_deg"] == nil) b.weapons[elem].weaponAngle_deg= {};
+			if (b.weapons[elem].weaponAngle_deg["heading"] == nil ) b.weapons[elem].weaponAngle_deg.heading = 0;
+			if (b.weapons[elem].weaponAngle_deg["elevation"] == nil ) b.weapons[elem].weaponAngle_deg.elevation = 0;
+			if (b.weapons[elem].weaponAngle_deg["headingMin"] == nil ) b.weapons[elem].weaponAngle_deg.headingMin = -60;
+			if (b.weapons[elem].weaponAngle_deg["headingMax"] == nil ) b.weapons[elem].weaponAngle_deg.headingMax = 60;
+			if (b.weapons[elem].weaponAngle_deg["elevationMin"] == nil ) b.weapons[elem].weaponAngle_deg.elevationMin = -20;
+			if (b.weapons[elem].weaponAngle_deg["elevationMax"] == nil ) b.weapons[elem].weaponAngle_deg.elevationMax = 20;
+			if (b.weapons[elem]["weaponOffset_m"] == nil ) b.weapons[elem].weaponOffset_m = {};
+			if (b.weapons[elem].weaponOffset_m["x"] == nil ) b.weapons[elem].weaponOffset_m.x = 0;
+			if (b.weapons[elem].weaponOffset_m["y"] == nil ) b.weapons[elem].weaponOffset_m.y = 0;
+			if (b.weapons[elem].weaponOffset_m["z"] == nil ) b.weapons[elem].weaponOffset_m.z = 0;
 
 			if (!contains(b.weapons[elem], "weaponSize_m"))
 			b.weapons[elem].weaponSize_m = {start:nil, end:nil};
@@ -10578,8 +10580,9 @@ var rocketParmCheck = func( thisWeapon )
 		debprint (
 		sprintf
 			(
-				"Bombable: %s stage 1 thrust %6.0fN calculated from burn time %6.0fs, fuel mass %6.0fkg and specific impulse %6.0fs",
+				"Bombable: %s stage %i thrust %6.0fN calculated from burn time %6.0fs, fuel mass %6.0fkg and specific impulse %6.0fs",
 				thisWeapon.name,
+				j,
 				thisWeapon["thrust"~j],
 				thisWeapon["burn"~j],
 				thisWeapon["massFuel_"~j],
@@ -11887,7 +11890,7 @@ var addToTargets = func(myNodeName)
 	ats.index = myIndex;
 	append(nodes, myNodeName);
 	setprop("/bombable/targets/index", myIndex + 1);
-	var callsign = getprop(""~myNodeName~"/callsign"); 
+	var callsign = getCallSign(myNodeName); 
 	var teamName = right(callsign, 1);
 	#check valid team
 	if (find(teamName, "BCDEFGHIJKLMNOPQRSTUVWXYZ") == -1)
@@ -12089,7 +12092,7 @@ var resetTargetShooter = func (myIndex, destroyed)
 
 	# remove me from my target's list of shooters
 	# if my target no longer has a shooter, find one
-	var result = remove(myTargetsShooters, myIndex);
+	var result = removeFirst(myTargetsShooters, myIndex);
 	if (size(result) == 0)
 	{
 		foundShooter = findNewShooter(myTarget);
@@ -12107,13 +12110,16 @@ var resetTargetShooter = func (myIndex, destroyed)
 # each object in the group is given an offset in metres relative to the lead object
 # the number of offsets defines the number of objects in the group
 # the scenario xml file positions all AI objects on the airport runway close to the main AC to ensure they are loaded quickly
-# the call to startScenario is delayed until FG has loaded all objects into the airport scene
+# the call to startScenario is delayed until FG has loaded all aircraft and ship objects into the airport scene
 # a scenario-initialized flag is set which will then enable initialization of weapons, ground and attack loops 
 
 
 var startScenario = func()
 {
-	if (getprop("/bombable/targets/index") != getprop("/ai/models/count"))
+	# if (getprop("/bombable/targets/index") != getprop("/ai/models/count"))
+	if (getprop("/bombable/targets/index") != 
+	size(props.globals.getNode ("/ai/models").getChildren("aircraft")) +
+	size(props.globals.getNode ("/ai/models").getChildren("ship")) + 1)  # bombable uses only two types of AI object; 1 for main AC
 	{
 		settimer (func {startScenario();}, 5, 1); # wait til all 3D models have been loaded
 		return;
@@ -12375,6 +12381,56 @@ var startScenario = func()
 			},
 		};
 	}
+	elsif (scenarioName == "BOMB-Llandbehr_Type45")
+	{
+		var scenario = 
+		{
+			group1: #Type45
+			{
+			team :			"B",
+			target :		"Z",
+			arrivalTime :	-360, # sec
+			airSpeed : 		15 * KT2MPS,
+			airportName :	"EGOD",
+			heading :		225,
+			alt :			0,
+			offsets :
+						[
+							[0, 0, 0]
+						],
+			},
+			# group2: #rockets
+			# {
+			# team :			"C",
+			# target :		"Z",
+			# arrivalTime :	-360, # sec
+			# airSpeed : 		15 * KT2MPS,
+			# airportName :	"EGOD",
+			# heading :		225,# 0 - 360 degrees
+			# alt :			100, # in feet
+			# offsets :
+			# 			[
+			# 				[0, 0, 0], # offset behind, offset to right, in metres, i.e. model co-ord system
+			# 				[40, 0, 0],
+			# 				[80, 0, 0]
+			# 			],
+			# },
+			group3: #F15
+			{
+			team :			"Z",
+			target :		"B",
+			arrivalTime :	-200, # sec
+			airSpeed : 		15 * KT2MPS,
+			airportName :	"EGOD",
+			heading :		225,
+			alt :			500,
+			offsets :
+						[
+							[0, 0, 0]
+						],
+			},
+		};
+	}
 	else
 	{
 		debprint("Bombable: startScenario: Error "~scenarioName~" not in database");
@@ -12431,15 +12487,25 @@ var startScenario = func()
 			if (count < size(teams[teamName].indices)) # check to ensure scenario definition and xml file are consistent
 			{
 				myNodeName = nodes[teams[teamName].indices[count]];
+				var type = attributes[myNodeName].type;
 				count += 1;
 				teams[teamName].count = count;
-				setprop(""~myNodeName~"/controls/flight/target-spd", scenario[group].airSpeed);
-				setprop(""~myNodeName~"/velocities/true-airspeed-kt", scenario[group].airSpeed);
 				setprop(""~myNodeName~"/orientation/true-heading-deg", scenario[group].heading);
 				setprop(""~myNodeName~"/position/latitude-deg", GeoCoord2.lat());
 				setprop(""~myNodeName~"/position/longitude-deg", GeoCoord2.lon());
-				setprop(""~myNodeName~"/controls/flight/target-alt", scenario[group].alt + o[2] * M2FT);
-				setprop(""~myNodeName~"/position/altitude-ft", scenario[group].alt + o[2] * M2FT);
+				if (type == "aircraft")
+				{
+					setprop(""~myNodeName~"/velocities/true-airspeed-kt", scenario[group].airSpeed);
+					setprop(""~myNodeName~"/controls/flight/target-spd", scenario[group].airSpeed);
+					setprop(""~myNodeName~"/controls/flight/target-alt", scenario[group].alt + o[2] * M2FT);
+					setprop(""~myNodeName~"/position/altitude-ft", scenario[group].alt + o[2] * M2FT);
+				}
+				elsif (type == "ship")
+				{
+					setprop(""~myNodeName~"/controls/tgt-heading-degs", scenario[group].heading);
+					setprop(""~myNodeName~"/velocities/speed-kts", scenario[group].airSpeed);
+					setprop(""~myNodeName~"/controls/tgt-speed-kts", scenario[group].airSpeed);
+				}
 			}
 		}
 	}
@@ -12454,10 +12520,10 @@ var startScenario = func()
 
 	setprop("/sim/ai/scenario-initialized", 1);
 }
-########################## remove ###########################
+########################## removeAll ###########################
 # removes all occurrences of element from vector
 # returns vector
-var remove = func(vector, element)
+var removeAll = func(vector, element)
 {
 var result = [];
 foreach (var elem; vector)
@@ -12466,5 +12532,19 @@ foreach (var elem; vector)
 }
 return(result);
 }
+
+
+########################## removeFirst ###########################
+# remove first occurrence of element from vector
+# returns vector
+var removeFirst = func(vector, element)
+{
+	var index = vecindex(vector , element);
+	if (index == nil) return (vector);
+	if (index == 0) return ( size(vector) != 1 ? vector[1 : ] : []);
+	if (index == size(vector) - 1) return vector[:index-1];
+	return(vector[:index-1, index+1:]);
+}
+
 
 ########################## END ###########################
