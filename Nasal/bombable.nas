@@ -3009,7 +3009,7 @@ var ground_loop = func( id, myNodeName )
 	{
 		#go to object's resting altitude
 		#rjw onGround is set by hitground_stop_explode
-		debprint("Bombable: ", myNodeName, " on ground. Exploded = ", ats.exploded);
+		# debprint("Bombable: ", myNodeName, " on ground. Exploded = ", ats.exploded);
 		
 		setprop (""~myNodeName~"/position/altitude-ft", objectsLowestAllowedAlt_ft );
 		setprop (""~myNodeName~"/controls/flight/target-alt",  objectsLowestAllowedAlt_ft);
@@ -6066,8 +6066,8 @@ var weapons_loop = func (id, myNodeName1 = "", targetSize_m = nil) {
 
 	# need to get AI targetSize
 
-	if (ats.targetIndex < 0) return; # no target available
-	var myNodeName2 = (ats.targetIndex == 0) ? "" : nodes[ats.targetIndex];
+	if (!size(ats.targetIndex)) return; # no target available
+	var myNodeName2 = (ats.targetIndex[0] == 0) ? "" : nodes[ats.targetIndex[0]];
 
 	#debprint ("weapons_loop starting");
 
@@ -7865,9 +7865,9 @@ var attack_loop = func ( id, myNodeName )
 	# set the node to attack
 	var targetNode = "";
 	var addTrue = "";
-	if (ats.targetIndex != -1)
+	if (size(ats.targetIndex))
 	{
-		targetNode = nodes[ats.targetIndex];
+		targetNode = nodes[ats.targetIndex[0]];
 		addTrue = "true-";
 	}
 
@@ -9050,7 +9050,7 @@ var add_damage = func
 				# if not already attacking another
 				var ats2 = attributes[myNodeName2];
 				resetTargetShooter(ats.index, 0); # find a new shooter for my old target
-				ats.targetIndex = ats2.index; # set my new target to the shooter causing this damage
+				ats.targetIndex[0] = ats2.index; # set my new target to the shooter causing this damage
 				append (ats2.shooterIndex, ats.index); # add me to the new target's list of shooters
 				debprint (callsign, " set ", callsign2, " as new target");
 			}
@@ -9430,7 +9430,7 @@ var initialize_func = func ( b ){
 	b.exploded = 0;
 	b.team = nil;
 	b.myIndex = -1;
-	b.targetIndex = -1;
+	b.targetIndex = [];
 	b.shooterIndex = [];
 
 	if (! contains (b, "type")) b["type"] = props.globals.getNode(""~b.objectNodeName).getName(); 
@@ -10444,7 +10444,7 @@ var weapons_init_func = func(myNodeName)
 		# recalculate the size if new target assigned
 
 		# get targetSize
-		var targetNode = (ats.targetIndex == -1) ? "" : nodes[ats.targetIndex];
+		var targetNode = !size(ats.targetIndex) ? "" : nodes[ats.targetIndex[0]];
 		var targetSize_m = { vert : 4, horz : 8 }; 
 		if (attributes[targetNode]["dimensions"]["height_m"] != nil) # check probably not needed since default dimensions are provided by setAttributes
 		{
@@ -11984,18 +11984,18 @@ var assignOneTarget = func (myIndex, targets)
 	}
 	if ((k == -1) or (j > maxNo))
 	{
-		attributes[myNodeName].targetIndex = -1;
+		# attributes[myNodeName].targetIndex = [];
 		return (-1); # no targets available
 	}
 	append(attributes[nodes[targets[k]]].shooterIndex, myIndex);
-	attributes[myNodeName].targetIndex = targets[k];
+	append(attributes[myNodeName].targetIndex, targets[k]);
 	return (targets[k]);
 }
 
 ########################## assignOneShooter ###########################
 # I am the target
 # func assigns a shooter from the list of indices of shooters
-# targetIndex of -1 indicates object has no target assigned
+# targetIndex == [] indicates object has no target assigned
 # returns the index of my new shooter
 # main AC cannot be assigned since its target index is nil
 
@@ -12006,9 +12006,9 @@ var assignOneShooter = func (myIndex, shooters)
 	var myNodeName = nodes[myIndex];
 	foreach (var i; shooters)
 	{
-		if (attributes[nodes[i]].targetIndex == -1)
+		if (attributes[nodes[i]].targetIndex == [])
 		{
-			attributes[nodes[i]].targetIndex = myIndex;
+			append(attributes[nodes[i]].targetIndex, myIndex);
 			append(attributes[myNodeName].shooterIndex, i);
 			return (i);
 		}
@@ -12060,7 +12060,7 @@ var findNewShooter = func (myIndex)
 ########################## resetTargetShooter ###########################
 # called when I am destroyed - not necessarily by my shooter
 # find new target for my shooter
-# find new shooter for my target
+# find new shooter for each of my targets
 # -1 is unassigned
 # -2 is not available
 # index 0 is main AC
@@ -12068,16 +12068,32 @@ var findNewShooter = func (myIndex)
 var resetTargetShooter = func (myIndex, destroyed)
 {
 	var ats = attributes[nodes[myIndex]];
-	var myTarget = ats.targetIndex;
-	var myShooters = ats.shooterIndex;
-	var ats2 = attributes[nodes[myTarget]];
-	var myTargetsShooters = ats2.shooterIndex;
-	var foundTarget = -1;
-	var foundShooter = -1;
+
+	# remove me from my target's list of shooters
+	# if my target no longer has a shooter, find one
+
+	foreach (myTarget; ats.targetIndex)
+	{
+		var ats2 = attributes[nodes[myTarget]];
+		var myTargetsShooters = ats2.shooterIndex;
+		var foundShooter = -1;
+
+		var result = removeFirst(myTargetsShooters, myIndex);
+		if (size(result) == 0)
+		{
+			foundShooter = findNewShooter(myTarget);
+			if (foundShooter != -1) append(result, foundShooter);
+			debprint("New shooter index "~foundShooter);
+		}
+		ats2.shooterIndex = result;
+	}
 	
+	var foundTarget = -1;
+	var myShooters = ats.shooterIndex;
 	if (destroyed) 
 	{
-		ats.targetIndex = -2; # stops me being assigned a new target
+		ats.targetIndex = [];
+		ats.shooterIndex = []; # remove shooters from dead object
 		debprint("Bombable: ", nodes[myIndex], " no longer a target");
 
 		# find new target for my shooters
@@ -12087,19 +12103,7 @@ var resetTargetShooter = func (myIndex, destroyed)
 			foundTarget = findNewTarget(i);
 			debprint("New target index= "~foundTarget);
 		}
-		ats.shooterIndex = []; # remove shooters from dead object
 	}
-
-	# remove me from my target's list of shooters
-	# if my target no longer has a shooter, find one
-	var result = removeFirst(myTargetsShooters, myIndex);
-	if (size(result) == 0)
-	{
-		foundShooter = findNewShooter(myTarget);
-		if (foundShooter != -1) append(result, foundShooter);
-		debprint("New shooter index "~foundShooter);
-	}
-	ats2.shooterIndex = result;
 }
 ########################## startScenario ###########################
 # a scenario consists of:
@@ -12419,11 +12423,11 @@ var startScenario = func()
 			{
 			team :			"Z",
 			target :		"B",
-			arrivalTime :	-200, # sec
-			airSpeed : 		15 * KT2MPS,
+			arrivalTime :	300, # sec
+			airSpeed : 		150 * KT2MPS,
 			airportName :	"EGOD",
-			heading :		225,
-			alt :			500,
+			heading :		45,
+			alt :			1500,
 			offsets :
 						[
 							[0, 0, 0]
