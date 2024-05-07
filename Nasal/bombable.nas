@@ -5834,14 +5834,14 @@ var vertAngle_deg = func (geocoord1, geocoord2) {
 # Function called only by weapons_loop
 			
 
-var checkAim = func ( thisWeapon, myNodeName1 = "", myNodeName2 = "",
+var checkAim = func ( thisWeapon, 
+					tgtDisp,
+					myNodeName1 = "", myNodeName2 = "",
 					targetSize_m = nil,  weapPowerSkill = 1, 
 					damageValue = 0) 
 {
 	var targetSighted = 0; #flag true if target sighted which must happen before the weapon can be aimed
-	if (thisWeapon.maxDamageDistance_m <= 0) return (targetSighted);				
 	var ats = attributes[myNodeName1];
-	if (ats.distance_m > thisWeapon.maxDamageDistance_m ) return (targetSighted);
 	
 	thisWeapon.aim.nHit = 0;
 				
@@ -5909,7 +5909,7 @@ var checkAim = func ( thisWeapon, myNodeName1 = "", myNodeName2 = "",
 
 	# calculate the displacement of the target from the weapon using the displacement between the centres of the target and shooter
 	# in effect correct the distance for the offset of the weapon relative to the shooter origin	 
-	var targetDispRefFrame = vectorSubtract(ats.targetDispRefFrame, thisWeapon.aim.weaponOffsetRefFrame);
+	var targetDispRefFrame = vectorSubtract(tgtDisp, thisWeapon.aim.weaponOffsetRefFrame);
 	
 	# calculate the distance
 	var distance_m = vectorModulus(targetDispRefFrame); 
@@ -5989,7 +5989,7 @@ var checkAim = func ( thisWeapon, myNodeName1 = "", myNodeName2 = "",
 		debprint 
 		(
 			sprintf(
-			"Bombable: hit %s nHit = %6.3f offset deg = %6.2f weapPowerSkill = %4.1f",
+			"Bombable: Hit %s nHit = %6.3f offset deg = %6.2f weapPowerSkill = %4.1f",
 			myNodeName1 ~ ": " ~ thisWeapon.name,
 			thisWeapon.aim.nHit,
 			targetOffset_rad * R2D,
@@ -6063,7 +6063,7 @@ var weapons_loop = func (id, myNodeName1 = "", targetSize_m = nil) {
 	var loopTime = LOOP_TIME ;
 	settimer (  func { weapons_loop (id, myNodeName1, targetSize_m )}, loopTime);
 
-	if (!size(ats.targetIndex)) return; # no target available
+	if (! size(ats.targetIndex)) return; # no target available
 
 	if (! bombableMenu["ai-aircraft-weapons-enabled"] or ! bombableMenu["bombable-enabled"] ) return;
 				
@@ -6104,10 +6104,12 @@ var weapons_loop = func (id, myNodeName1 = "", targetSize_m = nil) {
 		ats.pitch_deg = getprop("" ~ myNodeName1 ~ "/orientation/pitch-deg");
 	}
 
-	var targets = [ats.targetIndex[0]];
-	foreach (index; targets)
+	var targetData = [];
+	var groundData = [];
+	var noLoS = 1; # flag for no target in line of sight
+	foreach (target; ats.targetIndex)
 	{
-		var myNodeName2 = nodes[index];
+		var myNodeName2 = nodes[target];
 		# info about target used by checkAim
 		var targetLat_deg = getprop(""~myNodeName2~"/position/latitude-deg"); # target
 		var targetLon_deg = getprop(""~myNodeName2~"/position/longitude-deg");
@@ -6117,20 +6119,19 @@ var weapons_loop = func (id, myNodeName1 = "", targetSize_m = nil) {
 		var deltaX_m = (targetLon_deg - alon_deg) * m_per_deg_lon;
 		var deltaY_m = (targetLat_deg - alat_deg) * m_per_deg_lat;
 		var deltaAlt_m = targetAlt_m - aAlt_m;
-
 					
 		# calculate targetDispRefFrame, the displacement vector from node1 (shooter) to node2 (target) in a lon-lat-alt (x-y-z) frame of reference aka 'reference frame'
 		# the shooter is at < 0,0,0 > 
-		ats.targetDispRefFrame = [deltaX_m, deltaY_m, deltaAlt_m];
-		ats.distance_m = vectorModulus (ats.targetDispRefFrame);
+		var targetDispRefFrame = [deltaX_m, deltaY_m, deltaAlt_m];
+		var distance_m = math.sqrt(deltaX_m * deltaX_m + deltaY_m * deltaY_m + deltaAlt_m * deltaAlt_m);
 
+		append (targetData, [deltaX_m, deltaY_m, deltaAlt_m, distance_m]);
 
 		# check for collision, 
 		# ie target within damageRadius of shooter
-		if (ats.distance_m < ats.dimensions.crashRadius_m)
+		if (distance_m < ats.dimensions.crashRadius_m)
 		{
-			#simple way
-			var msg = (attributes[myNodeName2].controls.kamikase == -1) ?
+			var msg = (attributes[myNodeName1].controls.kamikase == -1) ?
 			"Kamikase strike " : "Collision ";
 			msg = msg ~ " with " ~ getCallSign (myNodeName1) ~ " !";
 			targetStatusPopupTip (msg, 5); # add_damage will immediately report damage stats
@@ -6139,52 +6140,16 @@ var weapons_loop = func (id, myNodeName1 = "", targetSize_m = nil) {
 			add_damage(10 * damageRatio, "collision", myNodeName1); # can withstand collision with object <10% of my mass
 			if (myNodeName2 !="")
 			{
-				add_damage(10 / damageRatio, "collision", myNodeName2);
+				add_damage ( 10 / damageRatio, "collision", myNodeName2);
 			}
 			else
 			{
 				mainAC_add_damage ( 10 / damageRatio, 0, "collision", msg);
 			}
 			return;
-			#rjw with the return above the following code in the block is unused
-			#it could be useful for large targets such as ships 
-
-			#more complicated way
-			#case of within vital damage, it's case closed, both aircraft totalled
-			var retDam = 0;
-			var vDamRad_m = ats.dimensions.vitalDamageRadius_m;
-			var damRad_m = ats.dimensions.damageRadius_m;
-			if (damRad_m <= 0) damRad_m = .5;
-			if (vDamRad_m >= damRad_m) vDamRad_m = damRad_m * .95;
-						
-			if (distance_m < vDamRad_m)
-			{
-				add_damage(1, "collision", myNodeName1);
-				retDam = 1;
-			} 
-			else
-			{
-				# case of only within damageRadius but not vitalDamageRadius, we'll do as with impact damage
-				# and possibly just assess partial damage depending on the distance involved.
-				var damPot = (damRad_m-distance_m) / (damRad_m-vDamRad_m); #ranges 0 (fringe) to 1 (at vitalDamageRadius)
-				if (rand() < damPot) 
-				{
-					add_damage(1, "collision", myNodeName1);
-					retDam = 1;
-				}
-				else
-				{
-					add_damage(rand() * damPot, "collision", myNodeName1);
-					retDam = rand() * damPot;
-				}
-			}
-						
-			msg = sprintf("You collided! Damage added %1.0f%%", retDam * 100 );
-			mainStatusPopupTip (msg, 10);
-			thisWeapon.aim.nHit = retDam;
-			return;
 		}
 
+		var groundCheck = 1;
 		if (ats.type == "groundvehicle")
 		{
 			# check line of sight by calculating the height above ground of the bullet trajectory at the mid point between shooter and target
@@ -6194,203 +6159,229 @@ var weapons_loop = func (id, myNodeName1 = "", targetSize_m = nil) {
 			var GeoCoord = geo.Coord.new();
 			GeoCoord.set_latlon(mid_lat_deg, mid_lon_deg);
 			var ground_Alt_m = elev (GeoCoord.lat(), GeoCoord.lon()) * FT2M; 
-			if (ground_Alt_m > mid_Alt_m) 
-			{
-				# debprint ("Bombable: checkLoS for ",  myNodeName1, "deltaAlt at mid point = ", ground_Alt_m - mid_Alt_m);
-				return;
-			}
+			groundCheck = (ground_Alt_m < mid_Alt_m);
+		}
+		append ( groundData,  groundCheck );
+		if (groundCheck) noLoS = 0;
+	}
+	if (noLoS) return; #if no target in line of sight then no need to check aim.  Assumption! Does not hold for self-guided rockets or parabolic flight trajectory
+
+			
+	foreach (elem; keys (ats.weapons) ) 
+	{	
+		var thisWeapon = ats.weapons[elem];
+		if (thisWeapon.destroyed == 1) continue; #skip this weapon if destroyed
+		if ( stores.checkWeaponsReadiness ( myNodeName1, elem ) == 0) continue; # can only shoot if ammo left!
+		var ind = thisWeapon.aim.target; # index of object to shoot at
+		var pos = vecindex(ats.targetIndex, ind); # pos is the index in targetData and groundData; nil means target no longer exists
+		if (pos == nil)
+		{
+			pos = 0;
+			ind = ats.targetIndex[pos];
+		}
+		# choose another target if no line of sight on this one
+		if (!groundData[pos])
+		{
+			pos = vecindex(groundData, 1); # find first target with line of sight
+			ind = ats.targetIndex[pos];
+		}
+		if (targetData[pos][3] > thisWeapon.maxDamageDistance_m) # target out of range; choose another
+		{
+			pos += 1;
+			if (pos == size(ats.targetIndex)) pos = 0;
+			thisWeapon.aim.target = ats.targetIndex[pos];
+			continue;
+		}
+		thisWeapon.aim.target = ind;
+
+		var myNodeName2 = nodes[ind];
+		var tgtDisp = [targetData[pos][0], targetData[pos][1], targetData[pos][2]];
+
+		# Could also check weapPowerSkill here. However skill of gunner not simply correlated with how frequently they fire
+
+		if (thisWeapon.weaponType == 0) 
+		{
+			var callCheckAim = 1; # not a rocket
+		}
+		else
+		{
+			var callCheckAim = (thisWeapon.controls.launched == 1) ? 0: 2; # calling checkAim for rocket is likely unecessary - revise!
 		}
 
-			
-		foreach (elem; keys (ats.weapons) ) 
-		{	
+		if (callCheckAim != 0) 
+		{
+			var targetSighted = checkAim
+				(
+					thisWeapon, # pass pointer to weapon parameters
+					tgtDisp,
+					myNodeName1, myNodeName2, 
+					targetSize_m, weapPowerSkill,
+					damageValue
+				);
+			if ( targetSighted ) 
+				{
+				weaponsOrientationPositionUpdate(myNodeName1, elem);
+				if (callCheckAim == 2)
+					{
+						if ( rand() < (weapPowerSkill * weapPowerSkill) / (ats.attacks["rocketsInAir"] + 1) / (ats.attacks["rocketsInAir"] + 1))
+						{
+							if ((myNodeName2 == "") or (getprop(""~myNodeName2~"/bombable/initializers/bombable-initialized") == 1)) #check target initialized (sporting)
+							{
+								launchRocket(myNodeName1, elem, loopTime);
+							}
+						}
+						continue; # since not launched, nHit = 0, so rest of loop not needed
+					}
+				}				
+		}
+		else # rocket in flight
+		{
 			# ot.reset();
-			var thisWeapon = ats.weapons[elem];
-			if (thisWeapon.destroyed == 1) continue; #skip this weapon if destroyed
-			if ( stores.checkWeaponsReadiness ( myNodeName1, elem ) == 0) continue; # can only shoot if ammo left!
-			
-			mDD_m = thisWeapon.maxDamageDistance_m;
-			if (mDD_m == nil or mDD_m == 0) mDD_m = 100;
+			var time2Destruct = guideRocket 
+			(
+				myNodeName1, myNodeName2,
+				elem,
+				targetSize_m,  weapPowerSkill, 
+				damageValue
+			);
+			# var t_guideRocket = (ot.timestamp.elapsedUSec()/ot.resolution_uS);
+			# debprint(sprintf("Bombable: " ~ elem ~ " t_guideRocket = %6.3f msec", t_guideRocket));
 
-			
-			# Could also check weapPowerSkill here. However skill of gunner not simply correlated with how frequently they fire
 
-			if (thisWeapon.weaponType == 0) 
+
+			if (time2Destruct < LOOP_TIME)
 			{
-				var callCheckAim = 1; # not a rocket
+			var weapKey = elem; # otherwise killRocket uses value of elem at time of call 
+			settimer
+			( func
+				{
+					killRocket (myNodeName1, weapKey);
+				},
+				time2Destruct
+			);
+			}
+		}
+		if (ats.index == 1) debprint("Bombable: Weapons_loop for ", nodes[ats.index], " target = ", ind, "pos = ", pos, sprintf(" distance = %5.0fm nHit = %5.3f", targetData[pos][3], thisWeapon.aim.nHit));
+		if (thisWeapon.aim.nHit == 0) # no chance of hitting target so look for another
+		{
+			pos += 1;
+			if (pos == size(ats.targetIndex)) pos = 0;
+			thisWeapon.aim.target = ats.targetIndex[pos]; #error here of index out of bounds
+			continue;
+		}
+		
+		var ballisticMass_lb = thisWeapon.maxDamage_percent * thisWeapon.maxDamage_percent / 100;
+		# approximate ballisticMass_lb:
+		# 0.08 lb for a 303 Vickers - see getBallisticMass_lb func 
+		# 0.13 lb for a WWII 20mm Oerlikon cannon
+		# 25 lb for a M830 round from the M256 120mm gun used on the M1 Abram
+		# corresponding maxDamage_percent figures: 3%, 4%, 50%
+
+		if (thisWeapon.aim.nHit > 0.1)
+		debprint (sprintf("Bombable: Weapons_loop %s  weapPowerSkill = %4.1f  total ballistic mass =  %5.2f", myNodeName1, weapPowerSkill, ballisticMass_lb * thisWeapon.aim.nHit));
+		# debprint (
+		# 	"Bombable: Weapons_loop " ~ myNodeName1 ~ " " ~ elem, 
+		# 	" heading = ", thisWeapon.weaponAngle_deg.heading, 
+		# 	" elevation = ", thisWeapon.weaponAngle_deg.elevation
+		# );
+
+
+		# fire weapon
+		# expectation value of damage is no hits * ballistic mass per round
+		# bad gunners waste more ammo by firing when low expectation value
+		# expectation value = a * (power-skill level) + b
+		# range of power-skill level 0.1 to 1.0 
+		# a skilled gunner with an effective weapon will fire at a higher expected damage threshold, dHigh; a weak combination at dLow
+		# then a = 10 * (dHigh - dLow ) / 9 ; b = (10 * dLow - dHigh ) / 9
+
+
+		# if (thisWeapon.aim.nHit * ballisticMass_lb > ( 0.044444 * weapPowerSkill + 0.1555555 )) # 0.2;0.16
+		# if (thisWeapon.aim.nHit * ballisticMass_lb > ( 0.55555 * weapPowerSkill + 0.3444444 )) # 0.9;0.4
+		# if (thisWeapon.aim.nHit * ballisticMass_lb > (0.277777 * weapPowerSkill + 0.022222)) # 0.3;0.05
+		if (thisWeapon.aim.nHit * ballisticMass_lb > (0.0166666 * weapPowerSkill + 0.003333)) # 0.02;0.005
+
+		# if (0) # omit for testing
+		{
+			if (thisWeapon.weaponType == 0)
+			{
+				# debprint ("Bombable: AI aircraft aimed at main aircraft, ",
+				# myNodeName1, " ", thisWeapon.name, " ", elem,
+				# " accuracy ", round(thisWeapon.aim.nHit * 100 ),"%",
+				# " interceptSpeed", round(thisWeapon.aim.interceptSpeed), " mps");
+				
+				# fire weapons for visual effect
+				var time2Fire =  3;
+				fireAIWeapon(time2Fire, myNodeName1, thisWeapon, thisWeapon.aim.interceptSpeed);
+
+				#reduce ammo count
+				if (stores.reduceWeaponsCount (myNodeName1, elem, time2Fire) == 1)
+				{
+					var msg = thisWeapon.name ~ " on " ~ 
+					getprop ("" ~ myNodeName1 ~ "/callsign") ~ 
+					" out of ammo";
+
+					targetStatusPopupTip (msg, 20);
+
+					# reset turret and gun positions with some random variation
+					setprop("" ~ myNodeName1 ~ "/" ~ elem ~ "/cannon-elev-deg" , thisWeapon.weaponAngle_deg.initialElevation + (4 * rand() - 2));
+					setprop("" ~ myNodeName1 ~ "/" ~ elem ~ "/turret-pos-deg" , thisWeapon.weaponAngle_deg.initialHeading + (10 * rand() - 5));
+				}
+			}
+						
+						
+			# TODO: a smaller chance of doing a fairly high level of damage (up to 3X the regular max),
+			# and the better/closer the hit, the greater chance of doing that significant damage.
+			# Some chance of doing more damage (and a higher chance the closer the hit)
+			# e.g. damage non-linear function of pRound;
+
+			var ai_callsign = getCallSign (myNodeName1);
+
+			# nHit (0-10); weaponPower (0-1); ballisticMass_lb (0-25); damageVulnerability (0-100)
+			var damageAdd = thisWeapon.aim.nHit * weaponPower * ballisticMass_lb * attributes[myNodeName2].vulnerabilities.damageVulnerability / 100;
+						
+						
+			weaponName = thisWeapon.name;
+			if (weaponName == nil) weaponName = "Main Weapon";
+
+			if (myNodeName2 == "")
+			{
+				mainAC_add_damage ( damageAdd, 0, "weapons",
+				"Hit from " ~ ai_callsign ~ " - " ~ weaponName ~"!");								
 			}
 			else
 			{
-				var callCheckAim = (thisWeapon.controls.launched == 1) ? 0: 2;
-			}
-
-			if (callCheckAim != 0) 
-			{
-				var targetSighted = checkAim
+				if (thisWeapon.weaponType == 1) # rocket
+				{
+					add_damage
 					(
-						thisWeapon, # pass pointer to weapon parameters
-						myNodeName1, myNodeName2, 
-						targetSize_m, weapPowerSkill,
-						damageValue
+						damageAdd, 
+						"weapon", 
+						myNodeName2, 
+						myNodeName1, 
+						, 
+						thisWeapon.mass * 2.2, 
+						thisWeapon.position.latitude_deg, 
+						thisWeapon.position.longitude_deg, 
+						thisWeapon.position.altitude_ft
 					);
-				if ( targetSighted ) 
-					{
-					weaponsOrientationPositionUpdate(myNodeName1, elem);
-					if (callCheckAim == 2)
-						{
-							if ( rand() < (weapPowerSkill * weapPowerSkill) / (ats.attacks["rocketsInAir"] + 1) / (ats.attacks["rocketsInAir"] + 1))
-							{
-								if ((myNodeName2 == "") or (getprop(""~myNodeName2~"/bombable/initializers/bombable-initialized") == 1)) #check target initialized (sporting)
-								{
-									launchRocket(myNodeName1, elem, loopTime);
-								}
-							}
-							continue; # since not launched, nHit = 0, so rest of loop not needed
-						}
-					}				
-			}
-			else # rocket in flight
-			{
-				ot.reset();
-				var time2Destruct = guideRocket 
-				(
-					myNodeName1, myNodeName2,
-					elem,
-					targetSize_m,  weapPowerSkill, 
-					damageValue
-				);
-				var t_guideRocket = (ot.timestamp.elapsedUSec()/ot.resolution_uS);
-				debprint(sprintf("Bombable: " ~ elem ~ " t_guideRocket = %6.3f msec", t_guideRocket));
-
-
-
-				if (time2Destruct < LOOP_TIME)
-				{
-				var weapKey = elem; # otherwise killRocket uses value of elem at time of call 
-				settimer
-				( func
-					{
-						killRocket (myNodeName1, weapKey);
-					},
-					time2Destruct
-				);
-				}
-			}
-			if (thisWeapon.aim.nHit == -1) break; #flag for no line of sight; assume none of the gunners can see the target so abort loop
-
-			var ballisticMass_lb = thisWeapon.maxDamage_percent * thisWeapon.maxDamage_percent / 100;
-			# approximate ballisticMass_lb:
-			# 0.08 lb for a 303 Vickers - see getBallisticMass_lb func 
-			# 0.13 lb for a WWII 20mm Oerlikon cannon
-			# 25 lb for a M830 round from the M256 120mm gun used on the M1 Abram
-			# corresponding maxDamage_percent figures: 3%, 4%, 50%
-
-			if (thisWeapon.aim.nHit > 0.1)
-			debprint (sprintf("Bombable: Weapons_loop %s  weapPowerSkill = %4.1f  total ballistic mass =  %5.2f", myNodeName1, weapPowerSkill, ballisticMass_lb * thisWeapon.aim.nHit));
-			# debprint (
-			# 	"Bombable: Weapons_loop " ~ myNodeName1 ~ " " ~ elem, 
-			# 	" heading = ", thisWeapon.weaponAngle_deg.heading, 
-			# 	" elevation = ", thisWeapon.weaponAngle_deg.elevation
-			# );
-
-
-			# fire weapon
-			# expected damage is no hits * ballistic mass per round
-			# bad gunners waste more ammo by firing when low expected damage
-			# <damage> = a * (power-skill level) + b
-			# range of power-skill level 0.1 to 1.0 
-			# a skilled gunner with an effective weapon will fire at a higher expected damage threshold, dHigh; a weak combination at dLow
-			# then a = 10 * (dHigh - dLow ) / 9 ; b = (10 * dLow - dHigh ) / 9
-
-
-			# if (thisWeapon.aim.nHit * ballisticMass_lb > ( 0.044444 * weapPowerSkill + 0.1555555 )) # 0.2;0.16
-			# if (thisWeapon.aim.nHit * ballisticMass_lb > ( 0.55555 * weapPowerSkill + 0.3444444 )) # 0.9;0.4
-			# if (thisWeapon.aim.nHit * ballisticMass_lb > (0.277777 * weapPowerSkill + 0.022222)) # 0.3;0.05
-			if (thisWeapon.aim.nHit * ballisticMass_lb > (0.0166666 * weapPowerSkill + 0.003333)) # 0.02;0.005
-
-			# if (0) # omit for testing
-			{
-				if (thisWeapon.weaponType == 0)
-				{
-					# debprint ("Bombable: AI aircraft aimed at main aircraft, ",
-					# myNodeName1, " ", thisWeapon.name, " ", elem,
-					# " accuracy ", round(thisWeapon.aim.nHit * 100 ),"%",
-					# " interceptSpeed", round(thisWeapon.aim.interceptSpeed), " mps");
-					
-					# fire weapons for visual effect
-					var time2Fire =  3;
-					fireAIWeapon(time2Fire, myNodeName1, thisWeapon, thisWeapon.aim.interceptSpeed);
-
-					#reduce ammo count
-					if (stores.reduceWeaponsCount (myNodeName1, elem, time2Fire) == 1)
-					{
-						var msg = thisWeapon.name ~ " on " ~ 
-						getprop ("" ~ myNodeName1 ~ "/callsign") ~ 
-						" out of ammo";
-
-						targetStatusPopupTip (msg, 20);
-
-						# reset turret and gun positions with some random variation
-						setprop("" ~ myNodeName1 ~ "/" ~ elem ~ "/cannon-elev-deg" , thisWeapon.weaponAngle_deg.initialElevation + (4 * rand() - 2));
-						setprop("" ~ myNodeName1 ~ "/" ~ elem ~ "/turret-pos-deg" , thisWeapon.weaponAngle_deg.initialHeading + (10 * rand() - 5));
-					}
-				}
-							
-							
-				# TODO: a smaller chance of doing a fairly high level of damage (up to 3X the regular max),
-				# and the better/closer the hit, the greater chance of doing that significant damage.
-				# Some chance of doing more damage (and a higher chance the closer the hit)
-				# e.g. damage non-linear function of pRound;
-
-				var ai_callsign = getCallSign (myNodeName1);
-
-				# nHit (0-10); weaponPower (0-1); ballisticMass_lb (0-25); damageVulnerability (0-100)
-				var damageAdd = thisWeapon.aim.nHit * weaponPower * ballisticMass_lb * attributes[myNodeName2].vulnerabilities.damageVulnerability / 100;
-							
-							
-				weaponName = thisWeapon.name;
-				if (weaponName == nil) weaponName = "Main Weapon";
-
-				if (myNodeName2 == "")
-				{
-					mainAC_add_damage ( damageAdd, 0, "weapons",
-					"Hit from " ~ ai_callsign ~ " - " ~ weaponName ~"!");								
 				}
 				else
 				{
-					if (thisWeapon.weaponType == 1) # rocket
-					{
-						add_damage
-						(
-							damageAdd, 
-							"weapon", 
-							myNodeName2, 
-							myNodeName1, 
-							, 
-							thisWeapon.mass * 2.2, 
-							thisWeapon.position.latitude_deg, 
-							thisWeapon.position.longitude_deg, 
-							thisWeapon.position.altitude_ft
-						);
-					}
-					else
-					{
-						add_damage
-						(
-							damageAdd, 
-							"weapon", 
-							myNodeName2, 
-							myNodeName1,
-							,
-							ballisticMass_lb
-						);
-					}
+					add_damage
+					(
+						damageAdd, 
+						"weapon", 
+						myNodeName2, 
+						myNodeName1,
+						,
+						ballisticMass_lb
+					);
 				}
 			}
-			# var t_weap = (ot.timestamp.elapsedUSec()/ot.resolution_uS);
-			# debprint(sprintf("Bombable: "~elem~" t_weap = %6.3f msec", t_weap));
-		} # next weapon
-	} # next target
+		}
+		# var t_weap = (ot.timestamp.elapsedUSec()/ot.resolution_uS);
+		# debprint(sprintf("Bombable: "~elem~" t_weap = %6.3f msec", t_weap));
+	} # next weapon
 }
 
 ############################ launchRocket ##############################
@@ -6602,7 +6593,7 @@ var guideRocket = func
 	# m_per_deg_lat/lon are bombable general variables
 
 	var targetDispRefFrame = [deltaX_m, deltaY_m, deltaAlt_m];
-	var distance_m = math.sqrt ( targetDispRefFrame[0] * targetDispRefFrame[0] + targetDispRefFrame[1] * targetDispRefFrame[1] + targetDispRefFrame[2] * targetDispRefFrame[2] );
+	var distance_m = math.sqrt ( deltaX_m * deltaX_m + deltaY_m * deltaY_m + deltaAlt_m * deltaAlt_m );
 	
 	# debprint (
 	# 	sprintf(
@@ -7802,13 +7793,6 @@ var course1to2 = func (myNodeName1, myNodeName2)
 	var dy = (lat2 - lat1) * m_per_deg_lat;
 	var dz = (alt2 - alt1) * FT2M;
 	var intercept = findIntercept3(myNodeName2, [dx, dy, dz], attributes[myNodeName1].velocities.attackSpeed_kt * KT2MPS);
-
-	# var ats = attributes[myNodeName1];
-	# var intercept = findIntercept3(myNodeName2, ats.targetDispRefFrame, attributes[myNodeName1].velocities.attackSpeed_kt * KT2MPS);
-	# var dx = ats.targetDispRefFrame[0];
-	# var dy = ats.targetDispRefFrame[1];
-	# var dz = ats.targetDispRefFrame[2];
-
 	var hdg = (intercept.time < 0) ?
 		math.atan2( dx, dy) * R2D :
 		math.atan2 ( intercept.vector[0], intercept.vector[1]) * R2D ;
@@ -7878,7 +7862,7 @@ var attack_loop = func ( id, myNodeName )
 		if ( dist[0] > atts.maxDistance_m / 10 ) return;
 		var msg = getCallSign(myNodeName)~" breaking formation";
 		targetStatusPopupTip (msg, 5);
-		debprint ("Bombable: "~msg); 
+		# debprint ("Bombable: "~msg); 
 		ctrls.stayInFormation = 0; 			
 	}
 				
@@ -7977,7 +7961,7 @@ var attack_loop = func ( id, myNodeName )
 	(dist[1] > -atts.altitudeLowerCutoff_m) and (dist[1] < atts.altitudeHigherCutoff_m)  and  
 	readinessAttack and ( (attentionFactor and distanceFactor) or attack_inprogress ) ) )  
 	{
-		debprint ("Bombable: Not attacking ", continueAttack, " ", readinessAttack, " ", attentionFactor, " ", distanceFactor, " ", attack_inprogress, " for ", myNodeName, " " );
+		# debprint ("Bombable: Not attacking ", continueAttack, " ", readinessAttack, " ", attentionFactor, " ", distanceFactor, " ", attack_inprogress, " for ", myNodeName, " " );
 		#OK, no attack, we're too far away or too close & passed it, too low, too high, etc etc etc
 		#Instead we: 1. dodge if necessary 2. exit
 		#always dodge when close to Target aircraft--unless we're aiming at it
@@ -8022,7 +8006,7 @@ var attack_loop = func ( id, myNodeName )
 				}
 			}
 			aircraftTurnToHeading ( myNodeName, 60 );
-			debprint ("Bombable: ", myNodeName, " Turning in direction of " ~ whereNow);
+			# debprint ("Bombable: ", myNodeName, " Turning in direction of " ~ whereNow);
 		}
 		
 		if ( dist[0] > atts.maxDistance_m ) stores.revitalizeAttackReadiness(myNodeName, dist[0]);
@@ -8116,7 +8100,7 @@ var attack_loop = func ( id, myNodeName )
 		) 
 		{
 			targetAGL_m = ctrls.attackClimbDiveTargetAGL_m;
-			debprint ("Bombable: Continuing attack for ", myNodeName," targetAGL_m = ", targetAGL_m);
+			# debprint ("Bombable: Continuing attack for ", myNodeName," targetAGL_m = ", targetAGL_m);
 		} 
 		else
 		{
@@ -8187,7 +8171,7 @@ var attack_loop = func ( id, myNodeName )
 			if (targetAGL_m < alts.minimumAGL_m) targetAGL_m = alts.minimumAGL_m;
 			if (targetAGL_m > alts.maximumAGL_m) targetAGL_m = alts.maximumAGL_m;
 						
-			debprint ("Bombable: Starting attack turn/loop for ", myNodeName," targetAGL_m = ", targetAGL_m);
+			# debprint ("Bombable: Starting attack turn/loop for ", myNodeName," targetAGL_m = ", targetAGL_m);
 			ctrls.attackClimbDiveInProgress = 1;
 			ctrls.attackClimbDiveTargetAGL_m = targetAGL_m;
 		}
@@ -8366,7 +8350,7 @@ var aircraftTurnToHeadingControl = func (myNodeName, id, rolldegrees = 45, targe
 		ctrls.rollTimeElapsed = 0;
 		# rjw not needed since AI model flight lateral-mode control in "roll" - not "hdg" ?
 		# setprop(""~myNodeName~"/controls/flight/target-hdg", targetdegrees);
-		debprint ("Bombable: Ending aircraft turn-to-heading routine for " ~ myNodeName);
+		# debprint ("Bombable: Ending aircraft turn-to-heading routine for " ~ myNodeName);
 	}
 }
 
@@ -8406,7 +8390,7 @@ var aircraftTurnToHeading = func (myNodeName, rolldegrees = 45, targetAlt_m = "n
 
 	aircraftTurnToHeadingControl ( myNodeName, loopid, rolldegrees_, targetAlt_m );
 				
-	debprint (sprintf("Bombable: Starting turn-to-heading routine for %s, loopid= %d, rolldegrees= %5.1f, target_deg= %6.1f",myNodeName, loopid, rolldegrees_, ctrls.courseToTarget_deg));
+	# debprint (sprintf("Bombable: Starting turn-to-heading routine for %s, loopid= %d, rolldegrees= %5.1f, target_deg= %6.1f",myNodeName, loopid, rolldegrees_, ctrls.courseToTarget_deg));
 }
 
 
@@ -9044,8 +9028,8 @@ var add_damage = func
 				# change target
 				# if not already attacking another
 				var ats2 = attributes[myNodeName2];
-				if (ats.maxTargets == size(ats.targetIndex)) removeTarget(ats.index);
-				append(ats.targetIndex, ats2.index); # add shooter causing the damage to my targets
+				if (size(ats.targetIndex) == ats.maxTargets) removeTarget(ats.index);
+				append (ats.targetIndex, ats2.index); # add shooter causing the damage to my targets
 				append (ats2.shooterIndex, ats.index); # add me to the shooter's list of shooters
 				debprint (callsign, " set ", callsign2, " as new target");
 			}
@@ -9061,6 +9045,11 @@ var add_damage = func
 			var index = int (rand() * nWeapons) ;
 			weaps[""~keys(weaps)[index]]["destroyed"] = 1;
 			debprint(callsign," "~keys(weaps)[index]~" destroyed");
+			if (ats.maxTargets > 1) 
+			{
+				ats.maxTargets -= 1;
+				removeTarget(ats.index);
+			}
 		}
 	}
 
@@ -9599,7 +9588,7 @@ var initialize_func = func ( b ){
 						
 	if (contains (b, "attacks") and typeof (b.attacks) == "hash") {
 		# attacks sanity checking
-		if (!b.attacks.minDistance_m) 
+		if (!b.attacks.minDistance_m) # a value of zero is the flag for kamikase behaviour
 		{
 			b.controls.kamikase = 1; 
 			b.attacks.minDistance_m = 300;
@@ -10339,8 +10328,8 @@ var weapons_init_func = func(myNodeName)
 		weapAngles["initialHeading"] = weapAngles.heading;
 		weapAngles["initialElevation"] = weapAngles.elevation;
 
-		var weapFixed = ((weapAngles.elevationMin == weapAngles.elevationMax) and (weapAngles.headingMin == weapAngles.headingMax));
-		nFixed += weapFixed;
+		var weapFixed = (weapAngles.elevationMin == weapAngles.elevationMax) and (weapAngles.headingMin == weapAngles.headingMax) and (thisWeapon["weaponType"] != 1);
+		nFixed += weapFixed; # do not include rockets
 			
 		thisWeapon.destroyed = 0;
 
@@ -10352,6 +10341,7 @@ var weapons_init_func = func(myNodeName)
 			lastTargetVelocity:[0,0,0],
 			interceptSpeed:0,
 			fixed:weapFixed, 
+			target:0, #index of object to shoot at
 			}; 
 		# new hash used to record direction weapon is pointing
 		# in the frame of reference of model and the frame of reference of the scene
@@ -11910,7 +11900,8 @@ var addToTargets = func(myNodeName)
 # attributes.shooterIndex is a vector containing the indices of the nodes shooting at the object
 # targetTeam is a team on the opposing side set by the scenario
 # the list of targets is shuffled before being assigned
-# the number of targets per object is determined by the number of its weapons
+# the number of targets per object is determined by the number of its weapons - maxTargets
+# can assign several targets to one shooter
 # objects with no AI target may be assigned in later action
 #
 
@@ -11935,28 +11926,32 @@ var initTargets = func ()
 	foreach (var side; [0, 1]) allPlayers[side] = shuffle(allPlayers[side]);
 	foreach (teamName; keys(teams))
 	{
-		if (teamName == "A") continue;
+		if (teamName == "A") continue; #main AC has no assigned targets
+		teams[teamName].indices = shuffle(teams[teamName].indices);
 		var targetTeam = teams[teamName].target;
 		var side = (find(targetTeam, "ABCDEFGHIJKLM") == -1);
+		var count = 0;
 		forindex (var i; teams[teamName].indices)
 		{
-			if (targetTeam != nil)
-			{
-				foundTarget = assignOneTarget (teams[teamName].indices[i], teams[targetTeam].indices); # can assign several shooters to a target
+			var myIndex = teams[teamName].indices[i];
+			for (var j = 0; j < attributes[nodes[myIndex]].maxTargets; j = j + 1 )
+			{		
+				if (targetTeam != nil)
+				{
+					foundTarget = assignOneTarget (myIndex, teams[targetTeam].indices); 
+				}
+				if (foundTarget == -1) 
+				{
+					foundTarget = assignOneTarget (myIndex, allPlayers[side]);
+				}
+				if (foundTarget == -1) break;
 			}
-			else
-			{
-				foundTarget = assignOneTarget (teams[teamName].indices[i], allPlayers[side]);
-			}
-			
-			if (foundTarget == -1) 
-			{
-				debprint("Bombable: initTargets: Fail - no targets assigned for index#"~teams[teamName].indices[i]~" team "~teamName);
-				break; # no targets
-			}
+			debprint("Bombable: initTargets: ", j, " targets assigned for ", getCallSign(nodes[myIndex]), " team ", teamName);
+			count += j;
 		}
-		debprint(i + 1 , " targets in ", (targetTeam != nil ) ? targetTeam : "side" ~ side, " assigned for team "~teamName );
+		debprint( "Bombable: initTargets: Total of ", count, " targets in", (targetTeam != nil ) ? " team " ~ targetTeam : "", " side (", side, ") assigned for team ", teamName );
 	}
+
 	# apply handicap to side (1) by reducing pilot skills by a fixed percentage
 	forindex (var i; allPlayers[1])
 	{
@@ -12073,7 +12068,9 @@ var findNewShooter = func (myIndex)
 var removeTarget = func (myIndex)
 {
 	var ats = attributes[nodes[myIndex]];
-	var oldTarget = ats.targetIndex[int(rand() * size(ats.targetIndex))];
+	var nTargets = size(ats.targetIndex);
+	if (!nTargets) return;
+	var oldTarget = ats.targetIndex[int(rand() * nTargets)];
 	var ats2 = attributes[nodes[oldTarget]];
 	ats.targetIndex = removeElem(ats.targetIndex, oldTarget);
 	ats2.shooterIndex = removeElem(ats2.shooterIndex, myIndex);
