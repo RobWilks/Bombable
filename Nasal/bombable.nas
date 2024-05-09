@@ -6104,10 +6104,14 @@ var weapons_loop = func (id, myNodeName1 = "", targetSize_m = nil) {
 		ats.pitch_deg = getprop("" ~ myNodeName1 ~ "/orientation/pitch-deg");
 	}
 
+	var myTargets = ats.targetIndex;
+	var nTargets = size(myTargets);
 	var targetData = [];
 	var groundData = [];
 	var noLoS = 1; # flag for no target in line of sight
-	foreach (target; ats.targetIndex)
+	var distClosest = 999;
+	var indexClosest = nil;
+	foreach (target; myTargets)
 	{
 		var myNodeName2 = nodes[target];
 		# info about target used by checkAim
@@ -6124,6 +6128,11 @@ var weapons_loop = func (id, myNodeName1 = "", targetSize_m = nil) {
 		# the shooter is at < 0,0,0 > 
 		var targetDispRefFrame = [deltaX_m, deltaY_m, deltaAlt_m];
 		var distance_m = math.sqrt(deltaX_m * deltaX_m + deltaY_m * deltaY_m + deltaAlt_m * deltaAlt_m);
+		if (distClosest < distance_m) 
+		{
+			distClosest = distance_m;
+			indexClosest = size (targetData);
+		}
 
 		append (targetData, [deltaX_m, deltaY_m, deltaAlt_m, distance_m]);
 
@@ -6173,23 +6182,25 @@ var weapons_loop = func (id, myNodeName1 = "", targetSize_m = nil) {
 		if (thisWeapon.destroyed == 1) continue; #skip this weapon if destroyed
 		if ( stores.checkWeaponsReadiness ( myNodeName1, elem ) == 0) continue; # can only shoot if ammo left!
 		var ind = thisWeapon.aim.target; # index of object to shoot at
-		var pos = vecindex(ats.targetIndex, ind); # pos is the index in targetData and groundData; nil means target no longer exists
+		var pos = vecindex(myTargets, ind); # pos is the index in targetData and groundData; nil means target no longer exists
+		# if no longer a target, or no line of sight, or out of range then choose another
 		if (pos == nil)
 		{
-			pos = 0;
-			ind = ats.targetIndex[pos];
+			pos = (rand() > .5) ? 0 : indexClosest;
+			thisWeapon.aim.target = myTargets[pos];
+			continue;
 		}
-		# choose another target if no line of sight on this one
 		if (!groundData[pos])
 		{
 			pos = vecindex(groundData, 1); # find first target with line of sight
-			ind = ats.targetIndex[pos];
+			thisWeapon.aim.target = myTargets[pos];
+			continue;
 		}
-		if (targetData[pos][3] > thisWeapon.maxDamageDistance_m) # target out of range; choose another
+		if (targetData[pos][3] > thisWeapon.maxDamageDistance_m)
 		{
 			pos += 1;
-			if (pos == size(ats.targetIndex)) pos = 0;
-			thisWeapon.aim.target = ats.targetIndex[pos];
+			if (pos == nTargets) pos = 0;
+			thisWeapon.aim.target = myTargets[pos];
 			continue;
 		}
 		thisWeapon.aim.target = ind;
@@ -6205,7 +6216,8 @@ var weapons_loop = func (id, myNodeName1 = "", targetSize_m = nil) {
 		}
 		else
 		{
-			var callCheckAim = (thisWeapon.controls.launched == 1) ? 0: 2; # calling checkAim for rocket is likely unecessary - revise!
+			# could check whether closest target here
+			var callCheckAim = (thisWeapon.controls.launched == 1) ? 0: 2; # calling checkAim for rocket is likely unnecessary - revise!
 		}
 
 		if (callCheckAim != 0) 
@@ -6219,54 +6231,29 @@ var weapons_loop = func (id, myNodeName1 = "", targetSize_m = nil) {
 					damageValue
 				);
 			if ( targetSighted ) 
-				{
-				weaponsOrientationPositionUpdate(myNodeName1, elem);
-				if (callCheckAim == 2)
-					{
-						if ( rand() < (weapPowerSkill * weapPowerSkill) / (ats.attacks["rocketsInAir"] + 1) / (ats.attacks["rocketsInAir"] + 1))
-						{
-							if ((myNodeName2 == "") or (getprop(""~myNodeName2~"/bombable/initializers/bombable-initialized") == 1)) #check target initialized (sporting)
-							{
-								launchRocket(myNodeName1, elem, loopTime);
-							}
-						}
-						continue; # since not launched, nHit = 0, so rest of loop not needed
-					}
-				}				
-		}
-		else # rocket in flight
-		{
-			# ot.reset();
-			var time2Destruct = guideRocket 
-			(
-				myNodeName1, myNodeName2,
-				elem,
-				targetSize_m,  weapPowerSkill, 
-				damageValue
-			);
-			# var t_guideRocket = (ot.timestamp.elapsedUSec()/ot.resolution_uS);
-			# debprint(sprintf("Bombable: " ~ elem ~ " t_guideRocket = %6.3f msec", t_guideRocket));
-
-
-
-			if (time2Destruct < LOOP_TIME)
 			{
-			var weapKey = elem; # otherwise killRocket uses value of elem at time of call 
-			settimer
-			( func
+			weaponsOrientationPositionUpdate(myNodeName1, elem);
+			if (callCheckAim == 2)
 				{
-					killRocket (myNodeName1, weapKey);
-				},
-				time2Destruct
-			);
-			}
+					if ( rand() < (weapPowerSkill * weapPowerSkill) / (ats.attacks["rocketsInAir"] + 1) / (ats.attacks["rocketsInAir"] + 1))
+					{
+						launchRocket (id, myNodeName1, elem)
+					}
+					continue;
+				}
+			}				
 		}
-		if (ats.index == 1) debprint("Bombable: Weapons_loop for ", nodes[ats.index], " target = ", ind, "pos = ", pos, sprintf(" distance = %5.0fm nHit = %5.3f", targetData[pos][3], thisWeapon.aim.nHit));
-		if (thisWeapon.aim.nHit == 0) # no chance of hitting target so look for another
+
+		# if (ats.index == 1) debprint("Bombable: Weapons_loop for ", nodes[ats.index], " target = ", ind, "pos = ", pos, sprintf(" distance = %5.0fm nHit = %5.3f", targetData[pos][3], thisWeapon.aim.nHit));
+		if (thisWeapon.aim.nHit == 0) 
 		{
-			pos += 1;
-			if (pos == size(ats.targetIndex)) pos = 0;
-			thisWeapon.aim.target = ats.targetIndex[pos]; #error here of index out of bounds
+			if (!thisWeapon.weaponType)
+			# unless the weapon is a rocket, there is no chance of hitting the target so look for another
+			{			
+				pos += 1;
+				if (pos == nTargets) pos = 0;
+				thisWeapon.aim.target = myTargets[pos];
+			}
 			continue;
 		}
 		
@@ -6388,23 +6375,24 @@ var weapons_loop = func (id, myNodeName1 = "", targetSize_m = nil) {
 # FUNCTION set flags, send message
 # create flare on launch pad
 
-var launchRocket = func (myNodeName, elem, delta_t)
+var launchRocket = func (id, myNodeName1, elem)
 {
-	var thisWeapon = attributes[myNodeName].weapons[elem];
+	var thisWeapon = attributes[myNodeName1].weapons[elem];
+	var delta_t = LOOP_TIME;
 
 	# get speed and orientation of launchpad or guide rail
 	var launchPadSpeed = 
-	getprop ("" ~ myNodeName ~ "/velocities/true-airspeed-kt");
+	getprop ("" ~ myNodeName1 ~ "/velocities/true-airspeed-kt");
 	var launchPadPitch = 
-	getprop ("" ~ myNodeName ~ "/orientation/pitch-deg");
+	getprop ("" ~ myNodeName1 ~ "/orientation/pitch-deg");
 	var launchPadHeading = 
-	getprop ("" ~ myNodeName ~ "/orientation/true-heading-deg");
+	getprop ("" ~ myNodeName1 ~ "/orientation/true-heading-deg");
 	var alat_deg = 
-	getprop("" ~ myNodeName ~ "/" ~ elem ~ "/position/latitude-deg"); 
+	getprop("" ~ myNodeName1 ~ "/" ~ elem ~ "/position/latitude-deg"); 
 	var alon_deg = 
-	getprop("" ~ myNodeName ~ "/" ~ elem ~ "/position/longitude-deg");
+	getprop("" ~ myNodeName1 ~ "/" ~ elem ~ "/position/longitude-deg");
 	var alt_ft = 
-	getprop("" ~ myNodeName ~ "/" ~ elem ~ "/position/altitude-ft");
+	getprop("" ~ myNodeName1 ~ "/" ~ elem ~ "/position/altitude-ft");
 
 	# the launchPad velocity is used to set the initial velocity of the missile
 	# at launch the missile is not necessarily oriented with its direction of travel
@@ -6476,22 +6464,21 @@ var launchRocket = func (myNodeName, elem, delta_t)
 
 	thisWeapon.mass = thisWeapon.launchMass; # reset weapon mass
 
-	attributes[myNodeName].attacks["rocketsInAir"] += 1;
+	attributes[myNodeName1].attacks["rocketsInAir"] += 1;
 
-	var msg = thisWeapon.name ~ " launched from " ~ 
-	getprop ("" ~ myNodeName ~ "/callsign");
+	var msg = thisWeapon.name ~ " launched from " ~ getCallSign (myNodeName1);
 
 	targetStatusPopupTip (msg, 20);
 
-	debprint ("Bombable: " ~ msg ~ " " ~ myNodeName ~ ", " ~ thisWeapon.name ~ " " ~ elem);
+	debprint ("Bombable: " ~ msg ~ " " ~ myNodeName1 ~ ", " ~ thisWeapon.name ~ " " ~ elem);
 
 	thisWeapon.controls.launched = 1;
 
-	props.globals.getNode("" ~ myNodeName ~ "/" ~ elem ~ "/rearm", 1).setBoolValue(0);
+	props.globals.getNode("" ~ myNodeName1 ~ "/" ~ elem ~ "/rearm", 1).setBoolValue(0);
 
-	var id = setlistener
+	var id2 = setlistener
 		(
-			"" ~ myNodeName ~ "/" ~ elem ~ "/rearm", 
+			"" ~ myNodeName1 ~ "/" ~ elem ~ "/rearm", 
 			func (n)
 			{
 				if ( n.getValue() == 1)
@@ -6504,7 +6491,7 @@ var launchRocket = func (myNodeName, elem, delta_t)
 							{
 								thisWeapon.controls.launched = 0;
 								thisWeapon.destroyed = 0;
-								removelistener(id);
+								removelistener(id2);
 							}
 							n.setBoolValue(0);
 						},
@@ -6515,27 +6502,43 @@ var launchRocket = func (myNodeName, elem, delta_t)
 			0,
 			1
 		);
+
+	settimer (  
+		func
+			{
+			guideRocket 
+			(
+				id,
+				myNodeName1,
+				elem
+			);
+			}, 0.1);
 }
 
 ############################ guideRocket ##############################
-# FUNCTION check if run out of fuel, check collision with main AC, direction of main AC,
+# FUNCTION check if run out of fuel, check collision with target, direction of target,
 # change direction, calculate position after time delta_t, trigger messages and effects
-# derived from checkAim
 # thisWeapon points to the attributes hash which holds results of the previous calculation of rocket velocity and speed 
 # it is updated with the new velocity and the estimated velocity and position at the next calculation
 # the new position is recorded in the property tree
-# node 1 is AI, node 2 is main AC
-# return rocket status 1 = in flight or 0 = destroyed
+# node 1 is AI, node 2 is target
+# the guideRocket loop is terminated with the main weapons loop. It does not have a separate id
+# the target is passed by thisWeapon.aim.target, the index number of the bombable object
+# if the object is destroyed the rocket circles waiting for another target to be allocated
+# the waiting pattern is created by chasing a high-speed dummy target on a circular trajectory of 10k radius and centred on the rocket 
 
 var guideRocket = func 
 (
-	myNodeName1 = "", myNodeName2 = "",
-	elem = "",
-	targetSize_m = nil,  weapPowerSkill = 1, 
-	damageValue = 0
+	id,
+	myNodeName1,
+	elem
 )
 {
+	id == attributes[myNodeName1].loopids.weapons_loopid or return; 
+
+	# ot.reset();
 	var thisWeapon = attributes[myNodeName1].weapons[elem];
+	var myNodeName2 = nodes[thisWeapon.aim.target];
 	var dim = attributes[myNodeName1].dimensions;  
 	var rp = "ai/models/static[" ~ thisWeapon.rocketsIndex ~ "]"; # static model for rocket
 	var delta_t = LOOP_TIME;
@@ -6556,13 +6559,41 @@ var guideRocket = func
 
 	if (math.abs (aAlt_m - thisWeapon.lastAlt_m) > 200.0) updateAirDensity (thisWeapon, aAlt_m);
 
-	var targetLat_deg = getprop("" ~ myNodeName2 ~ "/position/latitude-deg"); # main AC
-	var targetLon_deg = getprop("" ~ myNodeName2 ~ "/position/longitude-deg");
-	var targetAlt_m = getprop("" ~ myNodeName2 ~ "/position/altitude-ft") * FT2M;
-	var targetPitch = getprop("" ~ myNodeName2 ~ "/orientation/pitch-deg") * D2R;
-	var addTrue = (myNodeName2 == "") ? "" : "true-";
-	var targetHeading = getprop(""~myNodeName2~"/orientation/"~addTrue~"heading-deg") * D2R;
-	var targetSpeed = getprop(""~myNodeName2~"/velocities/"~addTrue~"airspeed-kt") * KT2MPS;
+	if (attributes[myNodeName2].damage == 1) # used as flag for no target
+	{
+		var distance_m = 1e4; #metres
+		var period = 45; # sec
+		var targetSpeed = TWOPI * distance_m / period; #mps
+		var targetPitch = 0;
+		var targetHeading = math.mod(thisWeapon.controls.flightTime, period) * TWOPI / period;
+		var deltaX_m = math.cos(heading) * distance_m;
+		var deltaY_m = math.sin(heading) * distance_m;
+		var deltaAlt_m = 0;
+	}
+	else
+	{
+		var targetLat_deg = getprop("" ~ myNodeName2 ~ "/position/latitude-deg"); # target
+		var targetLon_deg = getprop("" ~ myNodeName2 ~ "/position/longitude-deg");
+		var targetAlt_m = getprop("" ~ myNodeName2 ~ "/position/altitude-ft") * FT2M;
+		var targetPitch = getprop("" ~ myNodeName2 ~ "/orientation/pitch-deg") * D2R;
+		var addTrue = (myNodeName2 == "") ? "" : "true-";
+		var targetHeading = getprop(""~myNodeName2~"/orientation/"~addTrue~"heading-deg") * D2R;
+		var targetSpeed = getprop(""~myNodeName2~"/velocities/"~addTrue~"airspeed-kt") * KT2MPS;
+
+		deltaLat_deg = targetLat_deg - alat_deg;
+		deltaLon_deg = targetLon_deg - alon_deg ;
+
+		# calculate targetDispRefFrame, the displacement vector from node1 (rocket) to node2 (target) in a lon-lat-alt (x-y-z) frame of reference aka 'reference frame'
+		# the rocket model is at < 0,0,0 > 
+		# and the target is at < deltaX,deltaY,deltaAlt > in relation to it.
+
+		var deltaX_m = deltaLon_deg * m_per_deg_lon;
+		var deltaY_m = deltaLat_deg * m_per_deg_lat;
+		var deltaAlt_m = targetAlt_m - aAlt_m;
+		var distance_m = math.sqrt ( deltaX_m * deltaX_m + deltaY_m * deltaY_m + deltaAlt_m * deltaAlt_m );
+	}
+
+	var targetDispRefFrame = [deltaX_m, deltaY_m, deltaAlt_m];
 	var target_delta_dist = targetSpeed * delta_t;
 	var targetVelocity =
 		[
@@ -6579,21 +6610,8 @@ var guideRocket = func
 	var deltaLon = 0;
 	var deltaAlt = 0;
 	var newMissileDir = missileDir;
-
-	deltaLat_deg = targetLat_deg - alat_deg;
-	deltaLon_deg = targetLon_deg - alon_deg ;
-
-	# calculate targetDispRefFrame, the displacement vector from node1 (rocket) to node2 (target) in a lon-lat-alt (x-y-z) frame of reference aka 'reference frame'
-	# the rocket model is at < 0,0,0 > 
-	# and the target is at < deltaX,deltaY,deltaAlt > in relation to it.
-
-	var deltaX_m = deltaLon_deg * m_per_deg_lon;
-	var deltaY_m = deltaLat_deg * m_per_deg_lat;
-	var deltaAlt_m = targetAlt_m - aAlt_m;
-	# m_per_deg_lat/lon are bombable general variables
-
-	var targetDispRefFrame = [deltaX_m, deltaY_m, deltaAlt_m];
-	var distance_m = math.sqrt ( deltaX_m * deltaX_m + deltaY_m * deltaY_m + deltaAlt_m * deltaAlt_m );
+	var t_intercept = 0;
+	var abort = 0; # flag used to trigger kill rocket; set by checks on height, fuel, proximity to launch pad, collision
 	
 	# debprint (
 	# 	sprintf(
@@ -6608,20 +6626,19 @@ var guideRocket = func
 	var ground_Alt_m = elev (GeoCoord.lat(), GeoCoord.lon()) * FT2M; 
 	if (ground_Alt_m > aAlt_m) 
 	{
-		# debprint ("Bombable: checkAGL for ",  myNodeName1 , "/" , elem , "deltaAlt = ", ground_Alt_m - aAlt_m);
+		debprint (sprintf("Bombable: checkAGL for %s: rocket alt = %6.0fm ground alt = %6.0fm",  myNodeName1 ~ "/" ~ elem , aAlt_m, ground_Alt_m));
 
 		var msg = thisWeapon.name ~ " from " ~ 
-		getprop ("" ~ myNodeName1 ~ "/callsign") ~ 
+		getCallSign(myNodeName1) ~ 
 		" hit ground and destroyed";
 		targetStatusPopupTip (msg, 20);						
-
-		return(0);
+		abort = 1;
 	}	
 
 	# abort if target cannot be reached
-	if (thisWeapon.controls.engine == 0)
+	if (thisWeapon.controls.engine == 0 and !abort)
 	{
-		if ( math.mod(thisWeapon.loopCount, 4) == 1 )
+		if ( math.mod(thisWeapon.loopCount, 4) == 1)
 		{	
 			var glide_range = thisWeapon.liftDragRatio * ( missileSpeed_mps * missileSpeed_mps / 2 / grav_mpss - deltaAlt_m );
 			# https://therestlesstechnophile.com/2018/05/26/useful-physics-equations-for-military-system-analysis/
@@ -6633,22 +6650,20 @@ var guideRocket = func
 			{
 				thisWeapon.controls.abortCount = 0; # reset
 			}
-
 			if (thisWeapon.controls.abortCount == 3) # require 3 successive
 			{
 				var msg = thisWeapon.name ~ " from " ~ 
-				getprop ("" ~ myNodeName1 ~ "/callsign") ~ 
+				getCallSign(myNodeName1) ~ 
 				" aborted - too far from target";
 				targetStatusPopupTip (msg, 20);						
-
-				return(0);
+				abort = 1;
 			}
 		}
 	
 	}
 
 	# abort if close to launch vehicle
-	if ( math.mod(thisWeapon.loopCount, 4) == 2 )
+	if ( math.mod(thisWeapon.loopCount, 4) == 2 and !abort)
 	{
 		if (thisWeapon.controls.flightTime > 10) # must exceed time for rocket to reach safeDist after launch
 		{
@@ -6666,14 +6681,13 @@ var guideRocket = func
 				var msg = thisWeapon.name ~ " from " ~ 
 				getprop ("" ~ myNodeName1 ~ "/callsign") ~ 
 				" aborted - too close to launch vehicle";
-				targetStatusPopupTip (msg, 20);						
-				
-				return (0);
+				targetStatusPopupTip (msg, 20);	
+				abort = 1;					
 			}
 		}
 	}
 
-	if (distance_m < a_delta_dist)
+	if (distance_m < a_delta_dist and !abort)
 	{	
 		var dV = 
 		[
@@ -6735,20 +6749,33 @@ var guideRocket = func
 					thisWeapon.controls.flightPath[i].alt = ( aAlt_m + deltaAlt ) * M2FT;
 				}
 				settimer ( func{ moveRocket (thisWeapon, 0, N_STEPS, time_inc )}, 0 ); # first step called immediately
-
-				return (t_intercept);
+				abort = 1;
 			}
 			elsif (closestApproach < (4.0 * attributes[myNodeName2].dimensions.damageRadius_m ))
 			{
 				var msg = "Near miss from " ~ 
 				thisWeapon.name ~ " fired from " ~ 
-				getprop ("" ~ myNodeName1 ~ "/callsign")			;
+				getCallSign (myNodeName1);
 
 				targetStatusPopupTip (msg, 20);
 
 				debprint (msg);
 			}
 		}
+	}
+
+	# check for abort
+	if (abort)
+	{
+		var weapKey = elem; # otherwise killRocket uses value of elem at time of call !!!
+		settimer
+		( func
+			{
+				killRocket (myNodeName1, weapKey);
+			},
+			t_intercept
+		);
+		return ();
 	}
 
 	# look ahead by assessing relative positions at next update 
@@ -7019,7 +7046,22 @@ var guideRocket = func
 
 	thisWeapon.controls.flightTime += delta_t ;
 	thisWeapon.loopCount += 1;
-	return (LOOP_TIME);
+
+	settimer (  
+	func
+		{
+		guideRocket 
+		(
+			id,
+			myNodeName1,
+			elem 
+		);
+		}, delta_t);
+
+	# var t_guideRocket = (ot.timestamp.elapsedUSec()/ot.resolution_uS);
+	# debprint(sprintf("Bombable: " ~ elem ~ " t_guideRocket = %6.3f msec", t_guideRocket));
+
+	return ();
 }
 
 ############################ changeDirection ##############################
@@ -7874,7 +7916,7 @@ var attack_loop = func ( id, myNodeName )
 	# whether or not to continue the attack when within minDistance:
 	# If we are heading towards the target aircraft
 	# (within continueAttackAngle_deg of straight on) we continue 
-	# or if we are still way below or above the main AC,
+	# or if we are still way below or above the target,
 	# we continue the attack
 	# otherwise we break off the attack/evade
 	var continueAttack = 0;
@@ -12429,15 +12471,31 @@ var startScenario = func()
 			team :			"Z",
 			target :		"B",
 			arrivalTime :	300, # sec
-			airSpeed : 		150 * KT2MPS,
+			airSpeed : 		300 * KT2MPS,
 			airportName :	"EGOD",
-			heading :		45,
-			alt :			1500,
+			heading :		30,
+			alt :			5000,
 			offsets :
 						[
-							[0, 0, 0]
+							[0, 0, 0],
+							# [-20, 21, 0],
+							[-21, -20, 0]
 						],
 			},
+			# group4: #drone
+			# {
+			# team :			"Y",
+			# target :		"A",
+			# arrivalTime :	200, # sec
+			# airSpeed : 		100 * KT2MPS,
+			# airportName :	"EGOD",
+			# heading :		30,
+			# alt :			5000,
+			# offsets :
+			# 			[
+			# 				[0, 0, 0]
+			# 			],
+			# },
 		};
 	}
 	else
