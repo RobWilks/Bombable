@@ -5996,7 +5996,7 @@ var checkAim = func ( thisWeapon,
 			weapPowerSkill)
 		);
 	}
-	if (thisWeapon.aim.fixed == 1)
+	if (thisWeapon.aim.fixed == 1 or thisWeapon.weaponType == 1)
 	# no change to weaponDirModelFrame (set in weapons_init_func)
 	# but need to calculate direction of weapon in reference frame
 	# usually this will be in direction of travel of AI object 
@@ -6009,7 +6009,7 @@ var checkAim = func ( thisWeapon,
 		# change orientation of weapon if not fixed
 		# a skilled gunner changes the direction of their weapon more frequently 
 		# weapons on slaved turrets ('children') must update more frequently since their aim is lost on movement of the parent turret
-		if ( rand() < weapPowerSkill * ((thisWeapon.parent != "") ? 1 : .5))
+		if ( rand() < weapPowerSkill * ((thisWeapon.parent != "") ? 1 : .5) or thisWeapon.aim.weaponDirRefFrame[2] == -1)
 		{ 
 			# ensure that newDir is in range of movement of weapon
 			var newElev = math.asin(newDir[2]) * R2D;
@@ -6208,19 +6208,7 @@ var weapons_loop = func (id, myNodeName1 = "", targetSize_m = nil) {
 		var myNodeName2 = nodes[ind];
 		var tgtDisp = [targetData[pos][0], targetData[pos][1], targetData[pos][2]];
 
-		# Could also check weapPowerSkill here. However skill of gunner not simply correlated with how frequently they fire
-
 		if (thisWeapon.weaponType == 0) 
-		{
-			var callCheckAim = 1; # not a rocket
-		}
-		else
-		{
-			# could check whether closest target here
-			var callCheckAim = (thisWeapon.controls.launched == 1) ? 0: 2; # calling checkAim for rocket is likely unnecessary - revise!
-		}
-
-		if (callCheckAim != 0) 
 		{
 			var targetSighted = checkAim
 				(
@@ -6230,30 +6218,38 @@ var weapons_loop = func (id, myNodeName1 = "", targetSize_m = nil) {
 					targetSize_m, weapPowerSkill,
 					damageValue
 				);
+			if ( targetSighted ) weaponsOrientationPositionUpdate(myNodeName1, elem);
+		}
+	
+		if (thisWeapon.weaponType == 1) 
+		{
+			if (thisWeapon.controls.launched == 1) continue;
+			var targetSighted = checkAim
+				(
+					thisWeapon,
+					tgtDisp,
+					myNodeName1, myNodeName2, 
+					targetSize_m, weapPowerSkill,
+					damageValue
+				);
 			if ( targetSighted ) 
 			{
-			weaponsOrientationPositionUpdate(myNodeName1, elem);
-			if (callCheckAim == 2)
+				weaponsOrientationPositionUpdate(myNodeName1, elem);
+				if ( rand() < (weapPowerSkill * weapPowerSkill) / (ats.attacks["rocketsInAir"] + 1) / (ats.attacks["rocketsInAir"] + 1) / 2)
 				{
-					if ( rand() < (weapPowerSkill * weapPowerSkill) / (ats.attacks["rocketsInAir"] + 1) / (ats.attacks["rocketsInAir"] + 1))
-					{
-						launchRocket (id, myNodeName1, elem)
-					}
-					continue;
+					launchRocket (id, myNodeName1, elem)
 				}
-			}				
+			}
+			continue;
 		}
-
+	
 		# if (ats.index == 1) debprint("Bombable: Weapons_loop for ", nodes[ats.index], " target = ", ind, "pos = ", pos, sprintf(" distance = %5.0fm nHit = %5.3f", targetData[pos][3], thisWeapon.aim.nHit));
 		if (thisWeapon.aim.nHit == 0) 
 		{
-			if (!thisWeapon.weaponType)
-			# unless the weapon is a rocket, there is no chance of hitting the target so look for another
-			{			
-				pos += 1;
-				if (pos == nTargets) pos = 0;
-				thisWeapon.aim.target = myTargets[pos];
-			}
+			pos += 1;
+			if (pos == nTargets) pos = 0;
+			thisWeapon.aim.target = myTargets[pos];
+			# there is no chance of hitting the target so look for another
 			continue;
 		}
 		
@@ -6285,36 +6281,32 @@ var weapons_loop = func (id, myNodeName1 = "", targetSize_m = nil) {
 		# if (thisWeapon.aim.nHit * ballisticMass_lb > ( 0.044444 * weapPowerSkill + 0.1555555 )) # 0.2;0.16
 		# if (thisWeapon.aim.nHit * ballisticMass_lb > ( 0.55555 * weapPowerSkill + 0.3444444 )) # 0.9;0.4
 		# if (thisWeapon.aim.nHit * ballisticMass_lb > (0.277777 * weapPowerSkill + 0.022222)) # 0.3;0.05
-		if (thisWeapon.aim.nHit * ballisticMass_lb > (0.0166666 * weapPowerSkill + 0.003333)) # 0.02;0.005
 
 		# if (0) # omit for testing
+		if (thisWeapon.aim.nHit * ballisticMass_lb > (0.0166666 * weapPowerSkill + 0.003333)) # 0.02;0.005
 		{
-			if (thisWeapon.weaponType == 0)
+			# debprint ("Bombable: AI aircraft aimed at main aircraft, ",
+			# myNodeName1, " ", thisWeapon.name, " ", elem,
+			# " accuracy ", round(thisWeapon.aim.nHit * 100 ),"%",
+			# " interceptSpeed", round(thisWeapon.aim.interceptSpeed), " mps");
+			
+			# fire weapons for visual effect
+			var time2Fire =  3;
+			fireAIWeapon(time2Fire, myNodeName1, thisWeapon, thisWeapon.aim.interceptSpeed);
+
+			#reduce ammo count
+			if (stores.reduceWeaponsCount (myNodeName1, elem, time2Fire) == 1)
 			{
-				# debprint ("Bombable: AI aircraft aimed at main aircraft, ",
-				# myNodeName1, " ", thisWeapon.name, " ", elem,
-				# " accuracy ", round(thisWeapon.aim.nHit * 100 ),"%",
-				# " interceptSpeed", round(thisWeapon.aim.interceptSpeed), " mps");
-				
-				# fire weapons for visual effect
-				var time2Fire =  3;
-				fireAIWeapon(time2Fire, myNodeName1, thisWeapon, thisWeapon.aim.interceptSpeed);
+				var msg = thisWeapon.name ~ " on " ~ 
+				getprop ("" ~ myNodeName1 ~ "/callsign") ~ 
+				" out of ammo";
 
-				#reduce ammo count
-				if (stores.reduceWeaponsCount (myNodeName1, elem, time2Fire) == 1)
-				{
-					var msg = thisWeapon.name ~ " on " ~ 
-					getprop ("" ~ myNodeName1 ~ "/callsign") ~ 
-					" out of ammo";
+				targetStatusPopupTip (msg, 20);
 
-					targetStatusPopupTip (msg, 20);
-
-					# reset turret and gun positions with some random variation
-					setprop("" ~ myNodeName1 ~ "/" ~ elem ~ "/cannon-elev-deg" , thisWeapon.weaponAngle_deg.initialElevation + (4 * rand() - 2));
-					setprop("" ~ myNodeName1 ~ "/" ~ elem ~ "/turret-pos-deg" , thisWeapon.weaponAngle_deg.initialHeading + (10 * rand() - 5));
-				}
+				# reset turret and gun positions with some random variation
+				setprop("" ~ myNodeName1 ~ "/" ~ elem ~ "/cannon-elev-deg" , thisWeapon.weaponAngle_deg.initialElevation + (4 * rand() - 2));
+				setprop("" ~ myNodeName1 ~ "/" ~ elem ~ "/turret-pos-deg" , thisWeapon.weaponAngle_deg.initialHeading + (10 * rand() - 5));
 			}
-						
 						
 			# TODO: a smaller chance of doing a fairly high level of damage (up to 3X the regular max),
 			# and the better/closer the hit, the greater chance of doing that significant damage.
@@ -6326,7 +6318,6 @@ var weapons_loop = func (id, myNodeName1 = "", targetSize_m = nil) {
 			# nHit (0-10); weaponPower (0-1); ballisticMass_lb (0-25); damageVulnerability (0-100)
 			var damageAdd = thisWeapon.aim.nHit * weaponPower * ballisticMass_lb * attributes[myNodeName2].vulnerabilities.damageVulnerability / 100;
 						
-						
 			weaponName = thisWeapon.name;
 			if (weaponName == nil) weaponName = "Main Weapon";
 
@@ -6337,33 +6328,15 @@ var weapons_loop = func (id, myNodeName1 = "", targetSize_m = nil) {
 			}
 			else
 			{
-				if (thisWeapon.weaponType == 1) # rocket
-				{
-					add_damage
-					(
-						damageAdd, 
-						"weapon", 
-						myNodeName2, 
-						myNodeName1, 
-						, 
-						thisWeapon.mass * 2.2, 
-						thisWeapon.position.latitude_deg, 
-						thisWeapon.position.longitude_deg, 
-						thisWeapon.position.altitude_ft
-					);
-				}
-				else
-				{
-					add_damage
-					(
-						damageAdd, 
-						"weapon", 
-						myNodeName2, 
-						myNodeName1,
-						,
-						ballisticMass_lb
-					);
-				}
+				add_damage
+				(
+					damageAdd, 
+					"weapon", 
+					myNodeName2, 
+					myNodeName1,
+					,
+					ballisticMass_lb
+				);
 			}
 		}
 		# var t_weap = (ot.timestamp.elapsedUSec()/ot.resolution_uS);
@@ -6566,8 +6539,8 @@ var guideRocket = func
 		var targetSpeed = TWOPI * distance_m / period; #mps
 		var targetPitch = 0;
 		var targetHeading = math.mod(thisWeapon.controls.flightTime, period) * TWOPI / period;
-		var deltaX_m = math.cos(heading) * distance_m;
-		var deltaY_m = math.sin(heading) * distance_m;
+		var deltaX_m = math.cos(targetHeading) * distance_m;
+		var deltaY_m = math.sin(targetHeading) * distance_m;
 		var deltaAlt_m = 0;
 	}
 	else
@@ -6724,9 +6697,6 @@ var guideRocket = func
 
 			if (closestApproach < attributes[myNodeName2].dimensions.damageRadius_m)
 			{
-				# message rocket hit from weapons_loop
-				thisWeapon.aim.nHit = 1.0 - closestApproach / attributes[myNodeName2].dimensions.damageRadius_m;
-
 				# run missile on to target
 				var steps_to_target = (t_intercept > 0) ? math.ceil ( t_intercept / time_inc  ) : 0;
 				deltaXYZ = 
@@ -6749,6 +6719,26 @@ var guideRocket = func
 					thisWeapon.controls.flightPath[i].alt = ( aAlt_m + deltaAlt ) * M2FT;
 				}
 				settimer ( func{ moveRocket (thisWeapon, 0, N_STEPS, time_inc )}, 0 ); # first step called immediately
+
+				# message rocket hit from add_damage
+				var weaponPower = bombableMenu["ai-weapon-power"];
+				if (weaponPower == nil) weaponPower = 0.2;
+				thisWeapon.aim.nHit = 1.0 - closestApproach / attributes[myNodeName2].dimensions.damageRadius_m;
+				var damageRatio = thisWeapon.aim.nHit * weaponPower * thisWeapon.mass * 2.2 * attributes[myNodeName2].vulnerabilities.damageVulnerability / 100; 
+				debprint(sprintf("nHit= %5.1f damageRatio %5.1f callsign= %s", thisWeapon.aim.nHit, damageRatio, getCallSign(myNodeName2) ));
+				add_damage
+				(
+					damageRatio, 
+					"weapon", 
+					myNodeName2, 
+					myNodeName1, 
+					, 
+					thisWeapon.mass * 2.2, 
+					thisWeapon.controls.flightPath[i-1].lat, 
+					thisWeapon.controls.flightPath[i-1].lon, 
+					thisWeapon.controls.flightPath[i-1].alt
+				);
+				
 				abort = 1;
 			}
 			elsif (closestApproach < (4.0 * attributes[myNodeName2].dimensions.damageRadius_m ))
@@ -6843,7 +6833,7 @@ var guideRocket = func
 
 	var turnRate = 0.0;
 	# no turn if too soon in flight
-	if ( thisWeapon.controls.flightTime > thisWeapon.timeNoTurn ) 
+	if ( thisWeapon.controls.flightTime > thisWeapon.timeNoTurn + rand()) 
 	{	
 		# only turn if above minimum speed 
 		var speedFactor = missileSpeed_mps / thisWeapon.minTurnSpeed_mps ;
@@ -10253,6 +10243,7 @@ var weapons_init = func (myNodeName = "") {
 #
 # Put this nasal code in your object's load:
 #      bombable.weapons_init (cmdarg().getPath())
+# weapFixed indicates that the weapon can only fire in a fixed direction relative to its platform
 
 var weapons_init_func = func(myNodeName) 
 {
@@ -10371,7 +10362,7 @@ var weapons_init_func = func(myNodeName)
 		weapAngles["initialElevation"] = weapAngles.elevation;
 
 		var weapFixed = (weapAngles.elevationMin == weapAngles.elevationMax) and (weapAngles.headingMin == weapAngles.headingMax) and (thisWeapon["weaponType"] != 1);
-		nFixed += weapFixed; # do not include rockets
+		nFixed += weapFixed; # do not include rockets since a different target can be assigned to each 'fixed' rocket 
 			
 		thisWeapon.destroyed = 0;
 
@@ -10379,7 +10370,7 @@ var weapons_init_func = func(myNodeName)
 			nHit:0, 
 			weaponDirModelFrame:weapDir, 
 			weaponOffsetRefFrame:[0,0,0], 
-			weaponDirRefFrame:[0,0,0], 
+			weaponDirRefFrame:[0,0,-1], #-1 flag to show not initialized 
 			lastTargetVelocity:[0,0,0],
 			interceptSpeed:0,
 			fixed:weapFixed, 
@@ -10538,7 +10529,7 @@ var rocketParmCheck = func( thisWeapon )
 		{name: "maxTurnRate",						default: 30.0*D2R,	lowerBound: 20.0*D2R,	upperBound: 45.0*D2R	}, # turn rate is constant in regime III
 		{name: "maxG",								default: 300.0,		lowerBound: 200.0,		upperBound: 400.0		}, # maximum G force the missile can withstand in mps limiting turn rate at high speeds - turn rate varies inversely with speed in regime IV
 		{name: "AoA",								default: 13.0*D2R,	lowerBound: 8.0*D2R,	upperBound: 15.0*D2R	}, # angle of attack to maximise lift, typically between 10 and 15 degrees turn disabled below this speed - dependent on whether missile has vectored thrust
-		{name: "timeNoTurn",						default: 1.5,		lowerBound: 0.0,		upperBound: 3.0			}, # seconds after launch when not possible to turn
+		{name: "timeNoTurn",						default: 1.5,		lowerBound: 0.5,		upperBound: 3.0			}, # seconds after launch when not possible to turn
 		{name: "lengthTube",						default: 3.0,		lowerBound: 0.0,		upperBound: 10.0		}, # length of launch tube or guide rail
 		{name: "area",								default: 0.04,		lowerBound: 0.0225,		upperBound: 0.09		}, # effective area of rocket in metres squared; note length to diameter is fixed
 	];
@@ -12441,7 +12432,7 @@ var startScenario = func()
 			team :			"B",
 			target :		"Z",
 			arrivalTime :	-360, # sec
-			airSpeed : 		15 * KT2MPS,
+			airSpeed : 		25 * KT2MPS,
 			airportName :	"EGOD",
 			heading :		225,
 			alt :			0,
@@ -12471,15 +12462,15 @@ var startScenario = func()
 			team :			"Z",
 			target :		"B",
 			arrivalTime :	300, # sec
-			airSpeed : 		300 * KT2MPS,
+			airSpeed : 		500 * KT2MPS,
 			airportName :	"EGOD",
 			heading :		30,
 			alt :			5000,
 			offsets :
 						[
-							[0, 0, 0],
+							[0, 1000, 0],
 							# [-20, 21, 0],
-							[-21, -20, 0]
+							[-2000, -2000, 0]
 						],
 			},
 			# group4: #drone
