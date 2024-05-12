@@ -6203,7 +6203,7 @@ var weapons_loop = func (id, myNodeName1 = "", targetSize_m = nil) {
 		{
 			pos += 1;
 			if (pos == nTargets) pos = indexClosest;
-			thisWeapon.aim.target = myTargets[pos];
+			if (myTargets[pos] != 0) thisWeapon.aim.target = myTargets[pos]; # only attack main AC when there are no AI targets
 			continue;
 		}
 
@@ -6712,9 +6712,9 @@ var guideRocket = func
 				)
 			);
 
-			if (closestApproach < attributes[myNodeName2].dimensions.damageRadius_m)
+			if (closestApproach < 2 * attributes[myNodeName2].dimensions.damageRadius_m)
 			{
-				# run missile on to target
+				# run missile on to target and explode
 				var steps_to_target = (t_intercept > 0) ? math.ceil ( t_intercept / time_inc  ) : 0;
 				deltaXYZ = 
 				[
@@ -6740,12 +6740,12 @@ var guideRocket = func
 				# message rocket hit from add_damage
 				var weaponPower = bombableMenu["ai-weapon-power"];
 				if (weaponPower == nil) weaponPower = 0.2;
-				thisWeapon.aim.nHit = 1.0 - closestApproach / attributes[myNodeName2].dimensions.damageRadius_m;
-				var damageRatio = thisWeapon.aim.nHit * weaponPower * thisWeapon.mass * 2.2 * attributes[myNodeName2].vulnerabilities.damageVulnerability / 100; 
-				debprint(sprintf("nHit= %5.1f damageRatio %5.1f callsign= %s", thisWeapon.aim.nHit, damageRatio, getCallSign(myNodeName2) ));
+				thisWeapon.aim.nHit = rand() * attributes[myNodeName2].dimensions.damageRadius_m / closestApproach;
+				var damagePercent = thisWeapon.aim.nHit * weaponPower * thisWeapon.mass * 2.2 * attributes[myNodeName2].vulnerabilities.damageVulnerability / 100; 
+				debprint(sprintf("nHit= %5.1f damagePercent %5.1f callsign= %s", thisWeapon.aim.nHit, damagePercent, getCallSign(myNodeName2) ));
 				add_damage
 				(
-					damageRatio, 
+					damagePercent, 
 					"weapon", 
 					myNodeName2, 
 					myNodeName1, 
@@ -9069,17 +9069,17 @@ var add_damage = func
 
 		if (damagetype == "weapon") 
 		{
-			# if (myNodeName2 != nil and damageRise > 0.025 and rand() < 0.5 and !ats.fixed)
-			# assume any ww1/2 aircraft with fixed weapons are better sticking on their target and dodging any new shooters
 			if (damageRise > 0.025 and rand() < 0.5 and myNodeName2 != nil and !ats.controls.attackInProgress)
 			{
-				# change target
-				# if not already attacking another
+				# change target to shooter, if not already
 				var ats2 = attributes[myNodeName2];
-				if (size(ats.targetIndex) == ats.maxTargets) removeTarget(ats.index);
-				append (ats.targetIndex, ats2.index); # add shooter causing the damage to my targets
-				append (ats2.shooterIndex, ats.index); # add me to the shooter's list of shooters
-				debprint (callsign, " set ", callsign2, " as new target");
+				if (vecindex(ats.targetIndex, ats2.index == -1))
+				{
+					if (size(ats.targetIndex) == ats.maxTargets) removeTarget(ats.index);
+					append (ats.targetIndex, ats2.index); # add shooter causing the damage to my targets
+					append (ats2.shooterIndex, ats.index); # add me to the shooter's list of shooters
+					debprint (callsign, " set ", callsign2, " as new target");
+				}
 			}
 
 			if ((rand() < calcPilotSkill (myNodeName) / 6)) dodge (myNodeName);
@@ -9091,12 +9091,15 @@ var add_damage = func
 			var weaps = ats.weapons;
 			var nWeapons = size(weaps) ;
 			var index = int (rand() * nWeapons) ;
-			weaps[""~keys(weaps)[index]]["destroyed"] = 1;
-			debprint(callsign," "~keys(weaps)[index]~" destroyed");
-			if (ats.maxTargets > 1) 
+			if (!weaps[""~keys(weaps)[index]]["destroyed"])
 			{
-				ats.maxTargets -= 1;
-				removeTarget(ats.index);
+				weaps[""~keys(weaps)[index]]["destroyed"] = 1;
+				debprint(callsign," "~keys(weaps)[index]~" destroyed");
+				if (ats.maxTargets > 1) 
+				{
+					ats.maxTargets -= 1;
+					removeTarget(ats.index);
+				}
 			}
 		}
 	}

@@ -138,7 +138,7 @@
           # The weapons system makes the AI aircraft fire on the main aircraft 
           # You can define any number of weapons--just enclose each in curly brackets
           # and separate with commas (,).  
-		  # headingMax is clockwise of headingMin.  Heading values increase clockwise from forwards direction of craft	
+          # headingMax is clockwise of headingMin.  Heading values increase clockwise from forwards direction of craft	
 		  
           weapons : {
 
@@ -152,9 +152,9 @@
                 weaponOffset_m : {x:-48.8727, y:0, z:7.8}, # Offset of the weapon from the main aircraft center
                 weaponSize_m : {start:1.0, end:3.0}, # Visual size of the weapon's projectile, in meters, at start & end of its path
                 weaponType : 0, # 1 for rocket; 0 for anything else
-			  },
+              },
 		  			  
-              phalanx_stbd :  #internal name - this can be any name you want; must be a valid nasal variable name
+            phalanx_stbd :  #internal name - this can be any name you want; must be a valid nasal variable name
               {               
                 name : "Phalanx Stbd 20mm cannon", # name presented to users, ie in on-screen messages
                 maxDamage_percent : 4, # maximum percentage damage one hit from the aircraft's main weapon/machine guns will do to an opponent
@@ -164,9 +164,9 @@
                 weaponOffset_m : {x:10.4319, y:8.8514, z:9.45}, # Offset of the weapon from the main aircraft center
                 weaponSize_m : {start:1.0, end:3.0}, # Visual size of the weapon's projectile, in meters, at start & end of its path
                 weaponType : 0, # 1 for rocket; 0 for anything else
-			  },        
+              },        
 			  
-			  phalanx_port :  #internal name - this can be any name you want; must be a valid nasal variable name
+            phalanx_port :  #internal name - this can be any name you want; must be a valid nasal variable name
               {               
                 name : "Phalanx Port 20mm cannon", # name presented to users, ie in on-screen messages
                 maxDamage_percent : 4, # maximum percentage damage one hit from the aircraft's main weapon/machine guns will do to an opponent
@@ -176,120 +176,120 @@
                 weaponOffset_m : {x:10.4319, y:-8.8514, z:9.45}, # Offset of the weapon from the main aircraft center
                 weaponSize_m : {start:1.0, end:3.0}, # Visual size of the weapon's projectile, in meters, at start & end of its path
                 weaponType : 0, # 1 for rocket; 0 for anything else
-			  },
+              },
 
-			  # rocket_v1 :  #internal name - this can be any name you want; must be a valid nasal variable name
-        # {               
-          # name : "Sea Viper #1", # modelled loosely on aster30 aka. Sea Viper
-          # maxDamage_percent : 100, # maximum percentage damage one hit from the aircraft's main weapon/machine guns will do to an opponent
-          # maxDamageDistance_m : 40000, # maximum distance at which the aircrafts main weapon/maching guns will be able to damage an opponent
-          # weaponAngle_deg  :  { heading: 0, elevation: 90, headingMin: 0, headingMax: 0, elevationMin: 90, elevationMax: 90  }, # initial launch direction from AC.   
-                                                            # # 0,0 = straight ahead, 90,0=directly right, 0,90=directly up, 0,180=directly back, etc.
-          # weaponOffset_m : {x:-33.9, y:-2.871, z:7.2}, # Offset of the weapon from the main aircraft center
-          # weaponSize_m : {start:1.0, end:3.0}, # Visual size of the weapon's projectile, in meters, at start & end of its path
-          # weaponType : 1, # 1 for rocket; 0 for anything else
-          # area : 0.0324 , # cross-section area of rocket, e.g. pi D /4, in m^2
-          # launchMass : 450 , # in kg total launch mass, fuel and payload
-          # maxMissileSpeed_mps : 990, # appox Mach 3 # not used
-          # lengthTube : 6.5 , # 1.5 x length of rocket
-          # burn1 : 12.0, # duration of first stage burn e.g. solid rocket.  Specify either burn time or thrust - not both - burn time takes precedence
-          # burn2 : 98.0, # duration of second stage burn e.g. engine.  Thrust (N) = spec impulse (s) * mass (kg) * grav (ms-2) / burn time (s)
-          # massFuel_1 : 100, # kg
-          # massFuel_2 : 125, # kg
-          # specificImpulse1 : 250, # sec, measured per unit weight in N
-          # specificImpulse2 : 400, # sec, measured per unit weight in N
-          # AoA : 0.175, # angle of attack for maximum lift, in radians
-          # maxG : 300.0, # maximum G force the missile can withstand, in mps-2 
-          # minTurnSpeed_mps : 30.0, # rocket cannot turn below this speed
-          # maxTurnRate : 1.0 , # rad per sec
-          # speedX : 2.0 , # multiple of minTurnSpeed when maxTurnRate achieved - turn rate increases linearly with speed in regime II
-          # timeNoTurn : 1.5 , # seconds after launch when not possible to turn
-			  # },
+			  rocket_v1 :  #internal name - this can be any name you want; must be a valid nasal variable name
+        {               
+          name : "Sea Viper #1", # modelled loosely on aster30 aka. Sea Viper
+          maxDamage_percent : 100, # maximum percentage damage one hit from the aircraft's main weapon/machine guns will do to an opponent
+          maxDamageDistance_m : 40000, # maximum distance at which the aircrafts main weapon/maching guns will be able to damage an opponent
+          weaponAngle_deg  :  { heading: 0, elevation: 90, headingMin: 0, headingMax: 0, elevationMin: 90, elevationMax: 90  }, # initial launch direction from AC.   
+                                                            # 0,0 = straight ahead, 90,0=directly right, 0,90=directly up, 0,180=directly back, etc.
+          weaponOffset_m : {x:-33.9, y:-2.871, z:7.2}, # Offset of the weapon from the main aircraft center
+          weaponSize_m : {start:1.0, end:3.0}, # Visual size of the weapon's projectile, in meters, at start & end of its path
+          weaponType : 1, # 1 for rocket; 0 for anything else
+          area : 0.0324 , # cross-section area of rocket, e.g. pi D /4, in m^2
+          launchMass : 450 , # in kg total launch mass, fuel and payload
+          maxMissileSpeed_mps : 990, # appox Mach 3 # not used
+          lengthTube : 6.5 , # 1.5 x length of rocket
+          burn1 : 12.0, # duration of first stage burn e.g. solid rocket.  Specify either burn time or thrust - not both - burn time takes precedence
+          burn2 : 98.0, # duration of second stage burn e.g. engine.  Thrust (N) = spec impulse (s) * mass (kg) * grav (ms-2) / burn time (s)
+          massFuel_1 : 100, # kg
+          massFuel_2 : 125, # kg
+          specificImpulse1 : 250, # sec, measured per unit weight in N
+          specificImpulse2 : 400, # sec, measured per unit weight in N
+          AoA : 0.175, # angle of attack for maximum lift, in radians
+          maxG : 300.0, # maximum G force the missile can withstand, in mps-2 
+          minTurnSpeed_mps : 30.0, # rocket cannot turn below this speed
+          maxTurnRate : 1.0 , # rad per sec
+          speedX : 2.0 , # multiple of minTurnSpeed when maxTurnRate achieved - turn rate increases linearly with speed in regime II
+          timeNoTurn : 1.5 , # seconds after launch when not possible to turn
+			  },
 			  
-			  # rocket_v2 :
-        # {               
-        # name : "Sea Viper #2", # modelled loosely on aster30 aka. Sea Viper
-        # maxDamage_percent : 100, # maximum percentage damage one hit from the aircraft's main weapon/machine guns will do to an opponent
-        # maxDamageDistance_m : 40000, # maximum distance at which the aircrafts main weapon/maching guns will be able to damage an opponent
-        # weaponAngle_deg  :  { heading: 0, elevation: 90, headingMin: 0, headingMax: 0, elevationMin: 90, elevationMax: 90  }, # initial launch direction from AC.   
-                                                          # # 0,0 = straight ahead, 90,0=directly right, 0,90=directly up, 0,180=directly back, etc.
-        # weaponOffset_m : {x:-33.9, y:-1.63, z:7.2}, # Offset of the weapon from the main aircraft center
-        # weaponSize_m : {start:1.0, end:3.0}, # Visual size of the weapon's projectile, in meters, at start & end of its path
-        # weaponType : 1, # 1 for rocket; 0 for anything else
-				# area : 0.0324 , # cross-section area of rocket, e.g. pi D /4, in m^2
-				# launchMass : 450 , # in kg total launch mass, fuel and payload
-				# maxMissileSpeed_mps : 990, # appox Mach 3 # not used
-				# lengthTube : 6.5 , # 1.5 x length of rocket
-				# burn1 : 12.0, # duration of first stage burn e.g. solid rocket.  Specify either burn time or thrust - not both - burn time takes precedence
-				# burn2 : 98.0, # duration of second stage burn e.g. engine.  Thrust (N) = spec impulse (s) * mass (kg) * grav (ms-2) / burn time (s)
-				# massFuel_1 : 100, # kg
-				# massFuel_2 : 125, # kg
-				# specificImpulse1 : 250, # sec, measured per unit weight in N
-				# specificImpulse2 : 400, # sec, measured per unit weight in N
-				# AoA : 0.175, # angle of attack for maximum lift, in radians
-				# maxG : 300.0, # maximum G force the missile can withstand, in mps-2 
-				# minTurnSpeed_mps : 30.0, # rocket cannot turn below this speed
-				# maxTurnRate : 1.0 , # rad per sec
-				# speedX : 2.0 , # multiple of minTurnSpeed when maxTurnRate achieved - turn rate increases linearly with speed in regime II
-				# timeNoTurn : 1.5 , # seconds after launch when not possible to turn
-			  # },
+			  rocket_v2 :
+        {               
+        name : "Sea Viper #2", # modelled loosely on aster30 aka. Sea Viper
+        maxDamage_percent : 100, # maximum percentage damage one hit from the aircraft's main weapon/machine guns will do to an opponent
+        maxDamageDistance_m : 40000, # maximum distance at which the aircrafts main weapon/maching guns will be able to damage an opponent
+        weaponAngle_deg  :  { heading: 0, elevation: 90, headingMin: 0, headingMax: 0, elevationMin: 90, elevationMax: 90  }, # initial launch direction from AC.   
+                                                          # 0,0 = straight ahead, 90,0=directly right, 0,90=directly up, 0,180=directly back, etc.
+        weaponOffset_m : {x:-33.9, y:-1.63, z:7.2}, # Offset of the weapon from the main aircraft center
+        weaponSize_m : {start:1.0, end:3.0}, # Visual size of the weapon's projectile, in meters, at start & end of its path
+        weaponType : 1, # 1 for rocket; 0 for anything else
+				area : 0.0324 , # cross-section area of rocket, e.g. pi D /4, in m^2
+				launchMass : 450 , # in kg total launch mass, fuel and payload
+				maxMissileSpeed_mps : 990, # appox Mach 3 # not used
+				lengthTube : 6.5 , # 1.5 x length of rocket
+				burn1 : 12.0, # duration of first stage burn e.g. solid rocket.  Specify either burn time or thrust - not both - burn time takes precedence
+				burn2 : 98.0, # duration of second stage burn e.g. engine.  Thrust (N) = spec impulse (s) * mass (kg) * grav (ms-2) / burn time (s)
+				massFuel_1 : 100, # kg
+				massFuel_2 : 125, # kg
+				specificImpulse1 : 250, # sec, measured per unit weight in N
+				specificImpulse2 : 400, # sec, measured per unit weight in N
+				AoA : 0.175, # angle of attack for maximum lift, in radians
+				maxG : 300.0, # maximum G force the missile can withstand, in mps-2 
+				minTurnSpeed_mps : 30.0, # rocket cannot turn below this speed
+				maxTurnRate : 1.0 , # rad per sec
+				speedX : 2.0 , # multiple of minTurnSpeed when maxTurnRate achieved - turn rate increases linearly with speed in regime II
+				timeNoTurn : 1.5 , # seconds after launch when not possible to turn
+			  },
 			   
  			  
-			  # rocket_v3 :
-        # {               
-        # name : "Sea Viper #3", # modelled loosely on aster30 aka. Sea Viper
-        # maxDamage_percent : 100, # maximum percentage damage one hit from the aircraft's main weapon/machine guns will do to an opponent
-        # maxDamageDistance_m : 40000, # maximum distance at which the aircrafts main weapon/maching guns will be able to damage an opponent
-        # weaponAngle_deg  :  { heading: 0, elevation: 90, headingMin: 0, headingMax: 0, elevationMin: 90, elevationMax: 90  }, # initial launch direction from AC.   
-                                                          # # 0,0 = straight ahead, 90,0=directly right, 0,90=directly up, 0,180=directly back, etc.
-        # weaponOffset_m : {x:-39.289, y:-1.63, z:7.2}, # Offset of the weapon from the main aircraft center
-        # weaponSize_m : {start:1.0, end:3.0}, # Visual size of the weapon's projectile, in meters, at start & end of its path
-        # weaponType : 1, # 1 for rocket; 0 for anything else
-				# area : 0.0324 , # cross-section area of rocket, e.g. pi D /4, in m^2
-				# launchMass : 450 , # in kg total launch mass, fuel and payload
-				# maxMissileSpeed_mps : 990, # appox Mach 3 # not used
-				# lengthTube : 6.5 , # 1.5 x length of rocket
-				# burn1 : 12.0, # duration of first stage burn e.g. solid rocket.  Specify either burn time or thrust - not both - burn time takes precedence
-				# burn2 : 98.0, # duration of second stage burn e.g. engine.  Thrust (N) = spec impulse (s) * mass (kg) * grav (ms-2) / burn time (s)
-				# massFuel_1 : 100, # kg
-				# massFuel_2 : 125, # kg
-				# specificImpulse1 : 250, # sec, measured per unit weight in N
-				# specificImpulse2 : 400, # sec, measured per unit weight in N
-				# AoA : 0.175, # angle of attack for maximum lift, in radians
-				# maxG : 300.0, # maximum G force the missile can withstand, in mps-2 
-				# minTurnSpeed_mps : 30.0, # rocket cannot turn below this speed
-				# maxTurnRate : 1.0 , # rad per sec
-				# speedX : 2.0 , # multiple of minTurnSpeed when maxTurnRate achieved - turn rate increases linearly with speed in regime II
-				# timeNoTurn : 1.5 , # seconds after launch when not possible to turn
-			  # }, 
+			  rocket_v3 :
+        {               
+        name : "Sea Viper #3", # modelled loosely on aster30 aka. Sea Viper
+        maxDamage_percent : 100, # maximum percentage damage one hit from the aircraft's main weapon/machine guns will do to an opponent
+        maxDamageDistance_m : 40000, # maximum distance at which the aircrafts main weapon/maching guns will be able to damage an opponent
+        weaponAngle_deg  :  { heading: 0, elevation: 90, headingMin: 0, headingMax: 0, elevationMin: 90, elevationMax: 90  }, # initial launch direction from AC.   
+                                                          # 0,0 = straight ahead, 90,0=directly right, 0,90=directly up, 0,180=directly back, etc.
+        weaponOffset_m : {x:-39.289, y:-1.63, z:7.2}, # Offset of the weapon from the main aircraft center
+        weaponSize_m : {start:1.0, end:3.0}, # Visual size of the weapon's projectile, in meters, at start & end of its path
+        weaponType : 1, # 1 for rocket; 0 for anything else
+				area : 0.0324 , # cross-section area of rocket, e.g. pi D /4, in m^2
+				launchMass : 450 , # in kg total launch mass, fuel and payload
+				maxMissileSpeed_mps : 990, # appox Mach 3 # not used
+				lengthTube : 6.5 , # 1.5 x length of rocket
+				burn1 : 12.0, # duration of first stage burn e.g. solid rocket.  Specify either burn time or thrust - not both - burn time takes precedence
+				burn2 : 98.0, # duration of second stage burn e.g. engine.  Thrust (N) = spec impulse (s) * mass (kg) * grav (ms-2) / burn time (s)
+				massFuel_1 : 100, # kg
+				massFuel_2 : 125, # kg
+				specificImpulse1 : 250, # sec, measured per unit weight in N
+				specificImpulse2 : 400, # sec, measured per unit weight in N
+				AoA : 0.175, # angle of attack for maximum lift, in radians
+				maxG : 300.0, # maximum G force the missile can withstand, in mps-2 
+				minTurnSpeed_mps : 30.0, # rocket cannot turn below this speed
+				maxTurnRate : 1.0 , # rad per sec
+				speedX : 2.0 , # multiple of minTurnSpeed when maxTurnRate achieved - turn rate increases linearly with speed in regime II
+				timeNoTurn : 1.5 , # seconds after launch when not possible to turn
+			  }, 
 			  
-			  # rocket_v4 :
-        # {               
-        # name : "Sea Viper #4", # modelled loosely on aster30 aka. Sea Viper
-        # maxDamage_percent : 100, # maximum percentage damage one hit from the aircraft's main weapon/machine guns will do to an opponent
-        # maxDamageDistance_m : 40000, # maximum distance at which the aircrafts main weapon/maching guns will be able to damage an opponent
-        # weaponAngle_deg  :  { heading: 0, elevation: 90, headingMin: 0, headingMax: 0, elevationMin: 90, elevationMax: 90  }, # initial launch direction from AC.   
-                                                          # # 0,0 = straight ahead, 90,0=directly right, 0,90=directly up, 0,180=directly back, etc.
-        # weaponOffset_m : {x:-39.289, y:-2.871, z:7.2}, # Offset of the weapon from the main aircraft center
-        # weaponSize_m : {start:1.0, end:3.0}, # Visual size of the weapon's projectile, in meters, at start & end of its path
-        # weaponType : 1, # 1 for rocket; 0 for anything else
-				# area : 0.0324 , # cross-section area of rocket, e.g. pi D /4, in m^2
-				# launchMass : 450 , # in kg total launch mass, fuel and payload
-				# maxMissileSpeed_mps : 990, # appox Mach 3 # not used
-				# lengthTube : 6.5 , # 1.5 x length of rocket
-				# burn1 : 12.0, # duration of first stage burn e.g. solid rocket.  Specify either burn time or thrust - not both - burn time takes precedence
-				# burn2 : 98.0, # duration of second stage burn e.g. engine.  Thrust (N) = spec impulse (s) * mass (kg) * grav (ms-2) / burn time (s)
-				# massFuel_1 : 100, # kg
-				# massFuel_2 : 125, # kg
-				# specificImpulse1 : 250, # sec, measured per unit weight in N
-				# specificImpulse2 : 400, # sec, measured per unit weight in N
-				# AoA : 0.175, # angle of attack for maximum lift, in radians
-				# maxG : 300.0, # maximum G force the missile can withstand, in mps-2 
-				# minTurnSpeed_mps : 30.0, # rocket cannot turn below this speed
-				# maxTurnRate : 1.0 , # rad per sec
-				# speedX : 2.0 , # multiple of minTurnSpeed when maxTurnRate achieved - turn rate increases linearly with speed in regime II
-				# timeNoTurn : 1.5 , # seconds after launch when not possible to turn
-			  # },
+			  rocket_v4 :
+        {               
+        name : "Sea Viper #4", # modelled loosely on aster30 aka. Sea Viper
+        maxDamage_percent : 100, # maximum percentage damage one hit from the aircraft's main weapon/machine guns will do to an opponent
+        maxDamageDistance_m : 40000, # maximum distance at which the aircrafts main weapon/maching guns will be able to damage an opponent
+        weaponAngle_deg  :  { heading: 0, elevation: 90, headingMin: 0, headingMax: 0, elevationMin: 90, elevationMax: 90  }, # initial launch direction from AC.   
+                                                          # 0,0 = straight ahead, 90,0=directly right, 0,90=directly up, 0,180=directly back, etc.
+        weaponOffset_m : {x:-39.289, y:-2.871, z:7.2}, # Offset of the weapon from the main aircraft center
+        weaponSize_m : {start:1.0, end:3.0}, # Visual size of the weapon's projectile, in meters, at start & end of its path
+        weaponType : 1, # 1 for rocket; 0 for anything else
+				area : 0.0324 , # cross-section area of rocket, e.g. pi D /4, in m^2
+				launchMass : 450 , # in kg total launch mass, fuel and payload
+				maxMissileSpeed_mps : 990, # appox Mach 3 # not used
+				lengthTube : 6.5 , # 1.5 x length of rocket
+				burn1 : 12.0, # duration of first stage burn e.g. solid rocket.  Specify either burn time or thrust - not both - burn time takes precedence
+				burn2 : 98.0, # duration of second stage burn e.g. engine.  Thrust (N) = spec impulse (s) * mass (kg) * grav (ms-2) / burn time (s)
+				massFuel_1 : 100, # kg
+				massFuel_2 : 125, # kg
+				specificImpulse1 : 250, # sec, measured per unit weight in N
+				specificImpulse2 : 400, # sec, measured per unit weight in N
+				AoA : 0.175, # angle of attack for maximum lift, in radians
+				maxG : 300.0, # maximum G force the missile can withstand, in mps-2 
+				minTurnSpeed_mps : 30.0, # rocket cannot turn below this speed
+				maxTurnRate : 1.0 , # rad per sec
+				speedX : 2.0 , # multiple of minTurnSpeed when maxTurnRate achieved - turn rate increases linearly with speed in regime II
+				timeNoTurn : 1.5 , # seconds after launch when not possible to turn
+			  },
 			  
 		  },
 			  
@@ -320,7 +320,7 @@
           # VULNERABILITIES DEFINITIONS        
           #
           vulnerabilities : {                   
-            damageVulnerability : 0.05, #Vulnerability to damage from armament, 1=normal M1 tank; higher to make objects easier to kill and lower to make them more difficult.  This is a multiplier, so 5 means 5X easier to kill than an M1, 1/5 means 5X harder to kill. 
+            damageVulnerability : 0.004, #Vulnerability to damage from armament, 1=normal M1 tank; higher to make objects easier to kill and lower to make them more difficult.  This is a multiplier, so 5 means 5X easier to kill than an M1, 1/5 means 5X harder to kill. 
             
             engineDamageVulnerability_percent : 9, #Chance that a small-caliber machine-gun round will damage the engine.       
             
