@@ -5986,15 +5986,15 @@ var checkAim = func ( thisWeapon,
 		pRound *= (1 - getprop (""~myNodeName1~"/velocities/true-airspeed-kt") / ats.velocities.maxSpeed_kt); # reduce probability if platform moving
 		thisWeapon.aim.nHit = pRound * LOOP_TIME * thisWeapon.roundsPerSec; 
 
-		debprint 
-		(
-			sprintf(
-			"Bombable: Hit %s nHit = %6.3f offset deg = %6.2f weapPowerSkill = %4.1f",
-			myNodeName1 ~ ": " ~ thisWeapon.name,
-			thisWeapon.aim.nHit,
-			targetOffset_rad * R2D,
-			weapPowerSkill)
-		);
+		# debprint 
+		# (
+		# 	sprintf(
+		# 	"Bombable: Hit %s nHit = %6.3f offset deg = %6.2f weapPowerSkill = %4.1f",
+		# 	myNodeName1 ~ ": " ~ thisWeapon.name,
+		# 	thisWeapon.aim.nHit,
+		# 	targetOffset_rad * R2D,
+		# 	weapPowerSkill)
+		# );
 	}
 	if (thisWeapon.aim.fixed == 1 or thisWeapon.weaponType == 1)
 	# no change to weaponDirModelFrame (set in weapons_init_func)
@@ -6110,6 +6110,8 @@ var weapons_loop = func (id, myNodeName1 = "", targetSize_m = nil) {
 	var groundData = [];
 	var noLoS = 1; # flag for no target in line of sight
 	var distClosest = 999;
+	var threatLevel = 1; # number of targets within detection range
+	var detectionRange = 3000;
 	var indexClosest = nil;
 	foreach (target; myTargets)
 	{
@@ -6133,6 +6135,7 @@ var weapons_loop = func (id, myNodeName1 = "", targetSize_m = nil) {
 			distClosest = distance_m;
 			indexClosest = size (targetData);
 		}
+		if ( distance_m < detectionRange) threatLevel += 1;
 
 		append (targetData, [deltaX_m, deltaY_m, deltaAlt_m, distance_m]);
 
@@ -6186,7 +6189,7 @@ var weapons_loop = func (id, myNodeName1 = "", targetSize_m = nil) {
 		# if no longer a target, or no line of sight, or out of range then choose another
 		if (pos == nil)
 		{
-			pos = (rand() > .5) ? 0 : indexClosest;
+			pos = int(rand() * nTargets);
 			thisWeapon.aim.target = myTargets[pos];
 			continue;
 		}
@@ -6196,14 +6199,13 @@ var weapons_loop = func (id, myNodeName1 = "", targetSize_m = nil) {
 			thisWeapon.aim.target = myTargets[pos];
 			continue;
 		}
-		if (targetData[pos][3] > thisWeapon.maxDamageDistance_m)
+		if (targetData[pos][3] > thisWeapon.maxDamageDistance_m and rand() < .1)
 		{
 			pos += 1;
-			if (pos == nTargets) pos = 0;
+			if (pos == nTargets) pos = indexClosest;
 			thisWeapon.aim.target = myTargets[pos];
 			continue;
 		}
-		thisWeapon.aim.target = ind;
 
 		var myNodeName2 = nodes[ind];
 		var tgtDisp = [targetData[pos][0], targetData[pos][1], targetData[pos][2]];
@@ -6234,10 +6236,25 @@ var weapons_loop = func (id, myNodeName1 = "", targetSize_m = nil) {
 				);
 			if ( targetSighted ) 
 			{
+				# launch rocket when high threat level and few rockets in the air (ship)
+				# when escaping or attacking and target close by (aircraft)				
 				weaponsOrientationPositionUpdate(myNodeName1, elem);
-				if ( rand() < (weapPowerSkill * weapPowerSkill) / (ats.attacks["rocketsInAir"] + 1) / (ats.attacks["rocketsInAir"] + 1) / 2)
+				r = ats.attacks["rocketsInAir"];
+				if (ats.type == "ship")
 				{
-					launchRocket (id, myNodeName1, elem)
+					if (rand() < 0.1 * weapPowerSkill * threatLevel / (r * r * r + 1)) launchRocket (id, myNodeName1, elem);
+				}
+				elsif ( ats.type == "aircraft")
+				{
+					if
+					(
+						rand() < 0.5 * weapPowerSkill * 
+						(
+							ats.controls.dodgeInProgress or 
+							(ats.controls.attackInProgress and targetData[pos][3] > ats.attacks.minDistance_m * 2 and targetData[pos][3] < ats.attacks.maxDistance_m / 2)
+						)
+					) 
+					launchRocket (id, myNodeName1, elem);
 				}
 			}
 			continue;
@@ -7891,7 +7908,7 @@ var attack_loop = func ( id, myNodeName )
 	#debprint ("Bombable: Checking attack parameters: ", dist[0], " ", atts.maxDistance_m, " ",atts.minDistance_m, " ",dist[1], " ",-atts.altitudeLowerCutoff_m, " ",dist[1] < atts.altitudeHigherCutoff_m );
 	if (ctrls.stayInFormation)
 	{
-		if ( dist[0] > atts.maxDistance_m / 10 ) return;
+		if ( dist[0] > atts.maxDistance_m / 5 ) return;
 		var msg = getCallSign(myNodeName)~" breaking formation";
 		targetStatusPopupTip (msg, 5);
 		# debprint ("Bombable: "~msg); 
@@ -8971,16 +8988,15 @@ var add_damage = func
 	}
 					
 	var ats = attributes[myNodeName];
+	# check for destroyed AC on ground; if so, no further action needed
+	if (ats.exploded) return 0;
+
 	var vuls = ats.vulnerabilities;
 	var spds = ats.velocities;
 	var livs = ats.damageLiveries;
 	var ctrls = ats.controls;
 	var liveriesCount = livs.count;
 	var type = ats.type;
-
-	# check for destroyed AC on ground; if so, no further action needed
-	if (ctrls.onGround) return 0;
-	
 
 	var damageValue = ats.damage;
 
@@ -10513,7 +10529,7 @@ var rocketParmCheck = func( thisWeapon )
 {
 	var weaponVars =
 	[
-		{name: "burn1",								default: 20.0,		lowerBound: 1.0,		upperBound: 20.0		}, # burn time of first rocket stage in sec
+		{name: "burn1",								default: 20.0,		lowerBound: 0.1,		upperBound: 20.0		}, # burn time of first rocket stage in sec
 		{name: "burn2",								default: 0.0,		lowerBound: 0.0,		upperBound: 3600.0		}, # burn time of second rocket stage in sec
 		{name: "burn3",								default: 0.0,		lowerBound: 0.0,		upperBound: 3600.0		}, # burn time of second rocket stage in sec
 		{name: "massFuel_1",						default: 100.0,		lowerBound: 0.0,		upperBound: 1000.0		}, # kg fuel stage 1. Zero to release rocket pre-ignition so as to make Stage 1 freefall
@@ -12430,7 +12446,7 @@ var startScenario = func()
 			group1: #Type45
 			{
 			team :			"B",
-			target :		"Z",
+			target :		"X",
 			arrivalTime :	-360, # sec
 			airSpeed : 		25 * KT2MPS,
 			airportName :	"EGOD",
@@ -12441,27 +12457,11 @@ var startScenario = func()
 							[0, 0, 0]
 						],
 			},
-			# group2: #rockets
-			# {
-			# team :			"C",
-			# target :		"Z",
-			# arrivalTime :	-360, # sec
-			# airSpeed : 		15 * KT2MPS,
-			# airportName :	"EGOD",
-			# heading :		225,# 0 - 360 degrees
-			# alt :			100, # in feet
-			# offsets :
-			# 			[
-			# 				[0, 0, 0], # offset behind, offset to right, in metres, i.e. model co-ord system
-			# 				[40, 0, 0],
-			# 				[80, 0, 0]
-			# 			],
-			# },
-			group3: #F15
+			group2: #F15
 			{
-			team :			"Z",
+			team :			"X",
 			target :		"B",
-			arrivalTime :	300, # sec
+			arrivalTime :	200, # sec
 			airSpeed : 		500 * KT2MPS,
 			airportName :	"EGOD",
 			heading :		30,
@@ -12470,23 +12470,45 @@ var startScenario = func()
 						[
 							[0, 1000, 0],
 							# [-20, 21, 0],
-							[-2000, -2000, 0]
+							[-1000, -1000, 0]
 						],
 			},
-			# group4: #drone
-			# {
-			# team :			"Y",
-			# target :		"A",
-			# arrivalTime :	200, # sec
-			# airSpeed : 		100 * KT2MPS,
-			# airportName :	"EGOD",
-			# heading :		30,
-			# alt :			5000,
-			# offsets :
-			# 			[
-			# 				[0, 0, 0]
-			# 			],
-			# },
+		};
+	}
+	elsif (scenarioName == "BOMB-Llandbehr_Type45_F15_rocket")
+	{
+		var scenario = 
+		{
+			group1: #Type45
+			{
+			team :			"Z",
+			target :		"B",
+			arrivalTime :	-360, # sec
+			airSpeed : 		25 * KT2MPS,
+			airportName :	"EGOD",
+			heading :		225,
+			alt :			0,
+			offsets :
+						[
+							[0, 0, 0]
+						],
+			},
+			group2: #F15
+			{
+			team :			"B",
+			target :		"Z",
+			arrivalTime :	200, # sec
+			airSpeed : 		500 * KT2MPS,
+			airportName :	"EGOD",
+			heading :		30,
+			alt :			5000,
+			offsets :
+						[
+							[0, 1000, 0],
+							# [-20, 21, 0],
+							[-1000, -1000, 0]
+						],
+			},
 		};
 	}
 	else
