@@ -1,0 +1,17 @@
+
+<PropertyList>
+
+ <path>null.ac</path>
+ 
+ <model>
+  <path>AI/Aircraft/Type45/Lights/hangar.xml</path>
+  <name>fdfloods</name>
+  <offsets>
+   <x-m>46.1</x-m>
+   <y-m>0</y-m>
+   <z-m>5.6</z-m>
+   <pitch-deg>0</pitch-deg>
+  </offsets>
+ </model>
+
+</PropertyList>
