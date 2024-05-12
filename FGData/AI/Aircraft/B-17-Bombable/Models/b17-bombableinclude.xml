@@ -103,14 +103,14 @@
           # The evasion system makes the AI aircraft dodge when they come under
           # fire. 
           evasions : {               
-            dodgeDelayMax_sec : 200, #max time to delay/wait between dodges
-            dodgeDelayMin_sec : 100, #minimum time to delay/wait between dodges
-            dodgeMax_deg : 1, #Max amount to turn when dodging
-            dodgeMin_deg : 1, #minimum amount to turn when dodging
-            rollRateMax_degpersec : 20, #you can figure this out by rolling the corresponding FG aircraft and timing a 180 or 360 deg roll                                                                  
+            dodgeDelayMax_sec : 60, #max time to delay/wait between dodges
+            dodgeDelayMin_sec : 30, #minimum time to delay/wait between dodges
+            dodgeMax_deg : 10, #Max amount to turn when dodging
+            dodgeMin_deg : 2, #minimum amount to turn when dodging
+            rollRateMax_degpersec : 10, #you can figure this out by rolling the corresponding FG aircraft and timing a 180 or 360 deg roll                                                                  
             dodgeROverLPreference_percent : 50, # Preference for right turns vs. left when dodging.  90% means 90% right turns, 50% means 50% right turns.
-            dodgeAltMin_m : -20, #Aircraft will begin to move up or down 
-            dodgeAltMax_m : 20, #Max & Min are relative to current alt  
+            dodgeAltMin_m : -100, #Aircraft will begin to move up or down 
+            dodgeAltMax_m : 100, #Max & Min are relative to current alt  
           },
           #  
           #########################################
@@ -151,30 +151,62 @@
           # The B17 actually had 13 guns in different positions: 
           # http://wiki.flightgear.org/Boeing_B-17_Flying_Fortress         
           weapons : {
-            front_gun :  #internal name - this can be any name you want; must be a valid nasal variable name
+            chin_turret_gun :  #internal name - this can be any name you want; must be a valid nasal variable name
               {               
-                name : "Front Machine Gun", # name presented to users, ie in on-screen messages
-                maxDamage_percent : 8, # maximum percentage damage one hit from the aircraft's main weapon/machine guns will do to an opponent
-                maxDamageDistance_m : 250, # maximum distance at which the aircrafts main weapon/maching guns will be able to damage an opponent
-                weaponAngle_deg  :  { heading: 0, elevation: 0, headingMin: -60, headingMax: 60, elevationMin: -45, elevationMax: 45  }, 
+                name : "Chin Turret Machine Gun", # name presented to users, ie in on-screen messages
+                maxDamage_percent : 3, # maximum percentage damage one hit from the aircraft's main weapon/machine guns will do to an opponent
+                maxDamageDistance_m : 1000, # maximum distance at which the aircrafts main weapon/machine guns will be able to damage an opponent, 500m is more realistic
+                weaponAngle_deg  :  { heading: 0, elevation: 0, headingMin: -30, headingMax: 30, elevationMin: -40, elevationMax: 10  }, 
 						# direction the aircraft's main weapon is aimed.   Weapon tracks target within min and max range defined here
 						# 0,0 = straight ahead, 90,0=directly right, 0,90=directly up, 0,180=directly back, etc.
 						# headingMax is the limit of traverse in a clockwise direction
-                weaponOffset_m : {x:-10, y:0, z:-1.5}, # Offset of the weapon from the main aircraft center
-                weaponSize_m : {start:0.3, end:0.6}, # Visual size of the weapon's projectile, in meters, at start & end of its path
-
+                weaponOffset_m : {x:-10.35, y:0, z:-1.406}, # Offset of the weapon from the main aircraft center
+                weaponSize_m : {start:0.6, end:1.2}, # Visual size of the weapon's projectile, in meters, at start & end of its path
+				maxMissileSpeed_mps : 900, # typical for 0.5" heavy machine gun 1m barrel length e.g. Browning M2
+				nRounds : 1000,
+				roundsPerSec : 13.33,
+				accuracy : 3, 
               },
             rear_gun :  #internal name - this can be any name you want; must be a valid nasal variable name
               {               
                 name : "Rear Machine Gun", # name presented to users, ie in on-screen messages
-                maxDamage_percent : 8, # maximum percentage damage one hit from the aircraft's main weapon/machine guns will do to an opponent
-                maxDamageDistance_m : 250, # maximum distance at which the aircrafts main weapon/maching guns will be able to damage an opponent
-                weaponAngle_deg  :  { heading: -180, elevation: 0, headingMin: 150, headingMax: -150, elevationMin: -50, elevationMax: 50 },
-                weaponOffset_m : {x:11.5, y:0, z:-0.1}, # Offset of the weapon from the main aircraft center
-                weaponSize_m : {start:0.3, end:0.6}, # Visual size of the weapon's projectile, in meters, at start & end of its path
-                
+                maxDamage_percent : 3, # maximum percentage damage one hit from the aircraft's main weapon/machine guns will do to an opponent
+                maxDamageDistance_m : 1000, # maximum distance at which the aircrafts main weapon/machine guns will be able to damage an opponent
+                weaponAngle_deg  :  { heading: -180, elevation: 0, headingMin: 150, headingMax: -150, elevationMin: -20, elevationMax: 20 },
+                weaponOffset_m : {x:11.08, y:0, z:-0.16}, # Offset of the weapon from the main aircraft center
+                weaponSize_m : {start:0.6, end:1.2}, # Visual size of the weapon's projectile, in meters, at start & end of its path
+ 				maxMissileSpeed_mps : 900, # typical for 0.5" heavy machine gun 1m barrel length e.g. Browning M2
+				nRounds : 1000,
+				roundsPerSec : 13.33,
+				accuracy : 3,                
               },
-          },                      
+            top_turret_gun :  #internal name - this can be any name you want; must be a valid nasal variable name
+              {               
+                name : "Top Turret Machine Gun", # name presented to users, ie in on-screen messages
+                maxDamage_percent : 3, # maximum percentage damage one hit from the aircraft's main weapon/machine guns will do to an opponent
+                maxDamageDistance_m : 1000, # maximum distance at which the aircrafts main weapon/machine guns will be able to damage an opponent
+                weaponAngle_deg  :  { heading: 0, elevation: 30, headingMin: -170, headingMax: 170, elevationMin: 5, elevationMax: 75 },
+                weaponOffset_m : {x:-6.042, y:0, z:1.348}, # Offset of the weapon from the main aircraft center
+                weaponSize_m : {start:0.6, end:1.2}, # Visual size of the weapon's projectile, in meters, at start & end of its path
+				maxMissileSpeed_mps : 900, # typical for 0.5" heavy machine gun 1m barrel length e.g. Browning M2
+				nRounds : 1000,
+				roundsPerSec : 13.33,
+				accuracy : 3,                
+              },
+            belly_gun :  #internal name - this can be any name you want; must be a valid nasal variable name
+              {               
+                name : "Belly Machine Gun", # name presented to users, ie in on-screen messages
+                maxDamage_percent : 3, # maximum percentage damage one hit from the aircraft's main weapon/machine guns will do to an opponent
+                maxDamageDistance_m : 1000, # maximum distance at which the aircrafts main weapon/machine guns will be able to damage an opponent
+                weaponAngle_deg  :  { heading: 0, elevation: -30, headingMin: -180, headingMax: 180, elevationMin: -75, elevationMax: -5 },
+                weaponOffset_m : {x:-0.158, y:0, z:-1.476}, # Offset of the weapon from the main aircraft center
+                weaponSize_m : {start:0.6, end:1.2}, # Visual size of the weapon's projectile, in meters, at start & end of its path
+				maxMissileSpeed_mps : 900, # typical for 0.5" heavy machine gun 1m barrel length e.g. Browning M2
+				nRounds : 1000,
+				roundsPerSec : 13.33,
+				accuracy : 3,               
+              },          
+		  },                      
           #  
           #########################################
           # DIMENSION DEFINITIONS
@@ -192,7 +224,7 @@
             height_m : 5.82, #height of your object, ie, for aircraft ground to highest point when sitting on runway
             damageRadius_m : 15.81, #typically 1/2 the longest dimension of the object. Hits within this distance of the 
                                 #center of object have some possibility of damage
-            vitalDamageRadius_m : 7, #typically the radius of the fuselage or cockpit or other most 
+            vitalDamageRadius_m : 5, #typically the radius of the fuselage or cockpit or other most 
                                      # vital area at the center of the object.  Always smaller than damageRadius_m 
           },
           #

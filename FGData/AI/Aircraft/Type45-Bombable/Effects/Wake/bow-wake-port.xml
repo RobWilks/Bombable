@@ -1,0 +1,112 @@
+
+<PropertyList>
+
+ <particlesystem>
+    
+	<name>bow-wake-port</name>
+ 
+    <offsets>
+      <x-m>  0.000 </x-m>
+      <y-m>  0.000 </y-m>
+      <z-m>  0.05 </z-m>
+      <roll-deg>    0.000 </roll-deg>
+      <pitch-deg>   0.0 </pitch-deg>
+      <heading-deg> -90 </heading-deg>
+    </offsets>
+	 
+ <condition>
+  <greater-than>
+   <property>velocities/speed-kts</property>
+   <value>2</value>
+  </greater-than>
+ </condition>
+ 
+    <texture>wake1.png</texture>
+ 
+    <!-- <condition>
+      <property>sim/multiplay/generic/int[0]</property>
+    </condition -->
+ 
+    <emissive>false</emissive>
+    <lighting>true</lighting>
+    <align>fixed</align> <!-- billboard / fixed -->
+    <attach>world</attach> <!-- world / local-->
+ 
+    <placer>
+      <type>point</type> <!-- sector / segments / point -->
+    </placer>
+ 
+    <shooter>
+      <theta-min-deg>89.9</theta-min-deg>
+      <theta-max-deg>90.1</theta-max-deg>
+      <phi-min-deg>80</phi-min-deg>
+      <phi-max-deg>-35</phi-max-deg>
+      <speed-mps>
+	    <property>velocities/speed-kts</property>
+	    <factor>1</factor>
+        <!-- value>90</value -->
+        <spread>5</spread>
+      </speed-mps>
+      <rotation-speed>
+        <x-min-deg-sec>0</x-min-deg-sec>
+        <y-min-deg-sec>0</y-min-deg-sec>
+        <z-min-deg-sec>-180</z-min-deg-sec>
+        <x-max-deg-sec>0</x-max-deg-sec>
+        <y-max-deg-sec>0</y-max-deg-sec>
+        <z-max-deg-sec>180</z-max-deg-sec>
+      </rotation-speed>
+    </shooter>
+ 
+    <counter>
+      <particles-per-sec>
+	   <property>velocities/speed-kts</property>
+	   <factor>0.5</factor>
+        <!-- <value>300</value> -->
+        <spread>10</spread>
+      </particles-per-sec>
+    </counter>
+ 
+    <particle>
+      <start>
+        <color>
+          <red><value>   1.0 </value></red>
+          <green><value> 1.0 </value></green>
+          <blue><value>  1.0 </value></blue>
+          <alpha><value> 0.8 </value></alpha>
+        </color>
+        <property>velocities/speed-kts</property>
+	      <factor>0.025</factor>
+          <value>14.5</value>
+      </start>
+ 
+      <end>
+        <color>
+          <red><value>   0.5  </value></red>
+          <green><value> 0.75  </value></green>
+          <blue><value>  0.75  </value></blue>
+          <alpha><value> 0.001 </value></alpha>
+        </color>
+        <size>
+		  <property>velocities/speed-kts</property>
+	      <factor>0.95</factor>
+        </size>
+      </end>
+ 
+      <life-sec>
+	   <property>velocities/speed-kts</property>
+	   <factor>1.2</factor>
+      </life-sec>
+ 
+      <mass-kg>1.5</mass-kg>
+      <radius-m>0.2</radius-m>
+    </particle>
+ 
+    <program>
+      <fluid>water</fluid>         <!-- air / water -->
+      <gravity>false</gravity>
+      <wind>false</wind>
+    </program>
+ 
+  </particlesystem>
+  
+ </PropertyList>

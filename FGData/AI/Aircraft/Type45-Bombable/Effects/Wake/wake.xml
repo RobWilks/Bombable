@@ -1,0 +1,75 @@
+
+<PropertyList>
+
+
+
+ <model>
+  <name>bow-wake-port</name>
+  <path>AI/Aircraft/Type45-Bombable/Effects/Wake/bow-wake-port.xml</path>
+  <offsets>
+     <x-m>0.0</x-m>
+     <y-m>0.50</y-m>
+     <z-m>0.0</z-m>
+     <roll-deg>0</roll-deg>
+     <pitch-deg>0</pitch-deg>
+     <heading-deg>55</heading-deg>
+  </offsets>
+ </model>
+ 
+ <model>
+  <name>bow-spash-port</name>
+  <path>AI/Aircraft/Type45-Bombable/Effects/Wake/bow-splash-port.xml</path>
+  <offsets>
+     <x-m>-10.0</x-m>
+     <y-m>0.50</y-m>
+     <z-m>0.0</z-m>
+     <roll-deg>0</roll-deg>
+     <pitch-deg>-70</pitch-deg>
+     <heading-deg>55</heading-deg>
+  </offsets>
+ </model>
+ 
+ <model>
+  <name>bow-wake-stbd</name>
+  <path>AI/Aircraft/Type45-Bombable/Effects/Wake/bow-wake-port.xml</path>
+  <offsets>
+     <x-m>0.0</x-m>
+     <y-m>0.50</y-m>
+     <z-m>0.0</z-m>
+     <roll-deg>-180</roll-deg>
+     <pitch-deg>0</pitch-deg>
+     <heading-deg>-55</heading-deg>
+  </offsets>
+ </model>
+ 
+ <model>
+  <name>bow-splash-stbd</name>
+  <path>AI/Aircraft/Type45-Bombable/Effects/Wake/bow-splash-port.xml</path>
+  <offsets>
+     <x-m>-10.0</x-m>
+     <y-m>0.50</y-m>
+     <z-m>0.0</z-m>
+     <roll-deg>-180</roll-deg>
+     <pitch-deg>-70</pitch-deg>
+     <heading-deg>-55</heading-deg>
+  </offsets>
+ </model>
+ 
+<!--  <animation>
+  <type>rotate</type>
+  <object-name>bow-wake-stbd</object-name>
+  <property>/velocities/groundspeed-kt</property>
+  <factor>0</factor>
+  <center>
+   <x-m>-55</x-m>
+   <y-m>0</y-m>
+   <z-m>0</z-m>
+  </center>
+  <axis>
+   <x>0</x>
+   <y>0</y>
+   <z>-1</z>
+  </axis>
+ </animation> -->
+
+</PropertyList>

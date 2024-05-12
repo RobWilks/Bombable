@@ -97,13 +97,13 @@
 ############################################
 #M1 INITIALIZER
 			var m1_init = func() {
-				# Datas of this tank are under: cmdarg().getPath()
+				# Data for this tank are under: cmdarg().getPath()
 				var nodeName = cmdarg().getPath();
 				var node = props.globals.getNode(nodeName);
 				# Add some useful nodes
 
 				#set to use red color (high visibility) by default
-				props.globals.getNode ("ai/m1-abrams/usered", 1).setBoolValue(1);
+				props.globals.getNode ("ai/m1-abrams/usered", 1).setBoolValue(0);
 				# function to change color of tank if it is changed in the master dialog box
 				setlistener("ai/m1-abrams/usered", func { m1_change_color ( nodeName); });
 				
@@ -165,7 +165,7 @@
           # all in meters
           #                     
           altitudes : {	
-            wheelsOnGroundAGL_m : 1.0 , #altitude correction to add to your aircraft or ship that is needed to put wheels on ground (or, for a ship, make it float in the water at the correct level).  For most objects this is 0 but some models need a small correction to place them exactly at ground level
+            wheelsOnGroundAGL_m : 0 , #altitude correction to add to your aircraft or ship that is needed to put wheels on ground (or, for a ship, make it float in the water at the correct level).  For most objects this is 0 but some models need a small correction to place them exactly at ground level
             
             minimumAGL_m : 0, #minimum altitude above ground level this object is allowed to fly
             maximumAGL_m : 0, #maximum altitude AGL this object is allowed to fly	    
@@ -188,7 +188,7 @@
     
             damagedAltitudeChangeMaxRate_meterspersecond : 0.02, #max rate to sink or fly downwards when damaged, in meters/second
 			
-			maxClimbRate_fps : 8, #needed for ground vehicles
+			maxClimbRate_fps : 3, #needed for ground vehicles calculated from shaftPower / weight * roughnessIndex (see https://www.sciencedirect.com/science/article/pii/S1474667015368622)
           },
           #  
           #########################################
@@ -197,11 +197,10 @@
           # The evasion system makes the AI aircraft dodge when they come under
           # fire. 
           evasions : {               
-            dodgeDelayMax_sec : 15, #max time to delay/wait between dodges
-            dodgeDelayMin_sec : 5, #minimum time to delay/wait between dodges
+            dodgeDelayMax_sec : 7, #max time to delay/wait between dodges
+            dodgeDelayMin_sec : 2, #minimum time to delay/wait between dodges
             dodgeMax_deg : 30, #Max amount to turn when dodging
             dodgeMin_deg : 15, #minimum amount to turn when dodging
-            rollRateMax_degpersec : 1, #you can figure this out by rolling the corresponding FG aircraft and timing a 180 or 360 deg roll             
             dodgeROverLPreference_percent : 50, # Preference for right turns vs. left when dodging.  90% means 90% right turns, 50% means 50% right turns.
             dodgeAltMin_m : 0, #Aircraft will begin to move up or down 
             dodgeAltMax_m : 0, #Max & Min are relative to current alt  
@@ -246,26 +245,29 @@
               main_gun :  #internal name - this can be any name you want; must be a valid nasal variable name
               {               
                 name : "M256A1 120 mm gun, M830A1 round", # name presented to users, ie in on-screen messages
-                maxDamage_percent : 25, # maximum percentage damage one hit from the aircraft's main weapon/machine guns will do to an opponent
-                maxDamageDistance_m : 200, # maximum distance at which the aircrafts main weapon/maching guns will be able to damage an opponent
-                weaponAngle_deg  :  { heading: 0, elevation: 10.0, headingMin: -180, headingMax: 180, elevationMin: -3.0, elevationMax: 50  }, # direction the aircraft's main weapon is aimed.   
+                maxDamage_percent : 50, # maximum percentage damage one hit from the aircraft's main weapon/machine guns will do to an opponent
+                maxDamageDistance_m : 1500, # maximum distance at which the aircrafts main weapon/maching guns will be able to damage an opponent
+                weaponAngle_deg  :  { heading: 0, elevation: 10.0, headingMin: -180, headingMax: 180, elevationMin: -3.0, elevationMax: 20  }, # direction the aircraft's main weapon is aimed.   
                                                                   # 0,0 = straight ahead, 90,0=directly right, 0,90=directly up, 0,180=directly back, etc.
-                weaponOffset_m : {x:0.60, y:0, z:0.60}, # Offset of the weapon from the main aircraft center
-                weaponSize_m : {start: .35, end: .35 }, # Visual size of the weapon's projectile, in meters, at start & end of its path
-				ammo_seconds : 300, 
-  
+                weaponOffset_m : {x:0, y:0, z:1.86667}, # Offset of the weapon from the main aircraft center
+                weaponSize_m : {start: .25, end: .35 }, # Visual size of the weapon's projectile, in meters, at start & end of its path
+				nRounds : 40,
+				roundsPerSec : 0.16666,  
+				accuracy : 0.04, # how accurately the weapon can be aimed (sniper's rifle 0.006 deg; 120 mm howitzer 0.02 deg; machine gun 0.5 deg - lower from moving platform )				
               },    
 
               turret_MG :  #internal name - this can be any name you want; must be a valid nasal variable name
               {               
                 name : ".50 caliber Browning M2 HB machine gun", # name presented to users, ie in on-screen messages
-                maxDamage_percent : 10, # maximum percentage damage one hit from the aircraft's main weapon/machine guns will do to an opponent
-                maxDamageDistance_m : 200, # maximum distance at which the aircrafts main weapon/maching guns will be able to damage an opponent
+                maxDamage_percent : 7, # maximum percentage damage one hit from the aircraft's main weapon/machine guns will do to an opponent
+                maxDamageDistance_m : 500, # maximum distance at which the aircrafts main weapon/maching guns will be able to damage an opponent
                 weaponAngle_deg  :  { heading: 0, elevation: 15.0, headingMin: -180, headingMax: 180, elevationMin: -10.0, elevationMax: 70  }, # direction the aircraft's main weapon is aimed.   
                                                                   # 0,0 = straight ahead, 90,0=directly right, 0,90=directly up, 0,180=directly back, etc.
-                weaponOffset_m : {x:.6, y:-0.5, z:.6}, # Offset of the weapon from the main aircraft center
-                weaponSize_m : {start: .35, end: .35 }, # Visual size of the weapon's projectile, in meters, at start & end of its path
-				ammo_seconds : 300, 
+                weaponOffset_m : {x:0.661842, y:0, z:2.67232}, # Offset of the weapon from the main aircraft center
+                weaponSize_m : {start: .15, end: .25 }, # Visual size of the weapon's projectile, in meters, at start & end of its path
+				nRounds : 900,
+				roundsPerSec : 9,
+				accuracy : 3,				
 				parent : "main_gun",
   
               },   
@@ -350,7 +352,7 @@
         # trail for the object.
         # Smoke types available: flare, jetcontrail, pistonexhaust, smoketrail,
         # damagedengine                        
-        bombable.startSmoke("flare", thisNodeName );
+		bombable.startSmoke("pistonexhaust", thisNodeName, "AI/Aircraft/M1-Abrams-Bombable/Fire-Particles/engine-exhaust-particles.xml");
         #
         # END INITIALIZE BOMBABLE
         ########################################################################

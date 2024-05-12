@@ -144,11 +144,11 @@
           # other aircraft 
           attacks : {               
             maxDistance_m : 20000, #max distance to turn & attack main aircraft
-            minDistance_m : 300, #min distance to turn & attack main aircraft, 
+            minDistance_m : 0, #min distance to turn & attack main aircraft, 
                #ie, fly away this far before turning to attack again.  If you 
                #make this short it will be more like a turning fighter (Zero),
                #longer will become more like an energy fighter that zooms
-               #way out, turns around, etc.
+               #way out, turns around, etc. Set to 0 for kamikase behaviour
             
             continueAttackAngle_deg : 110, #when within minDistance_m, the aircraft will continue to turn towards the main aircraft and attack *if* if the angle is less than this amount from dead ahead.  A wider angle will make it work more like a twisty/turning fighter, narrower angle more like an energy fighter.
             altitudeHigherCutoff_m : 5000, # will attack the main aircraft unless this amount higher than it or more
@@ -158,12 +158,12 @@
                                #90 degrees = instant turn, unrealistic
                                #up to 80 is usually OK, somewhere in 80-85 starts to be unrealistically fast
                                #>85 is usually very unrealistic.  You must test this in your scenario, however.
-          rollRateMax_degpersec : 55, #you can figure this out by rolling the corresponding FG aircraft and timing a 180 or 360 deg roll                                                      
+			rollRateMax_degpersec : 55, #you can figure this out by rolling the corresponding FG aircraft and timing a 180 or 360 deg roll                                                      
 
             climbPower : 4000, # How powerful the aircraft is when climbing during an attack; 4000 would be typical for, say a Zero--scale accordingly for others; higher is stronger
             divePower : 6000, # How powerful the aircraft is when diving during and attack; 6000 typical of a Zero--could be much more than climbPower if the aircraft is a weak climber but a strong diver 
             attackCheckTime_sec : 5, # check for need to attack/correct course this often  
-            attackCheckTimeEngaged_sec : 0.5, # once engaged with enemy, check/update course this frequently                
+            attackCheckTimeEngaged_sec : 0.5, # once engaged with enemy, check/update course at this frequency                
           },
           #  
           #########################################
@@ -176,14 +176,28 @@
              front_gun :  #internal name - this can be any name you want; must be a valid nasal variable name
               {               
                 name : "7.7mm Type 97 Machine Gun", # name presented to users, ie in on-screen messages
-                maxDamage_percent : 12, # maximum percentage damage one hit from the aircraft's main weapon/machine guns will do to an opponent
+                maxDamage_percent : 3, # maximum percentage damage one hit from the aircraft's main weapon/machine guns will do to an opponent
                 #based on observation, a good A5M2 pass can easily do 10-12% damage 
-                maxDamageDistance_m : 1200, # maximum distance at which the aircrafts main weapon/maching guns will be able to damage an opponent. Making this large is very expensive for FG's framerate and the chance of a hit at great than 100 meters, vanishingly small.  So set it carefully.
-                weaponAngle_deg  :  { heading: 0, elevation: 0 }, # direction the aircraft's main weapon is aimed.   
+                maxDamageDistance_m : 600, # maximum distance at which the aircrafts main weapon/maching guns will be able to damage an opponent. Making this large is very expensive for FG's framerate and the chance of a hit at great than 100 meters, vanishingly small.  So set it carefully.
+                weaponAngle_deg  :  { heading: 0, elevation: 0, headingMin: 0, headingMax: 0, elevationMin: 0, elevationMax: 0  }, 	 # direction the aircraft's main weapon is aimed.   
                                                                   # 0,0 = straight ahead, 90,0=directly right, 0,90=directly up, 0,180=directly back, etc.
                 weaponOffset_m : {x:3, y:0, z:0}, # Offset of the weapon from the main aircraft center
+				nRounds : 1000, #2x 500
+				roundsPerSec : 20, #synchronised 2x 650 rpm, front cowling
+				accuracy : 3, 						
               },    
-          },            
+             front_cannon :
+              {               
+                name : "20mm Type 99 Mark 1 cannon",
+                maxDamage_percent : 4,
+                maxDamageDistance_m : 1000,
+                weaponAngle_deg  :  { heading: 0, elevation: 0, headingMin: 0, headingMax: 0, elevationMin: 0, elevationMax: 0  }, 	 
+                weaponOffset_m : {x:3, y:0, z:0},
+				nRounds : 120, # 60 per cannon
+				roundsPerSec : 17.33, #520 rpm per cannon
+				accuracy : 3,						
+              },             
+			  },            
           #  
           #########################################
           # DIMENSION DEFINITIONS
@@ -198,6 +212,7 @@
                                 #center of object have some possibility of damage
             vitalDamageRadius_m : 4, #typically the radius of the fuselage or cockpit or other most 
                                      # vital area at the center of the object.  Always smaller than damageRadius_m 
+			crashRadius_m : 10, #kamikase aircraft will try to crash - kamikase behaviour set by setting minDistance_m to 0
                                 
           },
           #

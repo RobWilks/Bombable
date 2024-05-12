@@ -32,7 +32,7 @@
   -->
 	<status>beta</status>
 
-	<path>Models/M1Abrams.ac</path>
+	<path>Models/M1AbramsV2.ac</path>
 
 	<offsets>
 		<x-m>0.0</x-m>
@@ -46,7 +46,7 @@
 
 	<animation>
 		<name>M1-tank</name>
-		<path>M1Abrams.ac</path>
+		<path>M1AbramsV2.ac</path>
 	</animation>
 	
 	<animation>
@@ -112,9 +112,9 @@
 			<entry><ind>180</ind><dep>150</dep></entry>
 		</interpolation> -->
 		<center>
-			<x-m>0.696</x-m>
+			<x-m>0</x-m>
 			<y-m>0.0</y-m>
-			<z-m>-0.799</z-m>
+			<z-m>0</z-m>
 		</center>
 		<axis>
 			<x>0</x>
@@ -134,9 +134,9 @@
 			<entry><ind>90</ind><dep>45</dep></entry>
 		</interpolation> -->
 		<center>
-			<x-m>-0.967</x-m>
+			<x-m>-1.42694</x-m>
 			<y-m>0.0</y-m>
-			<z-m>0.656</z-m>
+			<z-m>1.86667</z-m>
 		</center>
 		<axis>
 			<x>0</x>
@@ -156,9 +156,9 @@
 			</difference>
 		</expression>
 		<center>
-			<x-m>1.206943</x-m>
+			<x-m>0.661842</x-m>
 			<y-m>-0.486829</y-m>
-			<z-m>1.016370</z-m>
+			<z-m>0</z-m>
 		</center>
 		<axis>
 			<x>0</x>
@@ -178,9 +178,9 @@
 			<entry><ind>90</ind><dep>45</dep></entry>
 		</interpolation> -->
 		<center>
-			<x-m>0.769</x-m>
-			<y-m>-0.495</y-m>
-			<z-m>1.446</z-m>
+			<x-m>-0.103406</x-m>
+			<y-m>0</y-m>
+			<z-m>2.67232</z-m>
 		</center>
 		<axis>
 			<x>0</x>
