@@ -1,7 +1,0 @@
-<?xml version="1.0"?>
-
-<PropertyList include="Models/F-15.xml">
-		<model>
-			<path>AI/Aircraft/F-15-Bombable/Models/F-15.xml</path>
-    </model>
-</PropertyList>
