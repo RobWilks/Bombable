@@ -17,16 +17,16 @@
 					<label>Reload guns</label>
 					<binding>
 						<command>nasal</command>
-						<script>guns.reload_guns()</script>
+						<script>guns.reload_guns();</script>
 					</binding>
-			</item>
-			<item>
+				</item>
+				<item>
 					<label>Unlimited guns</label>
 					<binding>
 						<command>nasal</command>
-						<script>guns.unlimited_guns()</script>
+						<script>guns.unlimited_guns();</script>
 					</binding>
-			</item>
+				</item>
 			      
 <!--
       <item>
