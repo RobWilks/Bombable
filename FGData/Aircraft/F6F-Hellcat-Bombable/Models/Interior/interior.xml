@@ -32,7 +32,7 @@
 
   <!-- Pilote -->
   <model>
-    <path>Aircraft/F6F-Hellcat-Bombable/Models/Pilot/pilot.xml</path>
+    <path>AI/Aircraft/F6F-Hellcat-Bombable/Models/Pilot/pilot.xml</path>
     <offsets>
       <x-m> -1.260 </x-m>
       <y-m>  0.000 </y-m>
@@ -42,7 +42,7 @@
 
   <!-- Tableau de bord -->
   <model>
-    <path>Aircraft/F6F-Hellcat-Bombable/Models/Interior/Panel/panel.xml</path>
+    <path>AI/Aircraft/F6F-Hellcat-Bombable/Models/Interior/Panel/panel.xml</path>
     <offsets>
       <x-m> -1.923 </x-m>
       <y-m>  0.000 </y-m>
