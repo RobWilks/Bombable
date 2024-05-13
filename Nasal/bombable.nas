@@ -6113,6 +6113,7 @@ var weapons_loop = func (id, myNodeName1 = "", targetSize_m = nil) {
 	var threatLevel = 1; # number of targets within detection range
 	var detectionRange = 3000;
 	var indexClosest = nil;
+
 	foreach (target; myTargets)
 	{
 		var myNodeName2 = nodes[target];
@@ -6186,20 +6187,25 @@ var weapons_loop = func (id, myNodeName1 = "", targetSize_m = nil) {
 		if ( stores.checkWeaponsReadiness ( myNodeName1, elem ) == 0) continue; # can only shoot if ammo left!
 		var ind = thisWeapon.aim.target; # index of object to shoot at
 		var pos = vecindex(myTargets, ind); # pos is the index in targetData and groundData; nil means target no longer exists
-		# if no longer a target, or no line of sight, or out of range then choose another
+
+		# if no target assigned - applies when weapons loop first called and when previous target destroyed
 		if (pos == nil)
 		{
 			pos = int(rand() * nTargets);
-			thisWeapon.aim.target = myTargets[pos];
+			if (myTargets[pos] != 0 or nTargets == 1) thisWeapon.aim.target = myTargets[pos]; # only attack main AC when there are no AI targets
 			continue;
 		}
+
+		# if no line of sight - only applies to groundvehicles - select one of the targets that passes ground check
 		if (!groundData[pos])
 		{
 			pos = vecindex(groundData, 1); # find first target with line of sight
 			thisWeapon.aim.target = myTargets[pos];
 			continue;
 		}
-		if (targetData[pos][3] > thisWeapon.maxDamageDistance_m and rand() < .1)
+
+		# if target out of range
+		if (targetData[pos][3] > thisWeapon.maxDamageDistance_m and rand() < 0.2)
 		{
 			pos += 1;
 			if (pos == nTargets) pos = indexClosest;
@@ -8981,16 +8987,26 @@ var add_damage = func
 
 {
 	if (!bombableMenu["bombable-enabled"] ) return 0;
-	if (myNodeName == "") 
-	{
-		var damAdd = mainAC_add_damage(damageRise, 0,"weapons", "Damaged by own weapons!");
-		return damAdd;
-	}
 					
 	var ats = attributes[myNodeName];
 	# check for destroyed AC on ground; if so, no further action needed
 	if (ats.exploded) return 0;
 
+	var callsign = getCallSign (myNodeName);
+	var callsign2 = "";
+	var msg2 = "";
+	if (myNodeName2 != nil) 
+	{
+		callsign2 = getCallSign (myNodeName2);
+		msg2 = " Shooter: " ~ callsign2 ;
+	}
+
+	if (myNodeName == "") 
+	{
+		var damAdd = mainAC_add_damage(damageRise, 0, "weapons", "Damaged by" ~ msg2);
+		return damAdd;
+	}
+	
 	var vuls = ats.vulnerabilities;
 	var spds = ats.velocities;
 	var livs = ats.damageLiveries;
@@ -9038,16 +9054,8 @@ var add_damage = func
 		ctrls.stayInFormation = 0;
 		records.record_impact ( myNodeName, damageRise, damageIncrease, damageValue, impactNodeName, ballisticMass_lb, lat_deg, lon_deg, alt_m );
 	}
-	var callsign = string.trim(getCallSign (myNodeName));
-	var callsign2 = "";
-	var weapPowerSkill = ctrls.weapons_pilot_ability;				
-	var msg2 = "";
-	if (myNodeName2 != nil) 
-	{
-		callsign2 = string.trim(getCallSign (myNodeName2));
-		msg2 = " Shooter: " ~ callsign2 ;
-	}
 						
+	var weapPowerSkill = ctrls.weapons_pilot_ability;				
 	if ( damageIncrease > 0 ) 
 	{
 		# Always display the message if a weapon hit or large damageRise. Otherwise
@@ -10393,7 +10401,7 @@ var weapons_init_func = func(myNodeName)
 			lastTargetVelocity:[0,0,0],
 			interceptSpeed:0,
 			fixed:weapFixed, 
-			target:0, #index of object to shoot at
+			target:-1, #index of object to shoot at; -1 flag to show not initialized
 			}; 
 		# new hash used to record direction weapon is pointing
 		# in the frame of reference of model and the frame of reference of the scene
