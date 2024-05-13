@@ -6109,6 +6109,8 @@ var weapons_loop = func (id, myNodeName1 = "", targetSize_m = nil) {
 	var targetData = [];
 	var groundData = [];
 	var noLoS = 1; # flag for no target in line of sight
+	var rocketCarriers = []; # indices of targets carrying rockets
+	var haveRockets = contains(ats.attacks, rocketsInAir); # flag to check whether I have rockets
 	var distClosest = 999;
 	var threatLevel = 1; # number of targets within detection range
 	var detectionRange = 3000;
@@ -6139,6 +6141,9 @@ var weapons_loop = func (id, myNodeName1 = "", targetSize_m = nil) {
 		if ( distance_m < detectionRange) threatLevel += 1;
 
 		append (targetData, [deltaX_m, deltaY_m, deltaAlt_m, distance_m]);
+
+
+
 
 		# check for collision, 
 		# ie target within damageRadius of shooter
@@ -6176,6 +6181,8 @@ var weapons_loop = func (id, myNodeName1 = "", targetSize_m = nil) {
 		}
 		append ( groundData,  groundCheck );
 		if (groundCheck) noLoS = 0;
+
+		if (contains(attributes[myNodeName2].attacks, rocketsInAir)) append(rocketCarriers, target);
 	}
 	if (noLoS) return; #if no target in line of sight then no need to check aim.  Assumption! Does not hold for self-guided rockets or parabolic flight trajectory
 
@@ -6188,33 +6195,65 @@ var weapons_loop = func (id, myNodeName1 = "", targetSize_m = nil) {
 		var ind = thisWeapon.aim.target; # index of object to shoot at
 		var pos = vecindex(myTargets, ind); # pos is the index in targetData and groundData; nil means target no longer exists
 
-		# if no target assigned - applies when weapons loop first called and when previous target destroyed
-		if (pos == nil)
-		{
-			pos = int(rand() * nTargets);
-			if (myTargets[pos] != 0 or nTargets == 1) thisWeapon.aim.target = myTargets[pos]; # only attack main AC when there are no AI targets
-			continue;
-		}
+		if (thisWeapon.type == 1 and pos == nil)
+		# for a rocket with no target assigned, check first those targets still carrying functioning rockets
+		# find the node of that rocket
+		# if none available select from other targets
 
-		# if no line of sight - only applies to groundvehicles - select one of the targets that passes ground check
-		if (!groundData[pos])
 		{
-			pos = vecindex(groundData, 1); # find first target with line of sight
-			thisWeapon.aim.target = myTargets[pos];
-			continue;
-		}
-
-		# if target out of range
-		if (targetData[pos][3] > thisWeapon.maxDamageDistance_m and rand() < 0.2)
+			var rockets = [];
+			var count = 0;
+			foreach (ind, rocketCarriers)
+			{
+				foreach (targetWeap, keys(attributes[nodes[ind]].weapons))
+				{
+					if (targetWeap.destroyed) continue;
+					if (contains (attributes[nodes[ind]].weapons[targetWeap], "rocketsIndex")) 
+					{
+						append(rockets, ind, targetWeap);
+						count += 1;
+					}
+				}
+			}
+			if (count)
+			{
+				var r = int(rand() * count) * 2;
+				var targetRocket = attributes[nodes[rockets[r]]].weapons[rockets[r + 1]];
+				thisWeapon.aim.target = rockets[r];
+				thisWeapon.aim.rp = "ai/models/static[" ~ targetRocket.rocketsIndex ~ "]";
+				debprint("Selected rocket target for " ~ myNodeName1 ~ ", Count= " ~ count ~ ", Weap= " ~ thisWeapon.aim.rp);
+				continue;
+			}
+		} 
+		var myNodeName2 = thisWeapon.aim["rp"];
+		if (myNodeName2 == nil) # the target is not a rocket
 		{
-			pos += 1;
-			if (pos == nTargets) pos = indexClosest;
-			if (myTargets[pos] != 0) thisWeapon.aim.target = myTargets[pos]; # only attack main AC when there are no AI targets
-			continue;
-		}
+			# if no target assigned - applies when weapons loop first called and when previous target destroyed
+			if (pos == nil)
+			{
+				pos = int(rand() * nTargets);
+				if (myTargets[pos] != 0 or nTargets == 1) thisWeapon.aim.target = myTargets[pos]; # only attack main AC when there are no AI targets
+				continue;
+			}
 
-		var myNodeName2 = nodes[ind];
-		var tgtDisp = [targetData[pos][0], targetData[pos][1], targetData[pos][2]];
+			# if no line of sight - only applies to groundvehicles - select one of the targets that passes ground check
+			if (!groundData[pos])
+			{
+				pos = vecindex(groundData, 1); # find first target with line of sight
+				thisWeapon.aim.target = myTargets[pos];
+				continue;
+			}
+
+			# if target out of range
+			if (targetData[pos][3] > thisWeapon.maxDamageDistance_m and rand() < 0.2)
+			{
+				pos += 1;
+				if (pos == nTargets) pos = indexClosest;
+				if (myTargets[pos] != 0) thisWeapon.aim.target = myTargets[pos]; # only attack main AC when there are no AI targets
+				continue;
+			}
+			var tgtDisp = [targetData[pos][0], targetData[pos][1], targetData[pos][2]];
+		}
 
 		if (thisWeapon.weaponType == 0) 
 		{
@@ -6232,14 +6271,18 @@ var weapons_loop = func (id, myNodeName1 = "", targetSize_m = nil) {
 		if (thisWeapon.weaponType == 1) 
 		{
 			if (thisWeapon.controls.launched == 1) continue;
+
+			# for a rocket checkaim is only used to update co-ordinates of the launch platform
+
 			var targetSighted = checkAim
 				(
 					thisWeapon,
-					tgtDisp,
+					[1000, 1000, 50], # dummy target displacement
 					myNodeName1, myNodeName2, 
 					targetSize_m, weapPowerSkill,
 					damageValue
 				);
+
 			if ( targetSighted ) 
 			{
 				# launch rocket when high threat level and few rockets in the air (ship)
@@ -6978,6 +7021,9 @@ var guideRocket = func
 	thisWeapon.position.longitude_deg = alon_deg + deltaLon;
 	thisWeapon.position.latitude_deg = alat_deg + deltaLat;
 	thisWeapon.position.altitude_ft = ( aAlt_m + deltaAlt ) * M2FT;
+
+	var rp = "ai/models/static[" ~ thisWeapon.rocketsIndex ~ "]";
+	setprop("" ~ rp ~ "/velocities/true-airspeed-kt", newMissileSpeed_mps); # used to allow rockets to target rockets
 
 	if ( math.mod(thisWeapon.loopCount, 4) == 0 )
 	{
