@@ -6110,7 +6110,6 @@ var weapons_loop = func (id, myNodeName1 = "", targetSize_m = nil) {
 	var groundData = [];
 	var noLoS = 1; # flag for no target in line of sight
 	var rocketCarriers = []; # indices of targets carrying rockets
-	var haveRockets = contains(ats.attacks, rocketsInAir); # flag to check whether I have rockets
 	var distClosest = 999;
 	var threatLevel = 1; # number of targets within detection range
 	var detectionRange = 3000;
@@ -6141,9 +6140,6 @@ var weapons_loop = func (id, myNodeName1 = "", targetSize_m = nil) {
 		if ( distance_m < detectionRange) threatLevel += 1;
 
 		append (targetData, [deltaX_m, deltaY_m, deltaAlt_m, distance_m]);
-
-
-
 
 		# check for collision, 
 		# ie target within damageRadius of shooter
@@ -6203,14 +6199,15 @@ var weapons_loop = func (id, myNodeName1 = "", targetSize_m = nil) {
 		{
 			var rockets = [];
 			var count = 0;
-			foreach (ind, rocketCarriers)
+			foreach (i; rocketCarriers)
 			{
-				foreach (targetWeap, keys(attributes[nodes[ind]].weapons))
+				var wps = attributes[nodes[i]].weapons; 
+				foreach (targetWeap; keys(wps))
 				{
-					if (targetWeap.destroyed) continue;
-					if (contains (attributes[nodes[ind]].weapons[targetWeap], "rocketsIndex")) 
+					if (wps[targetWeap].destroyed) continue;
+					if (wps[targetWeap].weaponType == 1) 
 					{
-						append(rockets, ind, targetWeap);
+						append(rockets, i, wps[targetWeap]);
 						count += 1;
 					}
 				}
@@ -6218,15 +6215,14 @@ var weapons_loop = func (id, myNodeName1 = "", targetSize_m = nil) {
 			if (count)
 			{
 				var r = int(rand() * count) * 2;
-				var targetRocket = attributes[nodes[rockets[r]]].weapons[rockets[r + 1]];
 				thisWeapon.aim.target = rockets[r];
-				thisWeapon.aim.rp = "ai/models/static[" ~ targetRocket.rocketsIndex ~ "]";
-				debprint("Selected rocket target for " ~ myNodeName1 ~ ", Count= " ~ count ~ ", Weap= " ~ thisWeapon.aim.rp);
+				thisWeapon.aim.rn = rockets[r + 1];
+				debprint("Selected rocket target for " ~ myNodeName1 ~ ", Count= " ~ count ~ ", Weap= " ~ rockets[r + 1].name);
 				continue;
 			}
 		} 
-		var myNodeName2 = thisWeapon.aim["rp"];
-		if (myNodeName2 == nil) # the target is not a rocket
+
+		if (thisWeapon.aim["rn"] == nil) # the target is not a rocket
 		{
 			# if no target assigned - applies when weapons loop first called and when previous target destroyed
 			if (pos == nil)
@@ -6252,8 +6248,9 @@ var weapons_loop = func (id, myNodeName1 = "", targetSize_m = nil) {
 				if (myTargets[pos] != 0) thisWeapon.aim.target = myTargets[pos]; # only attack main AC when there are no AI targets
 				continue;
 			}
-			var tgtDisp = [targetData[pos][0], targetData[pos][1], targetData[pos][2]];
 		}
+		var tgtDisp = [targetData[pos][0], targetData[pos][1], targetData[pos][2]];
+		var myNodeName2 = nodes[ind];
 
 		if (thisWeapon.weaponType == 0) 
 		{
@@ -6277,7 +6274,7 @@ var weapons_loop = func (id, myNodeName1 = "", targetSize_m = nil) {
 			var targetSighted = checkAim
 				(
 					thisWeapon,
-					[1000, 1000, 50], # dummy target displacement
+					tgtDisp,
 					myNodeName1, myNodeName2, 
 					targetSize_m, weapPowerSkill,
 					damageValue
@@ -6577,6 +6574,15 @@ var guideRocket = func
 
 	# ot.reset();
 	var thisWeapon = attributes[myNodeName1].weapons[elem];
+
+	# check for hit by other rocket
+	if (thisWeapon.destroyed)
+	{
+		var weapKey = elem; # otherwise killRocket uses value of elem at time of call !!!
+		killRocket (myNodeName1, weapKey);
+		return ();
+	}
+
 	var myNodeName2 = nodes[thisWeapon.aim.target];
 	var dim = attributes[myNodeName1].dimensions;  
 	var rp = "ai/models/static[" ~ thisWeapon.rocketsIndex ~ "]"; # static model for rocket
@@ -6598,7 +6604,23 @@ var guideRocket = func
 
 	if (math.abs (aAlt_m - thisWeapon.lastAlt_m) > 200.0) updateAirDensity (thisWeapon, aAlt_m);
 
-	if (attributes[myNodeName2].damage == 1) # used as flag for no target
+	var targetRocket = thisWeapon.aim["rn"];
+	var noTarget = (attributes[myNodeName2].damage == 1);
+	if (targetRocket != nil)
+	{
+		if (!targetRocket.destroyed)
+		{
+			noTarget = 0; # the rocket is the target
+		}
+		else
+		{
+			debprint("Bombable: Deleting rocket ",targetRocket.name," from targets");
+			delete (thisWeapon.aim, "rn"); # target platform instead
+			targetRocket = nil;
+		}
+	}
+
+	if (noTarget) # create a dummy target so the rocket dwells on station
 	{
 		var distance_m = 1e4; #metres
 		var period = 45; # sec
@@ -6611,13 +6633,26 @@ var guideRocket = func
 	}
 	else
 	{
-		var targetLat_deg = getprop("" ~ myNodeName2 ~ "/position/latitude-deg"); # target
-		var targetLon_deg = getprop("" ~ myNodeName2 ~ "/position/longitude-deg");
-		var targetAlt_m = getprop("" ~ myNodeName2 ~ "/position/altitude-ft") * FT2M;
-		var targetPitch = getprop("" ~ myNodeName2 ~ "/orientation/pitch-deg") * D2R;
-		var addTrue = (myNodeName2 == "") ? "" : "true-";
-		var targetHeading = getprop(""~myNodeName2~"/orientation/"~addTrue~"heading-deg") * D2R;
-		var targetSpeed = getprop(""~myNodeName2~"/velocities/"~addTrue~"airspeed-kt") * KT2MPS;
+		if (targetRocket == nil ? 1 : !targetRocket.controls.launched) # target the rocket platform
+		{
+			var targetLat_deg = getprop("" ~ myNodeName2 ~ "/position/latitude-deg"); # target
+			var targetLon_deg = getprop("" ~ myNodeName2 ~ "/position/longitude-deg");
+			var targetAlt_m = getprop("" ~ myNodeName2 ~ "/position/altitude-ft") * FT2M;
+			var targetPitch = getprop("" ~ myNodeName2 ~ "/orientation/pitch-deg") * D2R;
+			var addTrue = (myNodeName2 == "") ? "" : "true-";
+			var targetHeading = getprop(""~myNodeName2~"/orientation/"~addTrue~"heading-deg") * D2R;
+			var targetSpeed = getprop(""~myNodeName2~"/velocities/"~addTrue~"airspeed-kt") * KT2MPS;
+		}
+		else
+		{
+			var targetLat_deg = targetRocket.position.latitude_deg; # target the rocket
+			var targetLon_deg = targetRocket.position.longitude_deg;
+			var targetAlt_m = targetRocket.position.altitude_ft * FT2M;
+			var targetSpeed = targetRocket.velocities.speed;
+			var v = targetRocket.velocities.missileV_mps;
+			var targetPitch = math.asin(v[2]/targetSpeed) * R2D;
+			var targetHeading = math.atan2(v[1], v[0]) * R2D;
+		}
 
 		deltaLat_deg = targetLat_deg - alat_deg;
 		deltaLon_deg = targetLon_deg - alon_deg ;
@@ -6718,7 +6753,7 @@ var guideRocket = func
 			if (dx * dx + dy * dy + dz * dz < dim.safeDistance_m * dim.safeDistance_m) 
 			{
 				var msg = thisWeapon.name ~ " from " ~ 
-				getprop ("" ~ myNodeName1 ~ "/callsign") ~ 
+				getCallSign (myNodeName1) ~ 
 				" aborted - too close to launch vehicle";
 				targetStatusPopupTip (msg, 20);	
 				abort = 1;					
@@ -6786,24 +6821,35 @@ var guideRocket = func
 				}
 				settimer ( func{ moveRocket (thisWeapon, 0, N_STEPS, time_inc )}, 0 ); # first step called immediately
 
-				# message rocket hit from add_damage
-				var weaponPower = bombableMenu["ai-weapon-power"];
-				if (weaponPower == nil) weaponPower = 0.2;
-				thisWeapon.aim.nHit = rand() * attributes[myNodeName2].dimensions.damageRadius_m / closestApproach;
-				var damagePercent = thisWeapon.aim.nHit * weaponPower * thisWeapon.mass * 2.2 * attributes[myNodeName2].vulnerabilities.damageVulnerability / 100; 
-				debprint(sprintf("nHit= %5.1f damagePercent %5.1f callsign= %s", thisWeapon.aim.nHit, damagePercent, getCallSign(myNodeName2) ));
-				add_damage
-				(
-					damagePercent, 
-					"weapon", 
-					myNodeName2, 
-					myNodeName1, 
-					, 
-					thisWeapon.mass * 2.2, 
-					thisWeapon.controls.flightPath[i-1].lat, 
-					thisWeapon.controls.flightPath[i-1].lon, 
-					thisWeapon.controls.flightPath[i-1].alt
-				);
+				if (targetRocket != nil)
+				{
+					targetRocket.destroyed = 1;
+					var msg = thisWeapon.name ~ " from " ~ 
+					getCallSign (myNodeName1) ~	" destroyed " ~
+					targetRocket.name;
+					targetStatusPopupTip (msg, 20);	
+				}
+				else
+				{
+					# message rocket hit from add_damage
+					var weaponPower = bombableMenu["ai-weapon-power"];
+					if (weaponPower == nil) weaponPower = 0.2;
+					thisWeapon.aim.nHit = rand() * attributes[myNodeName2].dimensions.damageRadius_m / closestApproach;
+					var damagePercent = thisWeapon.aim.nHit * weaponPower * thisWeapon.mass * 2.2 * attributes[myNodeName2].vulnerabilities.damageVulnerability / 100; 
+					debprint(sprintf("nHit= %5.1f damagePercent %5.1f callsign= %s", thisWeapon.aim.nHit, damagePercent, getCallSign(myNodeName2) ));
+					add_damage
+					(
+						damagePercent, 
+						"weapon", 
+						myNodeName2, 
+						myNodeName1, 
+						, 
+						thisWeapon.mass * 2.2, 
+						thisWeapon.controls.flightPath[i-1].lat, 
+						thisWeapon.controls.flightPath[i-1].lon, 
+						thisWeapon.controls.flightPath[i-1].alt
+					);
+				}
 				
 				abort = 1;
 			}
