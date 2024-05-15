@@ -6562,10 +6562,11 @@ var launchRocket = func (id, myNodeName1, elem)
 # change direction, calculate position after time delta_t, trigger messages and effects
 # thisWeapon points to the attributes hash which holds results of the previous calculation of rocket velocity and speed 
 # it is updated with the new velocity and the estimated velocity and position at the next calculation
-# the new position is recorded in the property tree
+# the new position is recorded in the property tree for the static AI model of the rocket
 # node 1 is AI, node 2 is target
-# the guideRocket loop is terminated with the main weapons loop. It does not have a separate id
+# the guideRocket loop is terminated when the main weapons loop is terminated. It does not have a separate id
 # the target is passed by thisWeapon.aim.target, the index number of the bombable object
+# aim.rn is the key of any rocket from the target which is targeted preferentially over the platform from which it is launched
 # if the object is destroyed the rocket circles waiting for another target to be allocated
 # the waiting pattern is created by chasing a high-speed dummy target on a circular trajectory of 10k radius and centred on the rocket 
 
@@ -6621,7 +6622,7 @@ var guideRocket = func
 		}
 		else
 		{
-			debprint("Bombable: Deleting rocket ",rocketAts.name," launched from ",getCallSign(myNodeName2));
+			debprint("Bombable: ", getCallSign(myNodeName1), " ", thisWeapon.name, " deleting rocket ",rocketAts.name," launched from ",getCallSign(myNodeName2));
 			delete (thisWeapon.aim, "rn"); # target platform instead
 			targetRocket = nil;
 		}
@@ -6657,8 +6658,8 @@ var guideRocket = func
 			var targetAlt_m = rocketAts.position.altitude_ft * FT2M;
 			var targetSpeed = rocketAts.velocities.speed;
 			var v = rocketAts.velocities.missileV_mps;
-			var targetPitch = math.asin(v[2]/targetSpeed) * R2D;
-			var targetHeading = math.atan2(v[1], v[0]) * R2D;
+			var targetPitch = math.asin(v[2]/targetSpeed);
+			var targetHeading = math.atan2(v[1], v[0]);
 		}
 
 		deltaLat_deg = targetLat_deg - alat_deg;
@@ -12595,7 +12596,7 @@ var startScenario = func()
 			{
 			team :			"Z",
 			target :		"B",
-			arrivalTime :	-360, # sec
+			arrivalTime :	-30, # sec
 			airSpeed : 		25 * KT2MPS,
 			airportName :	"EGOD",
 			heading :		225,
@@ -12610,15 +12611,15 @@ var startScenario = func()
 			team :			"B",
 			target :		"Z",
 			arrivalTime :	120, # sec
-			airSpeed : 		500 * KT2MPS,
+			airSpeed : 		800 * KT2MPS,
 			airportName :	"EGOD",
-			heading :		30,
-			alt :			5000,
+			heading :		45,
+			alt :			8000,
 			offsets :
 						[
-							[0, 1000, 0],
+							[0, 0, 0],
 							# [-20, 21, 0],
-							[-1000, -1000, 0]
+							[-50, -50, 0]
 						],
 			},
 		};
