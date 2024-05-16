@@ -1028,7 +1028,7 @@ var setAttributes = func (attsObject = nil)
 	attributes[""].myIndex = 0;
 	attributes[""].targetIndex = [];
 	attributes[""].shooterIndex = [];
-	attributes[""].fixed = 0; # not used
+	attributes[""].nFixed = 0; # not used
 	attributes[""].maxTargets = 0; # not used
 	
 	# We setmaxlatlon here so that it is re-done on reinit--otherwise we
@@ -6611,6 +6611,7 @@ var guideRocket = func
 
 	if (math.abs (aAlt_m - thisWeapon.lastAlt_m) > 200.0) updateAirDensity (thisWeapon, aAlt_m);
 
+	var damageRadius = attributes[myNodeName2].dimensions.damageRadius_m;
 	var targetRocket = thisWeapon.aim["rn"];
 	var noTarget = (attributes[myNodeName2].damage == 1);
 	if (targetRocket != nil)
@@ -6619,6 +6620,7 @@ var guideRocket = func
 		if (!rocketAts.destroyed)
 		{
 			noTarget = 0; # the rocket is the target
+			damageRadius = rocketAts.length;
 		}
 		else
 		{
@@ -6780,7 +6782,7 @@ var guideRocket = func
 		var dV2 = dV[0] * dV[0] + dV[1] * dV[1] + dV[2] * dV[2];
 		var dVdotR =  dV[0] * targetDispRefFrame[0] + dV[1] * targetDispRefFrame[1] + dV[2] * targetDispRefFrame[2];
 		var t_intercept  = -dVdotR / dV2;
-		if ((distance_m < attributes[myNodeName2].dimensions.damageRadius_m)
+		if ((distance_m < damageRadius)
 			and (t_intercept <0)) t_intercept = 0; # already reached closest approach
 		# debprint (
 		# 	sprintf(
@@ -6804,7 +6806,7 @@ var guideRocket = func
 				)
 			);
 
-			if (closestApproach < 2 * attributes[myNodeName2].dimensions.damageRadius_m)
+			if (closestApproach < 2 * damageRadius)
 			{
 				# run missile on to target and explode
 				var steps_to_target = (t_intercept > 0) ? math.ceil ( t_intercept / time_inc  ) : 0;
@@ -6844,7 +6846,7 @@ var guideRocket = func
 					# message rocket hit from add_damage
 					var weaponPower = bombableMenu["ai-weapon-power"];
 					if (weaponPower == nil) weaponPower = 0.2;
-					thisWeapon.aim.nHit = rand() * attributes[myNodeName2].dimensions.damageRadius_m / closestApproach;
+					thisWeapon.aim.nHit = rand() * damageRadius / closestApproach;
 					var damagePercent = thisWeapon.aim.nHit * weaponPower * thisWeapon.mass * 2.2 * attributes[myNodeName2].vulnerabilities.damageVulnerability / 100; 
 					debprint(sprintf("nHit= %5.1f damagePercent %5.1f callsign= %s", thisWeapon.aim.nHit, damagePercent, getCallSign(myNodeName2) ));
 					add_damage
@@ -6863,7 +6865,7 @@ var guideRocket = func
 				
 				abort = 1;
 			}
-			elsif (closestApproach < (4.0 * attributes[myNodeName2].dimensions.damageRadius_m ))
+			elsif (closestApproach < (4.0 * damageRadius ))
 			{
 				var msg = "Near miss from " ~ 
 				thisWeapon.name ~ " fired from " ~ 
@@ -7384,10 +7386,11 @@ var moveRocket = func (thisWeapon, index, lastIndex, timeInc)
 var killRocket = func (myNodeName, elem)
 {
 	# debprint("Bombable: " ~ elem ~ " killed: rocket index " ~ thisWeapon.rocketsIndex);
-	var thisWeapon = attributes[myNodeName].weapons[elem];
+	var ats = attributes[myNodeName];
+	var thisWeapon = ats.weapons[elem];
 	thisWeapon.destroyed = 1;
-	attributes[myNodeName].attacks["rocketsInAir"] -= 1;
-
+	ats.attacks.rocketsInAir -= 1;
+	if (ats.maxTargets) ats.maxTargets -= 1;
 	var rp = "ai/models/static[" ~ thisWeapon.rocketsIndex ~ "]";	
 	setprop (rp ~ "/controls/engine", 0);
 	deleteSmoke ("skywriting", rp);
@@ -9183,7 +9186,7 @@ var add_damage = func
 			{
 				# change target to shooter, if not already
 				var ats2 = attributes[myNodeName2];
-				if (vecindex(ats.targetIndex, ats2.index == -1))
+				if (vecindex(ats.targetIndex, ats2.index) == nil)
 				{
 					if (size(ats.targetIndex) == ats.maxTargets) removeTarget(ats.index);
 					append (ats.targetIndex, ats2.index); # add shooter causing the damage to my targets
@@ -9197,18 +9200,24 @@ var add_damage = func
 
 		if (damageRise > 0.1 and rand() > .5 and contains(ats,"weapons"))
 		# a large hit can knock-out a weapon
+		# if lose a weapon, lose a target
 		{
-			var weaps = ats.weapons;
+			var weaps = keys(ats.weapons);
 			var nWeapons = size(weaps) ;
 			var index = int (rand() * nWeapons) ;
-			if (!weaps[""~keys(weaps)[index]]["destroyed"])
+			var thisWeapon = ats.weapons[weaps[index]];
+			if (!thisWeapon.destroyed and thisWeapon["launched"] != 1) # damage to launch platform cannot affect launched rockets
 			{
-				weaps[""~keys(weaps)[index]]["destroyed"] = 1;
-				debprint(callsign," "~keys(weaps)[index]~" destroyed");
-				if (ats.maxTargets > 1) 
+				thisWeapon.destroyed = 1;
+				debprint(callsign," "~weaps[index]~" destroyed");
+				if (ats.maxTargets) 
 				{
-					ats.maxTargets -= 1;
-					removeTarget(ats.index);
+					if (!thisWeapon.fixed or ats.nFixed < 2)
+					{
+						ats.maxTargets -= 1;
+						removeTarget(ats.index);
+					}
+					ats.nFixed -= thisWeapon.fixed;
 				}
 			}
 		}
@@ -9578,7 +9587,7 @@ var initialize_func = func ( b ){
 	b.myIndex = -1;
 	b.targetIndex = [];
 	b.shooterIndex = [];
-	b.fixed = 0; 
+	b.nFixed = 0; 
 	b.maxTargets = 0;
 
 	if (! contains (b, "type")) b["type"] = props.globals.getNode(""~b.objectNodeName).getName(); 
@@ -10615,7 +10624,7 @@ var weapons_init_func = func(myNodeName)
 		settimer (  func { weapons_loop (loopid, myNodeName, targetSize_m)}, 5 + rand());
 	}
 
-	ats["fixed"] = (nFixed == size(keys(weaps))); 	# flag true if all weapons have fixed orientation, e.g. ww2 fighter
+	ats.nFixed = nFixed;
 	ats["maxTargets"] = size(keys(weaps)) - (nFixed > 0 ? nFixed : 1) + 1; # the number of targets that the object can fire at simultaneously
 
 	debprint ("Bombable: Effect * weapons * loaded for ", myNodeName);
@@ -10659,6 +10668,7 @@ var rocketParmCheck = func( thisWeapon )
 		{name: "maxG",								default: 300.0,		lowerBound: 200.0,		upperBound: 400.0		}, # maximum G force the missile can withstand in mps limiting turn rate at high speeds - turn rate varies inversely with speed in regime IV
 		{name: "AoA",								default: 13.0*D2R,	lowerBound: 8.0*D2R,	upperBound: 15.0*D2R	}, # angle of attack to maximise lift, typically between 10 and 15 degrees turn disabled below this speed - dependent on whether missile has vectored thrust
 		{name: "timeNoTurn",						default: 1.5,		lowerBound: 0.5,		upperBound: 3.0			}, # seconds after launch when not possible to turn
+		{name: "length",							default: 2.0,		lowerBound: 1.0,		upperBound: 5.0		    }, # length of rocket
 		{name: "lengthTube",						default: 3.0,		lowerBound: 0.0,		upperBound: 10.0		}, # length of launch tube or guide rail
 		{name: "area",								default: 0.04,		lowerBound: 0.0225,		upperBound: 0.09		}, # effective area of rocket in metres squared; note length to diameter is fixed
 	];

@@ -191,6 +191,7 @@
           area : 0.0324 , # cross-section area of rocket, e.g. pi D /4, in m^2
           launchMass : 450 , # in kg total launch mass, fuel and payload
           maxMissileSpeed_mps : 990, # appox Mach 3 # not used
+          length : 4.2 , 
           lengthTube : 6.5 , # 1.5 x length of rocket
           burn1 : 12.0, # duration of first stage burn e.g. solid rocket.  Specify either burn time or thrust - not both - burn time takes precedence
           burn2 : 98.0, # duration of second stage burn e.g. engine.  Thrust (N) = spec impulse (s) * mass (kg) * grav (ms-2) / burn time (s)
@@ -219,6 +220,7 @@
 				area : 0.0324 , # cross-section area of rocket, e.g. pi D /4, in m^2
 				launchMass : 450 , # in kg total launch mass, fuel and payload
 				maxMissileSpeed_mps : 990, # appox Mach 3 # not used
+        length : 4.2 , 
 				lengthTube : 6.5 , # 1.5 x length of rocket
 				burn1 : 12.0, # duration of first stage burn e.g. solid rocket.  Specify either burn time or thrust - not both - burn time takes precedence
 				burn2 : 98.0, # duration of second stage burn e.g. engine.  Thrust (N) = spec impulse (s) * mass (kg) * grav (ms-2) / burn time (s)
@@ -248,6 +250,7 @@
 				area : 0.0324 , # cross-section area of rocket, e.g. pi D /4, in m^2
 				launchMass : 450 , # in kg total launch mass, fuel and payload
 				maxMissileSpeed_mps : 990, # appox Mach 3 # not used
+        length : 4.2 , 
 				lengthTube : 6.5 , # 1.5 x length of rocket
 				burn1 : 12.0, # duration of first stage burn e.g. solid rocket.  Specify either burn time or thrust - not both - burn time takes precedence
 				burn2 : 98.0, # duration of second stage burn e.g. engine.  Thrust (N) = spec impulse (s) * mass (kg) * grav (ms-2) / burn time (s)
@@ -276,6 +279,7 @@
 				area : 0.0324 , # cross-section area of rocket, e.g. pi D /4, in m^2
 				launchMass : 450 , # in kg total launch mass, fuel and payload
 				maxMissileSpeed_mps : 990, # appox Mach 3 # not used
+        length : 4.2 , 
 				lengthTube : 6.5 , # 1.5 x length of rocket
 				burn1 : 12.0, # duration of first stage burn e.g. solid rocket.  Specify either burn time or thrust - not both - burn time takes precedence
 				burn2 : 98.0, # duration of second stage burn e.g. engine.  Thrust (N) = spec impulse (s) * mass (kg) * grav (ms-2) / burn time (s)

@@ -167,8 +167,8 @@
           # The attack system makes the AI aircraft turn and fly towards 
           # other aircraft 
           attacks : {               
-            maxDistance_m : 20000, #max distance to turn & attack main aircraft
-            minDistance_m : 1000, #min distance to turn & attack main aircraft, ie, fly away this far before turning to attack again
+            maxDistance_m : 60000, #max distance to turn & attack main aircraft
+            minDistance_m : 5000, #min distance to turn & attack main aircraft, ie, fly away this far before turning to attack again
             continueAttackAngle_deg : 20, #when within minDistance_m, the aircraft will continue to turn towards the main aircraft and attack *if* if the angle is less than this amount from dead ahead
             altitudeHigherCutoff_m : 13000, # will attack the main aircraft unless this amount higher than it or more
             altitudeLowerCutoff_m : 5000, # will attack the main aircraft unless this amount lower than it or more
@@ -206,6 +206,7 @@
                         area : 0.0254 , # cross-section area of rocket, e.g. pi D /4, in m^2
                         launchMass : 157 , # in kg total launch mass, fuel and payload
                         maxMissileSpeed_mps : 990, # approx Mach 3 # not used
+                        length : 3.65 , 
                         lengthTube : 3.65 , # 1 x length of rocket
                         burn1 : 0.5, # duration of first stage burn e.g. solid rocket.  Specify either burn time or thrust - not both - burn time takes precedence
                         massFuel_1 : 0, # kg
@@ -234,6 +235,7 @@
                         area : 0.0254 , # cross-section area of rocket, e.g. pi D /4, in m^2
                         launchMass : 157 , # in kg total launch mass, fuel and payload
                         maxMissileSpeed_mps : 990, # approx Mach 3 # not used
+                        length : 3.65 , 
                         lengthTube : 3.65 , # 1 x length of rocket
                         burn1 : 0.5, # duration of first stage burn e.g. solid rocket.  Specify either burn time or thrust - not both - burn time takes precedence
                         massFuel_1 : 0, # kg
