@@ -6111,8 +6111,8 @@ var weapons_loop = func (id, myNodeName1 = "", targetSize_m = nil) {
 	var noLoS = 1; # flag for no target in line of sight
 	var rocketCarriers = []; # indices of targets carrying rockets
 	var distClosest = 999;
-	var threatLevel = 1; # number of targets within detection range
-	var detectionRange = 3000;
+	var threatLevel = 1; # 1 + number of targets within detection range
+	var detectionRange = 10000;
 	var indexClosest = nil;
 
 	foreach (target; myTargets)
@@ -6292,22 +6292,7 @@ var weapons_loop = func (id, myNodeName1 = "", targetSize_m = nil) {
 				# when escaping or attacking and target close by (aircraft)				
 				weaponsOrientationPositionUpdate(myNodeName1, elem);
 				r = ats.attacks["rocketsInAir"];
-				if (ats.type == "ship")
-				{
-					if (rand() < 0.1 * weapPowerSkill * threatLevel / (r * r * r + 1)) launchRocket (id, myNodeName1, elem);
-				}
-				elsif ( ats.type == "aircraft")
-				{
-					if
-					(
-						rand() < 0.5 * weapPowerSkill * 
-						(
-							ats.controls.dodgeInProgress or 
-							(ats.controls.attackInProgress and targetData[pos][3] > ats.attacks.minDistance_m * 2 and targetData[pos][3] < ats.attacks.maxDistance_m)
-						)
-					) 
-					launchRocket (id, myNodeName1, elem);
-				}
+				if (rand() < 0.1 * weapPowerSkill *threatLevel / (r * r * r + 1)) launchRocket (id, myNodeName1, elem);
 			}
 			continue;
 		}
@@ -6367,7 +6352,7 @@ var weapons_loop = func (id, myNodeName1 = "", targetSize_m = nil) {
 			if (stores.reduceWeaponsCount (myNodeName1, elem, time2Fire) == 1)
 			{
 				var msg = thisWeapon.name ~ " on " ~ 
-				getprop ("" ~ myNodeName1 ~ "/callsign") ~ 
+				getCallSign ( myNodeName1 ) ~ 
 				" out of ammo";
 
 				targetStatusPopupTip (msg, 20);
@@ -6416,10 +6401,12 @@ var weapons_loop = func (id, myNodeName1 = "", targetSize_m = nil) {
 ############################ launchRocket ##############################
 # FUNCTION set flags, send message
 # create flare on launch pad
+# for aircraft test speed of platform
 
 var launchRocket = func (id, myNodeName1, elem)
 {
-	var thisWeapon = attributes[myNodeName1].weapons[elem];
+	var ats = attributes[myNodeName1];
+	var thisWeapon = ats.weapons[elem];
 	var delta_t = LOOP_TIME;
 
 	# get speed and orientation of launchpad or guide rail
@@ -6427,6 +6414,24 @@ var launchRocket = func (id, myNodeName1, elem)
 	getprop ("" ~ myNodeName1 ~ "/velocities/true-airspeed-kt");
 	var launchPadPitch = 
 	getprop ("" ~ myNodeName1 ~ "/orientation/pitch-deg");
+	# AC rockets are smaller than ground based and use the speed of the platform to achieve range 
+	if (ats.type == "aircraft") 
+	{
+		debprint
+		(
+			sprintf("launch pad speed = %6.1f pitch = %6.1f dodge = %i attack = %i",
+			launchPadSpeed, launchPadPitch, ats.controls.dodgeInProgress, ats.controls.attackInProgress)
+		);
+		if 
+		(
+			launchPadSpeed < ats.velocities.cruiseSpeed_kt or math.abs(launchPadPitch > 30) or
+			(!ats.controls.dodgeInProgress and !ats.controls.attackInProgress)
+		)
+		{
+			return;
+		}
+	}
+
 	var launchPadHeading = 
 	getprop ("" ~ myNodeName1 ~ "/orientation/true-heading-deg");
 	var alat_deg = 
@@ -7081,7 +7086,7 @@ var guideRocket = func
 	thisWeapon.position.altitude_ft = ( aAlt_m + deltaAlt ) * M2FT;
 
 	var rp = "ai/models/static[" ~ thisWeapon.rocketsIndex ~ "]";
-	setprop("" ~ rp ~ "/velocities/true-airspeed-kt", newMissileSpeed_mps); # used to allow rockets to target rockets
+	setprop("" ~ rp ~ "/velocities/true-airspeed-kt", newMissileSpeed_mps); # used for debug only
 
 	if ( math.mod(thisWeapon.loopCount, 4) == 0 )
 	{
@@ -8173,13 +8178,13 @@ var attack_loop = func ( id, myNodeName )
 
 		atts.loopTime = atts.attackCheckTime_sec;
 		ctrls.attackInProgress = 0;
+		if (attack_inprogress) debprint ("Bombable: End of attack for ", myNodeName);
 		return;
 	}
 				
 				
 	#ATTACK
 	#
-	#debprint ("Bombable: Starting attack run of Target aircraft with " ~ myNodeName );
 	# (1-rand() * rand()) makes it choose values at the higher end of the range more often
 				
 	stores.reduceFuel (myNodeName, loopTimeActual ); #deduct the amount of fuel from the tank
@@ -8273,6 +8278,7 @@ var attack_loop = func ( id, myNodeName )
 			# TODO: This varies by AC.  As a first try we're going with 2X
 			# minSpeed_kt to complete the loop.
 			#
+			debprint ("Bombable: Starting attack for " ~ getCallSign (myNodeName) );
 			vels = attributes[myNodeName].velocities;
 			var currSpeed_kt = getprop (""~myNodeName~"/velocities/true-airspeed-kt");
 			if (currSpeed_kt > 2.2 * vels.minSpeed_kt and rand() < (skill+8)/15) 
@@ -8319,19 +8325,24 @@ var attack_loop = func ( id, myNodeName )
 				if ( -deltaAlt_m > atts.climbPower/6 ) attackClimbDiveAddDirection = 1;
 			}
 						
+			# target amount to climb or drop
 			# for FG's AI to make a good dive/climb the difference in altitude must be at least 5000 ft
+			if ( ats.attacks["rocketsInAir"] != nil ) # might check here whether all rockets have been launched
+			{
+				var attackClimbDiveAdd_m = 0; # do not want to match height of target if launching rockets, particularly gliders
+			}
+			else
+			{
+				var attackClimbDiveAdd_m = (attackClimbDiveAddDirection >= 0) ? attackClimbDiveAddFact * atts.climbPower : -attackClimbDiveAddFact * atts.divePower ;
+			}
 						
-			#target amount to climb or drop
-			var attackClimbDiveAdd_m = (attackClimbDiveAddDirection >= 0) ? attackClimbDiveAddFact * atts.climbPower : -attackClimbDiveAddFact * atts.divePower ;
-						
-			#attackClimbDiveAdd_m = rand() * (atts.climbPower + atts.divePower) - atts.divePower;  #for FG's AI to make a good dive/climb the difference in altitude must be at least 5000 ft
 						
 			targetAGL_m = currAlt_m + attackClimbDiveAdd_m - elevTarget_m;
 						
 			if (targetAGL_m < alts.minimumAGL_m) targetAGL_m = alts.minimumAGL_m;
 			if (targetAGL_m > alts.maximumAGL_m) targetAGL_m = alts.maximumAGL_m;
 						
-			# debprint ("Bombable: Starting attack turn/loop for ", myNodeName," targetAGL_m = ", targetAGL_m);
+			debprint ("Bombable: Starting attack turn/loop for ", myNodeName," targetAGL_m = ", targetAGL_m);
 			ctrls.attackClimbDiveInProgress = 1;
 			ctrls.attackClimbDiveTargetAGL_m = targetAGL_m;
 		}
@@ -8339,7 +8350,7 @@ var attack_loop = func ( id, myNodeName )
 	else
 	{
 		ctrls.attackClimbDiveInProgress = 0;
-		# debprint ("Bombable: Ending attack turn/loop for ", myNodeName);
+		debprint ("Bombable: Ending attack turn/loop for ", myNodeName);
 	}
 				
 	targetAlt_m = targetAGL_m + elevTarget_m;
@@ -9206,18 +9217,18 @@ var add_damage = func
 			var nWeapons = size(weaps) ;
 			var index = int (rand() * nWeapons) ;
 			var thisWeapon = ats.weapons[weaps[index]];
-			if (!thisWeapon.destroyed and thisWeapon["launched"] != 1) # damage to launch platform cannot affect launched rockets
+			if (!thisWeapon.destroyed and thisWeapon.controls["launched"] != 1) # damage to launch platform cannot affect launched rockets
 			{
 				thisWeapon.destroyed = 1;
 				debprint(callsign," "~weaps[index]~" destroyed");
 				if (ats.maxTargets) 
 				{
-					if (!thisWeapon.fixed or ats.nFixed < 2)
+					if (!thisWeapon.aim.fixed or ats.nFixed < 2)
 					{
 						ats.maxTargets -= 1;
 						removeTarget(ats.index);
 					}
-					ats.nFixed -= thisWeapon.fixed;
+					ats.nFixed -= thisWeapon.aim.fixed;
 				}
 			}
 		}
@@ -12431,7 +12442,7 @@ var startScenario = func()
 			team :			"Y",
 			target :		"D",
 			arrivalTime :	90, # sec
-			airSpeed : 		182 * KT2MPS,
+			airSpeed : 		182,
 			airportName :	"CA35",
 			heading :		70,
 			alt :			5000,
@@ -12447,7 +12458,7 @@ var startScenario = func()
 			team :			"D",
 			target :		"Y",
 			arrivalTime :	90, # sec
-			airSpeed : 		250 * KT2MPS,
+			airSpeed : 		250,
 			airportName :	"CA35",
 			heading :		90,# 0 - 360 degrees
 			alt :			6000, # in feet
@@ -12463,7 +12474,7 @@ var startScenario = func()
 			team :			"B",
 			target :		"Y",
 			arrivalTime :	110, # sec
-			airSpeed : 		250 * KT2MPS,
+			airSpeed : 		250,
 			airportName :	"CA35",
 			heading :		90,
 			alt :			6100,
@@ -12479,7 +12490,7 @@ var startScenario = func()
 			team :			"C",
 			target :		"Y",
 			arrivalTime :	130, # sec
-			airSpeed : 		280 * KT2MPS,
+			airSpeed : 		280,
 			airportName :	"CA35",
 			heading :		350,
 			alt :			8000,
@@ -12501,7 +12512,7 @@ var startScenario = func()
 			team :			"B",
 			target :		"X",
 			arrivalTime :	90, # sec
-			airSpeed : 		182 * KT2MPS,
+			airSpeed : 		182,
 			airportName :	"CA35",
 			heading :		70,
 			alt :			5000,
@@ -12517,7 +12528,7 @@ var startScenario = func()
 			team :			"X",
 			target :		"B",
 			arrivalTime :	90, # sec
-			airSpeed : 		250 * KT2MPS,
+			airSpeed : 		250,
 			airportName :	"CA35",
 			heading :		90,# 0 - 360 degrees
 			alt :			6000, # in feet
@@ -12533,7 +12544,7 @@ var startScenario = func()
 			team :			"Y",
 			target :		"B",
 			arrivalTime :	110, # sec
-			airSpeed : 		250 * KT2MPS,
+			airSpeed : 		250,
 			airportName :	"CA35",
 			heading :		90,
 			alt :			6100,
@@ -12549,7 +12560,7 @@ var startScenario = func()
 			team :			"Z",
 			target :		"B",
 			arrivalTime :	130, # sec
-			airSpeed : 		280 * KT2MPS,
+			airSpeed : 		280,
 			airportName :	"CA35",
 			heading :		350,
 			alt :			8000,
@@ -12571,7 +12582,7 @@ var startScenario = func()
 			team :			"B",
 			target :		"X",
 			arrivalTime :	-360, # sec
-			airSpeed : 		25 * KT2MPS,
+			airSpeed : 		25,
 			airportName :	"EGOD",
 			heading :		225,
 			alt :			0,
@@ -12585,7 +12596,7 @@ var startScenario = func()
 			team :			"X",
 			target :		"B",
 			arrivalTime :	200, # sec
-			airSpeed : 		500 * KT2MPS,
+			airSpeed : 		500,
 			airportName :	"EGOD",
 			heading :		30,
 			alt :			5000,
@@ -12607,7 +12618,7 @@ var startScenario = func()
 			team :			"Z",
 			target :		"B",
 			arrivalTime :	-30, # sec
-			airSpeed : 		25 * KT2MPS,
+			airSpeed : 		25,
 			airportName :	"EGOD",
 			heading :		225,
 			alt :			0,
@@ -12621,7 +12632,7 @@ var startScenario = func()
 			team :			"B",
 			target :		"Z",
 			arrivalTime :	120, # sec
-			airSpeed : 		800 * KT2MPS,
+			airSpeed : 		800,
 			airportName :	"EGOD",
 			heading :		45,
 			alt :			8000,
@@ -12629,7 +12640,7 @@ var startScenario = func()
 						[
 							[0, 0, 0],
 							# [-20, 21, 0],
-							[-50, -50, 0]
+							# [-50, -50, 0]
 						],
 			},
 		};
@@ -12674,7 +12685,7 @@ var startScenario = func()
 		}
 		# location lead aircraft
 		GeoCoord.set_latlon(from.lat, from.lon);
-		var dist = scenario[group].airSpeed * scenario[group].arrivalTime;
+		var dist = scenario[group].airSpeed * KT2MPS * scenario[group].arrivalTime;
 		var heading = scenario[group].heading;
 		GeoCoord.apply_course_distance(heading + 180, dist);
 		foreach (var o ; scenario[group].offsets)  

@@ -124,13 +124,13 @@
             # from https://contentzone.eurocontrol.int/aircraftperformance/details.aspx?ICAO=F15&              
 			# not quite right since defined on site for different altitudes
             diveTerminalVelocities: {
-                point1: { airspeed_kt : 550, vertical_speed_fps : - 333},
+                point1: { airspeed_kt : 250, vertical_speed_fps : - 25},
                 point2: { airspeed_kt : 350, vertical_speed_fps : - 166},
-                point3: { airspeed_kt : 250, vertical_speed_fps : - 25},
+                point3: { airspeed_kt : 550, vertical_speed_fps : - 333},
             },
 
             climbTerminalVelocities: {
-              point1: { airspeed_kt : 550, vertical_speed_fps : 83},
+              point1: { airspeed_kt : 550, vertical_speed_fps : 166},
               point2: { airspeed_kt : 425, vertical_speed_fps : 333},
               point3: { airspeed_kt : 300, vertical_speed_fps : 500},
               point4: { airspeed_kt : 175, vertical_speed_fps : 833},               
@@ -157,8 +157,8 @@
             dodgeROverLPreference_percent : 50, # Preference for right turns vs. left when dodging.  90% means 90% right turns, 50% means 50% right turns.
             dodgeAltMin_m : -5000, #Aircraft will begin to move up or down 
             dodgeAltMax_m : 5000, #Max & Min are relative to current alt 
-            dodgeVertSpeedClimb_mps : 300, #Max speed to climb when evading
-            dodgeVertSpeedDive_mps : 300, #Max speed to dive when evading 
+            dodgeVertSpeedClimb_mps : 250, #Max speed to climb when evading
+            dodgeVertSpeedDive_mps : 100, #Max speed to dive when evading 
           },
           #  
           #########################################
@@ -168,7 +168,7 @@
           # other aircraft 
           attacks : {               
             maxDistance_m : 60000, #max distance to turn & attack main aircraft
-            minDistance_m : 5000, #min distance to turn & attack main aircraft, ie, fly away this far before turning to attack again
+            minDistance_m : 1000, #min distance to turn & attack main aircraft, ie, fly away this far before turning to attack again
             continueAttackAngle_deg : 20, #when within minDistance_m, the aircraft will continue to turn towards the main aircraft and attack *if* if the angle is less than this amount from dead ahead
             altitudeHigherCutoff_m : 13000, # will attack the main aircraft unless this amount higher than it or more
             altitudeLowerCutoff_m : 5000, # will attack the main aircraft unless this amount lower than it or more
@@ -180,7 +180,7 @@
                               #up to 80 might be OK, depending on aircraft & speed; somewhere in 80-85 starts to be unrealistically fast
                               #>85 is usually very unrealistic.  You must test this in your scenario, however.
             rollRateMax_degpersec : 110, #you can figure this out by rolling the corresponding FG aircraft and timing a 180 or 360 deg roll                                                                  
-            attackCheckTime_sec : 10, # check for need to attack/correct course this often  
+            attackCheckTime_sec : 5, # check for need to attack/correct course this often  
             attackCheckTimeEngaged_sec : 0.7, # once engaged with enemy, check/update course this frequently
                 
           },
