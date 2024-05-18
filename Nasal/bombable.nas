@@ -1029,6 +1029,7 @@ var setAttributes = func (attsObject = nil)
 	attributes[""].targetIndex = [];
 	attributes[""].shooterIndex = [];
 	attributes[""].nFixed = 0; # not used
+	attributes[""].nRockets = 0; # not used
 	attributes[""].maxTargets = 0; # not used
 	
 	# We setmaxlatlon here so that it is re-done on reinit--otherwise we
@@ -6178,7 +6179,7 @@ var weapons_loop = func (id, myNodeName1 = "", targetSize_m = nil) {
 		append ( groundData,  groundCheck );
 		if (groundCheck) noLoS = 0;
 
-		if (target ? contains(attributes[myNodeName2].attacks, "rocketsInAir") : 0) append(rocketCarriers, target); # separate check for main AC
+		if (target ? (attributes[myNodeName2].nRockets > 0) : 0) append(rocketCarriers, target); # separate check for main AC
 	}
 	if (noLoS) return; #if no target in line of sight then no need to check aim.  Assumption! Does not hold for self-guided rockets or parabolic flight trajectory
 
@@ -6629,7 +6630,7 @@ var guideRocket = func
 		}
 		else
 		{
-			debprint("Bombable: ", getCallSign(myNodeName1), " ", thisWeapon.name, " deleting rocket ",rocketAts.name," launched from ",getCallSign(myNodeName2));
+			debprint("Bombable: ", getCallSign(myNodeName1), " ", thisWeapon.name, " removing target ",rocketAts.name," launched from ",getCallSign(myNodeName2));
 			delete (thisWeapon.aim, "rn"); # target platform instead
 			targetRocket = nil;
 		}
@@ -6648,11 +6649,57 @@ var guideRocket = func
 	}
 	else
 	{
-		if (targetRocket == nil ? 1 : !rocketAts.controls.launched) # target the rocket platform
+		# determine distances of target rocket and/or launch platform
+		var r = [[0, 0, 0, 0], [0, 0, 0, 0]];
+		var checkRocket = (targetRocket != nil and rocketAts.controls.launched) ;
+		var checkPlatform = (!checkRocket or ( rand() < delta_t / 3 )) ; # check location of rocket carrier _and_ target rocket once every 3 sec 
+
+		forindex (var i; r)
 		{
-			var targetLat_deg = getprop("" ~ myNodeName2 ~ "/position/latitude-deg"); # target
-			var targetLon_deg = getprop("" ~ myNodeName2 ~ "/position/longitude-deg");
-			var targetAlt_m = getprop("" ~ myNodeName2 ~ "/position/altitude-ft") * FT2M;
+			if ((i and !checkPlatform) or !(i or checkRocket)) continue;
+			if (i and checkPlatform) # check the rocket platform distance
+			{
+				var targetLat_deg = getprop("" ~ myNodeName2 ~ "/position/latitude-deg"); # target
+				var targetLon_deg = getprop("" ~ myNodeName2 ~ "/position/longitude-deg");
+				var targetAlt_m = getprop("" ~ myNodeName2 ~ "/position/altitude-ft") * FT2M;
+			}
+			if (!i and checkRocket)
+			{
+				var targetLat_deg = rocketAts.position.latitude_deg; # check the rocket distance
+				var targetLon_deg = rocketAts.position.longitude_deg;
+				var targetAlt_m = rocketAts.position.altitude_ft * FT2M;
+			}
+
+			deltaLat_deg = targetLat_deg - alat_deg;
+			deltaLon_deg = targetLon_deg - alon_deg ;
+
+			# calculate targetDispRefFrame, the displacement vector from node1 (rocket) to node2 (target) in a lon-lat-alt (x-y-z) frame of reference aka 'reference frame'
+			# the rocket model is at < 0,0,0 > 
+			# and the target is at < deltaX,deltaY,deltaAlt > in relation to it.
+
+			r[i][0] = deltaLon_deg * m_per_deg_lon;
+			r[i][1] = deltaLat_deg * m_per_deg_lat;
+			r[i][2] = targetAlt_m - aAlt_m;
+			var sum = 0;
+			foreach (var val; r[i]) sum += val * val;
+			r[i][3] = sum;
+		}
+		var choice = !checkRocket; # 1=choose platform
+		if (checkRocket and checkPlatform and ( r[1][3] < r[0][3] / 4)) 
+		{
+			# change choice from rocket to its platform
+			choice = 1; 
+			thisWeapon.aim["rn"] = nil;
+			debprint ("Bombable: "~getCallSign(myNodeName1)~" "~elem~" switching target to "~getCallSign(myNodeName2));
+		}
+		var deltaX_m = r[choice][0] ;
+		var deltaY_m = r[choice][1] ;
+		var deltaAlt_m = r[choice][2];
+		var distance_m = math.sqrt(r[choice][3]) ;
+
+		# get speed and heading of target
+		if (choice)
+		{
 			var targetPitch = getprop("" ~ myNodeName2 ~ "/orientation/pitch-deg") * D2R;
 			var addTrue = (myNodeName2 == "") ? "" : "true-";
 			var targetHeading = getprop(""~myNodeName2~"/orientation/"~addTrue~"heading-deg") * D2R;
@@ -6660,26 +6707,11 @@ var guideRocket = func
 		}
 		else
 		{
-			var targetLat_deg = rocketAts.position.latitude_deg; # target the rocket
-			var targetLon_deg = rocketAts.position.longitude_deg;
-			var targetAlt_m = rocketAts.position.altitude_ft * FT2M;
 			var targetSpeed = rocketAts.velocities.speed;
 			var v = rocketAts.velocities.missileV_mps;
 			var targetPitch = math.asin(v[2]/targetSpeed);
 			var targetHeading = math.atan2(v[1], v[0]);
 		}
-
-		deltaLat_deg = targetLat_deg - alat_deg;
-		deltaLon_deg = targetLon_deg - alon_deg ;
-
-		# calculate targetDispRefFrame, the displacement vector from node1 (rocket) to node2 (target) in a lon-lat-alt (x-y-z) frame of reference aka 'reference frame'
-		# the rocket model is at < 0,0,0 > 
-		# and the target is at < deltaX,deltaY,deltaAlt > in relation to it.
-
-		var deltaX_m = deltaLon_deg * m_per_deg_lon;
-		var deltaY_m = deltaLat_deg * m_per_deg_lat;
-		var deltaAlt_m = targetAlt_m - aAlt_m;
-		var distance_m = math.sqrt ( deltaX_m * deltaX_m + deltaY_m * deltaY_m + deltaAlt_m * deltaAlt_m );
 	}
 
 	var targetDispRefFrame = [deltaX_m, deltaY_m, deltaAlt_m];
@@ -7394,6 +7426,7 @@ var killRocket = func (myNodeName, elem)
 	var ats = attributes[myNodeName];
 	var thisWeapon = ats.weapons[elem];
 	thisWeapon.destroyed = 1;
+	ats.nRockets -= 1;
 	ats.attacks.rocketsInAir -= 1;
 	if (ats.maxTargets) ats.maxTargets -= 1;
 	var rp = "ai/models/static[" ~ thisWeapon.rocketsIndex ~ "]";	
@@ -8327,7 +8360,7 @@ var attack_loop = func ( id, myNodeName )
 						
 			# target amount to climb or drop
 			# for FG's AI to make a good dive/climb the difference in altitude must be at least 5000 ft
-			if ( ats.attacks["rocketsInAir"] != nil ) # might check here whether all rockets have been launched
+			if ( ats.nRockets ) # might check here whether all rockets have been launched
 			{
 				var attackClimbDiveAdd_m = 0; # do not want to match height of target if launching rockets, particularly gliders
 			}
@@ -8350,7 +8383,6 @@ var attack_loop = func ( id, myNodeName )
 	else
 	{
 		ctrls.attackClimbDiveInProgress = 0;
-		debprint ("Bombable: Ending attack turn/loop for ", myNodeName);
 	}
 				
 	targetAlt_m = targetAGL_m + elevTarget_m;
@@ -9217,9 +9249,12 @@ var add_damage = func
 			var nWeapons = size(weaps) ;
 			var index = int (rand() * nWeapons) ;
 			var thisWeapon = ats.weapons[weaps[index]];
-			if (!thisWeapon.destroyed and thisWeapon.controls["launched"] != 1) # damage to launch platform cannot affect launched rockets
+			var destroyNow = (thisWeapon.weaponType == 1) ? !(thisWeapon.controls["launched"] == 1 or thisWeapon.destroyed) : !thisWeapon.destroyed;
+			# if rocket it cannot be destroyed if already launched
+			if (destroyNow) 
 			{
 				thisWeapon.destroyed = 1;
+				ats.nRockets -= 1;
 				debprint(callsign," "~weaps[index]~" destroyed");
 				if (ats.maxTargets) 
 				{
@@ -9599,6 +9634,7 @@ var initialize_func = func ( b ){
 	b.targetIndex = [];
 	b.shooterIndex = [];
 	b.nFixed = 0; 
+	b.nRockets = 0; 
 	b.maxTargets = 0;
 
 	if (! contains (b, "type")) b["type"] = props.globals.getNode(""~b.objectNodeName).getName(); 
@@ -10466,6 +10502,7 @@ var weapons_init_func = func(myNodeName)
 			if (rocket_init_func (thisWeapon, rocketCount))
 			{
 				rocketCount += 1;
+				ats.nRockets += 1;
 				ats.attacks["rocketsInAir"] = 0; # used to trigger rocket launch 
 				# each rocket is a separate weapon with a separate AI model - not tied to the parent AC/ship
 			}
