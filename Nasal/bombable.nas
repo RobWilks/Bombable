@@ -1025,7 +1025,7 @@ var setAttributes = func (attsObject = nil)
 	attributes[""].exploded = 0;
 	attributes[""].team = "A";
 	attributes[""].side = 0;
-	attributes[""].myIndex = 0;
+	attributes[""].index = 0;
 	attributes[""].targetIndex = [];
 	attributes[""].shooterIndex = [];
 	attributes[""].nFixed = 0; # not used
@@ -2850,7 +2850,7 @@ var ground_loop = func( id, myNodeName )
 
 	var GeoCoord = geo.Coord.new();
 	GeoCoord.set_latlon(lat, lon);
-	alt_ft = elev (GeoCoord.lat(), GeoCoord.lon()  ); #in feet
+	var alt_ft = elev (GeoCoord.lat(), GeoCoord.lon()  ); #in feet
 	# assume lat, lon are at the centre of the object
 	#debprint ("Bombable: GeoCoord.apply_course_distance(heading, dims.length_m/2); ",heading, " ", dims.length_m/2 );
 	GeoCoord.apply_course_distance(heading, frontBack_m);    #frontreardist in meters
@@ -2881,7 +2881,7 @@ var ground_loop = func( id, myNodeName )
 
 		var distAhead_m = speed_kt * KT2MPS * 5;
 		GeoCoord.apply_course_distance( heading, distAhead_m + 2 * frontBack_m);
-		var gradientAheadAlt_ft = (elev ( GeoCoord.lat(), GeoCoord.lon() ) - toFrontAlt_ft) * FT2M / distAhead_m;
+		var gradientAhead = (elev ( GeoCoord.lat(), GeoCoord.lon() ) - toFrontAlt_ft) * FT2M / distAhead_m;
 
 		# find altitude of ground to left & right of object to determine roll &
 		# to help in determining altitude
@@ -3109,7 +3109,7 @@ var ground_loop = func( id, myNodeName )
 			# avoid steep terrain
 			var targetHeading = getprop (""~myNodeName~"/controls/tgt-heading-degs");
 
-			if (math.abs(gradientAheadAlt_ft) > 0.9) # turn if at top or bottom of cliff
+			if (math.abs(gradientAhead) > 0.9) # turn if at top or bottom of cliff
 			{
 				if (!ctrls.avoidCliffInProgress)
 				{
@@ -6115,6 +6115,7 @@ var weapons_loop = func (id, myNodeName1 = "", targetSize_m = nil) {
 	var threatLevel = 1; # 1 + number of targets within detection range
 	var detectionRange = 10000;
 	var indexClosest = nil;
+	ats.attacks.allGround = 1;
 
 	foreach (target; myTargets)
 	{
@@ -6138,7 +6139,14 @@ var weapons_loop = func (id, myNodeName1 = "", targetSize_m = nil) {
 			distClosest = distance_m;
 			indexClosest = size (targetData);
 		}
-		if ( distance_m < detectionRange) threatLevel += 1;
+		if ( distance_m < detectionRange) 
+		{
+			threatLevel += 1;
+			if (target) #check not main AC
+			{
+				if (attributes[myNodeName2].type == "aircraft") ats.attacks.allGround = 0;
+			}
+		}
 
 		append (targetData, [deltaX_m, deltaY_m, deltaAlt_m, distance_m]);
 
@@ -6180,6 +6188,7 @@ var weapons_loop = func (id, myNodeName1 = "", targetSize_m = nil) {
 		if (groundCheck) noLoS = 0;
 
 		if (target ? (attributes[myNodeName2].nRockets > 0) : 0) append(rocketCarriers, target); # separate check for main AC
+
 	}
 	if (noLoS) return; #if no target in line of sight then no need to check aim.  Assumption! Does not hold for self-guided rockets or parabolic flight trajectory
 
@@ -6248,11 +6257,15 @@ var weapons_loop = func (id, myNodeName1 = "", targetSize_m = nil) {
 			}
 
 			# if target out of range
-			if (targetData[pos][3] > thisWeapon.maxDamageDistance_m and rand() < 0.2)
+			if (targetData[pos][3] > thisWeapon.maxDamageDistance_m)
 			{
-				pos += 1;
-				if (pos == nTargets) pos = indexClosest;
-				if (myTargets[pos] != 0) thisWeapon.aim.target = myTargets[pos]; # only attack main AC when there are no AI targets
+
+				if (rand() < 0.2)
+				{
+					pos += 1;
+					if (pos == nTargets) pos = indexClosest;
+					if (myTargets[pos] != 0) thisWeapon.aim.target = myTargets[pos]; # only attack main AC when there are no AI targets
+				}
 				continue;
 			}
 		}
@@ -6292,7 +6305,7 @@ var weapons_loop = func (id, myNodeName1 = "", targetSize_m = nil) {
 				# launch rocket when high threat level and few rockets in the air (ship)
 				# when escaping or attacking and target close by (aircraft)				
 				weaponsOrientationPositionUpdate(myNodeName1, elem);
-				r = ats.attacks["rocketsInAir"];
+				r = ats.attacks.rocketsInAir;
 				if (rand() < 0.1 * weapPowerSkill *threatLevel / (r * r * r + 1)) launchRocket (id, myNodeName1, elem);
 			}
 			continue;
@@ -6420,7 +6433,7 @@ var launchRocket = func (id, myNodeName1, elem)
 	{
 		debprint
 		(
-			sprintf("launch pad speed = %6.1f pitch = %6.1f dodge = %i attack = %i",
+			sprintf("launch pad speed = %3.1f pitch = %3.1f dodge = %i attack = %i",
 			launchPadSpeed, launchPadPitch, ats.controls.dodgeInProgress, ats.controls.attackInProgress)
 		);
 		if 
@@ -6475,14 +6488,18 @@ var launchRocket = func (id, myNodeName1, elem)
 	thisWeapon.position.longitude_deg = alon_deg;
 	thisWeapon.position.altitude_ft = alt_ft;
 	thisWeapon.controls.flightTime = 0;
-	thisWeapon.controls.engine = 1;
 
 	setprop (rp ~ "/position/latitude-deg", alat_deg);
 	setprop (rp ~ "/position/longitude-deg", alon_deg);
 	setprop (rp ~ "/position/altitude-ft", alt_ft);
 	setprop (rp ~ "/orientation/pitch-deg", pitch);
 	setprop (rp ~ "/orientation/true-heading-deg", heading);
-	setprop (rp ~ "/controls/engine", 1);  # animate plume from model
+
+	var ignitionDelay = (thisWeapon.massFuel_1 == 0) ? thisWeapon.burn1 : 0;
+	settimer( func {
+		setprop (rp ~ "/controls/engine", 1);
+		thisWeapon.controls.engine = 1;
+		}, ignitionDelay);  # animate plume from model
 
 	pidControllerInit (thisWeapon, "phi", delta_t);
 	pidControllerInit (thisWeapon, "theta", delta_t);
@@ -6512,7 +6529,8 @@ var launchRocket = func (id, myNodeName1, elem)
 
 	thisWeapon.mass = thisWeapon.launchMass; # reset weapon mass
 
-	attributes[myNodeName1].attacks["rocketsInAir"] += 1;
+	ats.attacks.rocketsInAir += 1;
+	ats.nRockets -= 1;
 
 	var msg = thisWeapon.name ~ " launched from " ~ getCallSign (myNodeName1);
 
@@ -7426,7 +7444,6 @@ var killRocket = func (myNodeName, elem)
 	var ats = attributes[myNodeName];
 	var thisWeapon = ats.weapons[elem];
 	thisWeapon.destroyed = 1;
-	ats.nRockets -= 1;
 	ats.attacks.rocketsInAir -= 1;
 	if (ats.maxTargets) ats.maxTargets -= 1;
 	var rp = "ai/models/static[" ~ thisWeapon.rocketsIndex ~ "]";	
@@ -7966,9 +7983,12 @@ stores.revitalizeAttackReadiness = func (myNodeName,dist_m = 1000000){
 ##################### elevGround ##########################
 #returns ground height in m at myNodeName position
 # works for any aircraft; for main aircraft myNodeName = ""
-var elevGround = func (myNodeName) {
+var elevGround = func (myNodeName) 
+{
 	var lat = getprop(""~myNodeName~"/position/latitude-deg");
 	var lon = getprop(""~myNodeName~"/position/longitude-deg");
+	var elev = geo.elevation(lat, lon);
+	if (elev == nil) debprint("elevGround for ", myNodeName, " lat= ", lat, " lon= ", lon); # error debug 
 	return geo.elevation(lat, lon);
 }
 
@@ -7976,7 +7996,6 @@ var elevGround = func (myNodeName) {
 # returns a hash containing the distance between AI objects 1 and 2
 # and the heading (absolute bearing) for 1 to travel to 2
 # replaces calls to geo methods (4-5x faster)
-
 
 var course1to2 = func (myNodeName1, myNodeName2) 
 {
@@ -8159,7 +8178,7 @@ var attack_loop = func ( id, myNodeName )
 	(dist[1] > -atts.altitudeLowerCutoff_m) and (dist[1] < atts.altitudeHigherCutoff_m)  and  
 	readinessAttack and ( (attentionFactor and distanceFactor) or attack_inprogress ) ) )  
 	{
-		# debprint ("Bombable: Not attacking ", continueAttack, " ", readinessAttack, " ", attentionFactor, " ", distanceFactor, " ", attack_inprogress, " for ", myNodeName, " " );
+		debprint ("Bombable: Not attacking ", continueAttack, " ", readinessAttack, " ", attentionFactor, " ", distanceFactor, " ", attack_inprogress, " for ", myNodeName, " " );
 		#OK, no attack, we're too far away or too close & passed it, too low, too high, etc etc etc
 		#Instead we: 1. dodge if necessary 2. exit
 		#always dodge when close to Target aircraft--unless we're aiming at it
@@ -8185,7 +8204,7 @@ var attack_loop = func ( id, myNodeName )
 		#TODO: We could do lots of things here, like have the AC join up in squadrons,
 		#return to a certain staging area, patrol a certain area, or whatever.
 
-		if ((rand() < ((ctrls.kamikase == -1) ? 0.5 : 0.2)) and atts.maxDistance_m) 
+		if (rand() < ((ctrls.kamikase == -1) ? 0.5 : 0.2)) 
 		# if attack check time 5 sec then < 0.2 gives an average delay of 25 sec til AC turns back into the fray
 		# 10 sec for kamikase pilots 
 		{
@@ -8204,7 +8223,7 @@ var attack_loop = func ( id, myNodeName )
 				}
 			}
 			aircraftTurnToHeading ( myNodeName, 60 );
-			# debprint ("Bombable: ", myNodeName, " Turning in direction of " ~ whereNow);
+			debprint ("Bombable: ", myNodeName, " Turning in direction of " ~ whereNow);
 		}
 		
 		if ( dist[0] > atts.maxDistance_m ) stores.revitalizeAttackReadiness(myNodeName, dist[0]);
@@ -8298,7 +8317,7 @@ var attack_loop = func ( id, myNodeName )
 		) 
 		{
 			targetAGL_m = ctrls.attackClimbDiveTargetAGL_m;
-			# debprint ("Bombable: Continuing attack for ", myNodeName," targetAGL_m = ", targetAGL_m);
+			debprint ("Bombable: Continuing attack for ", myNodeName," targetAGL_m = ", targetAGL_m);
 		} 
 		else
 		{
@@ -8314,7 +8333,7 @@ var attack_loop = func ( id, myNodeName )
 			debprint ("Bombable: Starting attack for " ~ getCallSign (myNodeName) );
 			vels = attributes[myNodeName].velocities;
 			var currSpeed_kt = getprop (""~myNodeName~"/velocities/true-airspeed-kt");
-			if (currSpeed_kt > 2.2 * vels.minSpeed_kt and rand() < (skill+8)/15) 
+			if (currSpeed_kt > 2.2 * vels.minSpeed_kt and rand() < (skill+8)/15 and (atts.allGround ? rand() < 0.2 : 1)) 
 			{
 				if ( choose_attack_acrobatic(myNodeName, dist[0], myHeading_deg,
 				targetHeading_deg, deltaHeading_deg,
@@ -8360,7 +8379,7 @@ var attack_loop = func ( id, myNodeName )
 						
 			# target amount to climb or drop
 			# for FG's AI to make a good dive/climb the difference in altitude must be at least 5000 ft
-			if ( ats.nRockets ) # might check here whether all rockets have been launched
+			if ( ats.nRockets )
 			{
 				var attackClimbDiveAdd_m = 0; # do not want to match height of target if launching rockets, particularly gliders
 			}
@@ -8373,8 +8392,14 @@ var attack_loop = func ( id, myNodeName )
 			targetAGL_m = currAlt_m + attackClimbDiveAdd_m - elevTarget_m;
 						
 			if (targetAGL_m < alts.minimumAGL_m) targetAGL_m = alts.minimumAGL_m;
-			if (targetAGL_m > alts.maximumAGL_m) targetAGL_m = alts.maximumAGL_m;
-						
+			if (!atts.allGround)
+			{
+				if (targetAGL_m > alts.maximumAGL_m) targetAGL_m = alts.maximumAGL_m;
+			}
+			else
+			{
+				if (targetAGL_m > 1000) targetAGL_m = 1000; # if all targets are on the ground (or sea) then do not exceed 1000m AGL
+			}						
 			debprint ("Bombable: Starting attack turn/loop for ", myNodeName," targetAGL_m = ", targetAGL_m);
 			ctrls.attackClimbDiveInProgress = 1;
 			ctrls.attackClimbDiveTargetAGL_m = targetAGL_m;
@@ -8510,7 +8535,6 @@ var aircraftTurnToHeadingControl = func (myNodeName, id, rolldegrees = 45, targe
 					
 		targetAlt_ft = targetAlt_m * M2FT;
 		var currElev_m = elevGround (myNodeName);
-		if (currElev_m == nil) debprint("currElev" ~ myNodeName); # error debug 
 		if (targetAlt_m - currElev_m < alts.minimumAGL_m ) targetAlt_ft = (alts.minimumAGL_m + currElev_m) * M2FT
 		elsif (targetAlt_m - currElev_m > alts.maximumAGL_m ) targetAlt_ft = (alts.maximumAGL_m + currElev_m) * M2FT;
 					
@@ -8535,8 +8559,14 @@ var aircraftTurnToHeadingControl = func (myNodeName, id, rolldegrees = 45, targe
 		# debprint ("Attacking: Change height for", myNodeName, " by ", dodgeAltAmount_ft);
 	}
 				
-				
-	#debprint("Bombable: RollControl: delta = ",delta_deg, " ",targetRoll_deg," ", myNodeName);
+		debprint(sprintf(
+			"Bombable: RollControl: delta = %3.1fdeg, target roll = %3.1fdeg, delta hdg = %4.1fdeg, %s",
+			delta_deg,
+			targetRoll_deg,
+			delta_heading_deg,
+			myNodeName
+			)
+		);
 
 	var rollTimeElapsed = ctrls.rollTimeElapsed;
 	var cutoff = rolldegrees / 5;
@@ -8551,9 +8581,10 @@ var aircraftTurnToHeadingControl = func (myNodeName, id, rolldegrees = 45, targe
 	else 
 	{
 		ctrls.rollTimeElapsed = 0;
+		debprint ("Bombable: Ending aircraft turn-to-heading routine for " ~ myNodeName);
+		# aircraftRoll(myNodeName, 0, rolltime, roll_limit_deg);
 		# rjw not needed since AI model flight lateral-mode control in "roll" - not "hdg" ?
 		# setprop(""~myNodeName~"/controls/flight/target-hdg", targetdegrees);
-		# debprint ("Bombable: Ending aircraft turn-to-heading routine for " ~ myNodeName);
 	}
 }
 
@@ -8593,7 +8624,8 @@ var aircraftTurnToHeading = func (myNodeName, rolldegrees = 45, targetAlt_m = "n
 
 	aircraftTurnToHeadingControl ( myNodeName, loopid, rolldegrees_, targetAlt_m );
 				
-	# debprint (sprintf("Bombable: Starting turn-to-heading routine for %s, loopid= %d, rolldegrees= %5.1f, target_deg= %6.1f",myNodeName, loopid, rolldegrees_, ctrls.courseToTarget_deg));
+	debprint (sprintf("Bombable: Starting turn-to-heading routine for %s, loopid= %d, rolldegrees= %3.1f, course_deg= %3.1f",
+	myNodeName, loopid, rolldegrees_, ctrls.courseToTarget_deg));
 }
 
 
@@ -9213,7 +9245,7 @@ var add_damage = func
 		if (damagetype == "weapon" or damageRise > 0.1 or rand() < .05)
 		{
 			damageRiseDisplay = round( damageRise * 100 );
-			if (damageRise < .01) damageRiseDisplay = sprintf ("%1.2f",damageRise * 100);
+			if (damageRise < .01) damageRiseDisplay = sprintf ("%1.3f",damageRise * 100);
 			elsif (damageRise < .1) damageRiseDisplay = sprintf ("%1.1f",damageRise * 100);
 							
 							
@@ -9630,7 +9662,7 @@ var initialize_func = func ( b ){
 	b.exploded = 0;
 	b.team = nil;
 	b.side = -1;
-	b.myIndex = -1;
+	b.index = -1;
 	b.targetIndex = [];
 	b.shooterIndex = [];
 	b.nFixed = 0; 
@@ -9826,6 +9858,7 @@ var initialize_func = func ( b ){
 		if (b.attacks.attackCheckTime_sec < 0.1) b.attacks.attackCheckTime_sec = 0.1;
 		if (b.attacks.attackCheckTimeEngaged_sec == nil ) b.attacks.attackCheckTimeEngaged_sec = 1.25;
 		if (b.attacks.attackCheckTimeEngaged_sec < 0.1) b.attacks.attackCheckTimeEngaged_sec = 0.1;
+		b.attacks.allGround = 0; #flag used to switch to ground based targets
 	}
 						
 	b["stores"] = {};
@@ -10502,7 +10535,7 @@ var weapons_init_func = func(myNodeName)
 			if (rocket_init_func (thisWeapon, rocketCount))
 			{
 				rocketCount += 1;
-				ats.nRockets += 1;
+				ats.nRockets += 1; # rockets available on platform accounting for those already launched 
 				ats.attacks["rocketsInAir"] = 0; # used to trigger rocket launch 
 				# each rocket is a separate weapon with a separate AI model - not tied to the parent AC/ship
 			}
@@ -12669,14 +12702,14 @@ var startScenario = func()
 			team :			"B",
 			target :		"Z",
 			arrivalTime :	120, # sec
-			airSpeed : 		800,
+			airSpeed : 		512,
 			airportName :	"EGOD",
 			heading :		45,
 			alt :			8000,
 			offsets :
 						[
 							[0, 0, 0],
-							# [-20, 21, 0],
+							[-20, 21, 0]
 							# [-50, -50, 0]
 						],
 			},
