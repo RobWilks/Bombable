@@ -12933,7 +12933,7 @@ var resetScenario = func()
 			foreach (var loopName; loops) restartLoops(myNodeName, loopName);
 		}
 	}
-	debprint (sprintf("Scenario %s reset"), getprop("/sim/ai/scenario"));
+	debprint (sprintf("Scenario %s reset", getprop("/sim/ai/scenario")));
 }
 ########################## restartLoops ###########################
 var restartLoops = func(myNodeName, loopName)
