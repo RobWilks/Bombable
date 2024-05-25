@@ -1525,9 +1525,8 @@ var revitalizeAllAIObjects = func (revitType = "aircraft", preservePosSpeed = 0)
 #  myNodeName = the AI node to reset, or set myNodeName = "" for the main
 # #aircraft.
 
-var resetBombableDamageFuelWeapons = func (myNodeName) {
-			
-	#if (myNodeName == "" or myNodeName == "environment") myNodeName = "/environment";
+var resetBombableDamageFuelWeapons = func (myNodeName) 
+{
 	debprint ("Bombable: Resetting damage level and fires for ", myNodeName);
 			
 	#don't do this for objects that don't even have bombable initialized
@@ -1551,11 +1550,20 @@ var resetBombableDamageFuelWeapons = func (myNodeName) {
 		var ctrls = ats.controls;	
 		ats.damage = 0;
 		ats.exploded = 0;
-		ctrls.onGround = 0;
 		ctrls.damageAltAddCurrent_ft = 0;
 		ctrls.damageAltAddCumulative_ft = 0;
+		ctrls.onGround = 0;
+		ctrls.stayInFormation = 1;
+		ctrls.attackInProgress = 0;
+		ctrls.dodgeInProgress = 0;
+		ctrls.attackClimbDiveInProgress = 0;
+		ctrls.attackClimbDiveTargetAGL_m = 0;
+		ctrls.stalling = 0;
+		ctrls.avoidCliffInProgress = 0;
+		ctrls.groundLoopCounter = 0;
+		if (ctrls.kamikase != 0) ctrls.kamikase = 1;
 				
-		#take the opportunity to reset the pilot's abilities, giving them
+		# reset the pilot's abilities, giving them
 		# a new personality when they come back alive
 		var ability = math.pow (rand(), 1.5); 
 		if (rand() > .5) ability = -ability;
@@ -2968,20 +2976,6 @@ var ground_loop = func( id, myNodeName )
 	# hits the ground it crashes but tanks etc are always on the ground
 	
 
-	# rjw use the lowest allowed altitude and current altitude to check for aircraft crash
-	if (
-		type == "aircraft" and !ctrls.onGround and 
-		(
-			(damageValue > 0.8 and ( currAlt_ft <= objectsLowestAllowedAlt_ft and speed_kt > 20 ) or ( currAlt_ft <= objectsLowestAllowedAlt_ft - 5))
-			or 
-			(damageValue == 1 and currAlt_ft <= objectsLowestAllowedAlt_ft)
-		)
-	)
-	{
-		hitground_stop_explode(myNodeName, alt_ft); #rjw added onGround check to avoid multiple calls to hitground_stop_explode
-		return;
-	}
-
 	# end of life:  damaged ships and ground vehicles grind to a halt; aircraft explode and flag onGround
 	# speed is adjusted by add_damage
 	if ((type == "groundvehicle") or (type == "ship")) 
@@ -3005,7 +2999,22 @@ var ground_loop = func( id, myNodeName )
 			return;
 		}
 	}
-	#could merge with the next block
+
+	# use the lowest allowed altitude and current altitude to check for aircraft crash
+	# onGround check to avoid multiple calls to hitground_stop_explode
+	if (
+		type == "aircraft" and !ctrls.onGround and 
+		(
+			(damageValue > 0.8 and ( currAlt_ft <= objectsLowestAllowedAlt_ft and speed_kt > 20 ) or ( currAlt_ft <= objectsLowestAllowedAlt_ft - 5))
+			or 
+			(damageValue == 1 and currAlt_ft <= objectsLowestAllowedAlt_ft)
+		)
+	)
+	{
+		debprint ("Bombable: Aircraft below lowest allowed altitude");
+		hitground_stop_explode(myNodeName, alt_ft); 
+		return;
+	}
 	
 	# rjw bring crashed aircraft to a stop
 	if (ctrls.onGround)
@@ -3432,8 +3441,8 @@ var ground_loop = func( id, myNodeName )
 			else
 			{ 
 				#closer to the ground than MaxPerCycle so terminate and explode
-				hitground_stop_explode(myNodeName, objectsLowestAllowedAlt_ft);
 				debprint ("Bombable: Aircraft hit ground");
+				hitground_stop_explode(myNodeName, objectsLowestAllowedAlt_ft);
 			}
 
 			
@@ -3445,7 +3454,7 @@ var ground_loop = func( id, myNodeName )
 						
 			if ( currAlt_ft < alt_ft - 5 )  
 			{
-				debprint ("Bombable: Aircraft hit ground, it's dead. 1863.");
+				debprint ("Bombable: Aircraft below ground! Terminated.");
 				hitground_stop_explode(myNodeName, objectsLowestAllowedAlt_ft );
 			}
 					
@@ -5838,7 +5847,7 @@ var vertAngle_deg = func (geocoord1, geocoord2) {
 var checkAim = func ( thisWeapon, 
 					tgtDisp,
 					myNodeName1 = "", myNodeName2 = "",
-					targetSize_m = nil,  weapPowerSkill = 1, 
+					weapPowerSkill = 1, 
 					damageValue = 0) 
 {
 	var targetSighted = 0; #flag true if target sighted which must happen before the weapon can be aimed
@@ -5955,6 +5964,19 @@ var checkAim = func ( thisWeapon,
 	#calculate probability of hitting target, pRound
 	if (cosOffset > 0.985)
 	{
+		# get targetSize. Can simplify only used here
+		var targetSize_m = { vert : 4, horz : 8 }; 
+		var dims = attributes[myNodeName2].dimensions;
+		if (dims["height_m"] != nil) # check probably not needed since default dimensions are provided by setAttributes
+		{
+			targetSize_m = 
+			{
+				vert : dims.height_m ,
+				horz : 0.5 * (dims.width_m + dims.length_m) ,
+			};
+		}
+		# debprint ("Bombable: Target size ", targetSize_m.vert, " by ", targetSize_m.horz, " for ", myNodeName );
+
 		# only calculate pRound if target direction within 10 degrees of weapon direction
 		var targetOffset_rad = math.acos(cosOffset); # angular offset from weapon direction
 		var targetSize_rad = math.atan2(math.sqrt(targetSize_m.horz * targetSize_m.vert) / 2 , distance_m);	
@@ -6054,15 +6076,14 @@ var checkAim = func ( thisWeapon,
 # to calculate target distance. That seems far more frugal of CPU time than
 # geoCoord and directdistanceto, which both seem quite expensive of CPU.
 			
-var weapons_loop = func (id, myNodeName1 = "", targetSize_m = nil) {
-	if (targetSize_m == nil or targetSize_m.horz <= 0 or targetSize_m.vert <= 0) return ;	# moved from checkAim			
+var weapons_loop = func (id, myNodeName1 = "") {
 	var ats = attributes[myNodeName1];
 	#we increment loopid if we want to kill this timer loop.  So check if we need to kill/exit:
 	#myNodeName1 is the AI aircraft and myNodeName2 is its target
 	id == ats.loopids.weapons_loopid or return;
 				
 	var loopTime = LOOP_TIME ;
-	settimer (  func { weapons_loop (id, myNodeName1, targetSize_m )}, loopTime);
+	settimer (  func { weapons_loop (id, myNodeName1)}, loopTime);
 
 	if (! size(ats.targetIndex)) return; # no target available
 
@@ -6113,7 +6134,7 @@ var weapons_loop = func (id, myNodeName1 = "", targetSize_m = nil) {
 	var rocketCarriers = []; # indices of targets carrying rockets
 	var distClosest = 999;
 	var threatLevel = 1; # 1 + number of targets within detection range
-	var detectionRange = 10000;
+	var detectionRange = 7000;
 	var indexClosest = nil;
 	ats.attacks.allGround = 1;
 
@@ -6279,7 +6300,7 @@ var weapons_loop = func (id, myNodeName1 = "", targetSize_m = nil) {
 					thisWeapon, # pass pointer to weapon parameters
 					tgtDisp,
 					myNodeName1, myNodeName2, 
-					targetSize_m, weapPowerSkill,
+					weapPowerSkill,
 					damageValue
 				);
 			if ( targetSighted ) weaponsOrientationPositionUpdate(myNodeName1, elem);
@@ -6296,7 +6317,7 @@ var weapons_loop = func (id, myNodeName1 = "", targetSize_m = nil) {
 					thisWeapon,
 					tgtDisp,
 					myNodeName1, myNodeName2, 
-					targetSize_m, weapPowerSkill,
+					weapPowerSkill,
 					damageValue
 				);
 
@@ -6306,7 +6327,7 @@ var weapons_loop = func (id, myNodeName1 = "", targetSize_m = nil) {
 				# when escaping or attacking and target close by (aircraft)				
 				weaponsOrientationPositionUpdate(myNodeName1, elem);
 				r = ats.attacks.rocketsInAir;
-				if (rand() < 0.1 * weapPowerSkill *threatLevel / (r * r * r + 1)) launchRocket (id, myNodeName1, elem);
+				if (rand() < 0.05 * weapPowerSkill * threatLevel / (r * r * r + 1)) launchRocket (id, myNodeName1, elem);
 			}
 			continue;
 		}
@@ -6421,6 +6442,7 @@ var launchRocket = func (id, myNodeName1, elem)
 {
 	var ats = attributes[myNodeName1];
 	var thisWeapon = ats.weapons[elem];
+	if (thisWeapon.aim.weaponDirRefFrame[2] == -1) return; # cannot launch rocket before checkAim called
 	var delta_t = LOOP_TIME;
 
 	# get speed and orientation of launchpad or guide rail
@@ -6440,10 +6462,7 @@ var launchRocket = func (id, myNodeName1, elem)
 		(
 			launchPadSpeed < ats.velocities.cruiseSpeed_kt or math.abs(launchPadPitch > 30) or
 			(!ats.controls.dodgeInProgress and !ats.controls.attackInProgress)
-		)
-		{
-			return;
-		}
+		) return;
 	}
 
 	var launchPadHeading = 
@@ -6495,6 +6514,7 @@ var launchRocket = func (id, myNodeName1, elem)
 	setprop (rp ~ "/orientation/pitch-deg", pitch);
 	setprop (rp ~ "/orientation/true-heading-deg", heading);
 
+	thisWeapon.controls.engine = 0;
 	var ignitionDelay = (thisWeapon.massFuel_1 == 0) ? thisWeapon.burn1 : 0;
 	settimer( func {
 		setprop (rp ~ "/controls/engine", 1);
@@ -7829,24 +7849,52 @@ stores.fillFuel = func (myNodeName,amount = 1){
 
 ###############################################
 # FUNCTION fillWeapons
+# each rocket is a separate weapon with a separate AI model - not tied to the parent AC/ship
 #
 #
-stores.fillWeapons = func (myNodeName, amount = 1){
-
+stores.fillWeapons = func (myNodeName, amount = 1)
+{
 	if ( ! contains ( attributes, myNodeName) or
-	! contains ( attributes[myNodeName], "stores") ) return;
+	! contains ( attributes[myNodeName], "stores") or
+	! contains ( attributes[myNodeName], "weapons") ) return;
 
-	var weaps = attributes[myNodeName].weapons;
-	var stos = attributes[myNodeName].stores;
-				
 	debprint ("Bombable: Filling weapons for", myNodeName);
-	foreach (elem;keys (weaps) ) {
-		if (stos["weapons"][elem] == nil) stos["weapons"][elem] = 0;
-		stos["weapons"][elem] +=  amount;
-		if (stos["weapons"][elem] > 1 ) stos["weapons"][elem] = 1;
-	}
-}
 
+	var ats = attributes[myNodeName];
+	var weaps = ats.weapons;
+	var stos = ats.stores;
+	var nFixed = 0;
+	var nRockets = 0;
+	foreach (weap; keys(weaps))
+	{
+		if (stos["weapons"][weap] == nil) stos["weapons"][weap] = 0;
+		stos["weapons"][weap] +=  amount;
+		if (stos["weapons"][weap] > 1 ) stos["weapons"][weap] = 1;
+		var thisWeapon = weaps[weap];
+		if (thisWeapon.weaponType == 1) 
+		{
+			if (thisWeapon.controls.launched and !thisWeapon.destroyed) 
+			{
+				guideRocket(-1, myNodeName, weap);
+				killRocket(myNodeName, weap);
+			}
+			thisWeapon.controls.launched = 0;
+			thisWeapon.aim.rn = nil;
+			nRockets += 1;
+		}
+		else
+		{
+			nFixed += thisWeapon.aim.fixed;
+		}
+		thisWeapon.destroyed = 0;
+		thisWeapon.aim.target = -1;
+		thisWeapon.aim.weaponDirRefFrame = [0,0,-1];
+	}
+	if (nRockets) ats.attacks.rocketsInAir = 0; # used to trigger rocket launch
+	ats.nRockets = nRockets; # rockets available on platform accounting for those already launched 
+	ats.nFixed = nFixed;
+	ats.maxTargets = size(keys(weaps)) - (nFixed > 0 ? nFixed : 1) + 1; # the number of targets that the object can fire at simultaneously
+}
 ###############################################
 # FUNCTION repairDamage
 #
@@ -8317,7 +8365,7 @@ var attack_loop = func ( id, myNodeName )
 		) 
 		{
 			targetAGL_m = ctrls.attackClimbDiveTargetAGL_m;
-			debprint ("Bombable: Continuing attack for ", myNodeName," targetAGL_m = ", targetAGL_m);
+			# debprint ("Bombable: Continuing attack for ", myNodeName," targetAGL_m = ", targetAGL_m);
 		} 
 		else
 		{
@@ -8330,7 +8378,7 @@ var attack_loop = func ( id, myNodeName )
 			# TODO: This varies by AC.  As a first try we're going with 2X
 			# minSpeed_kt to complete the loop.
 			#
-			debprint ("Bombable: Starting attack for " ~ getCallSign (myNodeName) );
+			# debprint ("Bombable: Starting attack for " ~ getCallSign (myNodeName) );
 			vels = attributes[myNodeName].velocities;
 			var currSpeed_kt = getprop (""~myNodeName~"/velocities/true-airspeed-kt");
 			if (currSpeed_kt > 2.2 * vels.minSpeed_kt and rand() < (skill+8)/15 and (atts.allGround ? rand() < 0.2 : 1)) 
@@ -8400,7 +8448,7 @@ var attack_loop = func ( id, myNodeName )
 			{
 				if (targetAGL_m > 1000) targetAGL_m = 1000; # if all targets are on the ground (or sea) then do not exceed 1000m AGL
 			}						
-			debprint ("Bombable: Starting attack turn/loop for ", myNodeName," targetAGL_m = ", targetAGL_m);
+			# debprint ("Bombable: Starting attack turn/loop for ", myNodeName," targetAGL_m = ", targetAGL_m);
 			ctrls.attackClimbDiveInProgress = 1;
 			ctrls.attackClimbDiveTargetAGL_m = targetAGL_m;
 		}
@@ -8559,14 +8607,14 @@ var aircraftTurnToHeadingControl = func (myNodeName, id, rolldegrees = 45, targe
 		# debprint ("Attacking: Change height for", myNodeName, " by ", dodgeAltAmount_ft);
 	}
 				
-		debprint(sprintf(
-			"Bombable: RollControl: delta = %3.1fdeg, target roll = %3.1fdeg, delta hdg = %4.1fdeg, %s",
-			delta_deg,
-			targetRoll_deg,
-			delta_heading_deg,
-			myNodeName
-			)
-		);
+		# debprint(sprintf(
+		# 	"Bombable: RollControl: delta = %3.1fdeg, target roll = %3.1fdeg, delta hdg = %4.1fdeg, %s",
+		# 	delta_deg,
+		# 	targetRoll_deg,
+		# 	delta_heading_deg,
+		# 	myNodeName
+		# 	)
+		# );
 
 	var rollTimeElapsed = ctrls.rollTimeElapsed;
 	var cutoff = rolldegrees / 5;
@@ -8624,8 +8672,8 @@ var aircraftTurnToHeading = func (myNodeName, rolldegrees = 45, targetAlt_m = "n
 
 	aircraftTurnToHeadingControl ( myNodeName, loopid, rolldegrees_, targetAlt_m );
 				
-	debprint (sprintf("Bombable: Starting turn-to-heading routine for %s, loopid= %d, rolldegrees= %3.1f, course_deg= %3.1f",
-	myNodeName, loopid, rolldegrees_, ctrls.courseToTarget_deg));
+	# debprint (sprintf("Bombable: Starting turn-to-heading routine for %s, loopid= %d, rolldegrees= %3.1f, course_deg= %3.1f",
+	# myNodeName, loopid, rolldegrees_, ctrls.courseToTarget_deg));
 }
 
 
@@ -9324,7 +9372,8 @@ var add_damage = func
 		else
 		{
 			# for ships and ground vehicles decelerate at the maxSpeedReduce
-			settimer( func{reduceSpeed(myNodeName, maxSpeedReduceFactor, type)},1);
+			var loopid = ats.loopids.ground_loopid;
+			settimer( func{reduceSpeed(loopid, myNodeName, maxSpeedReduceFactor, type)},1);
 		}
 		# exit here or skip next block but need to start ship listing?
 	}
@@ -9927,7 +9976,6 @@ var initialize_func = func ( b ){
 	
 	attributes[b.objectNodeName] = b;
 	var myNodeName = b.objectNodeName;
-	stores.fillWeapons(myNodeName, 1);
 	stores.fillFuel(myNodeName, 1);
 
 	# determines how AI aircraft are controlled - Bombable sets altitudes and roll
@@ -10523,7 +10571,6 @@ var weapons_init_func = func(myNodeName)
 		rocketCount = 0; #index of first rocket for AI aircraft
 		}
 
-	var nFixed = 0;
 	foreach (elem;keys (weaps) ) 
 	{
 		var thisWeapon = weaps[elem]; # a pointer into the attributes hash
@@ -10535,9 +10582,6 @@ var weapons_init_func = func(myNodeName)
 			if (rocket_init_func (thisWeapon, rocketCount))
 			{
 				rocketCount += 1;
-				ats.nRockets += 1; # rockets available on platform accounting for those already launched 
-				ats.attacks["rocketsInAir"] = 0; # used to trigger rocket launch 
-				# each rocket is a separate weapon with a separate AI model - not tied to the parent AC/ship
 			}
 			else
 			{
@@ -10581,10 +10625,8 @@ var weapons_init_func = func(myNodeName)
 		weapAngles["initialElevation"] = weapAngles.elevation;
 
 		var weapFixed = (weapAngles.elevationMin == weapAngles.elevationMax) and (weapAngles.headingMin == weapAngles.headingMax) and (thisWeapon["weaponType"] != 1);
-		nFixed += weapFixed; # do not include rockets since a different target can be assigned to each 'fixed' rocket 
+		# do not include rockets since a different target can be assigned to each 'fixed' rocket 
 			
-		thisWeapon.destroyed = 0;
-
 		thisWeapon["aim"] = {
 			nHit:0, 
 			weaponDirModelFrame:weapDir, 
@@ -10595,7 +10637,7 @@ var weapons_init_func = func(myNodeName)
 			fixed:weapFixed, 
 			target:-1, #index of object to shoot at; -1 flag to show not initialized
 			}; 
-		# new hash used to record direction weapon is pointing
+		# aim records direction weapon is pointing
 		# in the frame of reference of model and the frame of reference of the scene
 		
 		thisWeapon["fireParticle"] = count;
@@ -10626,6 +10668,7 @@ var weapons_init_func = func(myNodeName)
 			delete(weaps, elem);
 			continue;
 		}	
+		thisWeapon.destroyed = 0;
 		debprint ("Weaps: ", myNodeName, " initialized ", thisWeapon.name);
 		count += 1;
 	}
@@ -10684,29 +10727,14 @@ var weapons_init_func = func(myNodeName)
 		# pRound is calculated on the average solid angle subtended by the target  
 		# recalculate the size if new target assigned
 
-		# get targetSize
-		var targetNode = !size(ats.targetIndex) ? "" : nodes[ats.targetIndex[0]];
-		var targetSize_m = { vert : 4, horz : 8 }; 
-		if (attributes[targetNode]["dimensions"]["height_m"] != nil) # check probably not needed since default dimensions are provided by setAttributes
-		{
-			targetSize_m = 
-			{
-				vert : attributes[targetNode].dimensions.height_m ,
-				horz : 0.5 * (attributes[targetNode].dimensions.width_m + attributes[targetNode].dimensions.length_m) ,
-			};
-		}
-		# debprint ("Bombable: Target size ", targetSize_m.vert, " by ", targetSize_m.horz, " for ", myNodeName );
-		
-		setWeaponPowerSkill (myNodeName);							
+		setWeaponPowerSkill (myNodeName);
+		stores.fillWeapons (myNodeName, 1);						
 							
 		#we increment this each time we are inited or de-inited
 		#when the loopid is changed it kills the timer loops that have that id
 		var loopid = inc_loopid (myNodeName, "weapons");
-		settimer (  func { weapons_loop (loopid, myNodeName, targetSize_m)}, 5 + rand());
+		settimer (  func { weapons_loop (loopid, myNodeName)}, 5 + rand());
 	}
-
-	ats.nFixed = nFixed;
-	ats["maxTargets"] = size(keys(weaps)) - (nFixed > 0 ? nFixed : 1) + 1; # the number of targets that the object can fire at simultaneously
 
 	debprint ("Bombable: Effect * weapons * loaded for ", myNodeName);
 
@@ -11469,6 +11497,7 @@ var reduceRPM = func(myNodeName) {
 
 var startEngines = func(myNodeName) {
 	# Call after game reset 
+	# Clunky. Iterate through children of node?
 	var revs = 0;
 	for (var noEngine = 0; noEngine < 6; noEngine  +=  1) {
 		revs = getprop(""~myNodeName~"/engines/engine["~noEngine~"]/rpm");
@@ -11497,18 +11526,21 @@ var killEngines = func(myNodeName)
 	}
 }
 ########################## reduceSpeed ###########################
+# reduceSpeed is called when a groundvehicle or ship is destroyed
+# Uses same id as groundloop and so continues until the groundloop is terminated using inc_loopid
+# Bombable ships and groundvehicles both use the AIship model
+# The object AI code is used to provide a smooth deceleration
 
-var reduceSpeed = func(myNodeName, factorSlowDown, type) {
-
-	# Bombable ships and groundvehicles both use the AIship model
+var reduceSpeed = func(id, myNodeName, factorSlowDown, type) 
+{
+	id == attributes[myNodeName].loopids.ground_loopid or return;
 
 	var tgt_spd_kts = getprop (""~myNodeName~"/controls/tgt-speed-kts");
 	if (tgt_spd_kts == nil ) tgt_spd_kts = 0;
 
 	setprop(""~myNodeName~"/controls/tgt-speed-kts", tgt_spd_kts * factorSlowDown);
 		
-	# believe that the ship AI will handle this
-	settimer( func{reduceSpeed(myNodeName, factorSlowDown,type)},1);
+	settimer( func{reduceSpeed(id, myNodeName, factorSlowDown,type)},1);
 }
 
 ########################## rotate_round ###########################
@@ -12775,6 +12807,8 @@ var startScenario = func()
 				count += 1;
 				teams[teamName].count = count;
 				setprop(""~myNodeName~"/orientation/true-heading-deg", scenario[group].heading);
+				setprop(""~myNodeName~"/orientation/roll-deg", 0);
+				setprop(""~myNodeName~"/orientation/pitch-deg", 0);
 				setprop(""~myNodeName~"/position/latitude-deg", GeoCoord2.lat());
 				setprop(""~myNodeName~"/position/longitude-deg", GeoCoord2.lon());
 				if (type == "aircraft")
@@ -12789,6 +12823,7 @@ var startScenario = func()
 					setprop(""~myNodeName~"/controls/tgt-heading-degs", scenario[group].heading);
 					setprop(""~myNodeName~"/velocities/speed-kts", scenario[group].airSpeed);
 					setprop(""~myNodeName~"/controls/tgt-speed-kts", scenario[group].airSpeed);
+					setprop (""~myNodeName~"/surface-positions/rudder-pos-deg", 0);					
 				}
 			}
 		}
@@ -12828,6 +12863,103 @@ var removeElem = func(vector, element)
 	if (index == 0) return ( size(vector) != 1 ? vector[1 : ] : []);
 	if (index == size(vector) - 1) return vector[:index-1];
 	return(vector[:index-1, index+1:]);
+}
+
+########################## resetScenario ###########################
+# stop attack, weapons and ground loops
+# rebuild teams and assign new targets
+# repair and refuel all AI ships, planes
+# reload weapons
+# move all objects back to starting position except main AC
+# restart loops
+
+var resetScenario = func()
+{
+	# end all loops for all targets
+	var loops =
+		[
+		"weapons",
+		"ground",
+		"attack",
+		"roll",
+		"speed_adjust"
+		];
+	foreach (var myNodeName; nodes)
+	{
+		if (myNodeName != "") 
+		{
+			foreach (var loopName; loops) inc_loopid(myNodeName, loopName);
+		}
+	}
+
+	# rebuild teams and players
+	teams = 
+	{
+		A:{indices: [0], target: nil, count: 1},
+	}; 
+	allPlayers = 
+	[
+		[0],
+		[]
+	];
+
+	foreach (var myNodeName; nodes)
+	{
+		var ats = attributes[myNodeName];
+		if (myNodeName != "") # omit main AC
+		{
+			var myIndex = ats.index ;
+			var teamName = ats.team ;
+			var side = ats.side ;
+			if (teams[teamName] == nil) teams[teamName] = {indices: [], target: nil, count: 0};
+			append(teams[teamName].indices, myIndex);
+			append(allPlayers[side], myIndex);
+			ats.targetIndex = []; # could initialise in initTargets
+			ats.shooterIndex = [];
+		} 
+		resetBombableDamageFuelWeapons (myNodeName);
+	}
+
+	# restart scenario - it calls initTargets
+	startScenario();
+
+	# restart loops
+	# the foreach loop must call a helper function - calling settimer directly from within the loop 
+	# causes it to use only the last element of nodes 
+	foreach (var myNodeName; nodes)
+	{
+		if (myNodeName != "") # omit main AC
+		{
+			foreach (var loopName; loops) restartLoops(myNodeName, loopName);
+		}
+	}
+	debprint (sprintf("Scenario %s reset"), getprop("/sim/ai/scenario"));
+}
+########################## restartLoops ###########################
+var restartLoops = func(myNodeName, loopName)
+{
+	var loopid = inc_loopid (myNodeName, loopName);
+	var type= attributes[myNodeName].type;
+	var r = rand() - 0.5;
+	if (loopName == "weapons") 
+	{
+		settimer ( func {weapons_loop (loopid, myNodeName); }, r + 8);
+	}
+	elsif (loopName == "ground") 
+	{
+		settimer( func {ground_loop (loopid, myNodeName); }, r + 3);
+	}
+	elsif (type == "aircraft") 
+	{
+		if (loopName == "attack") 
+		{
+			settimer( func {attack_loop (loopid, myNodeName); }, r + 6);
+		}
+		elsif (loopName == "speed_adjust") 
+		{
+			settimer ( func {speed_adjust_loop ( loopid, myNodeName, .3 + rand() / 30); }, r + 4);
+		}
+	}
 }
 
 
