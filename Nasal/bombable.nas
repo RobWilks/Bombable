@@ -6225,7 +6225,9 @@ var weapons_loop = func (id, myNodeName1 = "") {
 		if (thisWeapon.weaponType == 1 and pos == nil)
 		# for a rocket with no target assigned, check first those targets still carrying functioning rockets
 		# find the node of that rocket
+		# ignore any rocket that is targeting me
 		# if none available select from other targets
+		# 
 
 		{
 			var rockets = [];
@@ -6237,7 +6239,7 @@ var weapons_loop = func (id, myNodeName1 = "") {
 				foreach (targetWeap; keys(wps))
 				{
 					if (wps[targetWeap].destroyed) continue;
-					if (wps[targetWeap].weaponType == 1) 
+					if (wps[targetWeap].weaponType == 1 and wps[targetWeap].aim["rn"] != elem) # do not include rockets that are targeting me
 					{
 						append(rockets, i, targetWeap);
 						count += 1;
@@ -6656,14 +6658,14 @@ var guideRocket = func
 	if (math.abs (aAlt_m - thisWeapon.lastAlt_m) > 200.0) updateAirDensity (thisWeapon, aAlt_m);
 
 	var damageRadius = attributes[myNodeName2].dimensions.damageRadius_m;
-	var targetRocket = thisWeapon.aim["rn"];
-	var noTarget = (attributes[myNodeName2].damage == 1);
+	var targetRocket = thisWeapon.aim["rn"]; # name of rocket to be used as target
+	var noTarget = (attributes[myNodeName2].damage == 1); # true if this rocket has no target
 	if (targetRocket != nil)
 	{
 		rocketAts = attributes[myNodeName2].weapons[targetRocket];
 		if (!rocketAts.destroyed)
 		{
-			noTarget = 0; # the rocket is the target
+			noTarget = 0; # this rocket is targetting another rocket
 			damageRadius = rocketAts.length;
 		}
 		else
@@ -6687,7 +6689,7 @@ var guideRocket = func
 	}
 	else
 	{
-		# determine distances of target rocket and/or launch platform
+		# determine distances of target rocket [0] and/or launch platform [1]
 		var r = [[0, 0, 0, 0], [0, 0, 0, 0]];
 		var checkRocket = (targetRocket != nil and rocketAts.controls.launched) ;
 		var checkPlatform = (!checkRocket or ( rand() < delta_t / 3 )) ; # check location of rocket carrier _and_ target rocket once every 3 sec 
@@ -6695,13 +6697,13 @@ var guideRocket = func
 		forindex (var i; r)
 		{
 			if ((i and !checkPlatform) or !(i or checkRocket)) continue;
-			if (i and checkPlatform) # check the rocket platform distance
+			if (i) # check the distance of the platform carrying the rocket
 			{
 				var targetLat_deg = getprop("" ~ myNodeName2 ~ "/position/latitude-deg"); # target
 				var targetLon_deg = getprop("" ~ myNodeName2 ~ "/position/longitude-deg");
 				var targetAlt_m = getprop("" ~ myNodeName2 ~ "/position/altitude-ft") * FT2M;
 			}
-			if (!i and checkRocket)
+			else # check the distance of the rocket
 			{
 				var targetLat_deg = rocketAts.position.latitude_deg; # check the rocket distance
 				var targetLon_deg = rocketAts.position.longitude_deg;
@@ -6712,7 +6714,7 @@ var guideRocket = func
 			deltaLon_deg = targetLon_deg - alon_deg ;
 
 			# calculate targetDispRefFrame, the displacement vector from node1 (rocket) to node2 (target) in a lon-lat-alt (x-y-z) frame of reference aka 'reference frame'
-			# the rocket model is at < 0,0,0 > 
+			# this rocket is at < 0,0,0 > 
 			# and the target is at < deltaX,deltaY,deltaAlt > in relation to it.
 
 			r[i][0] = deltaLon_deg * m_per_deg_lon;
@@ -6722,10 +6724,10 @@ var guideRocket = func
 			foreach (var val; r[i]) sum += val * val;
 			r[i][3] = sum;
 		}
-		var choice = !checkRocket; # 1=choose platform
+		var choice = !checkRocket; # 0=choose rocket and 1=choose platform
 		if (checkRocket and checkPlatform and ( r[1][3] < r[0][3] / 4)) 
 		{
-			# change choice from rocket to its platform
+			# change choice from rocket to its platform - switch only happens once
 			choice = 1; 
 			thisWeapon.aim["rn"] = nil;
 			debprint ("Bombable: "~getCallSign(myNodeName1)~" "~elem~" switching target to "~getCallSign(myNodeName2));
@@ -6738,10 +6740,10 @@ var guideRocket = func
 		# get speed and heading of target
 		if (choice)
 		{
-			var targetPitch = getprop("" ~ myNodeName2 ~ "/orientation/pitch-deg") * D2R;
 			var addTrue = (myNodeName2 == "") ? "" : "true-";
-			var targetHeading = getprop(""~myNodeName2~"/orientation/"~addTrue~"heading-deg") * D2R;
 			var targetSpeed = getprop(""~myNodeName2~"/velocities/"~addTrue~"airspeed-kt") * KT2MPS;
+			var targetPitch = getprop("" ~ myNodeName2 ~ "/orientation/pitch-deg") * D2R;
+			var targetHeading = getprop(""~myNodeName2~"/orientation/"~addTrue~"heading-deg") * D2R;
 		}
 		else
 		{
@@ -7002,12 +7004,15 @@ var guideRocket = func
 
 	if (intercept.time != 9999) 
 	{
-		# debprint (
-		# 	sprintf(
-		# 		"Bombable: intercept.vector =[%8.3f, %8.3f, %8.3f]",
-		# 		intercept.vector[0], intercept.vector[1], intercept.vector[2] 
-		# 	)
-		# );
+		# if (!thisWeapon.rocketsIndex) 
+		# {
+		# 	debprint (
+		# 		sprintf(
+		# 			"Bombable: intercept.vector =[%0.1f, %0.1f, %0.1f] intercept.time= %3.1fs",
+		# 			intercept.vector[0], intercept.vector[1], intercept.vector[2], intercept.time
+		# 		)
+		# 	);
+		# }
 		thisWeapon.aim.interceptSpeed = math.sqrt ( intercept.vector[0] * intercept.vector[0] + intercept.vector[1] * intercept.vector[1] + intercept.vector[2] * intercept.vector[2] );
 
 		var interceptDirRefFrame = 
@@ -7020,6 +7025,7 @@ var guideRocket = func
 	else
 	# no intercept - at start of flight it is not possible to calculate an intercept because the speed is too low 
 	{
+		# if (!thisWeapon.rocketsIndex) debprint("No intercept");
 		var interceptDirRefFrame =
 		[
 			targetDispRefFrame[0] / distance_m,
@@ -8226,7 +8232,7 @@ var attack_loop = func ( id, myNodeName )
 	(dist[1] > -atts.altitudeLowerCutoff_m) and (dist[1] < atts.altitudeHigherCutoff_m)  and  
 	readinessAttack and ( (attentionFactor and distanceFactor) or attack_inprogress ) ) )  
 	{
-		debprint ("Bombable: Not attacking ", continueAttack, " ", readinessAttack, " ", attentionFactor, " ", distanceFactor, " ", attack_inprogress, " for ", myNodeName, " " );
+		# debprint ("Bombable: Not attacking ", continueAttack, " ", readinessAttack, " ", attentionFactor, " ", distanceFactor, " ", attack_inprogress, " for ", myNodeName, " " );
 		#OK, no attack, we're too far away or too close & passed it, too low, too high, etc etc etc
 		#Instead we: 1. dodge if necessary 2. exit
 		#always dodge when close to Target aircraft--unless we're aiming at it
@@ -8629,7 +8635,7 @@ var aircraftTurnToHeadingControl = func (myNodeName, id, rolldegrees = 45, targe
 	else 
 	{
 		ctrls.rollTimeElapsed = 0;
-		debprint ("Bombable: Ending aircraft turn-to-heading routine for " ~ myNodeName);
+		# debprint ("Bombable: Ending aircraft turn-to-heading routine for " ~ myNodeName);
 		# aircraftRoll(myNodeName, 0, rolltime, roll_limit_deg);
 		# rjw not needed since AI model flight lateral-mode control in "roll" - not "hdg" ?
 		# setprop(""~myNodeName~"/controls/flight/target-hdg", targetdegrees);
