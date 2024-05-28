@@ -1839,6 +1839,15 @@ var dialog = {
 		lresetAI.prop().getNode("binding[1]/script", 1).setValue("bombable.bombable_dialog_save();");
 		lresetAI.prop().getNode("binding[2]/command", 1).setValue("dialog-apply");
 		lresetAI.prop().getNode("binding[3]/command", 1).setValue("dialog-close");
+
+		lresetAI = buttonBar1.addChild("button");
+		lresetAI.set("legend", "Reset Scenario");
+		lresetAI.prop().getNode("binding[0]/command", 1).setValue("nasal");
+		lresetAI.prop().getNode("binding[0]/script", 1).setValue("bombable.resetScenario();");
+		lresetAI.prop().getNode("binding[1]/command", 1).setValue("nasal");
+		lresetAI.prop().getNode("binding[1]/script", 1).setValue("bombable.bombable_dialog_save();");
+		lresetAI.prop().getNode("binding[2]/command", 1).setValue("dialog-apply");
+		lresetAI.prop().getNode("binding[3]/command", 1).setValue("dialog-close");
 				
 
 		var buttonBar2 = me.dialog.addChild("group");
@@ -6163,7 +6172,7 @@ var weapons_loop = func (id, myNodeName1 = "") {
 		if ( distance_m < detectionRange) 
 		{
 			threatLevel += 1;
-			if (target) #check not main AC
+			if (target) #ignore main AC
 			{
 				if (attributes[myNodeName2].type == "aircraft") ats.attacks.allGround = 0;
 			}
@@ -6252,7 +6261,13 @@ var weapons_loop = func (id, myNodeName1 = "") {
 				var r = int(rand() * count) * 2;
 				thisWeapon.aim.target = rockets[r];
 				thisWeapon.aim.rn = rockets[r + 1];
-				debprint("Selected rocket target for " ~ getCallSign(myNodeName1) ~ ": Weap= " ~ wps[rockets[r + 1]].name ~ " Callsign= " ~ getCallSign(nodes[rockets[r]])) ;
+				debprint(sprintf(
+					"Selected rocket target for %s : %s >> %s : %s",
+					getCallSign(myNodeName1),
+					wps[rockets[r + 1]].name,
+					getCallSign(nodes[rockets[r]]),
+					elem
+					)) ;
 				continue;
 			}
 			else
@@ -6287,7 +6302,7 @@ var weapons_loop = func (id, myNodeName1 = "") {
 				{
 					pos += 1;
 					if (pos == nTargets) pos = indexClosest;
-					if (myTargets[pos] != 0) thisWeapon.aim.target = myTargets[pos]; # only attack main AC when there are no AI targets
+					if (myTargets[pos] != 0) thisWeapon.aim.target = myTargets[pos];
 				}
 				continue;
 			}
@@ -6329,7 +6344,7 @@ var weapons_loop = func (id, myNodeName1 = "") {
 				# when escaping or attacking and target close by (aircraft)				
 				weaponsOrientationPositionUpdate(myNodeName1, elem);
 				r = ats.attacks.rocketsInAir;
-				if (rand() < 0.05 * weapPowerSkill * threatLevel / (r * r * r + 1)) launchRocket (id, myNodeName1, elem);
+				if (rand() < 0.02 * weapPowerSkill * threatLevel / (r * r * r + 1)) launchRocket (id, myNodeName1, elem);
 			}
 			continue;
 		}
@@ -6671,7 +6686,7 @@ var guideRocket = func
 		else
 		{
 			debprint("Bombable: ", getCallSign(myNodeName1), " ", thisWeapon.name, " removing target ",rocketAts.name," launched from ",getCallSign(myNodeName2));
-			delete (thisWeapon.aim, "rn"); # target platform instead
+			thisWeapon.aim.rn = nil; # target platform instead
 			targetRocket = nil;
 		}
 	}
@@ -6766,6 +6781,7 @@ var guideRocket = func
 	# variables used to calculate the new positions
 	var step = a_delta_dist / N_STEPS;
 	var time_inc = delta_t / N_STEPS;
+	thisWeapon.controls.index = 0; # indexes flightpath used by moveRocket
 	var deltaXYZ = [0, 0, 0];
 	var deltaLat = 0;
 	var deltaLon = 0;
@@ -6781,20 +6797,6 @@ var guideRocket = func
 	# 	)
 	# );
 
-	# check above ground level
-	var GeoCoord = geo.Coord.new();
-	GeoCoord.set_latlon(alat_deg, alon_deg);
-	var ground_Alt_m = elev (GeoCoord.lat(), GeoCoord.lon()) * FT2M; 
-	if (ground_Alt_m > aAlt_m) 
-	{
-		debprint (sprintf("Bombable: checkAGL for %s: rocket alt = %6.0fm ground alt = %6.0fm",  myNodeName1 ~ "/" ~ elem , aAlt_m, ground_Alt_m));
-
-		var msg = thisWeapon.name ~ " from " ~ 
-		getCallSign(myNodeName1) ~ 
-		" hit ground and destroyed";
-		targetStatusPopupTip (msg, 20);						
-		abort = 1;
-	}	
 
 	# abort if target cannot be reached
 	if (thisWeapon.controls.engine == 0 and !abort)
@@ -6906,7 +6908,7 @@ var guideRocket = func
 					thisWeapon.controls.flightPath[i].lat = alat_deg + deltaLat;
 					thisWeapon.controls.flightPath[i].alt = ( aAlt_m + deltaAlt ) * M2FT;
 				}
-				settimer ( func{ moveRocket (thisWeapon, 0, N_STEPS, time_inc )}, 0 ); # first step called immediately
+				settimer ( func{ moveRocket (thisWeapon, 0, time_inc )}, 0 ); # first step called immediately
 
 				if (targetRocket != nil ? rocketAts.controls.launched == 1 : 0)
 				{
@@ -6954,6 +6956,21 @@ var guideRocket = func
 			}
 		}
 	}
+
+	# check above ground level
+	var GeoCoord = geo.Coord.new();
+	GeoCoord.set_latlon(alat_deg, alon_deg);
+	var ground_Alt_m = elev (GeoCoord.lat(), GeoCoord.lon()) * FT2M; 
+	if (ground_Alt_m > aAlt_m) 
+	{
+		debprint (sprintf("Bombable: checkAGL for %s: rocket alt = %6.0fm ground alt = %6.0fm",  myNodeName1 ~ "/" ~ elem , aAlt_m, ground_Alt_m));
+
+		var msg = thisWeapon.name ~ " from " ~ 
+		getCallSign(myNodeName1) ~ 
+		" hit ground and destroyed";
+		targetStatusPopupTip (msg, 20);						
+		abort = 1;
+	}	
 
 	# check for abort
 	if (abort)
@@ -7153,7 +7170,7 @@ var guideRocket = func
 		thisWeapon.controls.flightPath[i].heading = math.atan2( v[0], v[1] ) * R2D;;
 	}
 
-	settimer ( func{ moveRocket (thisWeapon, 0, N_STEPS, time_inc )}, 0 ); # first step called immediately
+	settimer ( func{ moveRocket (thisWeapon, 0, time_inc )}, 0 ); # first step called immediately
 
 	thisWeapon.velocities.missileV_mps = newV;
 	thisWeapon.velocities.speed = newMissileSpeed_mps;
@@ -7433,15 +7450,17 @@ var newVelocity = func (thisWeapon, missileSpeed_mps, missileDir, deltaPhi, delt
 ############################ moveRocket ##############################
 # moveRocket updates the position of the AI model
 # note difference from guideRocket which calculates its overall flightpath
+# updates position, speed and orientation of AI model of rocket
+# the rocket position and orientation are forced to follow the calculated rocket flightpath
+# the AI controls are overriden
 
-var moveRocket = func (thisWeapon, index, lastIndex, timeInc)
+var moveRocket = func (thisWeapon, index, timeInc)
 {
-	# updates position, speed and orientation of AI model of rocket
-	# the rocket position and orientation are forced to follow the calculated rocket flightpath
-	# the AI controls are overriden
+
+	#check allows the index to be incremented for early termination
+	index == thisWeapon.controls.index or return;
 
 	#get flighpath waypoint
-
 	var fpath = thisWeapon.controls.flightPath;
 
 	var rp = "ai/models/static[" ~ thisWeapon.rocketsIndex ~ "]";
@@ -7453,9 +7472,10 @@ var moveRocket = func (thisWeapon, index, lastIndex, timeInc)
 	setprop (rp ~ "/orientation/true-heading-deg", fpath[index].heading);
 
 	var nextIndex = index + 1;
-	if (nextIndex < lastIndex) settimer ( func{ moveRocket (thisWeapon, nextIndex, lastIndex, timeInc)}, timeInc );
+	thisWeapon.controls.index = nextIndex;
+	if (nextIndex < N_STEPS) settimer ( func{ moveRocket (thisWeapon, nextIndex, timeInc)}, timeInc );
 
-	return (1);
+	return;
 }
 
 
@@ -7471,6 +7491,7 @@ var killRocket = func (myNodeName, elem)
 	var thisWeapon = ats.weapons[elem];
 	thisWeapon.destroyed = 1;
 	ats.attacks.rocketsInAir -= 1;
+	thisWeapon.controls.index += 1;
 	if (ats.maxTargets) ats.maxTargets -= 1;
 	var rp = "ai/models/static[" ~ thisWeapon.rocketsIndex ~ "]";	
 	setprop (rp ~ "/controls/engine", 0);
@@ -7971,13 +7992,17 @@ stores.checkAttackReadiness = func (myNodeName)
 	if (damage > .8) ret = 0;
 	msg ~=  " damage:"~ damage;
 				
-	#for weapons, if at least 1 weapon has at least 10% ammo we
+	#for weapons, if at least 1 weapon has at least 20% ammo we
 	# will continue to attack
 	var weapret = 0;
 	foreach (elem;keys (weaps) ) 
 	{
-		if (stos.weapons[elem] != nil and stos.weapons[elem] > .2 ) weapret = 1;
-		msg ~=  " "~elem~" "~ stos.weapons[elem];
+		# if (stos.weapons[elem] != nil and stos.weapons[elem] > .2 ) weapret = 1;
+		if (stos.weapons[elem] != nil) 
+		{
+			weapret += ( stos.weapons[elem] > .2 );
+			msg ~=  " "~elem~" "~ stos.weapons[elem];
+		}
 	}
 	if (! weapret) ret = 0;
 	#debprint (msg, " Readiness: ", ret);
@@ -11272,7 +11297,7 @@ bombableMenu = {}; # used for menu items accessed frequently
 
 setprop("/sim/ai/scenario-initialized", 0);
 
-settimer (func {startScenario () }, 37.37); #wait till objects loaded
+settimer (func { waitForAI() }, 5); #wait till objects loaded
 
 
 
@@ -12401,6 +12426,38 @@ var resetTargetShooter = func (myIndex)
 		ats.shooterIndex = []; # remove shooters from dead object
 		debprint("Bombable: ", nodes[myIndex], " no longer a target");
 }
+
+########################## waitForAI ###########################
+# delay to allow AI objects to load
+
+var waitForAI = func()
+{
+	# if (getprop("/bombable/targets/index") != getprop("/ai/models/count"))
+	if (getprop("/bombable/targets/index") != 
+	size(props.globals.getNode ("/ai/models").getChildren("aircraft")) +
+	size(props.globals.getNode ("/ai/models").getChildren("ship")) + 1)  # bombable uses only two types of AI object; 1 for main AC
+	{
+		settimer (func {waitForAI();}, 5, 1); # wait til all 3D models have been loaded
+		return;
+	}	
+
+	foreach (var myNodeName; nodes)
+	{
+		if (myNodeName != "") # omit main AC
+		{
+			setprop(""~myNodeName~"/position/latitude-deg", 0);
+			setprop(""~myNodeName~"/position/longitude-deg", 0);
+		}
+	}
+
+	# wait to clear the smoke from the airport
+	var timeNow = getprop("/sim/time/elapsed-sec");
+	var startTime = timeNow + 120;
+	setprop("/sim/speed-up", 16);
+	debprint("Bombable: delaying start");
+	settimer(func{startScenario(startTime)}, 1);
+}
+
 ########################## startScenario ###########################
 # a scenario consists of:
 # a set of groups of objects 
@@ -12413,17 +12470,15 @@ var resetTargetShooter = func (myIndex)
 # the call to startScenario is delayed until FG has loaded all aircraft and ship objects into the airport scene
 # a scenario-initialized flag is set which will then enable initialization of weapons, ground and attack loops 
 
-
-var startScenario = func()
+var startScenario = func(startTime)
 {
-	# if (getprop("/bombable/targets/index") != getprop("/ai/models/count"))
-	if (getprop("/bombable/targets/index") != 
-	size(props.globals.getNode ("/ai/models").getChildren("aircraft")) +
-	size(props.globals.getNode ("/ai/models").getChildren("ship")) + 1)  # bombable uses only two types of AI object; 1 for main AC
+	var timeNow = getprop("/sim/time/elapsed-sec");
+	if (timeNow < startTime)
 	{
-		settimer (func {startScenario();}, 5, 1); # wait til all 3D models have been loaded
+		settimer(func{startScenario(startTime)}, 1);
 		return;
-	}	
+	}
+	setprop("/sim/speed-up", 1);
 	var scenarioName = getprop("/sim/ai/scenario");
 	debprint("Bombable: starting scenario "~scenarioName);
 	if (scenarioName == "BOMB-MarinCountySixZerosSixF6Fs")
@@ -12839,11 +12894,12 @@ var startScenario = func()
 		if (teams[t].count != size(teams[t].indices)) debprint("Bombable: startScenario: Count for "~teams[t]~" in scenario: "~count~" is not equal to objects loaded: "~teams[t].indices);
 	}
 
-	mainStatusPopupTip ("Scenario loaded . . .", 15 );
+	mainStatusPopupTip ("Scenario "~scenarioName~" loaded . . .", 15 );
 
 	initTargets();
 
 	setprop("/sim/ai/scenario-initialized", 1);
+	
 }
 ########################## removeAll ###########################
 # removes all occurrences of element from vector
@@ -12876,12 +12932,16 @@ var removeElem = func(vector, element)
 # rebuild teams and assign new targets
 # repair and refuel all AI ships, planes
 # reload weapons
-# move all objects back to starting position except main AC
-# restart loops
+
 
 var resetScenario = func()
 {
+	# clear pop-up message log
+	tipMessageAI = "\n\n\n\n";
+	tipMessageMain = "\n\n\n\n";
+
 	# end all loops for all targets
+
 	var loops =
 		[
 		"weapons",
@@ -12923,26 +12983,56 @@ var resetScenario = func()
 			ats.targetIndex = []; # could initialise in initTargets
 			ats.shooterIndex = [];
 		} 
-		resetBombableDamageFuelWeapons (myNodeName);
 	}
 
-	# restart scenario - it calls initTargets
-	startScenario();
-
-	# restart loops
-	# the foreach loop must call a helper function - calling settimer directly from within the loop 
-	# causes it to use only the last element of nodes 
+	# move all AI objects out of scene and repair them
+	foreach (var myNodeName; nodes)	resetBombableDamageFuelWeapons (myNodeName);
+	
 	foreach (var myNodeName; nodes)
 	{
 		if (myNodeName != "") # omit main AC
 		{
-			foreach (var loopName; loops) restartLoops(myNodeName, loopName);
+			setprop(""~myNodeName~"/position/latitude-deg", 0);
+			setprop(""~myNodeName~"/position/longitude-deg", 0);
 		}
 	}
-	debprint (sprintf("Scenario %s reset", getprop("/sim/ai/scenario")));
+
+	setprop("/sim/ai/scenario-initialized", 0); # flag used to delay start of loops until after start of scenario
+	restartAllLoops(loops);
+
+	# wait a while to clear the smoke and contrails
+	var timeNow = getprop("/sim/time/elapsed-sec");
+	var startTime = timeNow + 120;
+	setprop("/sim/speed-up", 16);
+	debprint("Bombable: delaying restart");
+	settimer(func{startScenario(startTime)}, 1);
 }
-########################## restartLoops ###########################
-var restartLoops = func(myNodeName, loopName)
+
+
+
+########################## restartAllLoops ###########################
+# restart all loops
+# the foreach loop must call a helper function - calling settimer directly from within the loop 
+# causes it to use only the last element of nodes 
+
+var restartAllLoops = func(loops)
+{
+	if (!getprop("/sim/ai/scenario-initialized"))
+	{
+		settimer (func {restartAllLoops(loops);}, 5);
+		return;
+	}
+	foreach (var myNodeName; nodes)
+	{
+		if (myNodeName != "") # omit main AC
+		{
+			foreach (var loopName; loops) restartLoop(myNodeName, loopName);
+		}
+	}
+}
+
+########################## restartLoop ###########################
+var restartLoop = func(myNodeName, loopName)
 {
 	var loopid = inc_loopid (myNodeName, loopName);
 	var type= attributes[myNodeName].type;
@@ -12967,6 +13057,5 @@ var restartLoops = func(myNodeName, loopName)
 		}
 	}
 }
-
 
 ########################## END ###########################
