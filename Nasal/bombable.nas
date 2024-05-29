@@ -583,8 +583,7 @@ var damageCheck = func () {
 #  defining vulsObject as below, and including the line
 #  bombable.setAttributes (attsObject);
 # otherwsie, does not get called
-var setAttributes = func (attsObject = nil) 
-{
+var setAttributes = func (attsObject = nil) {
 	debprint ("Bombable: Loading main aircraft vulnerability settings.");
 	if (attsObject == nil) {
 		attsObject = {
@@ -1092,8 +1091,7 @@ var setAttributes = func (attsObject = nil)
 #the fire (model) it is associated with to update it etc.
 #Returns name of the node with the newly started fire object (model)
 
-var startFire = func (myNodeName = "", model = "")
-{
+var startFire = func (myNodeName = "", model = "") {
 	#if (myNodeName == "") myNodeName = "/environment";
 	#if there is already a fire going/associated with this object
 	# then we don't want to start another
@@ -1182,8 +1180,7 @@ var deleteSmoke = func (smokeType, myNodeName = "",fireNode = "") {
 # Returns name of the node with the newly started fire object (model)
 
 
-var startSmoke = func (smokeType, myNodeName = "", model = "")
-{
+var startSmoke = func (smokeType, myNodeName = "", model = "") {
 	if (myNodeName == "") myNodeName = "";
 	# if there is already smoke of this type going/associated with this object
 	# then we don't want to start another
@@ -1263,8 +1260,7 @@ var reset_damage_fires = func  {
 # TODO if an aircraft is crashing, it stays crashing despite this.
 #
 
-var revitalizeAllAIObjects = func (revitType = "aircraft", preservePosSpeed = 0) 
-{
+var revitalizeAllAIObjects = func (revitType = "aircraft", preservePosSpeed = 0) {
 
 	ai = props.globals.getNode ("/ai/models").getChildren();
 	
@@ -1525,8 +1521,7 @@ var revitalizeAllAIObjects = func (revitType = "aircraft", preservePosSpeed = 0)
 #  myNodeName = the AI node to reset, or set myNodeName = "" for the main
 # #aircraft.
 
-var resetBombableDamageFuelWeapons = func (myNodeName) 
-{
+var resetBombableDamageFuelWeapons = func (myNodeName) {
 	debprint ("Bombable: Resetting damage level and fires for ", myNodeName);
 			
 	#don't do this for objects that don't even have bombable initialized
@@ -1701,8 +1696,7 @@ var init_bombable_dialog = func () {
 }
 ###################################### targetStatusPopupTip #########################################
 		
-var targetStatusPopupTip = func (msg, delay = 5, override = nil) 
-{
+var targetStatusPopupTip = func (msg, delay = 5, override = nil) {
 	# remove oldest line from buffer
 	var line2 = find("\n", tipMessageAI) + 1;
 	tipMessageAI = substr(tipMessageAI, line2) ~ "\n" ~ msg;
@@ -2318,8 +2312,7 @@ var mirrorMenu = func()
 # the current level of fuel and damage and whether part of
 # defending or attacking team
 
-var calcPilotSkill = func ( myNodeName ) 
-{
+var calcPilotSkill = func ( myNodeName ) {
 	var ats = attributes[myNodeName];
 	var ctrls = ats.controls;	
 	#skill ranges 0-5; 0 = disabled, so 1-5;
@@ -2681,8 +2674,7 @@ var fire_loop = func(id, myNodeName = "") {
 # rjw in original code this function was only called for aircraft. var onGround is only set for aircraft 
 # function will be called several times until exploded flag set
 
-var hitground_stop_explode = func (myNodeName, alt) 
-{
+var hitground_stop_explode = func (myNodeName, alt) {
 	var ats = attributes[myNodeName];
 	var vuls = ats.vulnerabilities;
 	var ctrls = ats.controls;
@@ -2792,8 +2784,7 @@ var setVerticalSpeed = func (myNodeName, targetVertSpeed_fps = 70, maxChange_fps
 # e.g. possible for aircraft to enter a crash sequence before ground_loop is first called
 # the ground_loop attempts to control descent of aircraft for high damage values, so does aircraftCrashControl
 
-var ground_loop = func( id, myNodeName ) 
-{
+var ground_loop = func( id, myNodeName ) {
 	id == attributes[myNodeName].loopids.ground_loopid or return;
 
 	var updateTime_s = attributes[myNodeName].updateTime_s * (0.9 + 0.2 * rand());
@@ -3516,8 +3507,7 @@ var ground_loop = func( id, myNodeName )
 # another approach is to track the average location or average displacement since last called but 
 # still will not work for objects that dwell and then move therefore omit this loop
 
-var location_loop = func(id, myNodeName) 
-{
+var location_loop = func(id, myNodeName) {
 	id == attributes[myNodeName].loopids.location_loopid or return;
 
 	#debprint ("location_loop starting");
@@ -4539,9 +4529,7 @@ var test_impact = func(changedNode, myNodeName) {
 # too sharp reduces speed and this is one of the primary constraints on sharp
 # turns in fighter aircraft)
 #
-var speed_adjust = func (myNodeName, time_sec )
-{
-
+var speed_adjust = func (myNodeName, time_sec ) {
 	var ctrls = attributes[myNodeName].controls;
 	if (ctrls.onGround) return;
 				
@@ -4763,8 +4751,7 @@ var speed_adjust = func (myNodeName, time_sec )
 }
 
 #################################### speed_adjust_loop ##################################
-var speed_adjust_loop = func ( id, myNodeName, looptime_sec) 
-{
+var speed_adjust_loop = func ( id, myNodeName, looptime_sec) {
 	id == attributes[myNodeName].loopids.speed_adjust_loopid or return;
 				
 	settimer (  func { speed_adjust_loop (id, myNodeName, looptime_sec)}, looptime_sec);
@@ -4780,8 +4767,7 @@ var speed_adjust_loop = func ( id, myNodeName, looptime_sec)
 ############################# altitude_adjust ############################
 # adjusts altitude of a groundvehicle
 #
-var altitude_adjust = func (myNodeName, alt_ft, count, delta_alt, delta_t, N_STEPS)
-{
+var altitude_adjust = func (myNodeName, alt_ft, count, delta_alt, delta_t, N_STEPS) {
 	var new_alt = alt_ft + delta_alt;
 
 	count += 1; 
@@ -5007,8 +4993,7 @@ var do_acrobatic_loop = func
 ##################################################################
 # Choose an acrobatic loop more or less randomly
 #
-var choose_random_acrobatic = func (myNodeName)
-{
+var choose_random_acrobatic = func (myNodeName) {
 
 	#get the object's initial altitude
 	var lat = getprop(""~myNodeName~"/position/latitude-deg");
@@ -5146,8 +5131,7 @@ var choose_attack_acrobatic = func
 #alt_ft is a change to the current altitude
 #returns time which is determined by the type of turn 
 
-var rudder_roll_climb = func (myNodeName, degrees = 15, alt_ft = -20, time = 10, roll_limit_deg = 85 )
-{
+var rudder_roll_climb = func (myNodeName, degrees = 15, alt_ft = -20, time = 10, roll_limit_deg = 85 ) {
 	var type = attributes[myNodeName].type;
 	var newTime = time;
 
@@ -5399,8 +5383,7 @@ var dodge = func(myNodeName)
 
 ################################## stopDodgeAttack ################################
 
-var stopDodgeAttack = func (myNodeName) 
-{
+var stopDodgeAttack = func (myNodeName) {
 	var ctrls = attributes[myNodeName].controls;
 	ctrls.dodgeInProgress = 0;
 	ctrls.attackInProgress = 0;
@@ -5415,8 +5398,7 @@ var stopDodgeAttack = func (myNodeName)
 # If no callsign, uses one of several defaults
 #
 
-var getCallSign = func ( myNodeName ) 
-{
+var getCallSign = func ( myNodeName ) {
 	#Main AC
 	if (myNodeName == "") 
 	{
@@ -6455,8 +6437,7 @@ var weapons_loop = func (id, myNodeName1 = "") {
 # create flare on launch pad
 # for aircraft test speed of platform
 
-var launchRocket = func (id, myNodeName1, elem)
-{
+var launchRocket = func (id, myNodeName1, elem) {
 	var ats = attributes[myNodeName1];
 	var thisWeapon = ats.weapons[elem];
 	if (thisWeapon.aim.weaponDirRefFrame[2] == -1) return; # cannot launch rocket before checkAim called
@@ -6885,7 +6866,8 @@ var guideRocket = func
 				)
 			);
 
-			if (closestApproach < 2 * damageRadius)
+			var ratio = closestApproach / damageRadius;
+			if (ratio < 2)
 			{
 				# run missile on to target and explode
 				var steps_to_target = (t_intercept > 0) ? math.ceil ( t_intercept / time_inc  ) : 0;
@@ -6910,12 +6892,22 @@ var guideRocket = func
 				}
 				settimer ( func{ moveRocket (thisWeapon, 0, time_inc )}, 0 ); # first step called immediately
 
+				#rockets are either completely destroyed or left undamaged
 				if (targetRocket != nil ? rocketAts.controls.launched == 1 : 0)
 				{
-					rocketAts.destroyed = 1;
 					var msg = thisWeapon.name ~ " from " ~ 
-					getCallSign (myNodeName1) ~	" destroyed " ~
-					rocketAts.name ~ " from " ~ 
+					getCallSign (myNodeName1);
+					if (ratio < 1 or ( rand() < ratio - 1))
+					{
+						rocketAts.destroyed = 1;
+						msg ~= " destroyed ";
+					}
+					else
+					{
+						msg ~= " exploded near to ";
+
+					}
+					msg ~= rocketAts.name ~ " from " ~ 
 					getCallSign (myNodeName2);
 					targetStatusPopupTip (msg, 20);	
 					debprint(msg);
@@ -7181,9 +7173,9 @@ var guideRocket = func
 	var rp = "ai/models/static[" ~ thisWeapon.rocketsIndex ~ "]";
 	setprop("" ~ rp ~ "/velocities/true-airspeed-kt", newMissileSpeed_mps); # used for debug only
 
-	if ( math.mod(thisWeapon.loopCount, 4) == 0 )
+	if ( math.mod(thisWeapon.loopCount, 6) == 0 ) # determines frequency of report out 
 	{
-		if ((intercept.time > 5) and (intercept.time < 50))
+		if ((intercept.time > 5) and (intercept.time < 20))
 		{
 			var msg = thisWeapon.name ~ " from " ~ 
 			getCallSign ( myNodeName1 ) ~ 
@@ -7287,8 +7279,7 @@ var guideRocket = func
 # using only the thrust to change the velocity vector did not give sufficient control
 # noTurn is a flag to allow the PID to init early in flight when no turn permitted
 
-var changeDirection = func ( thisWeapon, missileDir, interceptDir, missileSpeed_mps, turnRate )
-{
+var changeDirection = func ( thisWeapon, missileDir, interceptDir, missileSpeed_mps, turnRate ) {
 	var theta1 = math.asin(missileDir[2]);
 	var theta2 = math.asin(interceptDir[2]);
 	var thetaNew = pidController (thisWeapon, "theta", theta2, theta1) + theta1;
@@ -7356,8 +7347,7 @@ var changeDirection = func ( thisWeapon, missileDir, interceptDir, missileSpeed_
 # it may not be aligned with the thrust vector
 # func returns new velocity
 
-var newVelocity = func (thisWeapon, missileSpeed_mps, missileDir, deltaPhi, delta_t, alt_m )
-{
+var newVelocity = func (thisWeapon, missileSpeed_mps, missileDir, deltaPhi, delta_t, alt_m ) {
 
 	var thrust = 0.0;
 	if ( thisWeapon.controls.flightTime < thisWeapon.burn1 )
@@ -7454,8 +7444,7 @@ var newVelocity = func (thisWeapon, missileSpeed_mps, missileDir, deltaPhi, delt
 # the rocket position and orientation are forced to follow the calculated rocket flightpath
 # the AI controls are overriden
 
-var moveRocket = func (thisWeapon, index, timeInc)
-{
+var moveRocket = func (thisWeapon, index, timeInc) {
 
 	#check allows the index to be incremented for early termination
 	index == thisWeapon.controls.index or return;
@@ -7484,8 +7473,7 @@ var moveRocket = func (thisWeapon, index, timeInc)
 # call for effects	
 # move rocket out of scene
 
-var killRocket = func (myNodeName, elem)
-{
+var killRocket = func (myNodeName, elem) {
 	# debprint("Bombable: " ~ elem ~ " killed: rocket index " ~ thisWeapon.rocketsIndex);
 	var ats = attributes[myNodeName];
 	var thisWeapon = ats.weapons[elem];
@@ -7535,8 +7523,7 @@ var pidControllerInit = func(thisWeapon, angle, delta_t) {
 # code adapted from https://github.com/pms67/PID
 # differentiator not used
 
-var pidController = func (thisWeapon, angle, setpoint, measurement)
-{
+var pidController = func (thisWeapon, angle, setpoint, measurement) {
 
 	# pointer into hash containing PID data
 	var pid = thisWeapon.pidData[angle];
@@ -7555,10 +7542,12 @@ var pidController = func (thisWeapon, angle, setpoint, measurement)
     if (pid.integrator > pid.limMaxInt) 
 	{
         pid.integrator = pid.limMaxInt;
+		debprint(thisWeapon, " maxInt clamped");
     } 
 	elsif (pid.integrator < pid.limMinInt) 
 	{
         pid.integrator = pid.limMinInt;
+		debprint(thisWeapon, " minInt clamped");
     }
 
 
@@ -7602,8 +7591,7 @@ var pidController = func (thisWeapon, angle, setpoint, measurement)
 ############################ pidControllerCircular ##############################
 # PID for circular variables
 
-var pidControllerCircular = func (thisWeapon, angle, setpoint, measurement)
-{
+var pidControllerCircular = func (thisWeapon, angle, setpoint, measurement) {
 
 	# pointer into hash containing PID data
 	var pid = thisWeapon.pidData[angle];
@@ -7663,8 +7651,7 @@ var pidControllerCircular = func (thisWeapon, angle, setpoint, measurement)
 # two regimes 0 < h < 11000m the troposphere and
 # 11000m <= h < 20000m the near stratosphere
 
-var airDensity = func (h)
-{
+var airDensity = func (h) {
 	if (h < 11000)
 	{
 		return
@@ -7687,8 +7674,7 @@ var airDensity = func (h)
 # the calculated air density is then used to update the drag/lift term 0.5 * rho * Aeff
 # at zero lift the drag is equal to the axial force
 
-var updateAirDensity = func (thisWeapon, alt_m)
-{
+var updateAirDensity = func (thisWeapon, alt_m) {
 	thisWeapon.airDensity = airDensity ( alt_m );
 	thisWeapon.lastAlt_m = alt_m;
 	thisWeapon.rhoAby2 = 0.5 * thisWeapon.airDensity * thisWeapon.area;
@@ -7700,8 +7686,7 @@ var updateAirDensity = func (thisWeapon, alt_m)
 # FUNCTION return speed of sound in mps at rocket altitude (m)
 # see https://en.wikipedia.org/wiki/Speed_of_sound
 
-var speedSound = func (h)
-{
+var speedSound = func (h) {
 	var speedSoundSeaLevel = 340; # mps
 	var speedSound11000m = 295; # mps
 	if (h < 11000)
@@ -7724,8 +7709,7 @@ var speedSound = func (h)
 # DOI: 10.1177/0954410018797882
 # Mach number calculated from speed of sound at missile altitude
 
-var zeroLiftDrag = func (thisWeapon, missileSpeed_mps)
-{
+var zeroLiftDrag = func (thisWeapon, missileSpeed_mps) {
 	var intervalData = 0.2;
 
 	if (!thisWeapon.controls.engine)
@@ -7879,8 +7863,7 @@ stores.fillFuel = func (myNodeName,amount = 1){
 # each rocket is a separate weapon with a separate AI model - not tied to the parent AC/ship
 #
 #
-stores.fillWeapons = func (myNodeName, amount = 1)
-{
+stores.fillWeapons = func (myNodeName, amount = 1) {
 	if ( ! contains ( attributes, myNodeName) or
 	! contains ( attributes[myNodeName], "stores") or
 	! contains ( attributes[myNodeName], "weapons") ) return;
@@ -7927,8 +7910,7 @@ stores.fillWeapons = func (myNodeName, amount = 1)
 #
 # removes amount from damage
 #
-stores.repairDamage = func (myNodeName, amount = 0 )
-{
+stores.repairDamage = func (myNodeName, amount = 0 ) {
 	var ats = attributes[myNodeName];
 	var damage = ats.damage - amount;
 	if (damage > 1) damage = 1 elsif (damage < 0) damage = 0;
@@ -7978,8 +7960,7 @@ stores.fuelLevel = func (myNodeName) {
 # checks weapons, fuel, damage level, etc, to see if an AI
 # should continue to attack or not
 #
-stores.checkAttackReadiness = func (myNodeName) 
-{
+stores.checkAttackReadiness = func (myNodeName) {
 	var ats = attributes[myNodeName];
 	var ret = 1;
 	var msg = "Bombable: CheckAttackReadiness for  " ~ myNodeName;
@@ -8062,8 +8043,7 @@ stores.revitalizeAttackReadiness = func (myNodeName,dist_m = 1000000){
 ##################### elevGround ##########################
 #returns ground height in m at myNodeName position
 # works for any aircraft; for main aircraft myNodeName = ""
-var elevGround = func (myNodeName) 
-{
+var elevGround = func (myNodeName) {
 	var lat = getprop(""~myNodeName~"/position/latitude-deg");
 	var lon = getprop(""~myNodeName~"/position/longitude-deg");
 	var elev = geo.elevation(lat, lon);
@@ -8076,8 +8056,7 @@ var elevGround = func (myNodeName)
 # and the heading (absolute bearing) for 1 to travel to 2
 # replaces calls to geo methods (4-5x faster)
 
-var course1to2 = func (myNodeName1, myNodeName2) 
-{
+var course1to2 = func (myNodeName1, myNodeName2) {
 	# weapons_loop also reads the co-ords from the prop tree and stores them in the attributes hash
 	var lat1 = getprop(""~myNodeName1~"/position/latitude-deg");
 	var lon1 = getprop(""~myNodeName1~"/position/longitude-deg");
@@ -8107,8 +8086,7 @@ var course1to2 = func (myNodeName1, myNodeName2)
 # Main loop for calculating attacks, changing direction, altitude, etc.
 #
 
-var attack_loop = func ( id, myNodeName ) 
-{
+var attack_loop = func ( id, myNodeName ) {
 	var ats = attributes[myNodeName];
 	id == ats.loopids.attack_loopid or return;
 	var ctrls = ats.controls;	
@@ -8519,8 +8497,7 @@ var attack_loop = func ( id, myNodeName )
 
 ################### aircraftSetVertSpeed ####################
 
-var aircraftSetVertSpeed = func (myNodeName, dodgeAltAmount_ft, evasORatts = "evas") 
-{
+var aircraftSetVertSpeed = func (myNodeName, dodgeAltAmount_ft, evasORatts = "evas") {
 
 	var vels = attributes[myNodeName].velocities;
 	var evas = attributes[myNodeName].evasions;
@@ -8580,8 +8557,7 @@ var aircraftSetVertSpeed = func (myNodeName, dodgeAltAmount_ft, evasORatts = "ev
 # called by aircraftTurnToHeading
 # rolldegrees is the maximum bank angle - always positive
 
-var aircraftTurnToHeadingControl = func (myNodeName, id, rolldegrees = 45, targetAlt_m = "none" ,  roll_limit_deg = 85, correction = 0 ) 
-{
+var aircraftTurnToHeadingControl = func (myNodeName, id, rolldegrees = 45, targetAlt_m = "none" ,  roll_limit_deg = 85, correction = 0 ) {
 	id == attributes[myNodeName].loopids.roll_loopid or return;
 	if (!bombableMenu["bombable-enabled"] ) return;
 
@@ -8673,8 +8649,7 @@ var aircraftTurnToHeadingControl = func (myNodeName, id, rolldegrees = 45, targe
 # called by attack_loop every t = attackCheckTimeEngaged_sec (too often)
 
 
-var aircraftTurnToHeading = func (myNodeName, rolldegrees = 45, targetAlt_m = "none" ) 
-{
+var aircraftTurnToHeading = func (myNodeName, rolldegrees = 45, targetAlt_m = "none" ) {
 	# same as roll-loopid ID because we can't turn to heading & roll @ the same time
 	# rjw how to avoid function clash?
 	var loopid = inc_loopid( myNodeName, "roll" );
@@ -8768,8 +8743,7 @@ delta_deg, delta_t)
 ################################## aircraftRoll ################################
 # Will roll the AC from whatever roll deg it is at, to rolldegrees in rolltime
 # Initialises aircraftRollControl
-var aircraftRoll = func (myNodeName, rolldegrees = -60, rolltime = 5, roll_limit_deg = 85) 
-{
+var aircraftRoll = func (myNodeName, rolldegrees = -60, rolltime = 5, roll_limit_deg = 85) {
 	var loopid = inc_loopid( myNodeName, "roll" );
 	var updateinterval_sec = .1;
 	var ctrls = attributes[myNodeName].controls;
@@ -8803,8 +8777,7 @@ var aircraftRoll = func (myNodeName, rolldegrees = -60, rolltime = 5, roll_limit
 # this approximation is about good enough and definitely much faster than tanh
 			
 
-var aircraftCrashControl = func (myNodeName) 
-{
+var aircraftCrashControl = func (myNodeName) {
 
 	if (!bombableMenu["bombable-enabled"] ) return;
 	var ats = attributes[myNodeName];
@@ -8897,8 +8870,7 @@ var aircraftCrashControl = func (myNodeName)
 ################################## aircraftCrash ################################
 # rjw initializes the aircraft crash loop
 
-var aircraftCrash = func (myNodeName) 
-{
+var aircraftCrash = func (myNodeName) {
 	if (!bombableMenu["bombable-enabled"] ) return;
 
 	stopDodgeAttack(myNodeName);
@@ -8979,8 +8951,7 @@ var un_variable_safe = func(str) {
 # 
 # The default sort is by string using the values of h.x, but not using k; see below
 #
-var insertionSort = func (x = nil, f = nil, h = nil, k = nil, direction = 1 ) 
-{
+var insertionSort = func (x = nil, f = nil, h = nil, k = nil, direction = 1 ) {
 	#the default is to sort by string for all values, including numbers
 	#but if some of the values are numbers we have to convert them to string
 	if (f == nil) f = func(a, b, h, k, direction) 
@@ -9018,8 +8989,7 @@ var insertionSort = func (x = nil, f = nil, h = nil, k = nil, direction = 1 )
 # x = a vector of indices
 # y is a vector containing the values of x
 # direction == 1 is an ascending sort
-var newSort = func (x = nil, y = nil, direction = 1 ) 
-{
+var newSort = func (x = nil, y = nil, direction = 1 ) {
 	for (var i = 1; i < size(x); i += 1) 
 	{
 		var index = x[i];
@@ -9052,8 +9022,7 @@ var newSort = func (x = nil, y = nil, direction = 1 )
 #
 var records = {};
 
-records.init = func () 
-{
+records.init = func () {
 	me.impactTotals = {};
 	me.impactTotals.Overall = {};
 	me.impactTotals.Overall.Total_Impacts = 0;
@@ -9166,18 +9135,16 @@ records.display_results = func
 	me.show_totals_dialog();
 }
 			
-records.add_property_tree = func (location, hash ) 
-{
+records.add_property_tree = func (location, hash ) {
 	# not working, we have spaces in our names
 	props.globals.getNode(location,1).removeChildren();
 	props.globals.getNode(location,1).setValues( hash );
 	return props.globals.getNode(location);
 }
 
-records.create_printable_summary = func (obj, sortkey = nil, prefix = "") 
+records.create_printable_summary = func (obj, sortkey = nil, prefix = "") {
 # for some of the objects the keys have been sorted using func sort_keys
 # if not use unsorted keys 
-{
 	var msg = "";
 	if (typeof(obj) != "hash") return;
 	if (sortkey == nil) sortkey = keys(obj);
@@ -9247,9 +9214,18 @@ var add_damage = func
 {
 	if (!bombableMenu["bombable-enabled"] ) return 0;
 					
+	if (myNodeName == "") 
+	{
+		var damAdd = mainAC_add_damage(damageRise, 0, "weapons", "Damaged by" ~ msg2);
+		return damAdd;
+	}
+
 	var ats = attributes[myNodeName];
 	# check for destroyed AC on ground; if so, no further action needed
-	if (ats.exploded) return 0;
+
+	# change to stop crashed destroyed ACs continuing at minSpeed_kts at 0m AGL 
+	if (ats.controls.onGround) return 0; # 
+	# if (ats.exploded) return 0;
 
 	var callsign = getCallSign (myNodeName);
 	var callsign2 = "";
@@ -9260,11 +9236,6 @@ var add_damage = func
 		msg2 = " Shooter: " ~ callsign2 ;
 	}
 
-	if (myNodeName == "") 
-	{
-		var damAdd = mainAC_add_damage(damageRise, 0, "weapons", "Damaged by" ~ msg2);
-		return damAdd;
-	}
 	
 	var vuls = ats.vulnerabilities;
 	var spds = ats.velocities;
@@ -9451,7 +9422,6 @@ var add_damage = func
 	else  # aircraft or GV
 	{
 		if (type == "aircraft") minSpeed = trueAirspeed2indicatedAirspeed (myNodeName, spds.minSpeed_kt); # correct for altitude
-		# rjw: if AC on ground will exit before this point
 		var flight_tgt_spd = getprop (""~myNodeName~"/controls/flight/target-spd");
 		if (flight_tgt_spd == nil ) flight_tgt_spd = 0;
 					
@@ -9556,8 +9526,7 @@ var add_damage = func
 #When the loopid increments it will kill any timer functions
 #using that loopid for that object.  (Otherwise they will just
 #continue to run indefinitely even though the object itself is unloaded)
-var inc_loopid = func (nodeName = "", loopName = "") 
-{
+var inc_loopid = func (nodeName = "", loopName = "") {
 	var s = loopName ~ "_loopid";
 	var loopid = attributes[nodeName].loopids[s];
 	if ( loopid == nil ) loopid = 0;
@@ -9620,8 +9589,7 @@ var checkRange = func (v = nil, low = nil, high = nil, default = 1) {
 	return v;
 }
 
-var checkRangeHash = func (b = nil, v = nil, low = nil, high = nil, default = 1) 
-{
+var checkRangeHash = func (b = nil, v = nil, low = nil, high = nil, default = 1) {
 	if (contains (b, v)) return checkRange (b[v],low, high, default)
 	else return default;
 }
@@ -10073,8 +10041,7 @@ var setMaxLatLon = func (myNodeName, damageDetectDistance_m){
 
 
 ######################### bombable_init ############################
-var bombable_init = func (myNodeName = "")
-{
+var bombable_init = func (myNodeName = "") {
 	debprint ("Bombable: Delaying bombable_init . . . ", myNodeName);
 	settimer (func {bombable_init_func(myNodeName);}, 35 + rand(),1);
 }
@@ -10277,8 +10244,7 @@ var ground_init_func = func( myNodeName ) {
 }
 ######################## location_init #############################
 
-var location_init = func (myNodeName = "") 
-{
+var location_init = func (myNodeName = "") {
 	# function disabled:  incorrect logic
 	# debprint ("Bombable: Delaying location_init . . . ", myNodeName);
 	debprint ("Bombable: Disabled location_init . . . ", myNodeName);
@@ -10339,8 +10305,7 @@ var location_init_func = func(myNodeName)
 
 }
 
-var attack_init = func (myNodeName = "") 
-{
+var attack_init = func (myNodeName = "") {
 	if (!getprop("/sim/ai/scenario-initialized"))
 	{
 		settimer (func {attack_init(myNodeName);}, 5, 1);
@@ -10907,8 +10872,7 @@ var rocketParmCheck = func( thisWeapon )
 # thisWeapon is a pointer to the attributes hash
 # two sets of parameters:  user supplied and internal
 
-var rocket_init_func = func (thisWeapon, rocketCount)
-{			
+var rocket_init_func = func (thisWeapon, rocketCount) {			
 	# check parameters supplied by user
 	if (!rocketParmCheck( thisWeapon )) return (0);
 
@@ -11289,7 +11253,7 @@ var nodes = [""]; #1st element is main AC
 
 settimer (func 
 {
-	mainStatusPopupTip ("Pan around you to load the AI and scenario . . .", 15 );
+	mainStatusPopupTip ("Pan around you. The scenario loads only when you have seen the AI objects  . . .", 15 );
 	debprint ("Bombable: Delaying start scenario . . . ", getprop("/sim/ai/scenario"));
 }, 5);
 
@@ -11772,8 +11736,7 @@ var rotate_yxz = func (vector, alpha, beta, gamma) {
     return [x2, y2, z2];
 }
 ########################## erf ###########################
-var erf = func (xVal) 
-{
+var erf = func (xVal) {
 	# calculates for halfspace, 0 to xVal
 	# odd function so negate result for xVal < 0
 	# from https://en.wikipedia.org/wiki/Error_function
@@ -11879,8 +11842,7 @@ var findRoots = func(a, b, c)
 # speed of interceptor, displacement vector between aircraft1 and aircraft2
 # dist_m is the magnitude of the displacement vector
 # returns hash of time to intercept and velocity vector of interceptor
-var findIntercept = func (myNodeName1, myNodeName2, displacement, dist_m, interceptSpeed)
-{
+var findIntercept = func (myNodeName1, myNodeName2, displacement, dist_m, interceptSpeed) {
 	var speed1 = getprop(""~myNodeName1~"/velocities/true-airspeed-kt") * KT2MPS; # AI
 	var pitch1 = getprop(""~myNodeName1~"/orientation/pitch-deg") * D2R;
 	var heading1 = getprop(""~myNodeName1~"/orientation/true-heading-deg") * D2R;
@@ -11939,8 +11901,7 @@ var findIntercept = func (myNodeName1, myNodeName2, displacement, dist_m, interc
 # returns velocity vector of node1 for an intercept
 # displacement is r2 - r1
 
-var findIntercept2 = func (r21, modr21, speed1, velocity2)
-{
+var findIntercept2 = func (r21, modr21, speed1, velocity2) {
 	var deltaV = velocity2[0] * velocity2[0] + velocity2[1] * velocity2[1] + velocity2[2] * velocity2[2] - speed1 * speed1;
 
 	var time_sec = findRoots(
@@ -11978,8 +11939,7 @@ var findIntercept2 = func (r21, modr21, speed1, velocity2)
 # returns: hash of time to intercept, and velocity vector
 # time < 0 indicates no intercept is possible
 
-var findIntercept3 = func (myNodeName2, displacement, speed1)
-{
+var findIntercept3 = func (myNodeName2, displacement, speed1) {
 	var dist_m = math.sqrt
 	(
 		displacement[0] * displacement[0] +
@@ -12221,8 +12181,7 @@ var addToTargets = func(myNodeName)
 # objects with no AI target may be assigned in later action
 #
 
-var initTargets = func ()
-{
+var initTargets = func () {
 	# wait til all weapons initialized
 	var ready = 1;
 	foreach (var myNodeName; nodes)
@@ -12288,8 +12247,7 @@ var initTargets = func ()
 # max no of shooters for one target
 # only called by AI objects - not by main AC
 
-var assignOneTarget = func (myIndex, targets)
-{
+var assignOneTarget = func (myIndex, targets) {
 	if (size(targets) == 0) return(-1);
 	var myNodeName = nodes[myIndex];
 	var j = 999;
@@ -12321,8 +12279,7 @@ var assignOneTarget = func (myIndex, targets)
 # main AC cannot be assigned since its target index is nil
 # reverse order ?
 
-var assignOneShooter = func (myIndex, shooters)
-{
+var assignOneShooter = func (myIndex, shooters) {
 	if (size(shooters) == 0) return(-1);
 	var myNodeName = nodes[myIndex];
 	var k = -1;
@@ -12341,8 +12298,7 @@ var assignOneShooter = func (myIndex, shooters)
 ########################## findNewTarget ###########################
 # I am the shooter
 # return index of new target or -1
-var findNewTarget = func (myIndex)
-{
+var findNewTarget = func (myIndex) {
 	var myTeam = attributes[nodes[myIndex]].team;
 	var targetTeam = teams[myTeam].target;
 	var otherSide = !attributes[nodes[myIndex]].side;
@@ -12360,9 +12316,8 @@ var findNewTarget = func (myIndex)
 }
 
 ########################## findNewShooter ###########################
-var findNewShooter = func (myIndex)
+var findNewShooter = func (myIndex) {
 # I am the target
-{
 	var myTeam = attributes[nodes[myIndex]].team;
 	var shooterTeam = teams[myTeam].target;
 	var otherSide = !attributes[nodes[myIndex]].side;
@@ -12381,8 +12336,7 @@ var findNewShooter = func (myIndex)
 
 ########################## removeTarget ###########################
 # called when I am attacked and need to swap out a target
-var removeTarget = func (myIndex)
-{
+var removeTarget = func (myIndex) {
 	var ats = attributes[nodes[myIndex]];
 	var nTargets = size(ats.targetIndex);
 	if (!nTargets) return;
@@ -12399,8 +12353,7 @@ var removeTarget = func (myIndex)
 # find new shooter for each of my targets
 # index 0 is main AC
 
-var resetTargetShooter = func (myIndex)
-{
+var resetTargetShooter = func (myIndex) {
 	var ats = attributes[nodes[myIndex]];
 
 	# remove me from my targets' list of shooters
@@ -12449,6 +12402,10 @@ var waitForAI = func()
 			setprop(""~myNodeName~"/position/longitude-deg", 0);
 		}
 	}
+
+	# ensure not paused
+	props.globals.getNode("sim/freeze/master", 1).setBoolValue(0);
+	props.globals.getNode("sim/freeze/clock", 1).setBoolValue(0);
 
 	# wait to clear the smoke from the airport
 	var timeNow = getprop("/sim/time/elapsed-sec");
@@ -12997,8 +12954,14 @@ var resetScenario = func()
 		}
 	}
 
+	records.init();
+
 	setprop("/sim/ai/scenario-initialized", 0); # flag used to delay start of loops until after start of scenario
 	restartAllLoops(loops);
+
+	# ensure not paused
+	props.globals.getNode("sim/freeze/master", 1).setBoolValue(0);
+	props.globals.getNode("sim/freeze/clock", 1).setBoolValue(0);
 
 	# wait a while to clear the smoke and contrails
 	var timeNow = getprop("/sim/time/elapsed-sec");
