@@ -9213,6 +9213,15 @@ var add_damage = func
 
 {
 	if (!bombableMenu["bombable-enabled"] ) return 0;
+
+	var callsign = getCallSign (myNodeName);
+	var callsign2 = "";
+	var msg2 = "";
+	if (myNodeName2 != nil) 
+	{
+		callsign2 = getCallSign (myNodeName2);
+		msg2 = " Shooter: " ~ callsign2 ;
+	}
 					
 	if (myNodeName == "") 
 	{
@@ -9226,15 +9235,6 @@ var add_damage = func
 	# change to stop crashed destroyed ACs continuing at minSpeed_kts at 0m AGL 
 	if (ats.controls.onGround) return 0; # 
 	# if (ats.exploded) return 0;
-
-	var callsign = getCallSign (myNodeName);
-	var callsign2 = "";
-	var msg2 = "";
-	if (myNodeName2 != nil) 
-	{
-		callsign2 = getCallSign (myNodeName2);
-		msg2 = " Shooter: " ~ callsign2 ;
-	}
 
 	
 	var vuls = ats.vulnerabilities;
@@ -11253,7 +11253,7 @@ var nodes = [""]; #1st element is main AC
 
 settimer (func 
 {
-	mainStatusPopupTip ("Pan around you. The scenario loads only when you have seen the AI objects  . . .", 15 );
+	mainStatusPopupTip ("Pan around you. The scenario does not load until you have seen the AI objects  . . .", 15 );
 	debprint ("Bombable: Delaying start scenario . . . ", getprop("/sim/ai/scenario"));
 }, 5);
 
