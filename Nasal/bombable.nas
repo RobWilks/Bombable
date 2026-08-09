@@ -12731,20 +12731,21 @@ var startScenario = func(startTime)
 	}
 	elsif (scenarioName == "BOMB-Llandbehr_Type45_F15_rocket")
 	{
+		# arrivalTime moved further into past so ship starts in the sea, not the beach
 		var scenario = 
 		{
 			group1: #Type45
 			{
 			team :			"Z",
 			target :		"B",
-			arrivalTime :	-30, # sec
+			arrivalTime :	-90, # sec
 			airSpeed : 		25,
 			airportName :	"EGOD",
 			heading :		225,
 			alt :			0,
 			offsets :
 						[
-							[0, 0, 0]
+							[0, -50, 0] # offset behind, offset to right, in metres, i.e. model co-ord system
 						],
 			},
 			group2: #F15
