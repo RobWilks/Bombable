@@ -1,0 +1,207 @@
+<?xml version="1.0"?>
+<PropertyList>
+	<scenario>
+		<name>Type45 Bae Ceredigion Rockets</name>
+		<description>
+		Bombable: (EGOD) Type45 Royal Navy destroyer (with MK8, Phalax and Sea Viper!) near Llanbedr:  This scenario puts one Type45 in Bae Ceredigion near Llandbehr Airport (KSFO).
+		The Type45 starts at the end of Runway 32 and continue on a 296 degree heading at 10 knots.
+		The Type45s are air-to-ground targets, you can damage them with bombs or heavy guns.
+		When you bomb and shoot the destroyers they will slow down, finally catch fire, and then stop completely (to see the smoke and fire you must have Particles enabled in View/Rendering Options).
+		To damage the destroyers takes a direct hit from a machine gun or heavy gun, or a close strike by a heavy bomb.  It generally takes many hits, even with bombs, to severely damage the destroyers.  The destroyers are large, quite fast-moving, and quite difficult to kill with your available armament.
+		Install this scenario in the FlightGear/data/AI directory.
+		Any aircraft that shoots guns or drops bombs can damage the tanks.  The Fairchild A-10 Thunderbolt is a great choice - http://wiki.flightgear.org/index.php/Fairchild_A-10
+		Addition of aircraft AI model which is used as a rocket to be fired from the Type45
+		the team name (B-Z) should be the last character of the object's callsign
+		</description>
+
+		<entry>
+			<search-order>PREFER_AI</search-order>
+			<type>ship</type>
+			<name>HMS_Duncan_Z</name>
+			<model type="string">Aircraft/Type45-Bombable/RN-Type45.xml</model>
+			<latitude type="double">52.810</latitude>
+			<longitude type="double">-4.125</longitude>
+			<altitude>0</altitude>
+			<speed>0</speed>
+			<rudder type="double">0</rudder>
+			<bank type="double">0</bank>
+			<heading type="double">305</heading>
+		</entry>
+		<entry>
+			<search-order>PREFER_AI</search-order>
+			<type>aircraft</type>
+			<class>jet_fighter</class>
+			<callsign>SkyRuler_B</callsign>
+			<name>F15_Eagle_1</name>
+			<model type="string">Aircraft/F-15-Bombable/Models/F-15-rocket.xml</model>
+			<latitude type="double">52.8115</latitude>
+			<longitude type="double">-4.1255</longitude>
+			<altitude>60</altitude>
+			<speed>0</speed>
+			<bank type="double">0</bank>
+			<heading type="double">305</heading>
+		</entry>		
+		<entry>
+			<search-order>PREFER_AI</search-order>
+			<type>aircraft</type>
+			<class>jet_fighter</class>
+			<callsign>WhiteStreak_B</callsign>
+			<name>F15_Eagle_2</name>
+			<model type="string">Aircraft/F-15-Bombable/Models/F-15-rocket.xml</model>
+			<latitude type="double">52.8115</latitude>
+			<longitude type="double">-4.1260</longitude>
+			<altitude>60</altitude>
+			<speed>0</speed>
+			<bank type="double">0</bank>
+			<heading type="double">305</heading>
+		</entry>		
+		<entry>
+			<search-order>PREFER_AI</search-order>
+			<type>aircraft</type>
+			<class>jet_fighter</class>
+			<callsign>TopGun_B</callsign>
+			<name>F15_Eagle_3</name>
+			<model type="string">Aircraft/F-15-Bombable/Models/F-15-rocket.xml</model>
+			<latitude type="double">52.8105</latitude>
+			<longitude type="double">-4.1255</longitude>
+			<altitude>60</altitude>
+			<speed>0</speed>
+			<bank type="double">0</bank>
+			<heading type="double">305</heading>
+		</entry>
+		<entry>
+			<search-order>PREFER_AI</search-order>
+			<type>aircraft</type>
+			<class>jet_fighter</class>
+			<callsign>Incisor_B</callsign>
+			<name>F15_Eagle_3</name>
+			<model type="string">Aircraft/F-15-Bombable/Models/F-15-rocket.xml</model>
+			<latitude type="double">52.8125</latitude>
+			<longitude type="double">-4.1255</longitude>
+			<altitude>60</altitude>
+			<speed>0</speed>
+			<bank type="double">0</bank>
+			<heading type="double">305</heading>
+		</entry>		
+		<entry>
+			<search-order>PREFER_AI</search-order>
+			<type>static</type>
+			<callsign>Vlad</callsign>
+			<name>AIM_1</name>
+			<model type="string">Aircraft/Rockets/aster-30-exhaust.xml</model>
+			<latitude type="double">0</latitude>
+			<longitude type="double">0</longitude>
+			<altitude>0</altitude>
+			<speed>0</speed>
+			<heading type="double">0</heading>
+		</entry>
+		<entry>
+			<search-order>PREFER_AI</search-order>
+			<type>static</type>
+			<callsign>Impaler</callsign>
+			<name>AIM_2</name>
+			<model type="string">Aircraft/Rockets/aster-30-exhaust.xml</model>
+			<latitude type="double">0</latitude>
+			<longitude type="double">0</longitude>
+			<altitude>0</altitude>
+			<speed>0</speed>
+			<heading type="double">0</heading>
+		</entry>		
+		<entry>
+			<search-order>PREFER_AI</search-order>
+			<type>static</type>
+			<callsign>Excalibur</callsign>
+			<name>AIM_3</name>
+			<model type="string">Aircraft/Rockets/aster-30-exhaust.xml</model>
+			<latitude type="double">0</latitude>
+			<longitude type="double">0</longitude>
+			<altitude>0</altitude>
+			<speed>0</speed>
+			<heading type="double">0</heading>
+		</entry>
+		<entry>
+			<search-order>PREFER_AI</search-order>
+			<type>static</type>
+			<callsign>Sauron</callsign>
+			<name>AIM_4</name>
+			<model type="string">Aircraft/Rockets/aster-30-exhaust.xml</model>
+			<latitude type="double">0</latitude>
+			<longitude type="double">0</longitude>
+			<altitude>0</altitude>
+			<speed>0</speed>
+			<heading type="double">0</heading>
+		</entry>	
+		<entry>
+			<search-order>PREFER_AI</search-order>
+			<type>static</type>
+			<callsign>Vis</callsign>
+			<name>AIM_5</name>
+			<model type="string">Aircraft/Rockets/aster-30-exhaust.xml</model>
+			<latitude type="double">0</latitude>
+			<longitude type="double">0</longitude>
+			<altitude>0</altitude>
+			<speed>0</speed>
+			<heading type="double">0</heading>
+		</entry>
+		<entry>
+			<search-order>PREFER_AI</search-order>
+			<type>static</type>
+			<callsign>Liberator</callsign>
+			<name>AIM_6</name>
+			<model type="string">Aircraft/Rockets/aster-30-exhaust.xml</model>
+			<latitude type="double">0</latitude>
+			<longitude type="double">0</longitude>
+			<altitude>0</altitude>
+			<speed>0</speed>
+			<heading type="double">0</heading>
+		</entry>	
+		<entry>
+			<search-order>PREFER_AI</search-order>
+			<type>static</type>
+			<callsign>Xcaliber</callsign>
+			<name>AIM_7</name>
+			<model type="string">Aircraft/Rockets/aster-30-exhaust.xml</model>
+			<latitude type="double">0</latitude>
+			<longitude type="double">0</longitude>
+			<altitude>0</altitude>
+			<speed>0</speed>
+			<heading type="double">0</heading>
+		</entry>	
+		<entry>
+			<search-order>PREFER_AI</search-order>
+			<type>static</type>
+			<callsign>Antithesis</callsign>
+			<name>AIM_8</name>
+			<model type="string">Aircraft/Rockets/aster-30-exhaust.xml</model>
+			<latitude type="double">0</latitude>
+			<longitude type="double">0</longitude>
+			<altitude>0</altitude>
+			<speed>0</speed>
+			<heading type="double">0</heading>
+		</entry>
+		<entry>
+			<search-order>PREFER_AI</search-order>
+			<type>static</type>
+			<callsign>ConsiderThis</callsign>
+			<name>AIM_9</name>
+			<model type="string">Aircraft/Rockets/aster-30-exhaust.xml</model>
+			<latitude type="double">0</latitude>
+			<longitude type="double">0</longitude>
+			<altitude>0</altitude>
+			<speed>0</speed>
+			<heading type="double">0</heading>
+		</entry>	
+		<entry>
+			<search-order>PREFER_AI</search-order>
+			<type>static</type>
+			<callsign>GameOver</callsign>
+			<name>AIM_10</name>
+			<model type="string">Aircraft/Rockets/aster-30-exhaust.xml</model>
+			<latitude type="double">0</latitude>
+			<longitude type="double">0</longitude>
+			<altitude>0</altitude>
+			<speed>0</speed>
+			<heading type="double">0</heading>
+		</entry>	
+	</scenario>
+</PropertyList>

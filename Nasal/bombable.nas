@@ -7173,6 +7173,9 @@ var guideRocket = func
 	var rp = "ai/models/static[" ~ thisWeapon.rocketsIndex ~ "]";
 	setprop("" ~ rp ~ "/velocities/true-airspeed-kt", newMissileSpeed_mps); # used for debug only
 
+	if ((targetRocket == nil) and (myNodeName2 != "") and (intercept.time < 5) and (rand() < calcPilotSkill (myNodeName2) / 6)) dodge (myNodeName2);
+
+
 	if ( math.mod(thisWeapon.loopCount, 6) == 0 ) # determines frequency of report out 
 	{
 		if ((intercept.time > 5) and (intercept.time < 20))
@@ -12425,7 +12428,8 @@ var waitForAI = func()
 # the number of offsets defines the number of objects in the group
 # the scenario xml file positions all AI objects on the airport runway close to the main AC to ensure they are loaded quickly
 # the call to startScenario is delayed until FG has loaded all aircraft and ship objects into the airport scene
-# a scenario-initialized flag is set which will then enable initialization of weapons, ground and attack loops 
+# a scenario-initialized flag is set which will then enable initialization of weapons, ground and attack loops
+# the initial scenario is selected in addon-config.xml in /bombable 
 
 var startScenario = func(startTime)
 {
@@ -12437,6 +12441,7 @@ var startScenario = func(startTime)
 	}
 	setprop("/sim/speed-up", 1);
 	var scenarioName = getprop("/sim/ai/scenario");
+	if (scenarioName == nil) scenarioName = "BOMB-Llandbehr_Type45_F15_rocket";
 	debprint("Bombable: starting scenario "~scenarioName);
 	if (scenarioName == "BOMB-MarinCountySixZerosSixF6Fs")
 	{
@@ -12738,7 +12743,7 @@ var startScenario = func(startTime)
 			{
 			team :			"Z",
 			target :		"B",
-			arrivalTime :	-90, # sec
+			arrivalTime :	-180, # sec
 			airSpeed : 		25,
 			airportName :	"EGOD",
 			heading :		225,
@@ -12756,12 +12761,13 @@ var startScenario = func(startTime)
 			airSpeed : 		512,
 			airportName :	"EGOD",
 			heading :		45,
-			alt :			8000,
+			alt :			5000,
 			offsets :
 						[
 							[0, 0, 0],
-							[-20, 21, 0]
-							# [-50, -50, 0]
+							[-20, 21, 0],
+							[-50, -50, 0],
+							[0, -30, 0]
 						],
 			},
 		};

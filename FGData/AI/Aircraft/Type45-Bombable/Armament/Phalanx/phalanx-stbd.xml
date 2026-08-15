@@ -37,12 +37,13 @@
     </offsets>
   </model>
  
- <animation>
+<animation>
   <type>select</type>
   <object-name>flame</object-name>
-  <condition>false
+  <condition>
+   <false/>
   </condition>
- </animation> 
+ </animation>
   
  <animation>
   <object-name>turret</object-name>
