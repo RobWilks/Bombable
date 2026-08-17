@@ -1,6 +1,8 @@
 <?xml version="1.0"?>
 
 <PropertyList> 
+
+
 	
  <!-- Nasal code rjw edits to weapon locations, range of traverse and projectile sizes 6/12/23 -->
 	<nasal>
@@ -17,6 +19,12 @@
 			
 
 ############################################
+
+
+
+
+
+
 #Destroyer INITIALIZER
 			var destroyer_init = func() {
 				# Data of this object are under: cmdarg().getPath()

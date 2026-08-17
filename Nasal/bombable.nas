@@ -2296,6 +2296,11 @@ var setupBombableMenu = func {
 	var target = props.globals.getNode("" ~ bomb_menu_pp);
 	io.read_properties(bombable_settings_file, target);
 	mirrorMenu();
+
+	# Load the GUI view selector script into the 'gui_ai_views' namespace
+	var nasal_dir = getprop("/sim/fg-aircraft") ~ "/../../Nasal";
+	io.load_nasal(nasal_dir ~ "/gui_ai_views.nas", "gui_ai_views");
+
 }
 ######################## mirrorMenu #############################
 # creates a mirror of the propTree in bombableMenu hash

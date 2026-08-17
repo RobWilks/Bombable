@@ -71,6 +71,70 @@
 			</config>
 		</view>
 
+		<view n="101">
+            <name>AI Target View 1</name>
+            <type>fps</type>
+            <config>
+                <from-model type="bool">true</from-model>
+                <from-model-idx type="int">0</from-model-idx>
+                
+                <!-- Indirect C++ Node Pointers -->
+                <eye-node-path>/sim/views/ai-targets/slot-101</eye-node-path>
+                <target-node-path>/sim/views/ai-targets/slot-101</target-node-path>
+
+                <!-- Initial Offsets -->
+                <x-offset-m type="double">0.0</x-offset-m>
+                <y-offset-m type="double">-40.0</y-offset-m>
+                <z-offset-m type="double">-40.0</z-offset-m>
+                <heading-offset-deg type="double">0.0</heading-offset-deg>
+                <pitch-offset-deg type="double">0.0</pitch-offset-deg>
+                <default-field-of-view-deg type="double">55.0</default-field-of-view-deg>
+            </config>
+		</view>
+		
+		<view n="102">
+            <name>AI Target View 2</name>
+            <type>fps</type>
+            <config>
+                <from-model type="bool">true</from-model>
+                <from-model-idx type="int">0</from-model-idx>
+                
+                <!-- Indirect C++ Node Pointers -->
+                <eye-node-path>/sim/views/ai-targets/slot-102</eye-node-path>
+                <target-node-path>/sim/views/ai-targets/slot-102</target-node-path>
+
+                <!-- Initial Offsets -->
+                <x-offset-m type="double">0.0</x-offset-m>
+                <y-offset-m type="double">-40.0</y-offset-m>
+                <z-offset-m type="double">-40.0</z-offset-m>
+                <heading-offset-deg type="double">0.0</heading-offset-deg>
+                <pitch-offset-deg type="double">0.0</pitch-offset-deg>
+                <default-field-of-view-deg type="double">55.0</default-field-of-view-deg>
+            </config>
+		</view>
+		
+		<view n="103">
+            <name>AI Target View 3</name>
+            <type>fps</type>
+            <config>
+                <from-model type="bool">true</from-model>
+                <from-model-idx type="int">0</from-model-idx>
+                
+                <!-- Indirect C++ Node Pointers -->
+                <eye-node-path>/sim/views/ai-targets/slot-103</eye-node-path>
+                <target-node-path>/sim/views/ai-targets/slot-103</target-node-path>
+
+                <!-- Initial Offsets -->
+                <x-offset-m type="double">0.0</x-offset-m>
+                <y-offset-m type="double">-40.0</y-offset-m>
+                <z-offset-m type="double">-40.0</z-offset-m>
+                <heading-offset-deg type="double">0.0</heading-offset-deg>
+                <pitch-offset-deg type="double">0.0</pitch-offset-deg>
+                <default-field-of-view-deg type="double">55.0</default-field-of-view-deg>
+            </config>
+		</view>
+		
+
 		<help>
 			<title>UFO</title>
 			<key>
@@ -249,6 +313,17 @@
 					<script>ufo.select_dialog.toggle()</script>
 				</binding>
 			</key>
+			
+# '\' is a new keybinding that opens the AI view selector dialog in memory, 
+# allowing users to select and view different AI target slots without needing to reload the entire dialog. 
+#This provides a more efficient way to manage and switch between AI views during simulation.
+			<key n="92">
+				<name>Backslash</name>
+				<binding>
+					<command>nasal</command>
+					<script>gui_ai_views.show_ai_view_menu_in_memory();</script>
+				</binding>
+			</key>			
 
 			<key n="99">
 				<name>c</name>
@@ -258,6 +333,8 @@
 					<script>ufo.modelmgr.clone_selected()</script>
 				</binding>
 			</key>
+
+
 
 			<key n="100">
 				<name>d</name>
@@ -303,6 +380,10 @@
 					<script>ufo.export_flightplan()</script>
 				</binding>
 			</key>
+
+
+
+
 
 			<key n="360">
 				<name>PageUp</name>
