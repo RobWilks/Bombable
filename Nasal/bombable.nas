@@ -2301,6 +2301,11 @@ var setupBombableMenu = func {
 	var nasal_dir = getprop("/sim/fg-aircraft") ~ "/../../Nasal";
 	io.load_nasal(nasal_dir ~ "/gui_ai_views.nas", "gui_ai_views");
 
+	# Automatically load a nasal console
+	settimer(func {
+		fgcommand("dialog-show", props.Node.new({"dialog-name": "nasal-console"}));
+	}, 2);
+
 }
 ######################## mirrorMenu #############################
 # creates a mirror of the propTree in bombableMenu hash
@@ -6516,6 +6521,8 @@ var launchRocket = func (id, myNodeName1, elem) {
 	setprop (rp ~ "/position/altitude-ft", alt_ft);
 	setprop (rp ~ "/orientation/pitch-deg", pitch);
 	setprop (rp ~ "/orientation/true-heading-deg", heading);
+	setprop (rp ~ "/name", thisWeapon.name ~ " " ~ getCallSign (myNodeName1));
+	# rockets have a name rather than a callsign. In FG, AI static models cannot have callsigns	
 
 	thisWeapon.controls.engine = 0;
 	var ignitionDelay = (thisWeapon.massFuel_1 == 0) ? thisWeapon.burn1 : 0;
@@ -6559,7 +6566,7 @@ var launchRocket = func (id, myNodeName1, elem) {
 
 	targetStatusPopupTip (msg, 20);
 
-	debprint ("Bombable: " ~ msg ~ " " ~ myNodeName1 ~ ", " ~ thisWeapon.name ~ " " ~ elem);
+	debprint ("Bombable: " ~ msg ~ " " ~ myNodeName1 ~ ", " ~ elem);
 
 	thisWeapon.controls.launched = 1;
 
