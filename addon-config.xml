@@ -4,7 +4,7 @@
   <sim>
     <ai>
       <!-- Sets default scenario when no command line option is passed -->
-      <scenario>BOMB-Llandbehr_Type45_F15_rocket</scenario>
+      <scenario>BOMB-MarinCountyNineA6M5ThreeB17</scenario>
     </ai>
   </sim>
 </PropertyList>

@@ -12455,354 +12455,71 @@ var startScenario = func(startTime)
 	var scenarioName = getprop("/sim/ai/scenario");
 	if (scenarioName == nil) scenarioName = "BOMB-Llandbehr_Type45_F15_rocket";
 	debprint("Bombable: starting scenario "~scenarioName);
-	if (scenarioName == "BOMB-MarinCountySixZerosSixF6Fs")
-	{
-		var scenario = 
-		{
-			group1:
-			{
-			team :			"D",
-			target :		"Y",
-			arrivalTime :	90, # sec
-			airSpeed : 		250 * KT2MPS,
-			airportName :	"CA35",
-			heading :		220,# 0 - 360 degrees
-			alt :			6000, # in feet
-			offsets :
-						[
-							[0, 0, 0], # offset behind, offset to right, in metres, i.e. model co-ord system
-							[75, 75, 2],
-							[75, -75, 1],
-							[150, 150, -5],
-							[150, -150, 4],
-							[225, 225, 2]
-						],
-			},
-			group2:
-			{
-			team :			"Y",
-			target :		"D",
-			arrivalTime :	90, # sec
-			airSpeed : 		280 * KT2MPS,
-			airportName :	"CA35",
-			heading :		70,
-			alt :			7000,
-			offsets :
-						[
-							[0, 0, 0],
-							[50, -50, -3],
-							[75, 50, 2]
-						],
-			},
-			group3:
-			{
-			team :			"Z",
-			target :		"D",
-			arrivalTime :	110, # sec
-			airSpeed : 		280 * KT2MPS,
-			airportName :	"CA35",
-			heading :		350,
-			alt :			8000,
-			offsets :
-						[
-							[0, 0, 0],
-							[50, 100, 1],
-							[100, -50, -2]
-						],
-			},
-		};
 
+	# Construct file path relative to addon path
+	var scenarioFilePath = getprop("/sim/fg-aircraft") ~ "/../../Scenarios/Extensions/" ~ scenarioName ~ ".xml";
+	
+	# Load XML into a temporary property branch
+	var targetTree = props.globals.getNode("/sim/ai/bombable-temp", 1);
+	if (!io.read_properties(scenarioFilePath, targetTree)) {
+		debprint("Bombable: startScenario: Error loading file " ~ scenarioFilePath);
+		return;
 	}
-	elsif (scenarioName == "BOMB-MarinCountyFiveB17FiveA6M5TwoF6F")
-	{
-		var scenario = 
-		{
-			group1: #Zeros
-			{
-			team :			"D",
-			target :		"Y",
-			arrivalTime :	90, # sec
-			airSpeed : 		250 * KT2MPS,
-			airportName :	"CA35",
-			heading :		90,# 0 - 360 degrees
-			alt :			6000, # in feet
-			offsets :
-						[
-							[0, 0, 0], # offset behind, offset to right, in metres, i.e. model co-ord system
-							[75, 75, 2],
-							[75, -75, 1],
-							[150, 150, -5],
-							[150, -150, 4]
-						],
-			},
-			group2: #B17s
-			{
-			team :			"Y",
-			target :		"D",
-			arrivalTime :	90, # sec
-			airSpeed : 		182 * KT2MPS,
-			airportName :	"CA35",
-			heading :		70,
-			alt :			5000,
-			offsets :
-						[
-							[0, 0, 0],
-							[80, -80, -3],
-							[80, 80, 2],
-							[160, -160, 2],
-							[160, 160, 2]
-						],
-			},
-			group3: #F6Fs
-			{
-			team :			"Z",
-			target :		"D",
-			arrivalTime :	120, # sec
-			airSpeed : 		280 * KT2MPS,
-			airportName :	"CA35",
-			heading :		350,
-			alt :			10000,
-			offsets :
-						[
-							[0, 0, 0],
-							[50, 100, 1]
-						],
-			},
-		};
+
+	# Dynamically construct the scenario hash from loaded properties
+	var scenario = [];
+	var groupNodes = targetTree.getChildren("group");
+	
+	foreach (var gNode; groupNodes) {
+		var offsetList = [];
+		
+		var offsetsNode = gNode.getNode("offsets");
+		if (offsetsNode != nil) {
+			foreach (var oNode; offsetsNode.getChildren("offset")) {
+				append(offsetList, [
+					oNode.getNode("behind", 1).getValue() or 0,
+					oNode.getNode("right", 1).getValue() or 0,
+					oNode.getNode("up", 1).getValue() or 0
+				]);
+			}
+		}
+
+		append(scenario, {
+			team        : gNode.getNode("team", 1).getValue(),
+			target      : gNode.getNode("target", 1).getValue(),
+			arrivalTime : gNode.getNode("arrivalTime", 1).getValue(),
+			airSpeed    : gNode.getNode("airSpeed", 1).getValue() * KT2MPS,
+			airportName : gNode.getNode("airportName", 1).getValue(),
+			heading     : gNode.getNode("heading", 1).getValue(),
+			alt         : gNode.getNode("alt", 1).getValue(),
+			offsets     : offsetList
+		});
 	}
-	elsif (scenarioName == "BOMB-MarinCountyThreeB17NineA6M5")
-	{
-		var scenario = 
-		{
-			group1: #B17s
-			{
-			team :			"Y",
-			target :		"D",
-			arrivalTime :	90, # sec
-			airSpeed : 		182,
-			airportName :	"CA35",
-			heading :		70,
-			alt :			5000,
-			offsets :
-						[
-							[0, 0, 0],
-							[80, -80, -3],
-							[80, 80, 2]
-						],
-			},
-			group2: #Zeros
-			{
-			team :			"D",
-			target :		"Y",
-			arrivalTime :	90, # sec
-			airSpeed : 		250,
-			airportName :	"CA35",
-			heading :		90,# 0 - 360 degrees
-			alt :			6000, # in feet
-			offsets :
-						[
-							[0, 0, 0], # offset behind, offset to right, in metres, i.e. model co-ord system
-							[40, 40, 2],
-							[40, -40, 1]
-						],
-			},
-			group3: #Zeros
-			{
-			team :			"B",
-			target :		"Y",
-			arrivalTime :	110, # sec
-			airSpeed : 		250,
-			airportName :	"CA35",
-			heading :		90,
-			alt :			6100,
-			offsets :
-						[
-							[0, 0, 0],
-							[30, 50, 1],
-							[45, -30, -2]
-						],
-			},
-			group4: #Zeros
-			{
-			team :			"C",
-			target :		"Y",
-			arrivalTime :	130, # sec
-			airSpeed : 		280,
-			airportName :	"CA35",
-			heading :		350,
-			alt :			8000,
-			offsets :
-						[
-							[0, 0, 2],
-							[30, 40, 1],
-							[30, -45, 1]
-						],
-			},
-		};
-	}
-	elsif (scenarioName == "BOMB-MarinCountyNineA6M5ThreeB17")
-	{
-		var scenario = 
-		{
-			group1: #B17s
-			{
-			team :			"B",
-			target :		"X",
-			arrivalTime :	90, # sec
-			airSpeed : 		182,
-			airportName :	"CA35",
-			heading :		70,
-			alt :			5000,
-			offsets :
-						[
-							[0, 0, 0],
-							[80, -80, -3],
-							[80, 80, 2]
-						],
-			},
-			group2: #Zeros
-			{
-			team :			"X",
-			target :		"B",
-			arrivalTime :	90, # sec
-			airSpeed : 		250,
-			airportName :	"CA35",
-			heading :		90,# 0 - 360 degrees
-			alt :			6000, # in feet
-			offsets :
-						[
-							[0, 0, 0], # offset behind, offset to right, in metres, i.e. model co-ord system
-							[40, 40, 2],
-							[40, -40, 1]
-						],
-			},
-			group3: #Zeros
-			{
-			team :			"Y",
-			target :		"B",
-			arrivalTime :	110, # sec
-			airSpeed : 		250,
-			airportName :	"CA35",
-			heading :		90,
-			alt :			6100,
-			offsets :
-						[
-							[0, 0, 0],
-							[30, 50, 1],
-							[45, -30, -2]
-						],
-			},
-			group4: #Zeros
-			{
-			team :			"Z",
-			target :		"B",
-			arrivalTime :	130, # sec
-			airSpeed : 		280,
-			airportName :	"CA35",
-			heading :		350,
-			alt :			8000,
-			offsets :
-						[
-							[0, 0, 2],
-							[30, 40, 1],
-							[30, -45, 1]
-						],
-			},
-		};
-	}
-	elsif (scenarioName == "BOMB-Llandbehr_Type45")
-	{
-		var scenario = 
-		{
-			group1: #Type45
-			{
-			team :			"B",
-			target :		"X",
-			arrivalTime :	-360, # sec
-			airSpeed : 		25,
-			airportName :	"EGOD",
-			heading :		225,
-			alt :			0,
-			offsets :
-						[
-							[0, 0, 0]
-						],
-			},
-			group2: #F15
-			{
-			team :			"X",
-			target :		"B",
-			arrivalTime :	200, # sec
-			airSpeed : 		500,
-			airportName :	"EGOD",
-			heading :		30,
-			alt :			5000,
-			offsets :
-						[
-							[0, 1000, 0],
-							# [-20, 21, 0],
-							[-1000, -1000, 0]
-						],
-			},
-		};
-	}
-	elsif (scenarioName == "BOMB-Llandbehr_Type45_F15_rocket")
-	{
-		# arrivalTime moved further into past so ship starts in the sea, not the beach
-		var scenario = 
-		{
-			group1: #Type45
-			{
-			team :			"Z",
-			target :		"B",
-			arrivalTime :	-180, # sec
-			airSpeed : 		25,
-			airportName :	"EGOD",
-			heading :		225,
-			alt :			0,
-			offsets :
-						[
-							[0, -50, 0] # offset behind, offset to right, in metres, i.e. model co-ord system
-						],
-			},
-			group2: #F15
-			{
-			team :			"B",
-			target :		"Z",
-			arrivalTime :	120, # sec
-			airSpeed : 		512,
-			airportName :	"EGOD",
-			heading :		45,
-			alt :			5000,
-			offsets :
-						[
-							[0, 0, 0],
-							[-20, 21, 0],
-							[-50, -50, 0],
-							[0, -30, 0]
-						],
-			},
-		};
-	}
-	else
-	{
-		debprint("Bombable: startScenario: Error "~scenarioName~" not in database");
-	}
+
+	# Clear the temporary property tree
+	targetTree.remove();
+
+
 	var myNodeName = "";
     var GeoCoord = geo.Coord.new();
     var GeoCoord2 = geo.Coord.new();
-	foreach (var group ; keys(scenario))
+	foreach (var group; scenario)
 	{
-		var from = airportinfo(scenario[group].airportName);
-		var teamName = scenario[group].team;
+		var from = airportinfo(group.airportName); # provides lat, lon, alt of airport
+		if (from == nil)
+		{
+			debprint("Bombable: startScenario: Error in scenario definition - airport not found: "~group.airportName);
+			break;
+		}
+		var teamName = group.team;
 		if (teamName == "A")
 		{
-			debprint("Bombable: startScenario: Error in scenario definition for "~group~" - \"A\" reserved for main AC");
+			debprint("Bombable: startScenario: Error in scenario definition \"A\" reserved for main AC");
 			break;
 		}
 		if (find(teamName, "BCDEFGHIJKLMNOPQRSTUVWXYZ") == -1)
 		{
-			debprint("Bombable: startScenario: Error in scenario definition for "~group~" - no team");
+			debprint("Bombable: startScenario: Error in scenario definition team name missing or invalid: "~teamName~" - must be (B-Z)");
 			break;
 		}
 		if(!contains(teams, teamName))
@@ -12810,7 +12527,7 @@ var startScenario = func(startTime)
 			debprint("Bombable: startScenario: Error scenario team "~teamName~" not found in objects");
 			break;
 		}
-		var targetTeam = scenario[group].target;
+		var targetTeam = group.target;
 		if (find(targetTeam, "ABCDEFGHIJKLMNOPQRSTUVWXYZ") != -1)
 		{
 			if(!contains(teams, targetTeam))
@@ -12819,15 +12536,15 @@ var startScenario = func(startTime)
 				break;
 			}
 			teams[teamName].target = targetTeam;
-			var msg = (targetTeam == "A") ? "main AC" : targetTeam;
-			debprint("Bombable: startScenario: Target team for "~group~" is " ~ msg);
+			var msg = (targetTeam == "A") ? "main AC" : "team " ~ targetTeam;
+			debprint("Bombable: startScenario: Team "~teamName~" targets " ~ msg);
 		}
-		# location lead aircraft
+		# location lead aircraft calculated from airport lat, lon, alt, heading, speed and arrival time
 		GeoCoord.set_latlon(from.lat, from.lon);
-		var dist = scenario[group].airSpeed * KT2MPS * scenario[group].arrivalTime;
-		var heading = scenario[group].heading;
+		var dist = group.airSpeed * KT2MPS * group.arrivalTime;
+		var heading = group.heading;
 		GeoCoord.apply_course_distance(heading + 180, dist);
-		foreach (var o ; scenario[group].offsets)  
+		foreach (var o ; group.offsets)  
 		{
 			#calculate lon, lat
 			GeoCoord2.set_latlon ( GeoCoord.lat(), GeoCoord.lon());
@@ -12837,29 +12554,29 @@ var startScenario = func(startTime)
 			GeoCoord2.apply_course_distance(deltaHeading, dist2me);    #frontreardist in meters
 			#get node
 			var count = teams[teamName].count;
-			if (count < size(teams[teamName].indices)) # check to ensure scenario definition and xml file are consistent
+			if (count < size(teams[teamName].indices)) # check to ensure scenario definition and extension files are consistent
 			{
 				myNodeName = nodes[teams[teamName].indices[count]];
 				var type = attributes[myNodeName].type;
 				count += 1;
 				teams[teamName].count = count;
-				setprop(""~myNodeName~"/orientation/true-heading-deg", scenario[group].heading);
+				setprop(""~myNodeName~"/orientation/true-heading-deg", group.heading);
 				setprop(""~myNodeName~"/orientation/roll-deg", 0);
 				setprop(""~myNodeName~"/orientation/pitch-deg", 0);
 				setprop(""~myNodeName~"/position/latitude-deg", GeoCoord2.lat());
 				setprop(""~myNodeName~"/position/longitude-deg", GeoCoord2.lon());
 				if (type == "aircraft")
 				{
-					setprop(""~myNodeName~"/velocities/true-airspeed-kt", scenario[group].airSpeed);
-					setprop(""~myNodeName~"/controls/flight/target-spd", scenario[group].airSpeed);
-					setprop(""~myNodeName~"/controls/flight/target-alt", scenario[group].alt + o[2] * M2FT);
-					setprop(""~myNodeName~"/position/altitude-ft", scenario[group].alt + o[2] * M2FT);
+					setprop(""~myNodeName~"/velocities/true-airspeed-kt", group.airSpeed);
+					setprop(""~myNodeName~"/controls/flight/target-spd", group.airSpeed);
+					setprop(""~myNodeName~"/controls/flight/target-alt", group.alt + o[2] * M2FT);
+					setprop(""~myNodeName~"/position/altitude-ft", group.alt + o[2] * M2FT);
 				}
 				elsif (type == "ship")
 				{
-					setprop(""~myNodeName~"/controls/tgt-heading-degs", scenario[group].heading);
-					setprop(""~myNodeName~"/velocities/speed-kts", scenario[group].airSpeed);
-					setprop(""~myNodeName~"/controls/tgt-speed-kts", scenario[group].airSpeed);
+					setprop(""~myNodeName~"/controls/tgt-heading-degs", group.heading);
+					setprop(""~myNodeName~"/velocities/speed-kts", group.airSpeed);
+					setprop(""~myNodeName~"/controls/tgt-speed-kts", group.airSpeed);
 					setprop (""~myNodeName~"/surface-positions/rudder-pos-deg", 0);					
 				}
 			}

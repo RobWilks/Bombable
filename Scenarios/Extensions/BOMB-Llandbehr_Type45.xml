@@ -1,0 +1,42 @@
+<?xml version="1.0"?>
+<PropertyList>
+    <group>
+        <!-- Type45 -->
+        <team>B</team>
+        <target>X</target>
+        <arrivalTime>-360</arrivalTime>
+        <airSpeed>25</airSpeed>
+        <airportName>EGOD</airportName>
+        <heading>225</heading>
+        <alt>0</alt>
+        <offsets>
+            <offset>
+                <behind>0</behind>
+                <right>0</right>
+                <up>0</up>
+            </offset>
+        </offsets>
+    </group>
+    <group>
+        <!-- F15 -->
+        <team>X</team>
+        <target>B</target>
+        <arrivalTime>200</arrivalTime>
+        <airSpeed>500</airSpeed>
+        <airportName>EGOD</airportName>
+        <heading>30</heading>
+        <alt>5000</alt>
+        <offsets>
+            <offset>
+                <behind>0</behind>
+                <right>1000</right>
+                <up>0</up>
+            </offset>
+            <offset>
+                <behind>-1000</behind>
+                <right>-1000</right>
+                <up>0</up>
+            </offset>
+        </offsets>
+    </group>
+</PropertyList>

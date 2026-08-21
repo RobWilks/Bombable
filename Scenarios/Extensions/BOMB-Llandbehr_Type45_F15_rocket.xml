@@ -1,0 +1,52 @@
+<?xml version="1.0"?>
+<PropertyList>
+    <group>
+        <!-- Type45 (arrivalTime moved further into past so ship starts in the sea, not the beach) -->
+        <team>Z</team>
+        <target>B</target>
+        <arrivalTime>-180</arrivalTime>
+        <airSpeed>25</airSpeed>
+        <airportName>EGOD</airportName>
+        <heading>225</heading>
+        <alt>0</alt>
+        <offsets>
+            <offset>
+                <behind>0</behind>
+                <right>-50</right>
+                <up>0</up>
+            </offset>
+        </offsets>
+    </group>
+    <group>
+        <!-- F15 -->
+        <team>B</team>
+        <target>Z</target>
+        <arrivalTime>120</arrivalTime>
+        <airSpeed>512</airSpeed>
+        <airportName>EGOD</airportName>
+        <heading>45</heading>
+        <alt>5000</alt>
+        <offsets>
+            <offset>
+                <behind>0</behind>
+                <right>0</right>
+                <up>0</up>
+            </offset>
+            <offset>
+                <behind>-20</behind>
+                <right>21</right>
+                <up>0</up>
+            </offset>
+            <offset>
+                <behind>-50</behind>
+                <right>-50</right>
+                <up>0</up>
+            </offset>
+            <offset>
+                <behind>0</behind>
+                <right>-30</right>
+                <up>0</up>
+            </offset>
+        </offsets>
+    </group>
+</PropertyList>
