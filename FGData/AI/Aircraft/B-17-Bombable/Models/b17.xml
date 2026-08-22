@@ -5,6 +5,9 @@
 
   <path>b17.ac</path>
 
+  <max-bank-deg>60.0</max-bank-deg>
+  <roll-rate-deg-sec>60.0</roll-rate-deg-sec>
+
   <animation>
     <!-- Objets opaques -->
     <object-name>fuselage</object-name>

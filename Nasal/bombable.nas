@@ -5358,6 +5358,7 @@ var dodge = func(myNodeName)
 				{
 				ctrls.dodgeInProgress = 0;
 				setprop (""~myNodeName~"/controls/flight/target-roll", 0); 
+				debprint(sprintf("Bombable: Target roll reset for %s, rollTime_sec = %5.1f dodge duration = %6.1f", myNodeName, rollTime_sec, 2 * dodgeDelay_remainder_sec));
 				# This resets the aircraft to 0 deg roll (via FG's
 				# AI system target roll; leaves target altitude
 				# unchanged  )
@@ -6294,7 +6295,7 @@ var weapons_loop = func (id, myNodeName1 = "") {
 				{
 					pos += 1;
 					if (pos == nTargets) pos = indexClosest;
-					if (myTargets[pos] != 0) thisWeapon.aim.target = myTargets[pos];
+					if (pos != nil and myTargets[pos] != 0) thisWeapon.aim.target = myTargets[pos];
 				}
 				continue;
 			}
@@ -8701,11 +8702,11 @@ var aircraftTurnToHeading = func (myNodeName, rolldegrees = 45, targetAlt_m = "n
 ################### aircraftRollControl ###################
 # rjw: function called by timer to progress the roll of the aircraft
 # internal - for making AI aircraft roll/turn
-# rolldegrees means the absolute roll degrees to move to, from whatever
+# rolldegrees means the target roll degrees to move to, from whatever
 # rolldegrees the AC currently is at.
+
 var aircraftRollControl = func (myNodeName, id, rolldegrees, rolltime, roll_limit_deg, 
-delta_deg, delta_t) 
-{
+delta_deg, delta_t) {
 	id == attributes[myNodeName].loopids.roll_loopid or return;
 	if (!bombableMenu["bombable-enabled"] ) return;
 				
@@ -8731,13 +8732,14 @@ delta_deg, delta_t)
 	if (targetRoll_deg * dir > roll_limit_deg) targetRoll_deg = roll_limit_deg * dir;
 	if (targetRoll_deg * dir > rollMax_deg) targetRoll_deg = rollMax_deg * dir;
 
-	
-	setprop (""~myNodeName~ "/orientation/roll-deg", targetRoll_deg);
+	# change the control to target-roll so as to avoid conflict with C++ AI subsystem (FGAIModel / FGAIAircraft)
+	# setprop (""~myNodeName~ "/orientation/roll-deg", targetRoll_deg);
+	setprop (""~myNodeName~ "/controls/flight/target-roll", targetRoll_deg);
 	ctrls.roll_deg_bombable = targetRoll_deg;
 				
-	#debprint("Bombable: RollControl: delta = ",delta_deg, " ",targetRoll_deg," ", myNodeName);
 	
 	var rollTimeElapsed = ctrls.rollTimeElapsed;
+	debprint(sprintf("Bombable: RollControl: delta = %.3f target = %.2f time left = %.2f %s", delta_deg, targetRoll_deg, rolltime - rollTimeElapsed, myNodeName));
 				
 	if ( rollTimeElapsed < rolltime )
 	{
@@ -8751,7 +8753,7 @@ delta_deg, delta_t)
 	else 
 	{
 		ctrls.rollTimeElapsed = 0;
-		debprint ("Bombable: Ending aircraft roll routine");
+		debprint ("Bombable: Ending aircraft roll routine for " ~ myNodeName);
 	}
 }
 
@@ -8771,7 +8773,7 @@ var aircraftRoll = func (myNodeName, rolldegrees = -60, rolltime = 5, roll_limit
 
 	aircraftRollControl(myNodeName, loopid, rolldegrees, rolltime, roll_limit_deg, delta_deg, updateinterval_sec);
 				
-	debprint (sprintf("Bombable: Starting roll routine, loopid = %d rolldegrees = %6.1f rolltime = %5.1f for %s",loopid, rolldegrees, rolltime, myNodeName));
+	debprint (sprintf("Bombable: Starting roll routine, loopid = %d target rolldegrees = %6.1f rolltime = %5.1f for %s",loopid, rolldegrees, rolltime, myNodeName));
 }
 
 ################################# aircraftCrashControl #################################
