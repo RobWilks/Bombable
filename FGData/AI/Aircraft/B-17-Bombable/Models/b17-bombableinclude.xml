@@ -103,11 +103,11 @@
           # The evasion system makes the AI aircraft dodge when they come under
           # fire. 
           evasions : {               
-            dodgeDelayMax_sec : 60, #max time to delay/wait between dodges
-            dodgeDelayMin_sec : 30, #minimum time to delay/wait between dodges
-            dodgeMax_deg : 60, #Max amount to turn when dodging
-            dodgeMin_deg : 4, #minimum amount to turn when dodging
-            rollRateMax_degpersec : 30, #you can figure this out by rolling the corresponding FG aircraft and timing a 180 or 360 deg roll                                                                  
+            dodgeDelayMax_sec : 7, #max time to delay/wait between dodges
+            dodgeDelayMin_sec : 3, #minimum time to delay/wait between dodges
+            dodgeMax_deg : 30, #Max amount to turn when dodging
+            dodgeMin_deg : 15, #minimum amount to turn when dodging
+            rollRateMax_degpersec : 20, #you can figure this out by rolling the corresponding FG aircraft and timing a 180 or 360 deg roll                                                                  
             dodgeROverLPreference_percent : 50, # Preference for right turns vs. left when dodging.  90% means 90% right turns, 50% means 50% right turns.
             dodgeAltMin_m : -100, #Aircraft will begin to move up or down 
             dodgeAltMax_m : 100, #Max & Min are relative to current alt  
@@ -125,8 +125,8 @@
             continueAttackAngle_deg : 20, #when within minDistance_m, the aircraft will continue to turn towards the main aircraft and attack *if* if the angle is less than this amount from dead ahead
             altitudeHigherCutoff_m : 700, # will attack the main aircraft unless this amount higher than it or more
             altitudeLowerCutoff_m : 700, # will attack the main aircraft unless this amount lower than it or more 
-            rollMin_deg : 10, #when turning on attack, roll to this angle min
-            rollMax_deg : 60, #when turning on attack, roll to this angle max
+            rollMin_deg : 30, #when turning on attack, roll to this angle min
+            rollMax_deg : 15, #when turning on attack, roll to this angle max
             rollRateMax_degpersec : 20, #you can figure this out by rolling the corresponding FG aircraft and timing a 180 or 360 deg roll                                                                  
             climbPower : 0, # How powerful the aircraft is when climbing during an attack; 4000 would be typical for, say a Zero--scale accordingly for others; higher is stronger
             divePower : 0, # How powerful the aircraft is when diving during and attack; 6000 typical of a Zero--could be much more than climbPower if the aircraft is a weak climber but a strong diver             

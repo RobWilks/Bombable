@@ -5236,7 +5236,7 @@ var dodge = func(myNodeName)
 				
 	if ( ctrls.dodgeInProgress ) 
 	{
-		#debprint ("Bombable: Dodge temporarily locked for this object. ", myNodeName );
+		debprint ("Bombable: Dodge temporarily locked for ", myNodeName );
 		return;
 	}
 	# Don't change rudder/roll again until the delay
@@ -5348,7 +5348,7 @@ var dodge = func(myNodeName)
 		# Roll/climb for rollTime_sec seconds, then wait dodgeDelay - rollTime seconds 
 		# (to allow the aircraft's turn to develop from the roll).
 
-		settimer ( func { aircraftRoll (myNodeName, dodgeAmount_deg, dodgeDelay_remainder_sec, evas.dodgeMax_deg); }, rollTime_sec);
+		aircraftRoll (myNodeName, dodgeAmount_deg, rollTime_sec, evas.dodgeMax_deg);
 		
 		# After this delay FG's aircraft AI will automatically return it to near-level flight.
 		# Return to near-level flight after a delay of 3-5x the duration of the roll. 
@@ -5358,7 +5358,7 @@ var dodge = func(myNodeName)
 				{
 				ctrls.dodgeInProgress = 0;
 				setprop (""~myNodeName~"/controls/flight/target-roll", 0); 
-				debprint(sprintf("Bombable: Target roll reset for %s, rollTime_sec = %5.1f dodge duration = %6.1f", myNodeName, rollTime_sec, 2 * dodgeDelay_remainder_sec));
+				debprint(sprintf("Bombable: Target roll reset for %s", myNodeName));
 				# This resets the aircraft to 0 deg roll (via FG's
 				# AI system target roll; leaves target altitude
 				# unchanged  )
@@ -8732,14 +8732,14 @@ delta_deg, delta_t) {
 	if (targetRoll_deg * dir > roll_limit_deg) targetRoll_deg = roll_limit_deg * dir;
 	if (targetRoll_deg * dir > rollMax_deg) targetRoll_deg = rollMax_deg * dir;
 
-	# change the control to target-roll so as to avoid conflict with C++ AI subsystem (FGAIModel / FGAIAircraft)
-	# setprop (""~myNodeName~ "/orientation/roll-deg", targetRoll_deg);
-	setprop (""~myNodeName~ "/controls/flight/target-roll", targetRoll_deg);
+	setprop (""~myNodeName~ "/orientation/roll-deg", targetRoll_deg);
 	ctrls.roll_deg_bombable = targetRoll_deg;
 				
+	# change the control to target-roll if want to avoid conflict with C++ AI subsystem (FGAIModel / FGAIAircraft)
+	# setprop (""~myNodeName~ "/controls/flight/target-roll", targetRoll_deg);
 	
 	var rollTimeElapsed = ctrls.rollTimeElapsed;
-	debprint(sprintf("Bombable: RollControl: delta = %.3f target = %.2f time left = %.2f %s", delta_deg, targetRoll_deg, rolltime - rollTimeElapsed, myNodeName));
+	# debprint(sprintf("Bombable: RollControl: delta = %.3f target = %.2f time left = %.2f %s", delta_deg, targetRoll_deg, rolltime - rollTimeElapsed, myNodeName));
 				
 	if ( rollTimeElapsed < rolltime )
 	{
