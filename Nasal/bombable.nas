@@ -2304,7 +2304,29 @@ var setupBombableMenu = func {
 	# Automatically load a nasal console
 	settimer(func {
 		fgcommand("dialog-show", props.Node.new({"dialog-name": "nasal-console"}));
+
+	# Open multiple property browsers at specific paths
+    var paths = [
+        "/ai/models/aircraft/position",
+        "/ai/models/aircraft/orientation",
+        "/ai/models/aircraft/controls/flight"
+    ];
+
+    foreach (var path; paths) {
+        # Fetch the Property Node object for the given path
+        var node = props.globals.getNode(path);
+        
+        if (node != nil) {
+            # Opens a new property browser dialog focused on the specified node
+            gui.property_browser(node);
+			}
+		}
 	}, 2);
+
+	# Dump bombable stats 400 seconds from simulator startup
+	settimer(func {
+    records.export_totals_csv("Automated_400s_Test");
+	}, 400);
 
 }
 ######################## mirrorMenu #############################
@@ -3771,7 +3793,7 @@ var getBallisticMass_lb = func (impactNodeName) {
 	var ballisticMass_slug = getprop (""~impactNodeName~"/mass-slug");
 
 	#ok, FG 2.4.0 leaves out the /mass-slug property, so we have to improvise.
-	# We basically need to list or guess the mass of each & every type of ordinance
+	# We basically need to list or guess the mass of each & every type of ordnance
 	# that might exist or be used.  Not good.
 	if (ballisticMass_slug != nil ) ballisticMass_lb = ballisticMass_slug * 32.174049
 	else {
@@ -4231,7 +4253,7 @@ var test_impact = func(changedNode, myNodeName) {
 				}
 				else 
 				{
-				# anything larger than 1.2 lbs making a direct hit, e.g.some kind of bomb or exploding ordinance
+				# anything larger than 1.2 lbs making a direct hit, e.g.some kind of bomb or exploding ordnance
 				# debprint ("larger than 1.2 lbs, making direct hit");
 						
 				var damagePoss = .6 + ballisticMass_lb / 250;
@@ -5223,7 +5245,7 @@ var rudder_roll_climb = func (myNodeName, degrees = 15, alt_ft = -20, time = 10,
 #
 var dodge = func(myNodeName) 
 {
-	# dodgeDelay is the time to wait between dodges
+	# dodgeDelay is the minimum time between dodges
 	# dodgeDelay_remainder_sec is the amount of that time left
 	# rollTime_sec is the time the AC rolls
 	var ats = attributes[myNodeName];
@@ -5295,8 +5317,6 @@ var dodge = func(myNodeName)
 		} 
 					
 		var rollTime_sec = math.abs(dodgeAmount_deg / evas.rollRateMax_degpersec);
-		var dodgeDelay_remainder_sec = dodgeDelay - rollTime_sec;
-		if (dodgeDelay_remainder_sec < 0) dodgeDelay_remainder_sec = .1;
 
 		var currSpeed_kt = getprop (""~myNodeName~"/velocities/true-airspeed-kt");
 		if (currSpeed_kt == nil) currSpeed_kt = 0;
@@ -5324,23 +5344,22 @@ var dodge = func(myNodeName)
 		#set rudder or roll degrees to that amount
 		rudder_roll_climb (myNodeName, dodgeAmount_deg, dodgeAltAmount_ft, rollTime_sec);
 
-		#rjw next block not used
 			
-			dodgeVertSpeed_fps = 0;
+		dodgeVertSpeed_fps = 0;
+					
+		if ( dodgeAltAmount_ft > 0 )  dodgeVertSpeed_fps = math.abs ( evas.dodgeVertSpeedClimb_fps * dodgeAltAmount_ft / evas.dodgeAltMax_ft);
+		if ( dodgeAltAmount_ft < 0 )  dodgeVertSpeed_fps = - math.abs ( evas.dodgeVertSpeedDive_fps * dodgeAltAmount_ft / evas.dodgeAltMin_ft );
 						
-			if ( dodgeAltAmount_ft > 0 )  dodgeVertSpeed_fps = math.abs ( evas.dodgeVertSpeedClimb_fps * dodgeAltAmount_ft / evas.dodgeAltMax_ft);
-			if ( dodgeAltAmount_ft < 0 )  dodgeVertSpeed_fps = - math.abs ( evas.dodgeVertSpeedDive_fps * dodgeAltAmount_ft / evas.dodgeAltMin_ft );
-						
-			#velocities/vertical-speed-fps seems to be fps * 1000 for some reason?  At least, approximately, 300,000 seems to be about 300 fps climb, for instance.
-			# and we reduce the amount of climb/dive possible depending on the current roll angle (can't climb/dive rapidly if rolled to 90 degrees . . . )
-			#dodgeVertSpeed_fps *= 1000 * math.abs(math.cos(currRoll_deg* D2R));
-			#dodgeVertSpeed_fps *=  math.abs(math.cos(currRoll_deg* D2R));
-						
-			#vert-speed prob
-			#just putting a large number directly into vertical-speed-fps makes the aircraft
-			#jump up or down far too abruptly for realism
-			#if (dodgeVertSpeed_fps != 0) setprop ("" ~ myNodeName ~ "/velocities/vertical-speed-fps", dodgeVertSpeed_fps);
-		
+		#rjw next block not used
+		#velocities/vertical-speed-fps seems to be fps * 1000 for some reason?  At least, approximately, 300,000 seems to be about 300 fps climb, for instance.
+		# and we reduce the amount of climb/dive possible depending on the current roll angle (can't climb/dive rapidly if rolled to 90 degrees . . . )
+		#dodgeVertSpeed_fps *= 1000 * math.abs(math.cos(currRoll_deg* D2R));
+		#dodgeVertSpeed_fps *=  math.abs(math.cos(currRoll_deg* D2R));
+					
+		#vert-speed prob
+		#just putting a large number directly into vertical-speed-fps makes the aircraft
+		#jump up or down far too abruptly for realism
+		#if (dodgeVertSpeed_fps != 0) setprop ("" ~ myNodeName ~ "/velocities/vertical-speed-fps", dodgeVertSpeed_fps);
 		#end unused
 
 
@@ -5360,16 +5379,20 @@ var dodge = func(myNodeName)
 				setprop (""~myNodeName~"/controls/flight/target-roll", 0); 
 				debprint(sprintf("Bombable: Target roll reset for %s", myNodeName));
 				# This resets the aircraft to 0 deg roll (via FG's
-				# AI system target roll; leaves target altitude
-				# unchanged  )
+				# AI system target roll; leaves target altitude unchanged  )
+				if (getprop(""~myNodeName~"/bombable/initializers/attack-initialized") == nil) {
+					setprop (""~myNodeName~"/controls/flight/lateral-mode", "hdg"); 
+					debprint(sprintf("Bombable: Target hdg for %s set to %.1f", myNodeName, getprop(""~myNodeName~"/controls/flight/target-hdg")));
+					settimer (func {checkAircraftCourse(myNodeName, 1.5)}, 1.5); #if on course change to roll control
+				}
 				},
 				dodgeDelay
 			);
 
 		stores.reduceFuel (myNodeName, dodgeDelay ); #deduct the amount of fuel from the tank, for this dodge
 
-		debprint (sprintf("Dodging: %s dodgeAmount_deg = %6.1f dodgeAltAmount_ft = %6.1f dodgeVertSpeed_fps = %6.1f rollTime_sec = %5.1f dodgeDelay_remainder = %6.1f", 
-		myNodeName, dodgeAmount_deg, dodgeAltAmount_ft, dodgeVertSpeed_fps ,rollTime_sec, dodgeDelay_remainder_sec));
+		debprint (sprintf("Dodging: %s dodgeAmount_deg = %6.1f dodgeAltAmount_ft = %6.1f dodgeVertSpeed_fps = %6.1f rollTime_sec = %5.1f dodgeDelay = %6.1f", 
+		myNodeName, dodgeAmount_deg, dodgeAltAmount_ft, dodgeVertSpeed_fps ,rollTime_sec, dodgeDelay));
 	} 
 	else 
 	{  
@@ -6178,15 +6201,17 @@ var weapons_loop = func (id, myNodeName1 = "") {
 		if (distance_m < ats.dimensions.crashRadius_m)
 		{
 			var msg = (attributes[myNodeName1].controls.kamikase == -1) ?
-			"Kamikase strike " : "Collision ";
+			"Kamikase strike" : "Collision";
 			msg = msg ~ " with " ~ getCallSign (myNodeName1) ~ " !";
 			targetStatusPopupTip (msg, 5); # add_damage will immediately report damage stats
-			var damageRatio = attributes[myNodeName2].vulnerabilities.explosiveMass_kg / 
-			attributes[myNodeName1].vulnerabilities.explosiveMass_kg; 
-			add_damage(10 * damageRatio, "collision", myNodeName1); # can withstand collision with object <10% of my mass
+			debprint("Bombable: " ~ msg);
+			var mass1 = attributes[myNodeName1].vulnerabilities.explosiveMass_kg; 
+			var mass2 = attributes[myNodeName2].vulnerabilities.explosiveMass_kg; 
+			var damageRatio = mass2 / mass1; 
+			add_damage(10 * damageRatio, "collision", myNodeName1, myNodeName2, getCallSign(myNodeName2), mass2); # can withstand collision with object <10% of my mass
 			if (myNodeName2 !="")
 			{
-				add_damage ( 10 / damageRatio, "collision", myNodeName2);
+				add_damage ( 10 / damageRatio, "collision", myNodeName2, myNodeName1, getCallSign(myNodeName1), mass1);
 			}
 			else
 			{
@@ -8697,6 +8722,21 @@ var aircraftTurnToHeading = func (myNodeName, rolldegrees = 45, targetAlt_m = "n
 	# debprint (sprintf("Bombable: Starting turn-to-heading routine for %s, loopid= %d, rolldegrees= %3.1f, course_deg= %3.1f",
 	# myNodeName, loopid, rolldegrees_, ctrls.courseToTarget_deg));
 }
+################### checkAircraftCourse ###################
+# rjw: function will switch from hdg to roll control if the aircraft is on course to the target
+
+var checkAircraftCourse = func (myNodeName, updateinterval_sec = 1) {
+	var current_heading = getprop (""~myNodeName~"/orientation/true-heading-deg"); 
+	var target_heading = getprop(""~myNodeName~"/controls/flight/target-hdg");
+	var delta_heading = normdeg180(target_heading - current_heading);
+	if (math.abs(delta_heading) < 5) {
+		setprop (""~myNodeName~"/controls/flight/lateral-mode", "roll"); 
+		debprint(sprintf("Bombable: Target hdg for %s reached %.1f, switching to roll control", myNodeName, target_heading));
+	}
+	else {
+		settimer (func {checkAircraftCourse(myNodeName, updateinterval_sec)}, updateinterval_sec);
+	}
+}
 
 
 ################### aircraftRollControl ###################
@@ -8766,6 +8806,9 @@ var aircraftRoll = func (myNodeName, rolldegrees = -60, rolltime = 5, roll_limit
 	var ctrls = attributes[myNodeName].controls;
 	ctrls.rollTimeElapsed = 0;
 	var currRoll_deg = getprop (""~myNodeName~ "/orientation/roll-deg");
+
+	# aircraft with attack effects disabled move under FG control to a heading so need to switch control mode for an active roll
+	setprop (""~myNodeName~"/controls/flight/lateral-mode", "roll");
 	ctrls.roll_deg_bombable = currRoll_deg;
 	if (math.abs(rolldegrees) >= 90 ) rolldegrees = 88 * math.sgn(rolldegrees);
 	if (rolltime < updateinterval_sec) rolltime = updateinterval_sec;
@@ -9067,14 +9110,18 @@ impactNodeName = nil, ballisticMass_lb = nil, lat_deg = nil, lon_deg = nil, alt_
 	me.impactTotals.Overall.Total_Damage_Added  +=  100 * damageRise;
 					
 	var weaponType = nil;
-	if (impactNodeName != nil) weaponType = getprop (""~impactNodeName~"/name");
+	if (impactNodeName != nil) {
+		weaponType = getprop (""~impactNodeName~"/name");
+		if (weaponType == nil or weaponType == "") weaponType = impactNodeName; # if collsion with aircraft
+	}
 	var ballCategory = nil;
 	if ( ballisticMass_lb < 1) ballCategory = "Small arms";
-	elsif ( ballisticMass_lb <= 10) ballCategory = "1 to 10 lb ordinance";
-	elsif ( ballisticMass_lb <= 100) ballCategory = "11 to 100 lb ordinance";
-	elsif ( ballisticMass_lb <= 500) ballCategory = "101 to 500 lb ordinance";
-	elsif ( ballisticMass_lb <= 1000) ballCategory = "501 to 1000 lb ordinance";
-	elsif ( ballisticMass_lb > 1000) ballCategory = "Over 1000 lb ordinance";
+	elsif ( ballisticMass_lb <= 10) ballCategory = "1 to 10 lb ordnance";
+	elsif ( ballisticMass_lb <= 100) ballCategory = "11 to 100 lb ordnance";
+	elsif ( ballisticMass_lb <= 500) ballCategory = "101 to 500 lb ordnance";
+	elsif ( ballisticMass_lb <= 1000) ballCategory = "501 to 1000 lb ordnance";
+	elsif ( ballisticMass_lb <= 5000) ballCategory = "1001 to 5000 lb ordnance";
+	elsif ( ballisticMass_lb > 5000) ballCategory = "massive object";
 
 	var callsign = getCallSign (myNodeName);
 	if (myNodeName == "") callsign = nil;
@@ -9196,14 +9243,125 @@ records.show_totals_dialog = func
 	node = me.add_property_tree ("/bombable/dialogs/records", totals);
 	gui.showHelpDialog ("/bombable/dialogs/records");
 }
-			
+
+records.export_totals_csv = func (scenario_name = "default") {
+    # 1. Fetch user FG_HOME directory (~/.fgfs)
+    var fg_home = getprop("/sim/fg-home");
+    if (fg_home == nil or fg_home == "") {
+        # Fallback to download-dir if fg-home is missing
+        fg_home = getprop("/sim/paths/download-dir");
+    }
+
+    if (fg_home == nil or fg_home == "") {
+        print("records.export_totals_csv: Error - Unable to resolve home or export path.");
+        return 0;
+    }
+
+    # Construct target path: ~/.fgfs/Export/scenario_results.csv
+    var export_dir = fg_home ~ "/Export";
+    var csv_path = export_dir ~ "/scenario_results.csv";
+
+    print("Exporting CSV to resolved path: " ~ csv_path);
+
+    # 2. Check if file exists to determine whether to write header row
+    var file_exists = (io.stat(csv_path) != nil);
+
+    # 3. Open file in append mode ("a")
+    var file = io.open(csv_path, "a");
+    if (file == nil) {
+        print("records.export_totals_csv: Unable to open file for writing at " ~ csv_path);
+        return 0;
+    }
+
+    # 4. Write CSV Header if this is a new file
+    if (!file_exists) {
+        var header = "Timestamp,Scenario,Category,Item,Total_Impacts,Damaging_Impacts,Total_Damage_Added\n";
+        io.write(file, header);
+    }
+
+    # 5. Fetch timestamp
+    var timestamp = getprop("/sim/time/elapsed-sec") or "N/A";
+
+    # Helper function to sanitize strings for CSV output
+    var csv_format_str = func(str) {
+        if (str == nil) return '""';
+        var clean_str = sprintf("%s", str);
+        var escaped = "";
+        for (var i = 0; i < size(clean_str); i += 1) {
+            var ch = substr(clean_str, i, 1);
+            if (ch == '"') escaped ~= '""';
+            else escaped ~= ch;
+        }
+        return '"' ~ escaped ~ '"';
+    };
+
+    # Sort keys prior to exporting
+    me.sort_keys();
+
+    # 6. Iterate through impactTotals and append CSV rows
+    var db = me.impactTotals;
+
+    # Record Overall summary metrics
+    if (contains(db, "Overall")) {
+        var ov = db.Overall;
+        var row = sprintf("%s,%s,%s,%s,%d,%d,%.2f\n",
+            csv_format_str(timestamp),
+            csv_format_str(scenario_name),
+            csv_format_str("Overall"),
+            csv_format_str("All_Categories"),
+            ov.Total_Impacts or 0,
+            ov.Damaging_Impacts or 0,
+            ov.Total_Damage_Added or 0.0
+        );
+        io.write(file, row);
+    }
+
+    # Record detailed categories (Objects, Ammo_Categories, Ammo_Type)
+    var cat_keys = ["Objects", "Ammo_Categories", "Ammo_Type"];
+    foreach (var cat; cat_keys) {
+        if (!contains(db, cat) or typeof(db[cat]) != "hash") continue;
+
+        var item_list = nil;
+        if (contains(db, "Sorted") and contains(db.Sorted, cat)) {
+            item_list = db.Sorted[cat];
+        } else {
+            item_list = keys(db[cat]);
+        }
+
+        foreach (var item; item_list) {
+            var entry = db[cat][item];
+            if (typeof(entry) != "hash") continue;
+
+            var total_imp = contains(entry, "Total_Impacts") ? entry.Total_Impacts : 0;
+            var dam_imp   = contains(entry, "Damaging_Impacts") ? entry.Damaging_Impacts : 0;
+            var dam_add   = contains(entry, "Total_Damage_Added") ? entry.Total_Damage_Added : 0.0;
+
+            var row = sprintf("%s,%s,%s,%s,%d,%d,%.2f\n",
+                csv_format_str(timestamp),
+                csv_format_str(scenario_name),
+                csv_format_str(cat),
+                csv_format_str(item),
+                total_imp,
+                dam_imp,
+                dam_add
+            );
+            io.write(file, row);
+        }
+    }
+
+    # 7. Close file handle and exit cleanly
+    io.close(file);
+    print("Bombable scenario results successfully appended to: " ~ csv_path);
+    return 1;
+};
+
 
 ################################ add_damage ################################
 # function adds damage to an AI aircraft, ship or groundvehicle
 # (called by the fire loop and ballistic impact
 # listener function, typically)
 # returns the amount of damage added (which may be smaller than the damageRise requested, for various reasons)
-# damagetype is "weapon" or "nonweapon".  nonweapon damage (fire, crash into
+# damageType is "weapon" or "nonweapon".  nonweapon damage (fire, crash into
 # ground, etc) is not passed on via multiplayer (fire, crash, etc damage is
 # handled on their end and if all connected players add fire & crash damage via
 # multiplayer, too, then it creates a nasty cascade)
@@ -9218,7 +9376,7 @@ records.show_totals_dialog = func
 var add_damage = func
 (
 	damageRise, 
-	damagetype = "weapon", 
+	damageType = "weapon", 
 	myNodeName = nil, # target 
 	myNodeName2 = nil, # shooter
 	impactNodeName = nil, # projectile
@@ -9296,12 +9454,17 @@ var add_damage = func
 	if (damageIncrease > 0.05 and type == "aircraft") reduceRPM(myNodeName);
 	#rjw: big hit so spin down an engine				
 
-	if (damagetype == "weapon") 
+	if (damageType == "weapon") 
 	{
 		ctrls.stayInFormation = 0;
 		records.record_impact ( myNodeName, damageRise, damageIncrease, damageValue, impactNodeName, ballisticMass_lb, lat_deg, lon_deg, alt_m );
 	}
 						
+	elsif (damageType == "collision") 
+	{
+		records.record_impact ( myNodeName, damageRise, damageIncrease, damageValue, callsign2, ballisticMass_lb, lat_deg, lon_deg, alt_m );
+	}
+
 	var weapPowerSkill = ctrls.weapons_pilot_ability;				
 	if ( damageIncrease > 0 ) 
 	{
@@ -9309,7 +9472,7 @@ var add_damage = func
 		# only display about 1 in 20 of the messages.
 		# If we don't do this the small damageRises from fires overwhelm the message area
 		# and we don't know what's going on.
-		if (damagetype == "weapon" or damageRise > 0.1 or rand() < .05)
+		if (damageType == "weapon" or damageRise > 0.1 or rand() < .05)
 		{
 			damageRiseDisplay = round( damageRise * 100 );
 			if (damageRise < .01) damageRiseDisplay = sprintf ("%1.3f",damageRise * 100);
@@ -9322,7 +9485,7 @@ var add_damage = func
 			targetStatusPopupTip (msg, 20);
 		}
 
-		if (damagetype == "weapon") 
+		if (damageType == "weapon") 
 		{
 			if (damageRise > 0.025 and rand() < 0.5 and myNodeName2 != nil and !ats.controls.attackInProgress)
 			{
@@ -9528,7 +9691,7 @@ var add_damage = func
 		}
 	} # end of starting fire block
 	#only send damage via multiplayer if it is weapon damage from our weapons
-	if (type == "multiplayer" and damagetype == "weapon") 
+	if (type == "multiplayer" and damageType == "weapon") 
 	{
 		mp_send_damage(myNodeName, damageRise);
 	}
