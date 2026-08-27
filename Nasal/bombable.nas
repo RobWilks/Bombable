@@ -1842,6 +1842,13 @@ var dialog = {
 		lresetAI.prop().getNode("binding[1]/script", 1).setValue("bombable.bombable_dialog_save();");
 		lresetAI.prop().getNode("binding[2]/command", 1).setValue("dialog-apply");
 		lresetAI.prop().getNode("binding[3]/command", 1).setValue("dialog-close");
+
+		lcsvDump = buttonBar1.addChild("button");
+		lcsvDump.set("legend", "Dump Statistics (CSV)");
+		lcsvDump.prop().getNode("binding[0]/command", 1).setValue("nasal");
+		lcsvDump.prop().getNode("binding[0]/script", 1).setValue(
+			'bombable.records.export_totals_csv(sprintf("%s %.1f", getprop("/sim/ai/scenario"), getprop("/sim/time/elapsed-sec")));');
+		lcsvDump.prop().getNode("binding[1]/command", 1).setValue("dialog-close");
 				
 
 		var buttonBar2 = me.dialog.addChild("group");
@@ -2322,11 +2329,6 @@ var setupBombableMenu = func {
 			}
 		}
 	}, 2);
-
-	# Dump bombable stats 400 seconds from simulator startup
-	settimer(func {
-    records.export_totals_csv("Automated_400s_Test");
-	}, 400);
 
 }
 ######################## mirrorMenu #############################
@@ -8115,8 +8117,32 @@ var course1to2 = func (myNodeName1, myNodeName2) {
 	# debprint (sprintf( "intercept hdg %6.1f intercept time %6.1f", hdg, intercept.time ));
 	if (hdg < 0) hdg += 360;
 	var dist_xy = math.sqrt (dx * dx + dy * dy);
-	return
-	{
+	return {
+		distance : [dist_xy, -dz], # minus for comparison with original code
+		heading : hdg,
+	}
+}
+
+##################### courseToAirport ##########################
+# returns a hash containing the distance between AI object and starting airport
+# and the heading (absolute bearing) for 1 to travel to the airport
+# derivative of course 1to2
+
+var courseToAirport = func (myNodeName1) {
+	# weapons_loop also reads the co-ords from the prop tree and stores them in the attributes hash
+	var lat1 = getprop(""~myNodeName1~"/position/latitude-deg");
+	var lon1 = getprop(""~myNodeName1~"/position/longitude-deg");
+	var alt1 = getprop(""~myNodeName1~"/position/altitude-ft");
+	var lat2 = getprop("/sim/presets/latitude-deg");
+	var lon2 = getprop("/sim/presets/longitude-deg");
+	var alt2 = getprop("/sim/presets/elevation-ft");
+	var dx = (lon2 - lon1) * m_per_deg_lon;
+	var dy = (lat2 - lat1) * m_per_deg_lat;
+	var dz = (alt2 - alt1) * FT2M;
+	var hdg = math.atan2( dx, dy) * R2D;
+	if (hdg < 0) hdg += 360;
+	var dist_xy = math.sqrt (dx * dx + dy * dy);
+	return {
 		distance : [dist_xy, -dz], # minus for comparison with original code
 		heading : hdg,
 	}
@@ -8125,13 +8151,19 @@ var course1to2 = func (myNodeName1, myNodeName2) {
 
 ######################### attack_loop ###########################
 # Main loop for calculating attacks, changing direction, altitude, etc.
-#
+# Applies to aircraft only
 
 var attack_loop = func ( id, myNodeName ) {
 	var ats = attributes[myNodeName];
 	id == ats.loopids.attack_loopid or return;
 	var ctrls = ats.controls;	
 	var atts = ats.attacks;
+
+	#error trap and report
+	if (!contains(atts,"loopTime")) {
+		debprint("Bombable: " ~ myNodeName ~ " id= " ~ id);
+		debug.dump(ats.loopids);
+	}
 				
 	#debprint ("attack_loop starting");
 
@@ -8724,12 +8756,13 @@ var aircraftTurnToHeading = func (myNodeName, rolldegrees = 45, targetAlt_m = "n
 }
 ################### checkAircraftCourse ###################
 # rjw: function will switch from hdg to roll control if the aircraft is on course to the target
+# called only be aircraft for which attack is disabled
 
 var checkAircraftCourse = func (myNodeName, updateinterval_sec = 1) {
 	var current_heading = getprop (""~myNodeName~"/orientation/true-heading-deg"); 
 	var target_heading = getprop(""~myNodeName~"/controls/flight/target-hdg");
 	var delta_heading = normdeg180(target_heading - current_heading);
-	if (math.abs(delta_heading) < 5) {
+	if (math.abs(delta_heading) < 2) {
 		setprop (""~myNodeName~"/controls/flight/lateral-mode", "roll"); 
 		debprint(sprintf("Bombable: Target hdg for %s reached %.1f, switching to roll control", myNodeName, target_heading));
 	}
@@ -9245,6 +9278,10 @@ records.show_totals_dialog = func
 }
 
 records.export_totals_csv = func (scenario_name = "default") {
+    # Logs bombable statistics to a CSV file in the user's FG_HOME directory (~/.fgfs/Export/scenario_results.csv)
+    # Called 400sec after the scenario starts, using a timer set in startScenario
+    # time measured using sim/time/elapsed-sec
+
     # 1. Fetch user FG_HOME directory (~/.fgfs)
     var fg_home = getprop("/sim/fg-home");
     if (fg_home == nil or fg_home == "") {
@@ -9282,19 +9319,6 @@ records.export_totals_csv = func (scenario_name = "default") {
     # 5. Fetch timestamp
     var timestamp = getprop("/sim/time/elapsed-sec") or "N/A";
 
-    # Helper function to sanitize strings for CSV output
-    var csv_format_str = func(str) {
-        if (str == nil) return '""';
-        var clean_str = sprintf("%s", str);
-        var escaped = "";
-        for (var i = 0; i < size(clean_str); i += 1) {
-            var ch = substr(clean_str, i, 1);
-            if (ch == '"') escaped ~= '""';
-            else escaped ~= ch;
-        }
-        return '"' ~ escaped ~ '"';
-    };
-
     # Sort keys prior to exporting
     me.sort_keys();
 
@@ -9304,11 +9328,11 @@ records.export_totals_csv = func (scenario_name = "default") {
     # Record Overall summary metrics
     if (contains(db, "Overall")) {
         var ov = db.Overall;
-        var row = sprintf("%s,%s,%s,%s,%d,%d,%.2f\n",
-            csv_format_str(timestamp),
-            csv_format_str(scenario_name),
-            csv_format_str("Overall"),
-            csv_format_str("All_Categories"),
+        var row = sprintf("%s,\"%s\",\"%s\",\"%s\",%d,%d,%.2f\n",
+            timestamp,
+            un_variable_safe("" ~ scenario_name),
+            "Overall",
+            "All Categories",
             ov.Total_Impacts or 0,
             ov.Damaging_Impacts or 0,
             ov.Total_Damage_Added or 0.0
@@ -9336,11 +9360,11 @@ records.export_totals_csv = func (scenario_name = "default") {
             var dam_imp   = contains(entry, "Damaging_Impacts") ? entry.Damaging_Impacts : 0;
             var dam_add   = contains(entry, "Total_Damage_Added") ? entry.Total_Damage_Added : 0.0;
 
-            var row = sprintf("%s,%s,%s,%s,%d,%d,%.2f\n",
-                csv_format_str(timestamp),
-                csv_format_str(scenario_name),
-                csv_format_str(cat),
-                csv_format_str(item),
+            var row = sprintf("%s,\"%s\",\"%s\",\"%s\",%d,%d,%.2f\n",
+                timestamp,
+                un_variable_safe("" ~ scenario_name),
+                un_variable_safe("" ~ cat),
+                un_variable_safe("" ~ item),
                 total_imp,
                 dam_imp,
                 dam_add
@@ -9354,7 +9378,6 @@ records.export_totals_csv = func (scenario_name = "default") {
     print("Bombable scenario results successfully appended to: " ~ csv_path);
     return 1;
 };
-
 
 ################################ add_damage ################################
 # function adds damage to an AI aircraft, ship or groundvehicle
@@ -10160,8 +10183,9 @@ var initialize_func = func ( b ){
 	# determines how AI aircraft are controlled - Bombable sets altitudes and roll
 	if (attributes[myNodeName].type == "aircraft")
 	{
-		setprop (""~myNodeName~"/controls/flight/vertical-mode", "alt");
+		setprop (""~myNodeName~"/controls/flight/vertical-mode", "alt"); 
 		setprop (""~myNodeName~"/controls/flight/lateral-mode", "roll");
+	# target-alt and target-roll set when FG loads scenario
 	}
 
 	addToTargets(myNodeName); # add AI model to list of targets and ID its team.  Targets are assigned after scenario initialization
@@ -10346,7 +10370,7 @@ var ground_init = func (myNodeName = "") {
 # the ground, or an aircraft that moves along at, say, 500 ft AGL.
 # The altitude will be continually readjusted
 # as the object (set up as, say, and AI ship or aircraft moves.
-# In addition, for "ships" the pitch will change to (roughly) match
+# In addition, for "ground vehicles" the pitch will change to (roughly) match
 # when going up or downhill.
 #
 var ground_init_func = func( myNodeName ) {
@@ -11260,7 +11284,7 @@ var location_del = func(myNodeName) {
 var attack_del = func(myNodeName) 
 {
 	#we increment this each time we are inited or de-inited
-	#when the loopid is changed it kills the timer loops that have that id
+	#when the loopid is changed it kills the timer loops that have the old id
 	var loopid = inc_loopid(myNodeName, "attack");
 	var speedAdjust_loopid = inc_loopid(myNodeName, "speed_adjust");
 						
@@ -12599,9 +12623,12 @@ var waitForAI = func()
 # a scenario consists of:
 # a set of groups of objects 
 # each group is assigned to a team (can be the same team)
+# teams B and C have the specific role of attacking the airport and direct their courses to it
 # and is provided with co-ordinates relative to an airport, by assuming that
 # the group is on course to the airport at a distance set by its arrival time and speed
-# each object in the group is given an offset in metres relative to the lead object
+# each object in the group is given an offset in metres relative to the group centre
+# these can be in 1000s (kilometres) for a dispersed formation, e.g. a marine convoy
+# the y-offset is the closest distance of approach to the airport assuming the path is not diverted  
 # the number of offsets defines the number of objects in the group
 # the scenario xml file positions all AI objects on the airport runway close to the main AC to ensure they are loaded quickly
 # the call to startScenario is delayed until FG has loaded all aircraft and ship objects into the airport scene
@@ -12676,6 +12703,10 @@ var startScenario = func(startTime)
 			debprint("Bombable: startScenario: Error in scenario definition - airport not found: "~group.airportName);
 			break;
 		}
+		else
+		{
+			setprop("sim/presets/elevation-ft", from.elevation * M2FT);
+		}
 		var teamName = group.team;
 		if (teamName == "A")
 		{
@@ -12735,6 +12766,7 @@ var startScenario = func(startTime)
 					setprop(""~myNodeName~"/velocities/true-airspeed-kt", group.airSpeed);
 					setprop(""~myNodeName~"/controls/flight/target-spd", group.airSpeed);
 					setprop(""~myNodeName~"/controls/flight/target-alt", group.alt + o[2] * M2FT);
+					setprop(""~myNodeName~"/controls/tgt-heading-degs", group.heading);
 					setprop(""~myNodeName~"/position/altitude-ft", group.alt + o[2] * M2FT);
 				}
 				elsif (type == "ship")
@@ -12743,6 +12775,14 @@ var startScenario = func(startTime)
 					setprop(""~myNodeName~"/velocities/speed-kts", group.airSpeed);
 					setprop(""~myNodeName~"/controls/tgt-speed-kts", group.airSpeed);
 					setprop (""~myNodeName~"/surface-positions/rudder-pos-deg", 0);					
+				}
+
+				# start timer to update AI controls/flight/target-hdg
+				if ((teamName == "B" or teamName == "C") and getprop(""~myNodeName~"/bombable/initializers/attack-initialized") == nil) {
+					var loopid = inc_loopid(myNodeName, "updateTargetHeading");
+					#start the loop to check heading
+					updateTargetHeading_func(loopid, myNodeName);
+					debprint ("Bombable: updateTargetHeading for " ~ myNodeName);
 				}
 			}
 		}
@@ -12757,8 +12797,42 @@ var startScenario = func(startTime)
 	initTargets();
 
 	setprop("/sim/ai/scenario-initialized", 1);
+
+	# Dump bombable stats 400 seconds from simulator startup
+	settimer(func {
+    records.export_totals_csv(sprintf("Started at %.0fs", timeNow));
+	}, 400);
 	
 }
+
+########################## update target heading func ###########################
+# routine to explicitly bind the current values of loopid and myNodeName into the closure's local scope at the exact moment the timer is created
+var updateTargetHeading_func = func(loopid, myNodeName) {
+	settimer(func {updateTargetHeading(loopid, myNodeName)}, 5 + rand());
+}
+
+
+
+########################## update target heading ###########################
+# routine called by non-attacking aircraft that are targetting the starting airport
+# also used to check whether they have reached their target - a successful mission!
+
+var updateTargetHeading = func(id, myNodeName) {
+	var ats = attributes[myNodeName];
+	id == ats.loopids.updateTargetHeading_loopid or return;
+	# skill ranges 0-6
+	var skill = calcPilotSkill (myNodeName);
+	if (rand() < skill / 6 * (1.0 - ats.damage)) {
+		var distHdg = courseToAirport (myNodeName); # returns a hash
+		var dist = distHdg.distance;
+		var courseToTarget_deg = distHdg.heading; # absolute bearing
+		var oldHdg = getprop("" ~ myNodeName ~ "/controls/flight/target-hdg");
+		setprop("" ~ myNodeName ~ "/controls/flight/target-hdg", courseToTarget_deg);
+		debprint(sprintf("Bombable: updated target heading for %s from %.1f to %.1f", myNodeName, oldHdg, courseToTarget_deg));
+	}
+	settimer(func {updateTargetHeading(id, myNodeName)}, 5 + rand());
+}
+
 ########################## removeAll ###########################
 # removes all occurrences of element from vector
 # returns vector
@@ -12794,25 +12868,52 @@ var removeElem = func(vector, element)
 
 var resetScenario = func()
 {
+	# first ensure that pause is off - otherwise we create zombie particles from fires
+    # 1. Force unpause if currently frozen so OSG update visitors run
+    if (getprop("/sim/freeze/pause")) {
+        setprop("/sim/freeze/pause", 0);
+        
+        # 2. Defer the actual teardown by one frame tick (~50ms)
+        settimer(func {
+            resetScenarioMain();
+        }, 0.05);
+        return;
+    } 
+	else
+	{
+		resetScenarioMain();
+	}
+}
+
+
+var resetScenarioMain = func()
+{
 	# clear pop-up message log
 	tipMessageAI = "\n\n\n\n";
 	tipMessageMain = "\n\n\n\n";
 
 	# end all loops for all targets
+	var loops = [];
 
-	var loops =
-		[
-		"weapons",
-		"ground",
-		"attack",
-		"roll",
-		"speed_adjust"
-		];
 	foreach (var myNodeName; nodes)
 	{
-		if (myNodeName != "") 
+		if (myNodeName == nil or myNodeName == "") continue;
+
+		var ats = attributes[myNodeName];
+		if (ats == nil or !contains(ats, "loopids") or typeof(ats.loopids) != "hash") continue;
+
+		# Iterate over all dynamic loop keys present in ats.loopids
+		foreach (var raw_key; keys(ats.loopids))
 		{
-			foreach (var loopName; loops) inc_loopid(myNodeName, loopName);
+			# Extract the base loop name by stripping "_loopid" (length = 7)
+			var key_len = size(raw_key);
+			if (key_len > 7 and substr(raw_key, key_len - 7) == "_loopid") 
+			{
+				var loopName = substr(raw_key, 0, key_len - 7);
+				inc_loopid(myNodeName, loopName);
+				debprint("Bombable: Ending loop " ~ loopName ~ " for " ~ myNodeName);
+				append(loops, loopName);
+			}
 		}
 	}
 
@@ -12868,7 +12969,9 @@ var resetScenario = func()
 	var timeNow = getprop("/sim/time/elapsed-sec");
 	var startTime = timeNow + 120;
 	setprop("/sim/speed-up", 16);
-	debprint("Bombable: delaying restart");
+	msg = "Bombable: delaying restart";
+	debprint(msg);
+	mainStatusPopupTip(msg, 5);
 	settimer(func{startScenario(startTime)}, 1);
 }
 
@@ -12898,8 +13001,10 @@ var restartAllLoops = func(loops)
 ########################## restartLoop ###########################
 var restartLoop = func(myNodeName, loopName)
 {
+	var ats = attributes[myNodeName];
+	var type= ats.type;
+	if (!contains(ats.loopids, loopName ~ "_loopid")) return; # to restart a loop we require it to have an earlier id
 	var loopid = inc_loopid (myNodeName, loopName);
-	var type= attributes[myNodeName].type;
 	var r = rand() - 0.5;
 	if (loopName == "weapons") 
 	{
@@ -12907,9 +13012,9 @@ var restartLoop = func(myNodeName, loopName)
 	}
 	elsif (loopName == "ground") 
 	{
-		settimer( func {ground_loop (loopid, myNodeName); }, r + 3);
+		settimer( func {ground_loop (loopid, myNodeName); }, r + 5);
 	}
-	elsif (type == "aircraft") 
+	elsif (type == "aircraft" and getprop(""~myNodeName~"/bombable/initializers/attack-initialized") != nil) # need to check whether ground vehicles and ships have an attack mode
 	{
 		if (loopName == "attack") 
 		{
@@ -12917,8 +13022,15 @@ var restartLoop = func(myNodeName, loopName)
 		}
 		elsif (loopName == "speed_adjust") 
 		{
-			settimer ( func {speed_adjust_loop ( loopid, myNodeName, .3 + rand() / 30); }, r + 4);
+			settimer ( func {speed_adjust_loop ( loopid, myNodeName, .3 + rand() / 30); }, r + 7);
 		}
+	}
+
+	if (type == "aircraft") {
+		# reset flight controls
+		setprop (""~myNodeName~"/controls/flight/vertical-mode", "alt"); 
+		setprop (""~myNodeName~"/controls/flight/lateral-mode", "roll");
+		setprop (""~myNodeName~"/controls/flight/target-roll", 0);
 	}
 }
 

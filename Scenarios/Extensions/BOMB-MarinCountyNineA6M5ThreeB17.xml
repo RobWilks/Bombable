@@ -4,7 +4,7 @@
         <!-- B17s -->
         <team>B</team>
         <target>X</target>
-        <arrivalTime>90</arrivalTime>
+        <arrivalTime>320</arrivalTime>
         <airSpeed>182</airSpeed>
         <airportName>CA35</airportName>
         <heading>70</heading>
@@ -31,7 +31,7 @@
         <!-- Zeros -->
         <team>X</team>
         <target>B</target>
-        <arrivalTime>90</arrivalTime>
+        <arrivalTime>320</arrivalTime>
         <airSpeed>250</airSpeed>
         <airportName>CA35</airportName>
         <heading>90</heading>
@@ -58,7 +58,7 @@
         <!-- Zeros -->
         <team>Y</team>
         <target>B</target>
-        <arrivalTime>95</arrivalTime>
+        <arrivalTime>325</arrivalTime>
         <airSpeed>250</airSpeed>
         <airportName>CA35</airportName>
         <heading>90</heading>
@@ -85,7 +85,7 @@
         <!-- Zeros -->
         <team>Z</team>
         <target>B</target>
-        <arrivalTime>100</arrivalTime>
+        <arrivalTime>330</arrivalTime>
         <airSpeed>280</airSpeed>
         <airportName>CA35</airportName>
         <heading>90</heading>
