@@ -433,7 +433,7 @@
  </animation>
 
  <!-- cockpit -->
- <animation>
+ <!-- <animation>
   <type>rotate</type>
   <object-name>throttleLever</object-name>
   <property>controls/engines/engine[0]/throttle</property>
@@ -448,9 +448,9 @@
     <y>0.93969</y>
     <z>-0.3420</z>
   </axis>
- </animation>
+ </animation> -->
 
- <animation>
+ <!-- <animation>
   <type>rotate</type>
   <object-name>propPitchLever</object-name>
   <property>controls/engines/engine[0]/propeller-pitch</property>
@@ -465,7 +465,7 @@
     <y>0.93969</y>
     <z>-0.3420</z>
   </axis>
- </animation>
+ </animation> -->
 
 
  <!-- liverties -->

@@ -8886,8 +8886,8 @@ var aircraftCrashControl = func (myNodeName) {
 		return();
 	}
 
-	# var loopTime = 0.095 + rand() * .01; #rjw add noise
-	var loopTime = 0.475 + rand() * .05; #rjw reduced frequency - looks OK - else could keep high frequency for picth and speed change
+	# var loopTime = 0.475 + rand() * .05; #rjw reduced frequency - looks OK - else could keep high frequency for pitch and speed change
+	var loopTime = 1.2; #original
 
 	var crash = ctrls.crash;
 	crash.elapsedTime += loopTime;
@@ -12870,8 +12870,9 @@ var resetScenario = func()
 {
 	# first ensure that pause is off - otherwise we create zombie particles from fires
     # 1. Force unpause if currently frozen so OSG update visitors run
-    if (getprop("/sim/freeze/pause")) {
-        setprop("/sim/freeze/pause", 0);
+    if (getprop("/sim/freeze/clock")) {
+        setprop("/sim/freeze/clock", 0);
+        setprop("/sim/freeze/master", 0); #signal to drive individual component freezes (such as fuel). Not strictly necessary
         
         # 2. Defer the actual teardown by one frame tick (~50ms)
         settimer(func {
