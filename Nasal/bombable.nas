@@ -5245,7 +5245,7 @@ var rudder_roll_climb = func (myNodeName, degrees = 15, alt_ft = -20, time = 10,
 ############################### dodge #################################
 # function makes an object dodge
 #
-var dodge = func(myNodeName) 
+var dodge = func(myNodeName, dodgeAmount_deg = 0, dodgeDelay = 1) 
 {
 	# dodgeDelay is the minimum time between dodges
 	# dodgeDelay_remainder_sec is the amount of that time left
@@ -5278,22 +5278,25 @@ var dodge = func(myNodeName)
 	# skill ranges 0-6
 	var skill = calcPilotSkill (myNodeName);
 	var skillMult = (skill <= .2) ? 15 : 3/skill;
-				
-	# amount to dodge left-right, up to dodgeMax_deg in either direction
-	# (1-rand() * rand()) favors rolls towards the high end of the allowed range
-	var dodgeAmount_deg = (evas.dodgeMax_deg - evas.dodgeMin_deg) * (1 - rand() * rand()) + evas.dodgeMin_deg;
-	# cut the amount of dodging down some for less skilled pilots
-	dodgeAmount_deg  *=  (skill+6)/12;
-				
-	# If we're rolling hard one way then 'dodge' means roll the opposite way.
-	# Otherwise we set the roll direction randomly according to the preferences
-	# file
-	var currRoll_deg = getprop(""~myNodeName~"/orientation/roll-deg");
-	if (math.abs(currRoll_deg) > 30) dodgeAmount_deg = -math.sgn(currRoll_deg) * dodgeAmount_deg;
-	else if (rand() > evas.dodgeROverLPreference_percent/100) dodgeAmount_deg = -dodgeAmount_deg;
 
-	
-	var dodgeDelay = (evas.dodgeDelayMax_sec - evas.dodgeDelayMin_sec) * rand() + evas.dodgeDelayMin_sec;
+	# dodgeAmount is set in function call when want small 1sec changes to direction
+	if (!dodgeAmount_deg) {
+
+		# amount to dodge left-right, up to dodgeMax_deg in either direction
+		# (1-rand() * rand()) favors rolls towards the high end of the allowed range
+		var dodgeAmount_deg = (evas.dodgeMax_deg - evas.dodgeMin_deg) * (1 - rand() * rand()) + evas.dodgeMin_deg;
+		# cut the amount of dodging down some for less skilled pilots
+		dodgeAmount_deg  *=  (skill+6)/12;
+					
+		# If we're rolling hard one way then 'dodge' means roll the opposite way.
+		# Otherwise we set the roll direction randomly according to the preferences
+		# file
+		var currRoll_deg = getprop(""~myNodeName~"/orientation/roll-deg");
+		if (math.abs(currRoll_deg) > 30) dodgeAmount_deg = -math.sgn(currRoll_deg) * dodgeAmount_deg;
+		else if (rand() > evas.dodgeROverLPreference_percent/100) dodgeAmount_deg = -dodgeAmount_deg;
+		
+		dodgeDelay = (evas.dodgeDelayMax_sec - evas.dodgeDelayMin_sec) * rand() + evas.dodgeDelayMin_sec;
+	}			
 				
 	var dodgeAltAmount_ft = 0;
 				
@@ -5342,34 +5345,20 @@ var dodge = func(myNodeName)
 			choose_random_acrobatic(myNodeName);
 			return;
 		}
-					
-		#set rudder or roll degrees to that amount
-		rudder_roll_climb (myNodeName, dodgeAmount_deg, dodgeAltAmount_ft, rollTime_sec);
-
 			
 		dodgeVertSpeed_fps = 0;
-					
 		if ( dodgeAltAmount_ft > 0 )  dodgeVertSpeed_fps = math.abs ( evas.dodgeVertSpeedClimb_fps * dodgeAltAmount_ft / evas.dodgeAltMax_ft);
 		if ( dodgeAltAmount_ft < 0 )  dodgeVertSpeed_fps = - math.abs ( evas.dodgeVertSpeedDive_fps * dodgeAltAmount_ft / evas.dodgeAltMin_ft );
 						
-		#rjw next block not used
-		#velocities/vertical-speed-fps seems to be fps * 1000 for some reason?  At least, approximately, 300,000 seems to be about 300 fps climb, for instance.
-		# and we reduce the amount of climb/dive possible depending on the current roll angle (can't climb/dive rapidly if rolled to 90 degrees . . . )
-		#dodgeVertSpeed_fps *= 1000 * math.abs(math.cos(currRoll_deg* D2R));
-		#dodgeVertSpeed_fps *=  math.abs(math.cos(currRoll_deg* D2R));
-					
-		#vert-speed prob
-		#just putting a large number directly into vertical-speed-fps makes the aircraft
-		#jump up or down far too abruptly for realism
-		#if (dodgeVertSpeed_fps != 0) setprop ("" ~ myNodeName ~ "/velocities/vertical-speed-fps", dodgeVertSpeed_fps);
-		#end unused
-
+		#set rudder or roll degrees to that amount
+		rudder_roll_climb (myNodeName, dodgeAmount_deg, dodgeAltAmount_ft, rollTime_sec, evas.dodgeMax_deg);
 
 					
 		# Roll/climb for rollTime_sec seconds, then wait dodgeDelay - rollTime seconds 
 		# (to allow the aircraft's turn to develop from the roll).
 
-		aircraftRoll (myNodeName, dodgeAmount_deg, rollTime_sec, evas.dodgeMax_deg);
+		# aircraftRoll (myNodeName, dodgeAmount_deg, rollTime_sec, evas.dodgeMax_deg);
+		# also called in rudder_roll_climb so commented out
 		
 		# After this delay FG's aircraft AI will automatically return it to near-level flight.
 		# Return to near-level flight after a delay of 3-5x the duration of the roll. 
@@ -8756,7 +8745,7 @@ var aircraftTurnToHeading = func (myNodeName, rolldegrees = 45, targetAlt_m = "n
 }
 ################### checkAircraftCourse ###################
 # rjw: function will switch from hdg to roll control if the aircraft is on course to the target
-# called only be aircraft for which attack is disabled
+# called only by aircraft for which attack is disabled
 
 var checkAircraftCourse = func (myNodeName, updateinterval_sec = 1) {
 	var current_heading = getprop (""~myNodeName~"/orientation/true-heading-deg"); 
@@ -8886,8 +8875,8 @@ var aircraftCrashControl = func (myNodeName) {
 		return();
 	}
 
-	# var loopTime = 0.475 + rand() * .05; #rjw reduced frequency - looks OK - else could keep high frequency for pitch and speed change
-	var loopTime = 1.2; #original
+	var loopTime = 0.475 + rand() * .05; #rjw reduced frequency - looks OK - else could keep high frequency for pitch and speed change
+	# var loopTime = 1.2; #original
 
 	var crash = ctrls.crash;
 	crash.elapsedTime += loopTime;
@@ -10181,11 +10170,11 @@ var initialize_func = func ( b ){
 	stores.fillFuel(myNodeName, 1);
 
 	# determines how AI aircraft are controlled - Bombable sets altitudes and roll
+	# target-alt and target-roll set when FG loads scenario
 	if (attributes[myNodeName].type == "aircraft")
 	{
 		setprop (""~myNodeName~"/controls/flight/vertical-mode", "alt"); 
 		setprop (""~myNodeName~"/controls/flight/lateral-mode", "roll");
-	# target-alt and target-roll set when FG loads scenario
 	}
 
 	addToTargets(myNodeName); # add AI model to list of targets and ID its team.  Targets are assigned after scenario initialization
@@ -12623,10 +12612,12 @@ var waitForAI = func()
 # a scenario consists of:
 # a set of groups of objects 
 # each group is assigned to a team (can be the same team)
+# team A is the main aircraft (one member)
+# the teams belong to opposing forces, blue (B - M) and red (N - Z)
 # teams B and C have the specific role of attacking the airport and direct their courses to it
-# and is provided with co-ordinates relative to an airport, by assuming that
+# Each group has an airport and is provided with co-ordinates relative to it, by assuming that
 # the group is on course to the airport at a distance set by its arrival time and speed
-# each object in the group is given an offset in metres relative to the group centre
+# Each object in the group is given an offset in metres relative to the group centre
 # these can be in 1000s (kilometres) for a dispersed formation, e.g. a marine convoy
 # the y-offset is the closest distance of approach to the airport assuming the path is not diverted  
 # the number of offsets defines the number of objects in the group
@@ -12753,7 +12744,8 @@ var startScenario = func(startTime)
 			if (count < size(teams[teamName].indices)) # check to ensure scenario definition and extension files are consistent
 			{
 				myNodeName = nodes[teams[teamName].indices[count]];
-				var type = attributes[myNodeName].type;
+				var ats = attributes[myNodeName];
+				var type = ats.type;
 				count += 1;
 				teams[teamName].count = count;
 				setprop(""~myNodeName~"/orientation/true-heading-deg", group.heading);
@@ -12784,6 +12776,10 @@ var startScenario = func(startTime)
 					updateTargetHeading_func(loopid, myNodeName);
 					debprint ("Bombable: updateTargetHeading for " ~ myNodeName);
 				}
+
+				
+				ats.jobDone = 0; # flag set when mission accomplished
+				ats.heading = group.heading; # provides default heading for navigation
 			}
 		}
 	}
@@ -12814,21 +12810,41 @@ var updateTargetHeading_func = func(loopid, myNodeName) {
 
 
 ########################## update target heading ###########################
-# routine called by non-attacking aircraft that are targetting the starting airport
-# also used to check whether they have reached their target - a successful mission!
+# function called by non-attacking aircraft that are targetting the starting airport
+# also used to check if they have reached their target when jobDone is set indicating a successful mission 
+# ats.heading provides a default heading and is set when the scenario loads
 
 var updateTargetHeading = func(id, myNodeName) {
 	var ats = attributes[myNodeName];
 	id == ats.loopids.updateTargetHeading_loopid or return;
 	# skill ranges 0-6
 	var skill = calcPilotSkill (myNodeName);
+	var threshold = 500;
+	var myHeading_deg = ats.heading; # if further away than threshold 1 stay on heading in initial scenario
 	if (rand() < skill / 6 * (1.0 - ats.damage)) {
+		if (!ats.jobDone) {
 		var distHdg = courseToAirport (myNodeName); # returns a hash
 		var dist = distHdg.distance;
-		var courseToTarget_deg = distHdg.heading; # absolute bearing
+			if (dist[0] < threshold) {
+				ats.jobDone = 1;
+				var msg = getCallSign(myNodeName) ~ " reached target.  Mission accomplished.  Returning to base.";
+				gui.popupTip(msg, 5);				
+				mainStatusPopupTip (msg, 5);
+				debprint ("Bombable: "~msg);
+				myHeading_deg = math.fmod(myHeading_deg + 180, 360);
+				ats.heading = myHeading_deg; # update the default heading so as to return to base
+			}
+			else {
+				myHeading_deg = distHdg.heading; # set course heading for target
+			}
+		} 
 		var oldHdg = getprop("" ~ myNodeName ~ "/controls/flight/target-hdg");
-		setprop("" ~ myNodeName ~ "/controls/flight/target-hdg", courseToTarget_deg);
-		debprint(sprintf("Bombable: updated target heading for %s from %.1f to %.1f", myNodeName, oldHdg, courseToTarget_deg));
+		var diff = math.abs(oldHdg - myHeading_deg);
+		if (diff > 180) diff = 360 - diff;
+		if (diff > 2) {
+			setprop("" ~ myNodeName ~ "/controls/flight/target-hdg", myHeading_deg);
+			debprint(sprintf("Bombable: updated target heading for %s from %.1f to %.1f", myNodeName, oldHdg, myHeading_deg));
+		}
 	}
 	settimer(func {updateTargetHeading(id, myNodeName)}, 5 + rand());
 }
