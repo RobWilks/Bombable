@@ -396,6 +396,9 @@
         ########################################################################                
 	    
 		print("Initializing " ~ thisNodeName);
+
+
+    
 		# Nasal for Type45		
 		var wind_node =
 		props.globals.getNode("/environment/wind-speed-kt");

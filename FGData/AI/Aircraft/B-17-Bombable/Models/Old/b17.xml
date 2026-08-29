@@ -77,10 +77,7 @@
     <object-name>propdiscGI</object-name>
     <object-name>propblurGE</object-name>
     <object-name>propdiscGE</object-name>
-
   </animation>
-
-  
 
 <!--   <animation>
     <type>shader</type>
@@ -758,31 +755,6 @@
       <z>  0.000 </z>
     </axis>
   </animation>
-
-
-  <!-- Whole-Model Turbulence Rotations -->
-  <animation>
-    <type>rotate</type>
-    <property>orientation/roll-offset-deg</property>
-    <factor>1.0</factor>
-    <axis>
-      <x>1.0</x>
-      <y>0.0</y>
-      <z>0.0</z>
-    </axis>
-  </animation>
-
-  <animation>
-    <type>rotate</type>
-    <property>orientation/pitch-offset-deg</property>
-    <factor>1.0</factor>
-    <axis>
-      <x>0.0</x>
-      <y>1.0</y>
-      <z>0.0</z>
-    </axis>
-  </animation>
-
 
 
 

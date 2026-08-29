@@ -14,9 +14,17 @@ var main = func( addon ) {
     # setting root path to addon
     setprop("/sim/bombable/root_path", root);
 
+    # Scripts to load: [filename, namespace]
+    var scripts = [
+        ["fast_trig.nas",     "fast_trig"],
+        ["gui_ai_views.nas",  "gui_ai_views"],
+        ["bombable.nas",      "bombable"]
+    ];
 
-    # load scripts
-    foreach(var f; ['bombable.nas'] ) {
-        io.load_nasal( root ~ "/Nasal/" ~ f, "bombable" );
+    # Load scripts sequentially on addon init
+    foreach(var script; scripts) {
+        var file_path = root ~ "/Nasal/" ~ script[0];
+        var namespace = script[1];
+        io.load_nasal(file_path, namespace);
     }
 }

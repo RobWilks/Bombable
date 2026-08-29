@@ -2304,9 +2304,6 @@ var setupBombableMenu = func {
 	io.read_properties(bombable_settings_file, target);
 	mirrorMenu();
 
-	# Load the GUI view selector script into the 'gui_ai_views' namespace
-	var nasal_dir = getprop("/sim/fg-aircraft") ~ "/../../Nasal";
-	io.load_nasal(nasal_dir ~ "/gui_ai_views.nas", "gui_ai_views");
 
 	# Automatically load a nasal console
 	settimer(func {
@@ -2727,6 +2724,11 @@ var hitground_stop_explode = func (myNodeName, alt) {
 	# if not, explode for ~3 seconds
 	if ( !ats.exploded )
 	{
+		# turn off atmospheric turbulence
+		var thisNode = props.globals.getNode(myNodeName);
+		var enable_node = thisNode.getNode("sim/turbulence-enabled");
+		if (enable_node != nil) enable_node.setBoolValue(0);
+
 		# and we cover our tracks by making a really big explosion momentarily
 		# if it hit the ground that hard it's justified, right?
 		if (vuls.explosiveMass_kg < 0) vuls.explosiveMass_kg = 1;

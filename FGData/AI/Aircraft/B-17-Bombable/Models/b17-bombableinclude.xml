@@ -30,8 +30,13 @@
 				# Datas of this object are under: cmdarg().getPath()
 				var thisNodeName = cmdarg().getPath();
 				var thisNode = props.globals.getNode(thisNodeName);
+
+
 				# Add some useful nodes
 
+        # Flag to track active state
+        var enable_node = thisNode.getNode("sim/turbulence-enabled", 1);
+        enable_node.setBoolValue(1);    
 
 				
         ########################################################################
@@ -300,8 +305,56 @@
         ########################################################################
         ########################################################################                
 	      
+        # Cached Property Nodes
+        var model_root = cmdarg();
+        var pitch_node = model_root.getNode("orientation/pitch-offset-deg", 1);
+        var roll_node  = model_root.getNode("orientation/roll-offset-deg", 1);
 
-				
+        # Generate a unique seed per instance (using property tree ID or random float)
+        var seed = rand() * 100.0;
+        
+        # Instance-specific phase offsets (0 to 2*PI)
+        var PHASE_ROLL1  = seed * 1.37;
+        var PHASE_ROLL2  = seed * 2.81;
+        var PHASE_PITCH1 = seed * 0.93;
+        var PHASE_PITCH2 = seed * 3.14;
+
+        # Slight random frequency scalar per aircraft (+/- 15%)
+        var freq_scale = 0.85 + (rand() * 0.30);
+
+        # Pre-calculated Angular Frequencies in Rad/s (2 * pi * f)
+        var TWO_PI = 2.0 * math.pi;        
+
+        # Base Frequencies & Amplitudes
+        var ROLL_AMP1  = 2.2;  var ROLL_FREQ1  = TWO_PI * 0.45 * freq_scale;
+        var ROLL_AMP2  = 0.9;  var ROLL_FREQ2  = TWO_PI * 1.15 * freq_scale;
+        var PITCH_AMP1 = 1.1;  var PITCH_FREQ1 = TWO_PI * 0.35 * freq_scale;
+        var PITCH_AMP2 = 0.5;  var PITCH_FREQ2 = TWO_PI * 0.85 * freq_scale;
+
+        var rockAndRoll = func () {
+          # Exit check 1: Model node tree deleted or detached from parent
+            if (!model_root == nil or model_root.getParent() == nil) return;
+
+            # Exit check 2: Explicitly marked inactive by unload script
+            if (!enable_node.getBoolValue()) return;            
+
+            var t = getprop("/sim/time/elapsed-sec");
+            var turb = getprop("/environment/turbulence/magnitude-norm") or 0.2;
+
+            # Multi-harmonic sum of sines with randomized phase shift
+            var roll_deg  = (fast_trig.sin((t * ROLL_FREQ1) + PHASE_ROLL1) * ROLL_AMP1 + 
+                            fast_trig.sin((t * ROLL_FREQ2) + PHASE_ROLL2) * ROLL_AMP2) * turb;
+
+            var pitch_deg = (fast_trig.sin((t * PITCH_FREQ1) + PHASE_PITCH1) * PITCH_AMP1 + 
+                            fast_trig.cos((t * PITCH_FREQ2) + PHASE_PITCH2) * PITCH_AMP2) * turb;
+
+            roll_node.setDoubleValue(roll_deg);
+            pitch_node.setDoubleValue(pitch_deg);
+
+            settimer(rockAndRoll, 0.05);
+        };
+
+        rockAndRoll();				
 			}
 			
 			object_init();
@@ -312,6 +365,14 @@
 			print("Unload B-17");
       var nodeName= cmdarg().getPath();
       print("Unload object "~ nodeName );
+
+      # Zero sim/turbulence on unload to terminate rockAndRoll
+      var thisNode = props.globals.getNode(nodeName);
+      if (thisNode != nil) {
+          var enable_node = thisNode.getNode("sim/turbulence-enabled");
+          if (enable_node != nil) enable_node.setBoolValue(0);
+      }
+
       bombable.de_overall_initialize( nodeName );        
       bombable.initialize_del( nodeName );
       bombable.ground_del( nodeName );
@@ -319,8 +380,6 @@
       bombable.bombable_del( nodeName );
       # bombable.attack_del( nodeName );
       bombable.weapons_del (nodeName);      
-#  </unload>
-
 			]]>
 		</unload>
  </nasal>  
