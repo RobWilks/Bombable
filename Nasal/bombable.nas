@@ -1545,6 +1545,7 @@ var resetBombableDamageFuelWeapons = func (myNodeName) {
 		var ctrls = ats.controls;	
 		ats.damage = 0;
 		ats.exploded = 0;
+		ats.jobDone = 0; # flag set when mission accomplished
 		ctrls.damageAltAddCurrent_ft = 0;
 		ctrls.damageAltAddCumulative_ft = 0;
 		ctrls.onGround = 0;
@@ -9902,6 +9903,7 @@ var initialize_func = func ( b ){
 
 	b.damage = 0;
 	b.exploded = 0;
+	b.jobDone = 0; # flag set when mission accomplished
 	b.team = nil;
 	b.side = -1;
 	b.index = -1;
@@ -12779,8 +12781,6 @@ var startScenario = func(startTime)
 					debprint ("Bombable: updateTargetHeading for " ~ myNodeName);
 				}
 
-				
-				ats.jobDone = 0; # flag set when mission accomplished
 				ats.heading = group.heading; # provides default heading for navigation
 			}
 		}
@@ -12821,13 +12821,19 @@ var updateTargetHeading = func(id, myNodeName) {
 	id == ats.loopids.updateTargetHeading_loopid or return;
 	# skill ranges 0-6
 	var skill = calcPilotSkill (myNodeName);
-	var threshold = 500;
-	var myHeading_deg = ats.heading; # if further away than threshold 1 stay on heading in initial scenario
+	var thresholdTarget = 500; # how precisiely we want to hit the target
+	var myHeading_deg = ats.heading; # heading set in initial scenario
 	if (rand() < skill / 6 * (1.0 - ats.damage)) {
+		if (ats.controls.stayInFormation) {
+			ats.controls.stayInFormation = 0;
+			var msg = getCallSign(myNodeName)~" starting bombing run";
+			targetStatusPopupTip (msg, 5);
+			settimer(func {dodge (myNodeName, 5, 1);}, 1); #rolls then switch flight controls to lateral mode hdg 
+		}
 		if (!ats.jobDone) {
-		var distHdg = courseToAirport (myNodeName); # returns a hash
-		var dist = distHdg.distance;
-			if (dist[0] < threshold) {
+			var distHdg = courseToAirport (myNodeName); # returns a hash
+			var dist = distHdg.distance;
+			if (dist[0] < thresholdTarget) {
 				ats.jobDone = 1;
 				var msg = getCallSign(myNodeName) ~ " reached target.  Mission accomplished.  Returning to base.";
 				gui.popupTip(msg, 5);				

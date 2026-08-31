@@ -61,7 +61,7 @@ var start_slot_smoother = func(slot_idx, raw_prop, proxy_path, delay_sec) {
 
             var lat_n = target_node.getNode("position/latitude-deg");
             var lon_n = target_node.getNode("position/longitude-deg");
-            var alt_n = target_node.getNode("position/altitude-ft");
+            var alt_n = target_node.getNode("positio?ltitude-ft");
 
             var hdg_n = target_node.getNode("orientation/true-heading-deg");
             if (hdg_n == nil) hdg_n = target_node.getNode("orientation/heading-deg");
@@ -241,8 +241,8 @@ var apply_selected_ai_view = func {
     var selection = getprop("/sim/gui/dialogs/ai-view/selected-target");
     if (selection == nil) return;
 
-    var idx_sep = find("  -  ", selection);
-    var ai_path = (idx_sep != -1) ? substr(selection, idx_sep + 5) : selection;
+    var idx_sep = find(" - ", selection);
+    var ai_path = "/ai/models/" ~ ((idx_sep != -1) ? substr(selection, idx_sep + 3) : selection);
     var slot_str  = getprop("/sim/gui/dialogs/ai-view/selected-slot");
 
     if (slot_str == nil or ai_path == nil or ai_path == "") {
@@ -270,10 +270,16 @@ var apply_selected_ai_view = func {
         (z_off != nil) ? z_off : 0.0
     );
 
-    gui.popupTip("Assigned " ~ ai_path ~ " to Slot " ~ slot_idx, 3);
+    gui.popupTip("Assigned " ~ substr(ai_path, 11) ~ " to Slot " ~ slot_idx, 3);
 };
 
 var show_ai_view_menu_in_memory = func {
+    # Early exit if bombable is not present in globals
+    if (!contains(globals, "bombable") or bombable == nil) {
+        gui.popupTip("Error: Bombable addon is not loaded.");
+        return;
+    }
+
     var dialog_name = "ai_view_selector";
 
     var ai_paths = [];
@@ -300,16 +306,28 @@ var show_ai_view_menu_in_memory = func {
     }
 
     var ai_callSign = [];
+    var ai_status = [];
     foreach (var path; ai_paths) {
         var callsign = nil;
-        if (contains(globals, "bombable") and contains(bombable, "getCallSign")) {
+        var dmg_str = "?";
+        var mission_str = "?";
+        
+        if (contains(bombable, "getCallSign")) {
             callsign = bombable.getCallSign(path);
         }
-        if (callsign == nil or callsign == "") {
-            callsign = "***";
+        append(ai_callSign, (callsign != nil and callsign != "") ? callsign : "***");
+
+        if (contains(bombable, "attributes") and contains(bombable.attributes, path)) {
+            var node_attr = bombable.attributes[path];
+            if (contains(node_attr, "damage") and node_attr.damage != nil) {
+                dmg_str = sprintf("%d%%", node_attr.damage * 100);
+            }
+            if (contains(node_attr, "jobDone") and node_attr.jobDone != nil) {
+                mission_str = "" ~ node_attr.jobDone;
+            }
         }
-        append(ai_callSign, callsign);
-    }
+        append(ai_status, sprintf("D:%s M:%s", dmg_str, mission_str));
+    } 
 
     var slot_prop   = "/sim/gui/dialogs/ai-view/selected-slot";
     var target_prop = "/sim/gui/dialogs/ai-view/selected-target";
@@ -327,12 +345,30 @@ var show_ai_view_menu_in_memory = func {
         var cur_y = getprop("/sim/view[" ~ current_slot ~ "]/config/y-offset-m");
         var cur_z = getprop("/sim/view[" ~ current_slot ~ "]/config/z-offset-m");
 
+        # ideally would be able to set a default in the ufo-bombable.xml file for aircraft config 
+        # but there seem to be additional offsets applied when the view is first created
         setprop(x_off_prop, (cur_x != nil) ? cur_x : 0.0);
-        setprop(y_off_prop, (cur_y != nil) ? cur_y : 0.0);
-        setprop(z_off_prop, (cur_z != nil) ? cur_z : 0.0);
+        setprop(y_off_prop, (cur_y != nil and cur_y != 0.0) ? cur_y : -15.0);
+        setprop(z_off_prop, (cur_z != nil and cur_z != 0.0) ? cur_z : -40.0);
     }
 
-    setprop(target_prop, ai_callSign[0] ~ "  -  " ~ ai_paths[0]);
+    # Format entries cleanly
+    var target_list = [];
+    forindex (var i; ai_paths) {
+        append(target_list, ai_callSign[i] ~ ai_status[i] ~ " - " ~ substr(ai_paths[i], 11));
+    }
+
+    # Retain selection if valid, otherwise fallback to first entry
+    var existing_target = getprop(target_prop);
+    var target_valid = 0;
+    if (existing_target != nil) {
+        foreach (var t; target_list) {
+            if (t == existing_target) { target_valid = 1; break; }
+        }
+    }
+    if (!target_valid) {
+        setprop(target_prop, target_list[0]);
+    }
 
     var dlg_tree = props.Node.new();
     dlg_tree.getChild("name", 0, 1).setValue(dialog_name);
@@ -400,8 +436,8 @@ var show_ai_view_menu_in_memory = func {
     target_combo.getChild("property", 0, 1).setValue(target_prop);
     target_combo.getChild("pref-width", 0, 1).setIntValue(300);
 
-    forindex (var i; ai_paths) {
-        target_combo.addChild("value").setValue(ai_callSign[i] ~ "  -  " ~ ai_paths[i]);
+    foreach (var entry; target_list) {
+        target_combo.addChild("value").setValue(entry);
     }
 
     var target_binding = target_combo.addChild("binding");
@@ -409,12 +445,14 @@ var show_ai_view_menu_in_memory = func {
 
     dlg_tree.addChild("hrule");
 
+    # Button Group
     var btn_grp = dlg_tree.addChild("group");
     btn_grp.getChild("layout", 0, 1).setValue("hbox");
 
+    # Set & View Button
     var set_btn = btn_grp.addChild("button");
     set_btn.getChild("legend", 0, 1).setValue("Set & View Target");
-    set_btn.getChild("pref-width", 0, 1).setIntValue(160);
+    set_btn.getChild("pref-width", 0, 1).setIntValue(140);
     
     var apply_binding = set_btn.addChild("binding");
     apply_binding.getChild("command", 0, 1).setValue("dialog-apply");
@@ -423,9 +461,23 @@ var show_ai_view_menu_in_memory = func {
     script_binding.getChild("command", 0, 1).setValue("nasal");
     script_binding.getChild("script", 0, 1).setValue("gui_ai_views.apply_selected_ai_view();");
 
+    # Refresh Button
+    var refresh_btn = btn_grp.addChild("button");
+    refresh_btn.getChild("legend", 0, 1).setValue("Refresh");
+    refresh_btn.getChild("pref-width", 0, 1).setIntValue(80);
+
+    var refresh_apply = refresh_btn.addChild("binding");
+    refresh_apply.getChild("command", 0, 1).setValue("dialog-apply");
+
+    var refresh_script = refresh_btn.addChild("binding");
+    refresh_script.getChild("command", 0, 1).setValue("nasal");
+    refresh_script.getChild("script", 0, 1).setValue("gui_ai_views.show_ai_view_menu_in_memory();");
+
+    # Close Button
     var close_btn = btn_grp.addChild("button");
     close_btn.getChild("legend", 0, 1).setValue("Close");
     close_btn.getChild("pref-width", 0, 1).setIntValue(80);
+
     var close_binding = close_btn.addChild("binding");
     close_binding.getChild("command", 0, 1).setValue("dialog-close");
 
