@@ -36,7 +36,7 @@ Any aircraft that shoots guns or drops bombs can damage the Zeros and B-17.  A g
       <altitude type="double">5100</altitude>
       <speed>182</speed>
       <bank type="double">0</bank>
-      <heading type="double">10</heading>
+      <heading type="double">180.1</heading>
     </entry>
     <entry>
       <search-order>PREFER_AI</search-order>
@@ -49,7 +49,7 @@ Any aircraft that shoots guns or drops bombs can damage the Zeros and B-17.  A g
       <altitude type="double">5100</altitude>
       <speed>182</speed>
       <bank type="double">0</bank>
-      <heading type="double">10</heading>
+      <heading type="double">180.1</heading>
     </entry>
     <entry>
       <search-order>PREFER_AI</search-order>
@@ -62,7 +62,7 @@ Any aircraft that shoots guns or drops bombs can damage the Zeros and B-17.  A g
       <altitude type="double">5100</altitude>
       <speed>182</speed>
       <bank type="double">0</bank>
-      <heading type="double">10</heading>
+      <heading type="double">180.1</heading>
     </entry>
     <!--  First F6F Squadron -->
     <entry>
@@ -73,10 +73,10 @@ Any aircraft that shoots guns or drops bombs can damage the Zeros and B-17.  A g
       <model type="string">Aircraft/F6F-Hellcat-Bombable/Models/f6f.xml</model>
       <latitude type="double">26.1815</latitude>
       <longitude type="double">127.6380</longitude>
-      <altitude type="double">12000</altitude>
+      <altitude type="double">8000</altitude>
       <speed>250</speed>
       <bank type="double">0</bank>
-      <heading type="double">16</heading>
+      <heading type="double">200</heading>
       <performance-class>ww2_fighter</performance-class>
     </entry>
     <entry>
@@ -87,10 +87,10 @@ Any aircraft that shoots guns or drops bombs can damage the Zeros and B-17.  A g
       <model type="string">Aircraft/F6F-Hellcat-Bombable/Models/f6f.xml</model>
       <latitude type="double">26.1815</latitude>
       <longitude type="double">127.6384</longitude>
-      <altitude type="double">12000</altitude>
+      <altitude type="double">8000</altitude>
       <speed>257</speed>
       <bank type="double">0</bank>
-      <heading type="double">16</heading>
+      <heading type="double">200</heading>
       <performance-class>ww2_fighter</performance-class>
     </entry>
     <entry>
@@ -101,10 +101,10 @@ Any aircraft that shoots guns or drops bombs can damage the Zeros and B-17.  A g
       <model type="string">Aircraft/F6F-Hellcat-Bombable/Models/f6f.xml</model>
       <latitude type="double">26.1815</latitude>
       <longitude type="double">127.6388</longitude>
-      <altitude type="double">12000</altitude>
+      <altitude type="double">8000</altitude>
       <speed>258</speed>
       <bank type="double">0</bank>
-      <heading type="double">16</heading>
+      <heading type="double">200</heading>
       <performance-class>ww2_fighter</performance-class>
     </entry>    
     <!--  First Zero Squadron -->
@@ -116,10 +116,10 @@ Any aircraft that shoots guns or drops bombs can damage the Zeros and B-17.  A g
       <model type="string">Aircraft/A6M2-Bombable/Models/a6m2-anim.xml</model>
       <latitude type="double">26.1851097548720</latitude>
       <longitude type="double">127.6384</longitude>
-      <altitude type="double">10000</altitude>
+      <altitude type="double">6000</altitude>
       <speed>250</speed>
       <bank type="double">0</bank>
-      <heading type="double">10</heading>
+      <heading type="double">160</heading>
       <performance-class>ww2_fighter</performance-class>
     </entry>
     <entry>
@@ -130,10 +130,10 @@ Any aircraft that shoots guns or drops bombs can damage the Zeros and B-17.  A g
       <model type="string">Aircraft/A6M2-Bombable/Models/a6m2-anim.xml</model>
       <latitude type="double">26.1851097548720</latitude>
       <longitude type="double">127.6376</longitude>
-      <altitude type="double">10000</altitude>
+      <altitude type="double">6000</altitude>
       <speed>261</speed>
       <bank type="double">0</bank>
-      <heading type="double">10</heading>
+      <heading type="double">160</heading>
       <performance-class>ww2_fighter</performance-class>
     </entry>
     <entry>
@@ -144,10 +144,10 @@ Any aircraft that shoots guns or drops bombs can damage the Zeros and B-17.  A g
       <model type="string">Aircraft/A6M2-Bombable/Models/a6m2-anim.xml</model>
       <latitude type="double">26.1851097548720</latitude>
       <longitude type="double">127.6372</longitude>
-      <altitude type="double">10000</altitude>
+      <altitude type="double">6000</altitude>
       <speed>265</speed>
       <bank type="double">0</bank>
-      <heading type="double">10</heading>
+      <heading type="double">160</heading>
       <performance-class>ww2_fighter</performance-class>
     </entry>
     <!--  Second Zero Squadron -->
@@ -156,13 +156,13 @@ Any aircraft that shoots guns or drops bombs can damage the Zeros and B-17.  A g
       <type>aircraft</type>
       <callsign>A6M2_Zen_Y</callsign>
       <name>A6M2A</name>
-      <model type="string">Aircraft/A6M2-Bombable/Models/a6m2b-green.xml</model>
+      <model type="string">Aircraft/A6M2-Bombable/Models/a6m2-anim.xml</model>
       <latitude type="double">26.1815</latitude>
       <longitude type="double">127.6380</longitude>
-      <altitude type="double">12000</altitude>
+      <altitude type="double">7000</altitude>
       <speed>250</speed>
       <bank type="double">0</bank>
-      <heading type="double">10</heading>
+      <heading type="double">160</heading>
       <performance-class>ww2_fighter</performance-class>
     </entry>
     <entry>
@@ -170,13 +170,13 @@ Any aircraft that shoots guns or drops bombs can damage the Zeros and B-17.  A g
       <type>aircraft</type>
       <callsign>A6M2_Reincarnation_Y</callsign>
       <name>A6M2B</name>
-      <model type="string">Aircraft/A6M2-Bombable/Models/a6m2b-green.xml</model>
+      <model type="string">Aircraft/A6M2-Bombable/Models/a6m2-anim.xml</model>
       <latitude type="double">26.1815</latitude>
       <longitude type="double">127.6384</longitude>
-      <altitude type="double">12000</altitude>
+      <altitude type="double">7000</altitude>
       <speed>257</speed>
       <bank type="double">0</bank>
-      <heading type="double">10</heading>
+      <heading type="double">160</heading>
       <performance-class>ww2_fighter</performance-class>
     </entry>
     <entry>
@@ -184,13 +184,13 @@ Any aircraft that shoots guns or drops bombs can damage the Zeros and B-17.  A g
       <type>aircraft</type>
       <callsign>A6M2_Harmony_Y</callsign>
       <name>A6M2C</name>
-      <model type="string">Aircraft/A6M2-Bombable/Models/a6m2b-green.xml</model>
+      <model type="string">Aircraft/A6M2-Bombable/Models/a6m2-anim.xml</model>
       <latitude type="double">26.1815</latitude>
       <longitude type="double">127.6388</longitude>
-      <altitude type="double">12000</altitude>
+      <altitude type="double">7000</altitude>
       <speed>258</speed>
       <bank type="double">0</bank>
-      <heading type="double">10</heading>
+      <heading type="double">160</heading>
       <performance-class>ww2_fighter</performance-class>
     </entry>
   </scenario>

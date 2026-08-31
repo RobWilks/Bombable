@@ -12760,7 +12760,7 @@ var startScenario = func(startTime)
 					setprop(""~myNodeName~"/velocities/true-airspeed-kt", group.airSpeed);
 					setprop(""~myNodeName~"/controls/flight/target-spd", group.airSpeed);
 					setprop(""~myNodeName~"/controls/flight/target-alt", group.alt + o[2] * M2FT);
-					setprop(""~myNodeName~"/controls/tgt-heading-degs", group.heading);
+					setprop(""~myNodeName~"/controls/flight/target-hdg", group.heading);
 					setprop(""~myNodeName~"/position/altitude-ft", group.alt + o[2] * M2FT);
 				}
 				elsif (type == "ship")

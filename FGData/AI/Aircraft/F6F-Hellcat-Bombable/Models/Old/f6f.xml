@@ -94,9 +94,9 @@
     <object-name>gunsG</object-name>
     <object-name>gunsD</object-name>
     <object-name>hook</object-name>
-    <!-- Runtime texture lookup REMOVED -->
-    <!-- <property-base>sim/model/livery</property-base>
-    <texture-prop>texture</texture-prop> -->
+
+    <property-base>sim/model/livery</property-base>
+    <texture-prop>texture</texture-prop>
     <texture>texture.png</texture>
 <!--
     <diffuse>
@@ -128,8 +128,8 @@
     </shininess>
 -->
   </animation>
-  <!-- fuselage reflect is obsolete REMOVED -->
-  <!-- <effect>
+
+  <effect>
     <inherits-from>Aircraft/Generic/Effects/Fuselagereflect</inherits-from>
     <object-name>fuselage</object-name>
     <object-name>capot</object-name>
@@ -155,27 +155,28 @@
     <object-name>porteGB</object-name>
     <object-name>porteDA</object-name>
     <object-name>porteDB</object-name>
-  </effect> -->
+    <!-- object-name>tourvitres</object-name -->
+    <!-- object-name>tourverriere</object-name -->
+  </effect>
 
-  <!-- glass effects REMOVED -->
-  <!-- <animation>
+  <animation>
     <type>shader</type>
     <shader>chrome</shader>
     <texture>Aircraft/Generic/Effects/glass_shader.png</texture>
     <object-name>vitres</object-name>
     <object-name>verriere</object-name>
-  </animation> -->
-  <!-- shadow effects REMOVED -->
-  <!-- <animation>
+  </animation>
+
+  <animation>
     <type>noshadow</type>
     <object-name>vitres</object-name>
     <object-name>verriere</object-name>
     <object-name>propblur</object-name>
     <object-name>propdisc</object-name>
-  </animation> -->
+  </animation>
 
   <!-- Une ombre pour OSG -->
-  <!-- <model>
+  <model>
     <name>shadowOSG</name>
     <path>AI/Aircraft/F6F-Hellcat-Bombable/Models/shadow.xml</path>
   </model>
@@ -189,21 +190,21 @@
         <value>true</value>
       </equals>
     </condition>
-  </animation> -->
+  </animation>
 
   <!-- Effets de tir -->
   <!-- Gauche exterieur -->
   
 
-  <!-- Interior REMOVED-->
-  <!-- <model>
+  <!-- Interior -->
+  <model>
     <path>AI/Aircraft/F6F-Hellcat-Bombable/Models/Interior/interior.xml</path>
     <offsets>
       <x-m> 0 </x-m>
       <y-m> 0 </y-m>
       <z-m> 0 </z-m>
     </offsets>
-  </model> -->
+  </model>
 
   <!-- L'helice --> 
   <animation>
@@ -279,8 +280,8 @@
     </axis>
   </animation>
 
-  <!-- Pliage des ailes REMOVED -->
-  <!-- <animation>
+  <!-- Pliage des ailes -->
+  <animation>
     <name>AileGauche</name>
     <object-name>aileG</object-name>
     <object-name>voletG1</object-name>
@@ -326,10 +327,10 @@
       <y2-m>  2.032 </y2-m>
       <z2-m> -0.140 </z2-m>
     </axis>
-  </animation> -->
+  </animation>
 
-  <!-- Gouverne de direction REMOVED -->
-  <!-- <animation>
+  <!-- Gouverne de direction -->
+  <animation>
     <type>rotate</type>
     <object-name>direction</object-name>
     <property>surface-positions/rudder-pos-norm</property>
@@ -344,10 +345,10 @@
       <y> 0 </y>
       <z> 1 </z>
     </axis>
-  </animation> -->
+  </animation>
 
-  <!-- Animations des gouvernes de profondeur REMOVED -->
-  <!-- <animation>
+  <!-- Animations des gouvernes de profondeur -->
+  <animation>
     <type>rotate</type>
     <object-name>profondeurG</object-name>
     <property>surface-positions/elevator-pos-norm</property>
@@ -375,10 +376,10 @@
       <y2-m> 2.228 </y2-m>
       <z2-m> 0.211 </z2-m>
     </axis>
-  </animation> -->
+  </animation>
 
-  <!-- Animations des ailerons REMOVED -->
-  <!-- <animation>
+  <!-- Animations des ailerons -->
+  <animation>
     <type>rotate</type>
     <object-name>aileronG</object-name>
     <property>surface-positions/left-aileron-pos-norm</property>
@@ -406,10 +407,10 @@
       <y2-m>  6.140 </y2-m>
       <z2-m>  0.173 </z2-m>
     </axis>
-  </animation> -->
+  </animation>
 
-  <!-- Animation des volets REMOVED -->
-  <!-- <animation>
+  <!-- Animation des volets -->
+  <animation>
     <type>rotate</type>
     <object-name>voletG1</object-name>
     <property>surface-positions/flaps-pos-norm</property>
@@ -467,7 +468,7 @@
       <y2-m>  1.827 </y2-m>
       <z2-m> -0.458 </z2-m>
     </axis>
-  </animation> -->
+  </animation>
 
   <!-- Portes des trains -->
   <animation>
@@ -701,8 +702,8 @@
     </axis>
   </animation>
 
-  <!-- Rotation des roues lors du roulage REMOVED -->
-  <!-- <animation>
+  <!-- Rotation des roues lors du roulage -->
+  <animation>
     <type>spin</type>
     <object-name>roueG</object-name>
     <property>gear/gear[0]/rollspeed-ms</property>
@@ -751,10 +752,10 @@
       <y> -1 </y>
       <z>  0 </z>
     </axis>
-  </animation> -->
+  </animation>
 
-  <!-- Canopy REMOVED -->
-  <!-- <animation>
+  <!-- Canopy -->
+  <animation>
     <name>Canopy</name>
     <object-name>tourverriere</object-name>
     <object-name>verriere</object-name>
@@ -782,10 +783,10 @@
       <y> 0 </y>
       <z> 1 </z>
     </axis>
-  </animation> -->
+  </animation>
 
-  <!-- Clapets du capot REMOVED -->
-  <!-- <animation>
+  <!-- Clapets du capot -->
+  <animation>
     <type>rotate</type>
     <object-name>ailetteG1</object-name>
     <object-name>intailetteG1</object-name>
@@ -875,10 +876,10 @@
       <y2-m>  0.569 </y2-m>
       <z2-m>  0.662 </z2-m>
     </axis>
-  </animation> -->
+  </animation>
 
-  <!-- Crosse d'appontage REMOVED -->
-  <!-- <animation>
+  <!-- Crosse d'appontage -->
+  <animation>
     <type>rotate</type>
     <object-name>hook</object-name>
     <property>gear/tailhook/position-norm</property>
@@ -913,7 +914,7 @@
       <y> 0 </y>
       <z> 0 </z>
     </axis>
-  </animation> -->
+  </animation>
 
   <!-- Ajout des effets lumineux -->
   <model>

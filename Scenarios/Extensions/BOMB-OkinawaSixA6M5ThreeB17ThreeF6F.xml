@@ -7,7 +7,7 @@
         <arrivalTime>320</arrivalTime>
         <airSpeed>182</airSpeed>
         <airportName>ROAH</airportName>
-        <heading>70</heading>
+        <heading>180.1</heading>
         <alt>5000</alt>
         <offsets>
             <offset>
@@ -31,10 +31,10 @@
         <!-- F6Fs -->
         <team>D</team>
         <target>X</target>
-        <arrivalTime>330</arrivalTime>
+        <arrivalTime>180</arrivalTime>
         <airSpeed>280</airSpeed>
         <airportName>ROAH</airportName>
-        <heading>90</heading>
+        <heading>200</heading>
         <alt>8000</alt>
         <offsets>
             <offset>
@@ -54,14 +54,14 @@
             </offset>
         </offsets>
     </group>
+    <!-- Zeros -->
     <group>
-        <!-- Zeros -->
         <team>X</team>
-        <target>B</target>
-        <arrivalTime>320</arrivalTime>
+        <target>D</target>
+        <arrivalTime>200</arrivalTime>
         <airSpeed>250</airSpeed>
         <airportName>ROAH</airportName>
-        <heading>90</heading>
+        <heading>160</heading>
         <alt>6000</alt>
         <offsets>
             <offset>
@@ -81,15 +81,15 @@
             </offset>
         </offsets>
     </group>
+    <!-- Zeros -->
     <group>
-        <!-- Zeros -->
         <team>Y</team>
         <target>B</target>
-        <arrivalTime>325</arrivalTime>
+        <arrivalTime>210</arrivalTime>
         <airSpeed>250</airSpeed>
         <airportName>ROAH</airportName>
-        <heading>90</heading>
-        <alt>6100</alt>
+        <heading>160</heading>
+        <alt>7000</alt>
         <offsets>
             <offset>
                 <behind>0</behind>

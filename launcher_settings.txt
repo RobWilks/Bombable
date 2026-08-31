@@ -1,0 +1,24 @@
+--launcher
+--prop:/nasal/local_weather/enabled=false
+--metar=XXXX 012345Z 00000KT 19SM SKC 15/M99 Q1013 NOSIG
+--prop:/environment/atmosphere/is-isa=true
+--prop:/environment/weather-scenario=International Standard Atmosphere
+--timeofday=noon
+--prop:/scenery/use-vpb=false
+--prop:/sim/rendering/scenery-path-suffix[98]/enabled=false
+--prop:/sim/rendering/texture-cache/cache-enabled=false
+--disable-fullscreen
+--enable-terrasync
+--enable-sentry
+--aircraft-dir=/home/michael-wilkinson/Desktop/Bombable 5.0/Bombable/FGData/Aircraft/ufo-Bombable
+--aircraft=ufo-Bombable
+--airport=ROAH
+--fg-aircraft=/home/michael-wilkinson/Desktop/Bombable 5.0/Bombable/FGData/Aircraft
+--addon=/home/michael-wilkinson/Desktop/Bombable 5.0/Bombable
+--log-level=debug
+--prop:string:/sim/ai/scenario[0]=BOMB-OkinawaSixA6M5ThreeB17ThreeF6F
+--prop:/sim/terrasync/http-server=https://terrasync.b-cdn.net/
+--prop:/sim/terrasync/fgdata-server=https://terrasync-fgdata.b-cdn.net/
+--prop:/sim/terrasync/osm2city-server=https://terrasync-osm2city.b-cdn.net/
+--disable-fgcom
+--turbulence=0.4 
