@@ -8141,6 +8141,47 @@ var courseToAirport = func (myNodeName1) {
 }
 
 
+##################### courseToWaypoint ##########################
+# Returns a hash containing distance and heading from AI object (1) to a 3D waypoint vector (2).
+# wpt2 format: [lat2, lon2, alt2_ft]
+# Uses fast equirectangular approximation (requires m_per_deg_lon, m_per_deg_lat, FT2M, R2D globals)
+
+var courseToWaypoint = func (myNodeName1, wpt2) {
+    # 1. Validation check
+    if (myNodeName1 == nil or wpt2 == nil or size(wpt2) < 3) {
+        print("Error: courseToWaypoint requires a valid node string and 3D waypoint vector [lat, lon, alt].");
+        return nil;
+    }
+
+    # 2. Extract AI aircraft position from Property Tree
+    var lat1 = getprop(myNodeName1 ~ "/position/latitude-deg");
+    var lon1 = getprop(myNodeName1 ~ "/position/longitude-deg");
+    var alt1 = getprop(myNodeName1 ~ "/position/altitude-ft");
+
+    # 3. Extract target coordinates from 3D waypoint vector
+    var lat2 = wpt2[0];
+    var lon2 = wpt2[1];
+    var alt2 = wpt2[2];
+
+    # 4. Equirectangular delta calculations in meters
+    var dx = (lon2 - lon1) * m_per_deg_lon;
+    var dy = (lat2 - lat1) * m_per_deg_lat;
+    var dz = (alt2 - alt1) * FT2M;
+
+    # 5. Calculate absolute bearing (0-360 deg)
+    var hdg = math.atan2(dx, dy) * R2D;
+    if (hdg < 0) hdg += 360.0;
+
+    # 6. Calculate 2D horizontal distance
+    var dist_xy = math.sqrt(dx * dx + dy * dy);
+
+    # 7. Return hash consistent with courseToAirport
+    return {
+        distance : [dist_xy, -dz],
+        heading  : hdg,
+    };
+}
+
 ######################### attack_loop ###########################
 # Main loop for calculating attacks, changing direction, altitude, etc.
 # Applies to aircraft only
@@ -12779,9 +12820,20 @@ var startScenario = func(startTime)
 					#start the loop to check heading
 					updateTargetHeading_func(loopid, myNodeName);
 					debprint ("Bombable: updateTargetHeading for " ~ myNodeName);
+					init_ai_flightpath(ats, group, 5.0);
+					# Navigating active waypoint via ats.flightpath:
+					if (contains(ats, "flightpath")) {
+						var idx = ats.flightpath.wpt_index;
+						var current_wpt = ats.flightpath.waypoints[idx - 1];
+
+						var nav = courseToWaypoint(myNodeName, current_wpt);
+						
+						print(sprintf("AI Model: %s -> Nav to WPT%d: Heading %05.1f deg, Dist %.2f NM", 
+									myNodeName, idx, nav.heading, nav.distance[0] / 1852.0));
+					}
 				}
 
-				ats.heading = group.heading; # provides default heading for navigation
+				ats.heading = group.heading; # provides default heading for navigation DELETE
 			}
 		}
 	}
@@ -12805,6 +12857,7 @@ var startScenario = func(startTime)
 
 ########################## update target heading func ###########################
 # routine to explicitly bind the current values of loopid and myNodeName into the closure's local scope at the exact moment the timer is created
+# 
 var updateTargetHeading_func = func(loopid, myNodeName) {
 	settimer(func {updateTargetHeading(loopid, myNodeName)}, 5 + rand());
 }
@@ -13058,5 +13111,181 @@ var restartLoop = func(myNodeName, loopName)
 		setprop (""~myNodeName~"/controls/flight/target-roll", 0);
 	}
 }
+
+
+##################### find_closest_runway_details ##########################
+# Queries airportinfo(icao) and finds the runway best aligned with mainAC_heading.
+# Returns a hash containing ID, heading (deg), length (m/ft), and threshold coordinates (lat/lon).
+# Returns nil if the airport ICAO code is not found in apt.dat.
+
+var find_closest_runway_details = func(icao, mainAC_heading) {
+    # 1. Fetch and validate airport existence
+    var apt = airportinfo(icao);
+    if (apt == nil) {
+        print("Error: Airport '" ~ icao ~ "' not found in apt.dat database.");
+        return nil;
+    }
+
+    # Normalize target heading to [0, 360) range using geo.nas
+    var target_hdg = geo.normdeg(mainAC_heading);
+    
+    var best_rwy = nil;
+    var min_diff = 999.0;
+
+    # 2. Iterate through available runways and find the closest heading match
+    var rwy_keys = keys(apt.runways);
+    foreach (var rwy_id; rwy_keys) {
+        var rwy = apt.runways[rwy_id];
+        
+        # Shortest arc difference across 0/360 boundary
+        var diff = abs(geo.normdeg180(rwy.heading - target_hdg));
+
+        if (diff < min_diff) {
+            min_diff = diff;
+            best_rwy = rwy;
+        }
+    }
+
+    # 3. Construct and return result hash
+    if (best_rwy != nil) {
+        var result = {
+            id: best_rwy.id,
+            heading: best_rwy.heading,
+            length_m: best_rwy.length,
+            length_ft: best_rwy.length * 3.28084,
+            lat: best_rwy.lat,
+            lon: best_rwy.lon
+        };
+
+        # Print summary to console
+        # print(sprintf("\n--- Selected Runway Details for %s ---", icao));
+        # print(sprintf("Runway ID  : %s", result.id));
+        # print(sprintf("Heading    : %.1f deg (Off by %.1f deg)", result.heading, min_diff));
+        # print(sprintf("Length     : %.0f ft (%.1f m)", result.length_ft, result.length_m));
+        # print(sprintf("Threshold  : Lat %.6f, Lon %.6f", result.lat, result.lon));
+
+        return result;
+    }
+
+    return nil;
+}
+
+
+##################### flight_path ##########################
+# Generates a 3-element vector of 3D waypoint coordinates [[lat, lon, alt_ft], ...] based on runway geometry.
+# WPT1: Approach FAF (dist NM behind runway midpoint along approach heading)
+# WPT2: Runway physical midpoint
+# WPT3: Aborted approach path (dist NM past midpoint on a random +/- 45 deg heading offset)
+# Altitudes are in feet AGL (WPT1/WPT2 = approach_height_ft, WPT3 = approach_height_ft + abort_delta_ft).
+
+var flight_path = func(best_rwy, dist, approach_height_ft = nil, abort_delta_ft = nil) {
+    # 1. Apply default values if arguments are omitted or passed as nil
+    if (approach_height_ft == nil) approach_height_ft = 5000.0;
+    if (abort_delta_ft == nil) abort_delta_ft = 1000.0;
+
+    # 2. Input validation
+    if (best_rwy == nil or dist == nil or dist <= 0) {
+        print("Error: Invalid inputs provided to flight_path().");
+        return nil;
+    }
+    
+    if (!contains(best_rwy, "lat") or !contains(best_rwy, "lon") or 
+        !contains(best_rwy, "heading") or !contains(best_rwy, "length_m")) {
+        print("Error: Missing required keys in best_rwy hash.");
+        return nil;
+    }
+
+    # 3. Calculate Altitudes (AGL in feet)
+    var alt_wpt1 = approach_height_ft;
+    var alt_wpt2 = approach_height_ft;
+    var alt_wpt3 = approach_height_ft + abort_delta_ft;
+
+    # 4. WPT2: Calculate Runway Midpoint
+    var wpt2_coord = geo.Coord.new();
+    wpt2_coord.set_latlon(best_rwy.lat, best_rwy.lon);
+    
+    var half_length_m = best_rwy.length_m / 2.0;
+    wpt2_coord.apply_course_distance(best_rwy.heading, half_length_m);
+    
+    var wpt2 = [wpt2_coord.lat(), wpt2_coord.lon(), alt_wpt2];
+
+    # 5. WPT1: Approach FAF (Distance behind midpoint on approach heading)
+    var dist_meters = dist * 1852.0; # Convert NM to meters
+    var reciprocal_heading = geo.normdeg(best_rwy.heading + 180.0);
+    
+    var wpt1_coord = geo.Coord.new(wpt2_coord);
+    wpt1_coord.apply_course_distance(reciprocal_heading, dist_meters);
+    
+    var wpt1 = [wpt1_coord.lat(), wpt1_coord.lon(), alt_wpt1];
+
+    # 6. WPT3: Aborted Path (Distance past midpoint on random heading offset)
+    var random_offset = (rand() * 90.0) - 45.0; 
+    var aborted_heading = geo.normdeg(best_rwy.heading + random_offset);
+    
+    var wpt3_coord = geo.Coord.new(wpt2_coord);
+    wpt3_coord.apply_course_distance(aborted_heading, dist_meters);
+    
+    var wpt3 = [wpt3_coord.lat(), wpt3_coord.lon(), alt_wpt3];
+
+    # 7. Console summary
+    # print(sprintf("\n--- 3D Flight Path Generated (Dist: %.1f NM) ---", dist));
+    # print(sprintf("WPT1 (Approach FAF) : Lat %.6f, Lon %.6f, Alt %6.0f ft AGL", wpt1[0], wpt1[1], wpt1[2]));
+    # print(sprintf("WPT2 (Runway Mid)   : Lat %.6f, Lon %.6f, Alt %6.0f ft AGL", wpt2[0], wpt2[1], wpt2[2]));
+    # print(sprintf("WPT3 (Aborted Path) : Lat %.6f, Lon %.6f, Alt %6.0f ft AGL (Hdg: %.1f°)", wpt3[0], wpt3[1], wpt3[2], aborted_heading));
+
+    # Return 3D waypoint vector
+    return [wpt1, wpt2, wpt3];
+}
+
+
+##################### init_ai_flightpath ##########################
+# Resolves target runway geometry from group context and attaches a 3D flightpath to the AI attributes hash.
+# Creates sub-hash ats.flightpath with keys: wpt_index (initial 1), waypoints vector, airport code, and runway_id.
+# Expects group reference with keys 'airportName' and 'heading'. Returns reference to ats.flightpath.
+
+var init_ai_flightpath = func (ats, group, approach_dist_nm = 5.0) {
+    # 1. Validation checks
+    if (ats == nil or group == nil) {
+        print("Error: Invalid ats or group context passed to init_ai_flightpath.");
+        return nil;
+    }
+
+    if (!contains(group, "airportName") or !contains(group, "heading")) {
+        print("Error: Missing 'airportName' or 'heading' keys in group hash.");
+        return nil;
+    }
+
+    var icao = group.airportName;
+    var hdg  = group.heading;
+
+    # 2. Get closest runway details
+    var best_rwy = find_closest_runway_details(icao, hdg);
+    if (best_rwy == nil) {
+        print("Error: Could not find matching runway for airport: " ~ str(icao));
+        return nil;
+    }
+
+    # 3. Generate 3D waypoints vector [[lat, lon, alt], ...]
+    var waypoints = flight_path(best_rwy, approach_dist_nm);
+    if (waypoints == nil or size(waypoints) < 3) {
+        print("Error: Failed to generate 3D waypoints.");
+        return nil;
+    }
+
+    # 4. Attach flightpath sub-hash directly to ats
+    ats.flightpath = {
+        wpt_index : 1,          # Initialized to 1 (1-based index)
+        waypoints : waypoints  # 3D Waypoint triplet vector
+    };
+
+    debprint(sprintf("Bombable: Initialized ats.flightpath for AI target (%s RWY %s) - wpt_index = 1", 
+                  icao, best_rwy.id));
+
+    # Return reference to the flightpath sub-hash
+    return ats.flightpath;
+}
+
+
+
 
 ########################## END ###########################
