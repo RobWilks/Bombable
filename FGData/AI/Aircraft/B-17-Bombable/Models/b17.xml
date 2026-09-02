@@ -8,6 +8,12 @@
   <max-bank-deg>60.0</max-bank-deg>
   <roll-rate-deg-sec>60.0</roll-rate-deg-sec>
 
+  <submodels>
+    <path>AI/Aircraft/B-17-Bombable/Models/submodels.xml</path>
+  </submodels>
+
+
+
   <animation>
     <!-- Objets opaques -->
     <object-name>fuselage</object-name>

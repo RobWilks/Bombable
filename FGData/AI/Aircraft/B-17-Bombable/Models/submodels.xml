@@ -1,0 +1,37 @@
+<?xml version="1.0"?>
+
+<PropertyList>
+
+  <submodel>
+    <name>MK-82-LD-ter-2-0</name>
+    <model>AI/Aircraft/B-17-Bombable/Models/b17-stores/MK-82/MK-82-LD.xml</model>
+    <trigger>controls/armament/trigger</trigger>    
+    <speed>0</speed>
+    <repeat>false</repeat>
+    <delay>0.2</delay>
+    <count>-1</count>
+    <x-offset>0</x-offset>
+    <yaw-offset>0</yaw-offset>
+    <pitch-offset>-2</pitch-offset>
+    <cd>0.16</cd>
+    <weight>500</weight>
+    
+    <!-- fuse-range is in METERS (2.2m burst height/proximity) -->
+    <fuse-range>2.2</fuse-range>
+    
+    <eda>0.61629</eda>
+    <life>50</life>
+    <buoyancy>0</buoyancy>
+    <aero-stabilised>true</aero-stabilised>
+    <collision>true</collision>
+    <impact>true</impact>
+    
+    <!-- Ensure leading slash so Bombable's root listener picks up the impact -->
+    <impact-reports>/ai/models/model-impact</impact-reports>
+    
+    <animation>
+      <enable-hot type="bool">false</enable-hot>
+    </animation>
+  </submodel>
+
+</PropertyList>

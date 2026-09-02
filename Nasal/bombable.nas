@@ -5376,8 +5376,7 @@ var dodge = func(myNodeName, dodgeAmount_deg = 0, dodgeDelay = 1)
 				# AI system target roll; leaves target altitude unchanged  )
 				if (getprop(""~myNodeName~"/bombable/initializers/attack-initialized") == nil) {
 					setprop (""~myNodeName~"/controls/flight/lateral-mode", "hdg"); 
-					debprint(sprintf("Bombable: Target hdg for %s set to %.1f", myNodeName, getprop(""~myNodeName~"/controls/flight/target-hdg")));
-					settimer (func {checkAircraftCourse(myNodeName, 1.5)}, 1.5); #if on course change to roll control
+					debprint(sprintf("Bombable: %s flight mode set to hdg", myNodeName));
 				}
 				},
 				dodgeDelay
@@ -8787,23 +8786,6 @@ var aircraftTurnToHeading = func (myNodeName, rolldegrees = 45, targetAlt_m = "n
 	# debprint (sprintf("Bombable: Starting turn-to-heading routine for %s, loopid= %d, rolldegrees= %3.1f, course_deg= %3.1f",
 	# myNodeName, loopid, rolldegrees_, ctrls.courseToTarget_deg));
 }
-################### checkAircraftCourse ###################
-# rjw: function will switch from hdg to roll control if the aircraft is on course to the target
-# called only by aircraft for which attack is disabled
-
-var checkAircraftCourse = func (myNodeName, updateinterval_sec = 1) {
-	var current_heading = getprop (""~myNodeName~"/orientation/true-heading-deg"); 
-	var target_heading = getprop(""~myNodeName~"/controls/flight/target-hdg");
-	var delta_heading = normdeg180(target_heading - current_heading);
-	if (math.abs(delta_heading) < 2) {
-		setprop (""~myNodeName~"/controls/flight/lateral-mode", "roll"); 
-		debprint(sprintf("Bombable: Target hdg for %s reached %.1f, switching to roll control", myNodeName, target_heading));
-	}
-	else {
-		settimer (func {checkAircraftCourse(myNodeName, updateinterval_sec)}, updateinterval_sec);
-	}
-}
-
 
 ################### aircraftRollControl ###################
 # rjw: function called by timer to progress the roll of the aircraft
@@ -11489,16 +11471,10 @@ var allPlayers =
 ];
 var nodes = [""]; #1st element is main AC
 
-settimer (func 
-{
-	mainStatusPopupTip ("Pan around you. The scenario does not load until you have seen the AI objects  . . .", 15 );
-	debprint ("Bombable: Delaying start scenario . . . ", getprop("/sim/ai/scenario"));
-}, 5);
-
 bombableMenu = {}; # used for menu items accessed frequently
 
 setprop("/sim/ai/scenario-initialized", 0);
-
+debprint ("Bombable: Delaying start scenario . . . ", getprop("/sim/ai/scenario"));
 settimer (func { waitForAI() }, 5); #wait till objects loaded
 
 
@@ -12816,10 +12792,10 @@ var startScenario = func(startTime)
 
 				# start timer to update AI controls/flight/target-hdg
 				if ((teamName == "B" or teamName == "C") and getprop(""~myNodeName~"/bombable/initializers/attack-initialized") == nil) {
-					var loopid = inc_loopid(myNodeName, "updateTargetHeading");
+					var loopid = inc_loopid(myNodeName, "updateWptHeading");
 					#start the loop to check heading
-					updateTargetHeading_func(loopid, myNodeName);
-					debprint ("Bombable: updateTargetHeading for " ~ myNodeName);
+					updateWptHeading_func(loopid, myNodeName);
+					debprint ("Bombable: Initialised updateWptHeading for " ~ myNodeName);
 					init_ai_flightpath(ats, group, 5.0);
 					# Navigating active waypoint via ats.flightpath:
 					if (contains(ats, "flightpath")) {
@@ -12832,8 +12808,6 @@ var startScenario = func(startTime)
 									myNodeName, idx, nav.heading, nav.distance[0] / 1852.0));
 					}
 				}
-
-				ats.heading = group.heading; # provides default heading for navigation DELETE
 			}
 		}
 	}
@@ -12855,72 +12829,120 @@ var startScenario = func(startTime)
 	
 }
 
-########################## update target heading func ###########################
+########################## update waypoint heading func ###########################
 # routine to explicitly bind the current values of loopid and myNodeName into the closure's local scope at the exact moment the timer is created
 # 
-var updateTargetHeading_func = func(loopid, myNodeName) {
-	settimer(func {updateTargetHeading(loopid, myNodeName)}, 5 + rand());
+var updateWptHeading_func = func(loopid, myNodeName) {
+	settimer(func {updateWptHeading(loopid, myNodeName)}, 1 + rand());
 }
 
 
 
-########################## update target heading ###########################
-# function called by non-attacking aircraft that are targetting the starting airport
-# also used to check if they have reached their target when jobDone is set indicating a successful mission 
-# ats.heading provides a default heading and is set when the scenario loads
+########################## update wpt heading ###########################
+# function called by non-attacking aircraft that are navigating using a flightpath of waypoints
+# also used to check if they have reached the current waypoint and if so to update the index to the next one
+# specific actions are triggered on reaching each waypoint
+# 1) start bombing run 2) bomb release
+# jobDone is a flag to indicate mission completed 
+# with the FG lateral-mode set to "hdg" the aircraft oscillates when on the target heading, 
+# so if within 1 degree the lateral-mode is set to "roll"
+#
 
-var updateTargetHeading = func(id, myNodeName) {
-	var ats = attributes[myNodeName];
-	id == ats.loopids.updateTargetHeading_loopid or return;
+var updateWptHeading = func(id, myNodeName) {
+    var ats = attributes[myNodeName];
+	id == ats.loopids.updateWptHeading_loopid or return;
+	ats.damage >= 1 and return; # destroyed aircraft do not navigate
 	# skill ranges 0-6
 	var skill = calcPilotSkill (myNodeName);
-	var thresholdTarget = 500; # how precisiely we want to hit the target
-	var myHeading_deg = ats.heading; # heading set in initial scenario
 	if (rand() < skill / 6 * (1.0 - ats.damage)) {
-		if (ats.controls.stayInFormation) {
-			ats.controls.stayInFormation = 0;
-			var msg = getCallSign(myNodeName)~" starting bombing run";
-			targetStatusPopupTip (msg, 5);
-			settimer(func {dodge (myNodeName, 5, 1);}, 1); #rolls then switch flight controls to lateral mode hdg 
+		var thresholdWpt = 500; # closest approach to waypoint before moving to the next
+        var currentWptIndex = ats.flightpath.wpt_index;
+        var numWaypoints = size(ats.flightpath.waypoints);
+
+        # Fetch current course and 2D/3D distance to active waypoint
+        # Returns hash: { distance: [dist_xy, -dz], heading: hdg }
+        var distHdg = courseToWaypoint(myNodeName, ats.flightpath.waypoints[currentWptIndex - 1]);
+        
+        if (distHdg == nil) return;
+
+        var dist_m = distHdg.distance[0]; # Horizontal distance in meters
+        var targetHdg = distHdg.heading;  # Calculated bearing to waypoint
+        var msg = "";
+
+        # 3. Check if current waypoint is reached or passed
+        if (dist_m < thresholdWpt) {
+            msg = getCallSign(myNodeName) ~ " reached waypoint " ~ currentWptIndex;
+
+            # Event triggers based on reached waypoint index
+            if (currentWptIndex == 1) {
+                ats.controls.stayInFormation = 0;
+                msg = msg ~ ". Preparing for bombing run.";
+            } 
+            elsif (currentWptIndex == 2) {
+                ats.jobDone = 1;
+                msg = msg ~ ". Mission accomplished, returning to base.";
+            }
+            elsif (currentWptIndex == 3) {
+                msg = msg ~ ". Reached base.";
+            }
+
+            gui.popupTip(msg, 5);               
+            mainStatusPopupTip(msg, 5);
+            debprint("Bombable: " ~ msg);
+
+            # Advance index if more waypoints remain in flightpath
+            if (currentWptIndex < numWaypoints) {
+                currentWptIndex += 1;
+                ats.flightpath.wpt_index = currentWptIndex;
+                
+                # Recalculate heading immediately for the new active waypoint
+                distHdg = courseToWaypoint(myNodeName, ats.flightpath.waypoints[currentWptIndex - 1]); 
+                if (distHdg != nil) {
+                    targetHdg = distHdg.heading;
+                }
+            }
+			else
+			{
+				return; # Continue on current heading if no more waypoints
+			}
+        }
+
+        # 4. Update Target Heading in Property Tree
+        var oldHdg = getprop(myNodeName ~ "/orientation/true-heading-deg");
+
+        # Calculate shortest heading change arc
+        var diff = math.abs(oldHdg - targetHdg);
+        if (diff > 180.0) diff = 360.0 - diff;
+
+		if (diff > 1.0)  # Only update if significant change
+		{
+			setprop(myNodeName ~ "/controls/flight/target-hdg", targetHdg);
+			setprop(myNodeName ~ "/controls/flight/lateral-mode", "hdg");
+			debprint(sprintf("Bombable: Updated target heading for %s to WPT%d from %.1f deg to %.1f deg (delta %.1f deg)", 
+						myNodeName, ats.flightpath.wpt_index, oldHdg, targetHdg, diff));
 		}
-		if (!ats.jobDone) {
-			var distHdg = courseToAirport (myNodeName); # returns a hash
-			var dist = distHdg.distance;
-			if (dist[0] < thresholdTarget) {
-				ats.jobDone = 1;
-				var msg = getCallSign(myNodeName) ~ " reached target.  Mission accomplished.  Returning to base.";
-				gui.popupTip(msg, 5);				
-				mainStatusPopupTip (msg, 5);
-				debprint ("Bombable: "~msg);
-				myHeading_deg = math.fmod(myHeading_deg + 180, 360);
-				ats.heading = myHeading_deg; # update the default heading so as to return to base
-			}
-			else {
-				myHeading_deg = distHdg.heading; # set course heading for target
-			}
-		} 
-		var oldHdg = getprop("" ~ myNodeName ~ "/controls/flight/target-hdg");
-		var diff = math.abs(oldHdg - myHeading_deg);
-		if (diff > 180) diff = 360 - diff;
-		if (diff > 2) {
-			setprop("" ~ myNodeName ~ "/controls/flight/target-hdg", myHeading_deg);
-			debprint(sprintf("Bombable: updated target heading for %s from %.1f to %.1f", myNodeName, oldHdg, myHeading_deg));
+		else
+		{
+			setprop(myNodeName ~ "/controls/flight/lateral-mode", "roll");
 		}
 	}
-	settimer(func {updateTargetHeading(id, myNodeName)}, 5 + rand());
-}
+
+
+    # 5. Re-schedule loop timer (2 to 3 seconds)
+    settimer(func { updateWptHeading(id, myNodeName); }, 2.0 + rand());
+};
 
 ########################## removeAll ###########################
 # removes all occurrences of element from vector
 # returns vector
 var removeAll = func(vector, element)
 {
-var result = [];
-foreach (var elem; vector)
-{
-	if (elem != element) append(result, elem);
-}
-return(result);
+	var result = [];
+	foreach (var elem; vector)
+	{
+		if (elem != element) append(result, elem);
+	}
+	return(result);
 }
 
 
@@ -13237,7 +13259,6 @@ var flight_path = func(best_rwy, dist, approach_height_ft = nil, abort_delta_ft 
     return [wpt1, wpt2, wpt3];
 }
 
-
 ##################### init_ai_flightpath ##########################
 # Resolves target runway geometry from group context and attaches a 3D flightpath to the AI attributes hash.
 # Creates sub-hash ats.flightpath with keys: wpt_index (initial 1), waypoints vector, airport code, and runway_id.
@@ -13284,8 +13305,5 @@ var init_ai_flightpath = func (ats, group, approach_dist_nm = 5.0) {
     # Return reference to the flightpath sub-hash
     return ats.flightpath;
 }
-
-
-
 
 ########################## END ###########################

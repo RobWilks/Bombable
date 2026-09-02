@@ -16,13 +16,13 @@
                 <up>0</up>
             </offset>
             <offset>
-                <behind>80</behind>
-                <right>-80</right>
+                <behind>160</behind>
+                <right>-120</right>
                 <up>-3</up>
             </offset>
             <offset>
-                <behind>80</behind>
-                <right>80</right>
+                <behind>320</behind>
+                <right>160</right>
                 <up>2</up>
             </offset>
         </offsets>
