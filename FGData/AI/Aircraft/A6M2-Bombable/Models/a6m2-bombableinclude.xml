@@ -144,7 +144,7 @@
           # other aircraft 
           attacks : {               
             maxDistance_m : 20000, #max distance to turn & attack main aircraft
-            minDistance_m : 0, #min distance to turn & attack main aircraft, 
+            minDistance_m : 1600, #min distance to turn & attack main aircraft, 
                #ie, fly away this far before turning to attack again.  If you 
                #make this short it will be more like a turning fighter (Zero),
                #longer will become more like an energy fighter that zooms

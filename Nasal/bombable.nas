@@ -582,7 +582,7 @@ var damageCheck = func () {
 #  simply creating a file 'vulnerabilities.nas',
 #  defining vulsObject as below, and including the line
 #  bombable.setAttributes (attsObject);
-# otherwsie, does not get called
+#  otherwise, does not get called
 var setAttributes = func (attsObject = nil) {
 	debprint ("Bombable: Loading main aircraft vulnerability settings.");
 	if (attsObject == nil) {
@@ -1048,7 +1048,7 @@ var setAttributes = func (attsObject = nil) {
 	}, 3);
 
 
-	#reset the vulnerabilities for the main object whenever FG
+	# reset the vulnerabilities for the main object whenever FG
 	# reinits.
 	# Important especially for setting redout/blackout, which otherwise
 	# reverts to FG's defaults on reset.
@@ -1543,6 +1543,7 @@ var resetBombableDamageFuelWeapons = func (myNodeName) {
 		startEngines(myNodeName);
 		var ats = attributes[myNodeName];
 		var ctrls = ats.controls;	
+		ats.collided = 0;
 		ats.damage = 0;
 		ats.exploded = 0;
 		ats.jobDone = 0; # flag set when mission accomplished
@@ -3912,18 +3913,25 @@ var cartesianDistance = func  (elem...){
 # a damage value based on that.
 #
 
-
-		
 var test_impact = func(changedNode, myNodeName) {
 
 	# Allow this function to be disabled via bombable menu
 	if ( ! bombableMenu["bombable-enabled"] ) return;
 
 	var impactNodeName = changedNode.getValue();
-	#var impactNode = props.globals.getNode(impactNodeName);
+	var ats = attributes[myNodeName]; 	
+
+	# Check if the impactor is armed.  If not, skip the impact evaluation.
+	# Applies to bombs and other ordnance that have an arming delay after release.  
+	# If the ordnance is unarmed, it should not cause damage on impact.
+
+	var arming_delay = 0;
+	if (contains(ats, "armingDelay")) arming_delay = ats.armingDelay;
+	var timeElapsed = getprop (""~impactNodeName~"/sim/time/elapsed-sec");
+	debprint ("Bombable: test_impact, ", myNodeName," ", impactNodeName, " arming_delay: ", arming_delay, " timeElapsed: ", timeElapsed);
+	if (timeElapsed < arming_delay) return; # Submodel is unarmed; skip impact evaluation
 			
-			
-	debprint ("Bombable: test_impact, ", myNodeName," ", impactNodeName);
+	# debprint ("Bombable: test_impact, ", myNodeName," ", impactNodeName);
 
 	var oLat_deg = getprop (""~myNodeName~"/position/latitude-deg");
 	var iLat_deg = getprop (""~impactNodeName~"/impact/latitude-deg");
@@ -3936,12 +3944,10 @@ var test_impact = func(changedNode, myNodeName) {
 	#  called from: E:/FlightGear 2.10.0/FlightGear/data/Nasal/bombable.nas, line 8350
 	#  called from: E:/FlightGear 2.10.0/FlightGear/data/Nasal/globals.nas, line 100
 			
-	#debug.dump (attributes[myNodeName].dimensions);
 			
-	var maxLat_deg = attributes[myNodeName].dimensions['maxLat'];
-	var maxLon_deg = attributes[myNodeName].dimensions['maxLon'];
+	var maxLat_deg = ats.dimensions['maxLat'];
+	var maxLon_deg = ats.dimensions['maxLon'];
 
-	#attributes[myNodeName].dimensions.maxLon;
 			
 			
 	# quick-n-dirty way to tell if an impact is close to our object at all
@@ -4092,12 +4098,12 @@ var test_impact = func(changedNode, myNodeName) {
 	#Potential for adding serious damage increases the closer we are to the center
 	#of the object.  We'll say more than damageRadius meters away, no potential for increased damage
 			
-	var damageRadius_m = attributes[myNodeName].dimensions.damageRadius_m;
-	var vitalDamageRadius_m = attributes[myNodeName].dimensions.vitalDamageRadius_m;
+	var damageRadius_m = ats.dimensions.damageRadius_m;
+	var vitalDamageRadius_m = ats.dimensions.vitalDamageRadius_m;
 	# if it doesn't exist we assume it is 1/3 the damage radius
 	if (!vitalDamageRadius_m) vitalDamageRadius_m = damageRadius_m/3;
 			
-	var vuls = attributes[myNodeName].vulnerabilities;
+	var vuls = ats.vulnerabilities;
 			
 	ballisticMass_lb = getBallisticMass_lb(impactNodeName);
 	var ballisticMass_kg = ballisticMass_lb/2.2;
@@ -6159,6 +6165,7 @@ var weapons_loop = func (id, myNodeName1 = "") {
 	foreach (target; myTargets)
 	{
 		var myNodeName2 = nodes[target];
+		var ats2 = attributes[myNodeName2];
 		# info about target used by checkAim
 		var targetLat_deg = getprop(""~myNodeName2~"/position/latitude-deg"); # target
 		var targetLon_deg = getprop(""~myNodeName2~"/position/longitude-deg");
@@ -6183,7 +6190,7 @@ var weapons_loop = func (id, myNodeName1 = "") {
 			threatLevel += 1;
 			if (target) #ignore main AC
 			{
-				if (attributes[myNodeName2].type == "aircraft") ats.attacks.allGround = 0;
+				if (ats2.type == "aircraft") ats.attacks.allGround = 0;
 			}
 		}
 
@@ -6191,15 +6198,19 @@ var weapons_loop = func (id, myNodeName1 = "") {
 
 		# check for collision, 
 		# ie target within damageRadius of shooter
+		# set a lock for 200 msec on the colliding objects to avoid multiple reporting of the same collision
 		if (distance_m < ats.dimensions.crashRadius_m)
 		{
+			if (ats.collided == 1 or ats2.collided == 1) return; # already processed this collision
+			if (myNodeName2 == "" and getprop("/controls/flight/stealth") == 1) return; # ignore collision with main AC if it is in stealth mode
+			# report collision to player
 			var msg = (attributes[myNodeName1].controls.kamikase == -1) ?
 			"Kamikase strike" : "Collision";
 			msg = msg ~ " with " ~ getCallSign (myNodeName1) ~ " !";
 			targetStatusPopupTip (msg, 5); # add_damage will immediately report damage stats
 			debprint("Bombable: " ~ msg);
 			var mass1 = attributes[myNodeName1].vulnerabilities.explosiveMass_kg; 
-			var mass2 = attributes[myNodeName2].vulnerabilities.explosiveMass_kg; 
+			var mass2 = ats2.vulnerabilities.explosiveMass_kg; 
 			var damageRatio = mass2 / mass1; 
 			add_damage(10 * damageRatio, "collision", myNodeName1, myNodeName2, getCallSign(myNodeName2), mass2); # can withstand collision with object <10% of my mass
 			if (myNodeName2 !="")
@@ -6210,6 +6221,9 @@ var weapons_loop = func (id, myNodeName1 = "") {
 			{
 				mainAC_add_damage ( 10 / damageRatio, 0, "collision", msg);
 			}
+			ats.collided = 1;
+			ats2.collided = 1;
+			settimer (func { ats.collided = 0; ats2.collided = 0; }, 0.2);
 			return;
 		}
 
@@ -6228,7 +6242,7 @@ var weapons_loop = func (id, myNodeName1 = "") {
 		append ( groundData,  groundCheck );
 		if (groundCheck) noLoS = 0;
 
-		if (target ? (attributes[myNodeName2].nRockets > 0) : 0) append(rocketCarriers, target); # separate check for main AC
+		if (target ? (ats2.nRockets > 0) : 0) append(rocketCarriers, target); # separate check for main AC
 
 	}
 	if (noLoS) return; #if no target in line of sight then no need to check aim.  Assumption! Does not hold for self-guided rockets or parabolic flight trajectory
@@ -6433,7 +6447,7 @@ var weapons_loop = func (id, myNodeName1 = "") {
 			var ai_callsign = getCallSign (myNodeName1);
 
 			# nHit (0-10); weaponPower (0-1); ballisticMass_lb (0-25); damageVulnerability (0-100)
-			var damageAdd = thisWeapon.aim.nHit * weaponPower * ballisticMass_lb * attributes[myNodeName2].vulnerabilities.damageVulnerability / 100;
+			var damageAdd = thisWeapon.aim.nHit * weaponPower * ballisticMass_lb * ats2.vulnerabilities.damageVulnerability / 100;
 						
 			weaponName = thisWeapon.name;
 			if (weaponName == nil) weaponName = "Main Weapon";
@@ -9925,6 +9939,7 @@ var initialize_func = func ( b ){
 	# hash used by inc_loopid for loop counters
 
 	b.damage = 0;
+	b.collided = 0; # true if collided with another object
 	b.exploded = 0;
 	b.jobDone = 0; # flag set when mission accomplished
 	b.team = nil;
@@ -12795,6 +12810,7 @@ var startScenario = func(startTime)
 					var loopid = inc_loopid(myNodeName, "updateWptHeading");
 					#start the loop to check heading
 					updateWptHeading_func(loopid, myNodeName);
+					setBombArmingDelay(myNodeName); # delay used by test_impact()
 					debprint ("Bombable: Initialised updateWptHeading for " ~ myNodeName);
 					init_ai_flightpath(ats, group, 5.0);
 					# Navigating active waypoint via ats.flightpath:
@@ -13236,12 +13252,12 @@ var flight_path = func(best_rwy, dist, approach_height_ft = nil, abort_delta_ft 
     var reciprocal_heading = geo.normdeg(best_rwy.heading + 180.0);
     
     var wpt1_coord = geo.Coord.new(wpt2_coord);
-    wpt1_coord.apply_course_distance(reciprocal_heading, dist_meters);
+    wpt1_coord.apply_course_distance(reciprocal_heading, dist_meters * (1.0 + rand() * 0.2)); # Add slight randomization to approach distance
     
     var wpt1 = [wpt1_coord.lat(), wpt1_coord.lon(), alt_wpt1];
 
     # 6. WPT3: Aborted Path (Distance past midpoint on random heading offset)
-    var random_offset = (rand() * 90.0) - 45.0; 
+    var random_offset = ((rand() * 30.0) + 30.0) * (rand() < 0.5 ? -1 : 1); # Exit cones -30 to -60 or +30 to +60 degrees
     var aborted_heading = geo.normdeg(best_rwy.heading + random_offset);
     
     var wpt3_coord = geo.Coord.new(wpt2_coord);
@@ -13287,7 +13303,7 @@ var init_ai_flightpath = func (ats, group, approach_dist_nm = 5.0) {
     }
 
     # 3. Generate 3D waypoints vector [[lat, lon, alt], ...]
-    var waypoints = flight_path(best_rwy, approach_dist_nm);
+    var waypoints = flight_path(best_rwy, approach_dist_nm, 5000.0, 5000.0);
     if (waypoints == nil or size(waypoints) < 3) {
         print("Error: Failed to generate 3D waypoints.");
         return nil;
@@ -13305,5 +13321,60 @@ var init_ai_flightpath = func (ats, group, approach_dist_nm = 5.0) {
     # Return reference to the flightpath sub-hash
     return ats.flightpath;
 }
+
+# Helper to look up submodel index N by its defined name
+var get_submodel_index_by_name = func(target_name) {
+    var submodels_node = props.globals.getNode("/ai/submodels");
+    if (submodels_node == nil) return -1;
+
+    var children = submodels_node.getChildren("submodel");
+    forindex (var i; children) {
+        var name_node = children[i].getNode("name");
+        if (name_node != nil and name_node.getValue() == target_name) {
+            return i;
+        }
+    }
+    return -1;
+};
+
+########################## setBombArmingDelay ###########################
+# Wrapper function to add bomb arming delay to attributes.controls for non-attack aircraft
+# delay used by test_impact()
+#
+
+var setBombArmingDelay = func(myNodeName) {
+    # 1. Look up submodel index for a given name
+    var submodel_name = "MK-82-LD-ter-2-0";
+    var idx = get_submodel_index_by_name(submodel_name);
+
+    if (idx == -1) {
+        print("[BOMBABLE ERROR] Submodel definition '", submodel_name, "' not found in /submodels");
+        return 0;
+    }
+
+    # 2. Extract arming-time-sec from /submodels/submodel[idx]
+    var submodel_path = sprintf("/submodels/submodel[%d]", idx);
+    var arming_time = getprop(submodel_path ~ "/arming-time-sec");
+
+    if (arming_time == nil) {
+        # Fallback default if property is missing in XML
+        arming_time = 2.0;
+        print("[BOMBABLE WARNING] arming-time-sec not set for ", submodel_name, ". Using fallback: 2.0s");
+    }
+
+    if (!contains(attributes, myNodeName) or attributes[myNodeName] == nil) {
+        print("[BOMBABLE ERROR] No attributes entry for node: ", myNodeName);
+        return 0;
+    }
+    
+    var ats = attributes[myNodeName];
+
+
+    ats.armingDelay = arming_time;
+
+    print("[BOMBABLE SUCCESS] Set ", myNodeName, " armingDelay = ", arming_time, "s");
+    return 1;
+};
+
 
 ########################## END ###########################

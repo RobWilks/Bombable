@@ -441,16 +441,16 @@
 	<submodel>
 		<name>MK-82-LD-ter-2-0</name>
     <model>Aircraft/ufo-Bombable/Models/A10-Stores/MK-82/MK-82-LD.xml</model>
-    <trigger>controls/armament/trigger6</trigger>    
+    <trigger>controls/armament/trigger6</trigger>  
 		<speed>0</speed>
-		<repeat>false</repeat>
-		<delay>0.2</delay>
+		<repeat>true</repeat>
+		<delay>0.1</delay>
 		<count>-1</count>
 		<x-offset>0</x-offset>
 		<yaw-offset>0</yaw-offset>
 		<pitch-offset>-2</pitch-offset>
 		<cd>0.16</cd>
-		<weight>500</weight>
+		<weight>500</weight>  <!-- lbs -->
 		<fuse-range>2.2</fuse-range><!-- meter or feet ? -->
 		<eda>0.61629</eda>
 		<life>50</life>
@@ -463,6 +463,10 @@
 		<animation>
 			<enable-hot type="bool">false</enable-hot>
 		</animation>
+    <randomness>
+      <azimuth>5.0</azimuth>
+      <elevation>5.0</elevation>
+    </randomness>
 	</submodel>
 
 	<submodel>

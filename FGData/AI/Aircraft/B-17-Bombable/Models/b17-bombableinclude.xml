@@ -1,17 +1,16 @@
 <?xml version="1.0"?>
 
 <PropertyList>
+
   <nasal>
 	  
 
 		<load>
 			<![CDATA[
-			
-
-       #makes the propellors spin in the AI version of the aircraft       
        var nodeName = cmdarg().getPath(); 
-       
        print("Loading B-17 ", nodeName);
+			
+       #makes the propellors spin in the AI version of the aircraft       
        
        ##checks whether it has been initialized already; if so, just return
        if ( bombable.check_overall_initialized (nodeName) ) return;

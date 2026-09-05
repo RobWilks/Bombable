@@ -4,27 +4,42 @@
 
  <path>ufo.ac</path>
 
- <animation>
+<animation>
   <type>select</type>
   <condition>
-   <or>
-    <equals>
-     <property>/sim/flight-model</property>
-     <value>ufo</value>
-    </equals>
-    <property>/sim/model/always-show-in-MP</property>
-   </or>
+    <and>
+      <!-- Must NOT be in stealth mode -->
+      <not>
+        <property>/controls/flight/stealth</property>
+      </not>
+      <!-- Original conditions -->
+      <or>
+        <equals>
+          <property>/sim/flight-model</property>
+          <value>ufo</value>
+        </equals>
+        <property>/sim/model/always-show-in-MP</property>
+      </or>
+    </and>
   </condition>
- </animation>
+</animation>
 
- <animation>
+ <!-- <animation>
   <type>blend</type>
   <object-name>body</object-name>
   <property>/velocities/airspeed-kt</property>
   <factor>0.00025</factor>
   <min>0.2</min>
   <max>0.7</max>
- </animation>
+ </animation> -->
+
+ <!-- <animation>
+  <type>material</type>
+  <object-name>body</object-name>
+  <transparency>
+    <alpha>0.1</alpha>
+  </transparency>
+</animation> -->
 
  <animation>
   <type>spin</type>

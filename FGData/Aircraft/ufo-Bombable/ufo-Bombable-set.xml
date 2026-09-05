@@ -1,6 +1,14 @@
 <?xml version="1.0"?>
 
 <PropertyList>
+	
+	<controls>
+        <flight>
+            <!-- Initialize stealth mode to false (0 = visible, 1 = stealth/hidden) -->
+            <stealth type="bool">false</stealth>
+        </flight>
+    </controls>
+
 	<sim>
 		<description>UFO (Bombable) from the 'White Project' of the UNESCO</description>
 		<author>ET</author>
