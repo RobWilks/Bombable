@@ -3760,12 +3760,10 @@ var put_splash = func (nodeName, iLat_deg,iLon_deg, iAlt_m, ballisticMass_lb, im
 }
 
 
-########################################
-# exit_test_impact(nodeName)
+########################## exit_test_impact ###########################
 # draws the impact splash for the nodeName
 #
 var exit_test_impact = func(nodeName, myNodeName){
-
 
 	#if impact on a ship etc we're assuming that one of the other test_impact
 	# instances will pick it up & we don't need to worry about it.
@@ -3789,6 +3787,7 @@ var exit_test_impact = func(nodeName, myNodeName){
 
 }
 
+########################## getBallisticMass_lb ###########################
 var getBallisticMass_lb = func (impactNodeName) {
 
 	#weight/mass of the ballistic object, in lbs
@@ -3921,15 +3920,29 @@ var test_impact = func(changedNode, myNodeName) {
 	var impactNodeName = changedNode.getValue();
 	var ats = attributes[myNodeName]; 	
 
-	# Check if the impactor is armed.  If not, skip the impact evaluation.
+	# rjw mod:  Check if the impactor is armed.  If not, skip the impact evaluation.
 	# Applies to bombs and other ordnance that have an arming delay after release.  
 	# If the ordnance is unarmed, it should not cause damage on impact.
 
-	var arming_delay = 0;
-	if (contains(ats, "armingDelay")) arming_delay = ats.armingDelay;
+	var arming_delay = (getprop (""~impactNodeName~"/name") == "MK-82-LD-ter-2-0") ? 5.0 : 0.0;
 	var timeElapsed = getprop (""~impactNodeName~"/sim/time/elapsed-sec");
 	debprint ("Bombable: test_impact, ", myNodeName," ", impactNodeName, " arming_delay: ", arming_delay, " timeElapsed: ", timeElapsed);
-	if (timeElapsed < arming_delay) return; # Submodel is unarmed; skip impact evaluation
+	if (timeElapsed < arming_delay) return; # Submodel is not armed yet; skip impact evaluation
+
+	var removeFlag = getprop (""~impactNodeName~"/remove");
+	if (removeFlag == nil or removeFlag == 0) {
+		setprop (""~impactNodeName~"/remove", 1); # set remove flag so that other listeners on this node don't set removal timers
+		# Schedule cleanup after ALL 12 listener callbacks have finished executing
+        settimer(func {
+                
+                # 1. Force C++ submodel manager to retire the submodel slot
+                setprop(""~impactNodeName~"/sim/time/elapsed-sec", 0.0);
+
+                # 2. Reset transient impact flags so slot is clean for next release
+				setprop (""~impactNodeName~"/remove", 0);
+            }
+        , 0.05); # 0.05s guarantees frame boundary separation
+	}
 			
 	# debprint ("Bombable: test_impact, ", myNodeName," ", impactNodeName);
 
@@ -12810,7 +12823,7 @@ var startScenario = func(startTime)
 					var loopid = inc_loopid(myNodeName, "updateWptHeading");
 					#start the loop to check heading
 					updateWptHeading_func(loopid, myNodeName);
-					setBombArmingDelay(myNodeName); # delay used by test_impact()
+					# setBombArmingDelay(myNodeName); # delay used by test_impact()
 					debprint ("Bombable: Initialised updateWptHeading for " ~ myNodeName);
 					init_ai_flightpath(ats, group, 5.0);
 					# Navigating active waypoint via ats.flightpath:
@@ -13340,7 +13353,9 @@ var get_submodel_index_by_name = func(target_name) {
 ########################## setBombArmingDelay ###########################
 # Wrapper function to add bomb arming delay to attributes.controls for non-attack aircraft
 # delay used by test_impact()
-#
+# not used 
+# change to parsing submodels.xml to extract arming-time-sec for each weapon type
+# 
 
 var setBombArmingDelay = func(myNodeName) {
     # 1. Look up submodel index for a given name
@@ -13375,6 +13390,95 @@ var setBombArmingDelay = func(myNodeName) {
     print("[BOMBABLE SUCCESS] Set ", myNodeName, " armingDelay = ", arming_time, "s");
     return 1;
 };
+
+var drop_ai_bomb_via_teleport = func(ai_node_name, t1 = 0.05, t2 = 0.1) {
+    var ai_node = props.globals.getNode(ai_node_name);
+    if (ai_node == nil) {
+        print("[BOMB DROP DEBUG] Target AI node not found!");
+        return;
+    }
+
+    # 1. Fetch AI B-17 Position
+    var target_lat   = ai_node.getNode("position/latitude-deg").getValue();
+    var target_lon   = ai_node.getNode("position/longitude-deg").getValue();
+    var target_alt   = ai_node.getNode("position/altitude-ft").getValue();
+    var target_hdg   = ai_node.getNode("orientation/true-heading-deg").getValue();
+    var target_pitch = ai_node.getNode("orientation/pitch-deg", 1).getValue() or 0;
+    var target_spd   = ai_node.getNode("velocities/true-airspeed-kt", 1).getValue() or 93.0;
+
+    var max_ufo_spd  = 3885.0; # Empirical max speed ceiling (knots at throttle 1.0)
+    # 3. Calculate Steady-State Throttle Directly (No Boost Spike)
+    var throttle_target = target_spd / max_ufo_spd;
+
+    # 2. Fetch Current UFO Position
+    var orig_lat   = getprop("/position/latitude-deg");
+    var orig_lon   = getprop("/position/longitude-deg");
+    var orig_alt   = getprop("/position/altitude-ft");
+    var orig_hdg   = getprop("/orientation/heading-deg");
+    var orig_pitch = getprop("/orientation/pitch-deg");
+    # var orig_spd   = getprop("/velocities/true-airspeed-kt") or 0.0;
+
+
+    # print("==================================================");
+    # print("[BOMB DROP DEBUG] --- Direct Injection Summary ---");
+    # print("[BOMB DROP DEBUG] Target B-17 Speed : ", target_spd, " kt");
+    # print("[BOMB DROP DEBUG] Initial UFO Speed : ", orig_spd, " kt");
+    # print("[BOMB DROP DEBUG] Target Throttle   : ", throttle_target);
+    # print("==================================================");
+
+    # 4. Apply Target Throttle & Inject Matching Velocity Vector Immediately
+    setprop("/controls/engines/engine[0]/throttle", throttle_target);
+    setprop("/velocities/uBody-fps", target_spd * 1.68781);
+    setprop("/velocities/true-airspeed-kt", target_spd);
+    setprop("/velocities/groundspeed-kt", target_spd);
+
+    # 5. Wait Latency t1 -> Teleport & Fire Trigger
+    settimer(func {
+        # var spd_at_teleport = getprop("/velocities/true-airspeed-kt") or 0.0;
+        # print("[BOMB DROP DEBUG] Phase 1 Complete (t1 = ", t1, "s)");
+        # print("[BOMB DROP DEBUG] Speed at Teleport : ", spd_at_teleport, " kt");
+
+        setprop("/position/latitude-deg", target_lat);
+        setprop("/position/longitude-deg", target_lon);
+        setprop("/position/altitude-ft", target_alt - 15.0);
+        setprop("/orientation/heading-deg", target_hdg);
+        setprop("/orientation/pitch-deg", target_pitch);
+
+        setprop("/controls/armament/trigger6", 1);
+
+        # 6. Wait Latency t2 -> Release Trigger & Restore Station
+        settimer(func {
+            # var spd_at_release = getprop("/velocities/true-airspeed-kt") or 0.0;
+            # print("[BOMB DROP DEBUG] Phase 2 Complete (t2 = ", t2, "s)");
+            # print("[BOMB DROP DEBUG] Speed at Release  : ", spd_at_release, " kt");
+
+            setprop("/controls/armament/trigger6", 0);
+
+            setprop("/position/latitude-deg", orig_lat);
+            setprop("/position/longitude-deg", orig_lon);
+            setprop("/position/altitude-ft", orig_alt);
+            setprop("/orientation/heading-deg", orig_hdg);
+            setprop("/orientation/pitch-deg", orig_pitch);
+
+            # Maintain steady throttle and bank to hold orbit station
+            # setprop("/controls/engines/engine[0]/throttle", 0.0);
+            setprop("/controls/engines/engine[0]/throttle", throttle_target);
+            setprop("/controls/flight/aileron", 0.03);
+            # print("[BOMB DROP DEBUG] UFO restored to orbit at 3-deg bank.");
+            # print("==================================================");
+        }, t2);
+
+    }, t1);
+};
+
+# ==============================================================================
+# TEST CODE: Execute drop after 0.05 second delay
+# ==============================================================================
+# settimer(func {
+#     var test_node = "/ai/models/aircraft";
+#     # print("[BOMB DROP DEBUG] Running test bomb drop on target node: ", test_node);
+#     drop_ai_bomb_via_teleport(test_node, 0.05, 0.1);
+# }, 0.1);
 
 
 ########################## END ###########################
