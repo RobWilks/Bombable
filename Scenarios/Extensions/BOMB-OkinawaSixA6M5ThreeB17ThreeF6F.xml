@@ -7,8 +7,8 @@
         <arrivalTime>320</arrivalTime>
         <airSpeed>182</airSpeed>
         <airportName>ROAH</airportName>
-        <heading>180.1</heading>
-        <alt>5000</alt>
+        <heading>225</heading>
+        <alt>8000</alt>
         <offsets>
             <offset>
                 <behind>0</behind>
@@ -16,12 +16,12 @@
                 <up>0</up>
             </offset>
             <offset>
-                <behind>80</behind>
+                <behind>400</behind>
                 <right>-80</right>
                 <up>-3</up>
             </offset>
             <offset>
-                <behind>80</behind>
+                <behind>800</behind>
                 <right>80</right>
                 <up>2</up>
             </offset>
@@ -57,7 +57,7 @@
     <!-- Zeros -->
     <group>
         <team>X</team>
-        <target>D</target>
+        <target>B</target>
         <arrivalTime>200</arrivalTime>
         <airSpeed>250</airSpeed>
         <airportName>ROAH</airportName>

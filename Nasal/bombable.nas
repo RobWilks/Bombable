@@ -241,9 +241,9 @@ var put_ballistic_model = func(myNodeName = "/ai/models/aircraft", path = "AI/Ai
 }
 
 ######################################### put_remove_model #######################################
-#put_remove_model places a new model at the location specified and then removes
+# put_remove_model places a new model at the location specified and then removes
 # it time_sec later
-#it puts out 12 models/sec so normally time_sec = .4 or thereabouts it plenty of time to let it run
+# it puts out 12 models/sec so normally time_sec = .4 or thereabouts is plenty of time to let it run
 # If time_sec is too short then no particles will be emitted.  Typical problem is
 # many rounds from a gun slow FG's framerate to a crawl just as it is time to emit the
 # particles.  If time_sec is slower than the frame length then you get zero particle.
@@ -254,7 +254,9 @@ var put_remove_model = func(lat_deg = nil, lon_deg = nil, elev_m = nil, time_sec
 {
 
 	if (lat_deg == nil or lon_deg == nil or elev_m == nil) { return; }
-	
+
+	# Capture current epoch to invalidate timers across reset routines
+    var local_epoch = bombable_epoch;	
 	var delay_sec = 0.1; #particles/models seem to cause FG crash * sometimes * when appearing within a model
 	#we try to reduce this by making the smoke appear a fraction of a second later, after
 	# the a/c model has moved out of the way. (possibly moved, anyway--depending on its speed)
@@ -282,6 +284,11 @@ var put_remove_model = func(lat_deg = nil, lon_deg = nil, elev_m = nil, time_sec
 		
 		var flackModelNodeName = flackNode.getNode("property").getValue();
 		
+		foreach (var name; ["latitude-deg","longitude-deg","elevation-ft", "heading-deg", "pitch-deg", "roll-deg"]) 
+		{
+            setprop(flackModelNodeName ~ "/" ~ name ~ "-prop", flackModelNodeName ~ "/" ~ name);
+        }
+        
 		#add the -prop property in /models/model[X] for each of lat, long, elev, etc
 		foreach (name; ["latitude-deg","longitude-deg","elevation-ft", "heading-deg", "pitch-deg", "roll-deg"])
 		{
@@ -290,7 +297,11 @@ var put_remove_model = func(lat_deg = nil, lon_deg = nil, elev_m = nil, time_sec
 		
 		# debprint ("Bombable: Placed flack, ", flackModelNodeName);
 		
-		settimer ( func { props.globals.getNode(flackModelNodeName).remove();}, time_sec);
+		settimer ( func { 
+			if (local_epoch != bombable_epoch) return;
+
+			props.globals.getNode(flackModelNodeName).remove();
+			}, time_sec);
 
 	}, 
 	delay_sec);
@@ -1617,7 +1628,38 @@ var resetMainAircraftDamage = func {
 }
 
 
-############################################################
+############################## resetTerrainFires ##############################
+# Removes all terrain fires, flack models, splash models by pruning the property tree
+# 
+
+var resetTerrainFires = func {
+
+    # 2. Search and remove all dynamic models under /models/ created by put_remove_model / start_terrain_fire
+    var models_root = props.globals.getNode("/models");
+    if (models_root != nil) {
+        # Iterate backwards through children to prevent index shifting issues during deletion
+        var children = models_root.getChildren("model");
+        for (var i = size(children) - 1; i >= 0; i -= 1) {
+            var m = children[i];
+            var path = m.getValue("path") or "";
+
+            # Use global find(needle, haystack) - returns -1 if substring is missing
+            if (substr(path, 0, 15) == "Models/Bombable" 
+                or find("fire", path) != -1 
+                or find("splash", path) != -1 
+                or find("Bombable", path) != -1) {
+                
+                debprint("Bombable: Purging terrain effect model -> " ~ path);
+                
+                # Correct node removal on parent SGPropertyNode
+                models_root.removeChild("model", m.getIndex());
+            }
+        }
+    }
+
+    debprint("Bombable: Terrain fires and splash models successfully purged for new epoch " ~ bombable_epoch);
+};
+
 
 ####################################################
 #Add a new menu item to turn smoke on/off
@@ -3709,11 +3751,11 @@ var altClosestApproachCalc = func {
 
 }
 
-########################################
+#################### put_splash ####################
 # put_splash puts the impact splash from test_impact
 #
 var put_splash = func (nodeName, iLat_deg,iLon_deg, iAlt_m, ballisticMass_lb, impactTerrain = "terrain", refinedSplash = 0, myNodeName = "" ){
-	#This check to avoid duplicate splashes is not quite working in some cases
+	# This check to avoid duplicate splashes is not quite working in some cases
 	# perhaps because the lat is repeating exactly for different impacts, or
 	# because some weapon impacts and collisions are reported a little differently?
 	var impactSplashPlaced = getprop (""~nodeName~"/impact/bombable-impact-splash-placed");
@@ -3746,17 +3788,24 @@ var put_splash = func (nodeName, iLat_deg,iLon_deg, iAlt_m, ballisticMass_lb, im
 
 		#debprint ("Bombable: Drawing impact, ", nodeName, " ", iLat_deg, " ", iLon_deg, " ",  iAlt_m, " refined:", refinedSplash );
 		put_remove_model(iLat_deg,iLon_deg, iAlt_m, impLength_sec, startSize_m, endSize_m);
+
 		#for larger explosives (or a slight chance with smaller rounds, which
-		# all have some incindiary content) start a fire
-		if (ballisticMass_lb > 1.2 or
-		(ballisticMass_lb <= 1.2 and rand() < ballisticMass_lb/10) ) settimer ( func {start_terrain_fire( iLat_deg,iLon_deg,iAlt_m, ballisticMass_lb )}, impLength_sec/1.5);
+		# all have some incendiary content) start a fire
+
+        # --- FIX: Capture current epoch generation ---
+        var current_epoch = bombable_epoch;
+        
+        if (ballisticMass_lb > 1.2 or (ballisticMass_lb <= 1.2 and rand() < ballisticMass_lb / 10)) {
+            settimer(func {
+                # Abort execution if scenario was reset while timer was waiting
+                if (current_epoch != bombable_epoch) return;
+                
+                start_terrain_fire(iLat_deg, iLon_deg, iAlt_m, ballisticMass_lb);
+            }, impLength_sec / 1.5);
+        }
 		setprop (""~nodeName~"/impact/bombable-impact-splash-placed", impactObjectLat_deg);
 	}
-			
-	if  (refinedSplash)
-	setprop (""~nodeName~"/impact/bombable-impact-refined-splash-placed", impactObjectLat_deg);
-
-
+	if  (refinedSplash) setprop (""~nodeName~"/impact/bombable-impact-refined-splash-placed", impactObjectLat_deg);
 }
 
 
@@ -3923,26 +3972,29 @@ var test_impact = func(changedNode, myNodeName) {
 	# rjw mod:  Check if the impactor is armed.  If not, skip the impact evaluation.
 	# Applies to bombs and other ordnance that have an arming delay after release.  
 	# If the ordnance is unarmed, it should not cause damage on impact.
+	# This approach failed:  if a collision occurs within the arming window the submodel is removed by the C++ submodel manager
+	# and the ordnance is lost even when detonation has been prevented
 
-	var arming_delay = (getprop (""~impactNodeName~"/name") == "MK-82-LD-ter-2-0") ? 5.0 : 0.0;
-	var timeElapsed = getprop (""~impactNodeName~"/sim/time/elapsed-sec");
-	debprint ("Bombable: test_impact, ", myNodeName," ", impactNodeName, " arming_delay: ", arming_delay, " timeElapsed: ", timeElapsed);
-	if (timeElapsed < arming_delay) return; # Submodel is not armed yet; skip impact evaluation
 
-	var removeFlag = getprop (""~impactNodeName~"/remove");
-	if (removeFlag == nil or removeFlag == 0) {
-		setprop (""~impactNodeName~"/remove", 1); # set remove flag so that other listeners on this node don't set removal timers
-		# Schedule cleanup after ALL 12 listener callbacks have finished executing
-        settimer(func {
+	# var arming_delay = (getprop (""~impactNodeName~"/name") == "MK-82-LD-ter-2-0") ? 5.0 : 0.0;
+	# var timeElapsed = getprop (""~impactNodeName~"/sim/time/elapsed-sec");
+	# debprint ("Bombable: test_impact, ", myNodeName," ", impactNodeName, " arming_delay: ", arming_delay, " timeElapsed: ", timeElapsed);
+	# if (timeElapsed < arming_delay) return; # Submodel is not armed yet; skip impact evaluation
+
+	# var removeFlag = getprop (""~impactNodeName~"/remove");
+	# if (removeFlag == nil or removeFlag == 0) {
+	# 	setprop (""~impactNodeName~"/remove", 1); # set remove flag so that other listeners on this node don't set removal timers
+	# 	# Schedule cleanup after ALL 12 listener callbacks have finished executing
+    #     settimer(func {
                 
-                # 1. Force C++ submodel manager to retire the submodel slot
-                setprop(""~impactNodeName~"/sim/time/elapsed-sec", 0.0);
+    #             # 1. Force C++ submodel manager to retire the submodel slot
+    #             setprop(""~impactNodeName~"/sim/time/elapsed-sec", 0.0);
 
-                # 2. Reset transient impact flags so slot is clean for next release
-				setprop (""~impactNodeName~"/remove", 0);
-            }
-        , 0.05); # 0.05s guarantees frame boundary separation
-	}
+    #             # 2. Reset transient impact flags so slot is clean for next release
+	# 			setprop (""~impactNodeName~"/remove", 0);
+    #         }
+    #     , 0.05); # 0.05s guarantees frame boundary separation
+	# }
 			
 	# debprint ("Bombable: test_impact, ", myNodeName," ", impactNodeName);
 
@@ -4999,19 +5051,19 @@ var do_acrobatic_loop = func
 	rolldirexit = "ccw", vert_speed_add_kt = nil 
 )
 {
-	debprint 
-	(
-		sprintf
-		(
-			"Bombable: Starting acrobatic loop for %s loop_time %5.1f full_loop_steps %3.0f exit_steps %3.0f direction %s", 
-			myNodeName,
-			loop_time,
-			full_loop_steps,
-			exit_steps,
-			direction,
-			vert_speed_add_kt 
-		)
-	);
+	# debprint 
+	# (
+	# 	sprintf
+	# 	(
+	# 		"Bombable: Starting acrobatic loop for %s loop_time %5.1f full_loop_steps %3.0f exit_steps %3.0f direction %s", 
+	# 		myNodeName,
+	# 		loop_time,
+	# 		full_loop_steps,
+	# 		exit_steps,
+	# 		direction,
+	# 		vert_speed_add_kt 
+	# 	)
+	# );
 	attributes[myNodeName].controls.dodgeInProgress = 1;
 	settimer
 	( 
@@ -5145,18 +5197,18 @@ var choose_attack_acrobatic = func
 		if (rand() > .5) rolldirenter = "ccw";
 		if (rand() > .5) rolldirexit = "ccw";
 					
-		debprint 
-		(
-			sprintf
-			(
-				"Bombable: Attack acrobatic loop %s for %s of %2.0f/100 steps, %s roll to enter, %s roll to exit",
-				steps, 
-				myNodeName, 
-				direction,
-				rolldirenter,
-				rolldirexit
-			)
-		);
+		# debprint 
+		# (
+		# 	sprintf
+		# 	(
+		# 		"Bombable: Attack acrobatic loop %s for %s of %2.0f/100 steps, %s roll to enter, %s roll to exit",
+		# 		steps, 
+		# 		myNodeName, 
+		# 		direction,
+		# 		rolldirenter,
+		# 		rolldirexit
+		# 	)
+		# );
 		do_acrobatic_loop (myNodeName, time, 100, steps, direction, rolldirenter , rolldirexit);
 
 		attributes[myNodeName].controls.dodgeInProgress = 1;
@@ -5390,7 +5442,7 @@ var dodge = func(myNodeName, dodgeAmount_deg = 0, dodgeDelay = 1)
 				{
 				ctrls.dodgeInProgress = 0;
 				setprop (""~myNodeName~"/controls/flight/target-roll", 0); 
-				debprint(sprintf("Bombable: Target roll reset for %s", myNodeName));
+				# debprint(sprintf("Bombable: Target roll reset for %s", myNodeName));
 				# This resets the aircraft to 0 deg roll (via FG's
 				# AI system target roll; leaves target altitude unchanged  )
 				if (getprop(""~myNodeName~"/bombable/initializers/attack-initialized") == nil) {
@@ -6405,7 +6457,8 @@ var weapons_loop = func (id, myNodeName1 = "") {
 		# corresponding maxDamage_percent figures: 3%, 4%, 50%
 
 		if (thisWeapon.aim.nHit > 0.1)
-		debprint (sprintf("Bombable: Weapons_loop %s  weapPowerSkill = %4.1f  total ballistic mass =  %5.2f", myNodeName1, weapPowerSkill, ballisticMass_lb * thisWeapon.aim.nHit));
+		# debprint (sprintf("Bombable: Weapons_loop %s  weapPowerSkill = %4.1f  total ballistic mass =  %5.2f", myNodeName1, weapPowerSkill, ballisticMass_lb * thisWeapon.aim.nHit));
+		
 		# debprint (
 		# 	"Bombable: Weapons_loop " ~ myNodeName1 ~ " " ~ elem, 
 		# 	" heading = ", thisWeapon.weaponAngle_deg.heading, 
@@ -11420,6 +11473,8 @@ var screenHProp = nil;
 
 records.init();
 
+var bombable_epoch = 0;
+
 var tipArgTarget = nil;
 var tipArgSelf = nil;
 var currTimerTarget = 0;
@@ -11498,6 +11553,13 @@ var allPlayers =
 	[]
 ];
 var nodes = [""]; #1st element is main AC
+
+settimer (func 
+{
+	mainStatusPopupTip ("Pan around you. The scenario does not load until you have seen the AI objects  . . .", 15 );
+	debprint ("Bombable: Delaying start scenario . . . ", getprop("/sim/ai/scenario"));
+}, 5);
+
 
 bombableMenu = {}; # used for menu items accessed frequently
 
@@ -11629,7 +11691,7 @@ var bombableInit = func {
 		}
 	});
 						
-	#whenever the main aircraft's damage level, fire or smoke levels are updated,
+	# whenever the main aircraft's damage level, fire or smoke levels are updated,
 	# broadcast the updated damage level via MP, but with a delay
 	# (delay is because the mp_broadcast system seems to get overwhelmed)
 	# when a lot of firing is going on)
@@ -11654,7 +11716,7 @@ var bombableInit = func {
 						
 	print ("Bombable (ver. "~ bombableVersion ~") loaded - bombable, weapons, damage, fire, and explosion effects");
 
-	#we save this for last because mp_broadcast doesn't exist for some people,
+	# we save this for last because mp_broadcast doesn't exist for some people,
 	# so runtime error & exit at this point for them.
 						
 	props.globals.getNode(MP_broadcast_exists_pp, 1).setBoolValue(0);
@@ -12818,14 +12880,11 @@ var startScenario = func(startTime)
 					setprop (""~myNodeName~"/surface-positions/rudder-pos-deg", 0);					
 				}
 
-				# start timer to update AI controls/flight/target-hdg
+				# construct flightpath of waypoints
+				# if successful start the loop to update the heading to the current waypoint
 				if ((teamName == "B" or teamName == "C") and getprop(""~myNodeName~"/bombable/initializers/attack-initialized") == nil) {
-					var loopid = inc_loopid(myNodeName, "updateWptHeading");
-					#start the loop to check heading
-					updateWptHeading_func(loopid, myNodeName);
-					# setBombArmingDelay(myNodeName); # delay used by test_impact()
-					debprint ("Bombable: Initialised updateWptHeading for " ~ myNodeName);
-					init_ai_flightpath(ats, group, 5.0);
+					var segmentLength = 5.0; # nm between waypoints
+					init_ai_flightpath(ats, group, segmentLength);
 					# Navigating active waypoint via ats.flightpath:
 					if (contains(ats, "flightpath")) {
 						var idx = ats.flightpath.wpt_index;
@@ -12835,6 +12894,9 @@ var startScenario = func(startTime)
 						
 						print(sprintf("AI Model: %s -> Nav to WPT%d: Heading %05.1f deg, Dist %.2f NM", 
 									myNodeName, idx, nav.heading, nav.distance[0] / 1852.0));
+						var loopid = inc_loopid(myNodeName, "updateWptHeading");
+						updateWptHeading_func(loopid, myNodeName);
+						debprint ("Bombable: Initialised updateWptHeading for " ~ myNodeName);
 					}
 				}
 			}
@@ -12849,7 +12911,7 @@ var startScenario = func(startTime)
 
 	initTargets();
 
-	setprop("/sim/ai/scenario-initialized", 1);
+	setprop("/sim/ai/scenario-initialized", 1); # flag set to trigger start of all loops
 
 	# Dump bombable stats 400 seconds from simulator startup
 	settimer(func {
@@ -12898,26 +12960,38 @@ var updateWptHeading = func(id, myNodeName) {
         var targetHdg = distHdg.heading;  # Calculated bearing to waypoint
         var msg = "";
 
-        # 3. Check if current waypoint is reached or passed
-        if (dist_m < thresholdWpt) {
-            msg = getCallSign(myNodeName) ~ " reached waypoint " ~ currentWptIndex;
+		# 3. Check if current waypoint is reached or passed
+		if (dist_m < (thresholdWpt + 600.0 - skill * 10.0)) { # Adjust threshold based on skill level
+			var callsign = getCallSign(myNodeName) or myNodeName;
+			var baseMsg = callsign ~ " reached waypoint " ~ currentWptIndex;
 
-            # Event triggers based on reached waypoint index
-            if (currentWptIndex == 1) {
-                ats.controls.stayInFormation = 0;
-                msg = msg ~ ". Preparing for bombing run.";
-            } 
-            elsif (currentWptIndex == 2) {
-                ats.jobDone = 1;
-                msg = msg ~ ". Mission accomplished, returning to base.";
-            }
-            elsif (currentWptIndex == 3) {
-                msg = msg ~ ". Reached base.";
-            }
+			var logAndDisplay = func(txt) {
+				gui.popupTip(txt, 5);               
+				mainStatusPopupTip(txt, 5);
+				debprint("Bombable: " ~ txt);
+			};
 
-            gui.popupTip(msg, 5);               
-            mainStatusPopupTip(msg, 5);
-            debprint("Bombable: " ~ msg);
+			# Event triggers based on reached waypoint index
+			if (currentWptIndex == 1) {
+				ats.controls.stayInFormation = 0;
+				logAndDisplay(baseMsg ~ ". Preparing for bombing run.");
+			} 
+			elsif (currentWptIndex == 2) {
+				# Execute bomb release synchronously
+				var success = drop_ai_bomb_via_teleport(myNodeName, 0.05, 0.2);
+
+				if (!success) {
+					logAndDisplay(baseMsg ~ ". Bomb release failed. Retrying.");
+					return; # Abort waypoint advancement; stay on existing heading/job status
+				}
+
+				logAndDisplay(baseMsg ~ ". Bomb released successfully. Returning to base.");
+			}
+			elsif (currentWptIndex == 3) {
+				if (!ats.jobDone) logAndDisplay(baseMsg ~ ". Reached base.");
+				ats.jobDone = 1; # mission complete
+			}
+
 
             # Advance index if more waypoints remain in flightpath
             if (currentWptIndex < numWaypoints) {
@@ -12926,14 +13000,8 @@ var updateWptHeading = func(id, myNodeName) {
                 
                 # Recalculate heading immediately for the new active waypoint
                 distHdg = courseToWaypoint(myNodeName, ats.flightpath.waypoints[currentWptIndex - 1]); 
-                if (distHdg != nil) {
-                    targetHdg = distHdg.heading;
-                }
+                if (distHdg != nil) targetHdg = distHdg.heading;
             }
-			else
-			{
-				return; # Continue on current heading if no more waypoints
-			}
         }
 
         # 4. Update Target Heading in Property Tree
@@ -12954,12 +13022,21 @@ var updateWptHeading = func(id, myNodeName) {
 		{
 			setprop(myNodeName ~ "/controls/flight/lateral-mode", "roll");
 		}
+        # 5. Update Target Alt in Property Tree
+		var oldTgtAlt = getprop(myNodeName ~ "/controls/flight/target-alt"); 
+		var targetAlt = ats.flightpath.waypoints[currentWptIndex - 1][2];
+		if (math.abs(oldTgtAlt - targetAlt) > 300) # Only update if significant change
+		{
+			# Set target altitude to the altitude of the next waypoint
+			setprop(myNodeName ~ "/controls/flight/target-alt", targetAlt);
+			debprint(sprintf("Bombable: Updated target altitude for %s to WPT%d from %.1f deg to %.1f", 
+						myNodeName, ats.flightpath.wpt_index, oldTgtAlt, targetAlt));
+		}
 	}
 
-
-    # 5. Re-schedule loop timer (2 to 3 seconds)
+    # 6. Re-schedule loop timer (2 to 3 seconds)
     settimer(func { updateWptHeading(id, myNodeName); }, 2.0 + rand());
-};
+}
 
 ########################## removeAll ###########################
 # removes all occurrences of element from vector
@@ -12988,10 +13065,8 @@ var removeElem = func(vector, element)
 }
 
 ########################## resetScenario ###########################
-# stop attack, weapons and ground loops
-# rebuild teams and assign new targets
-# repair and refuel all AI ships, planes
-# reload weapons
+# helper to delay reset until pause has been cleared
+# called from bombable dialog
 
 
 var resetScenario = func()
@@ -13014,6 +13089,13 @@ var resetScenario = func()
 	}
 }
 
+########################## resetScenarioMain ###########################
+# stop attack, weapons and ground loops
+# rebuild teams and assign new targets
+# repair and refuel all AI ships, planes
+# reload weapons
+# reinit combat statistics reporter
+# restart all loops
 
 var resetScenarioMain = func()
 {
@@ -13084,15 +13166,18 @@ var resetScenarioMain = func()
 			setprop(""~myNodeName~"/position/longitude-deg", 0);
 		}
 	}
+	
+	# Increment epoch to invalidate pending settimer callbacks in put_splash()
+    bombable_epoch += 1;
+
+	resetTerrainFires(); # remove terrain fire and smoke models
 
 	records.init();
+
 
 	setprop("/sim/ai/scenario-initialized", 0); # flag used to delay start of loops until after start of scenario
 	restartAllLoops(loops);
 
-	# ensure not paused
-	props.globals.getNode("sim/freeze/master", 1).setBoolValue(0);
-	props.globals.getNode("sim/freeze/clock", 1).setBoolValue(0);
 
 	# wait a while to clear the smoke and contrails
 	var timeNow = getprop("/sim/time/elapsed-sec");
@@ -13107,7 +13192,7 @@ var resetScenarioMain = func()
 
 
 ########################## restartAllLoops ###########################
-# restart all loops
+# restart all loops after the scenario has been completely reset
 # the foreach loop must call a helper function - calling settimer directly from within the loop 
 # causes it to use only the last element of nodes 
 
@@ -13128,38 +13213,46 @@ var restartAllLoops = func(loops)
 }
 
 ########################## restartLoop ###########################
+# helper function to restart a specific loop for a specific node
+# resets aircraft flight controls - could make this a separate function
+
 var restartLoop = func(myNodeName, loopName)
 {
 	var ats = attributes[myNodeName];
 	var type= ats.type;
 	if (!contains(ats.loopids, loopName ~ "_loopid")) return; # to restart a loop we require it to have an earlier id
 	var loopid = inc_loopid (myNodeName, loopName);
-	var r = rand() - 0.5;
 	if (loopName == "weapons") 
 	{
-		settimer ( func {weapons_loop (loopid, myNodeName); }, r + 8);
+		settimer ( func {weapons_loop (loopid, myNodeName); }, rand() - 7.5);
 	}
 	elsif (loopName == "ground") 
 	{
-		settimer( func {ground_loop (loopid, myNodeName); }, r + 5);
+		settimer( func {ground_loop (loopid, myNodeName); }, rand() - 4.5);
 	}
 	elsif (type == "aircraft" and getprop(""~myNodeName~"/bombable/initializers/attack-initialized") != nil) # need to check whether ground vehicles and ships have an attack mode
 	{
 		if (loopName == "attack") 
 		{
-			settimer( func {attack_loop (loopid, myNodeName); }, r + 6);
+			settimer( func {attack_loop (loopid, myNodeName); }, rand() - 5.5);
 		}
 		elsif (loopName == "speed_adjust") 
 		{
-			settimer ( func {speed_adjust_loop ( loopid, myNodeName, .3 + rand() / 30); }, r + 7);
+			settimer ( func {speed_adjust_loop ( loopid, myNodeName, .3 + rand() / 30); }, rand() - 0.5 + 7);
 		}
 	}
 
 	if (type == "aircraft") {
-		# reset flight controls
+		# reset aircraft flight controls
 		setprop (""~myNodeName~"/controls/flight/vertical-mode", "alt"); 
-		setprop (""~myNodeName~"/controls/flight/lateral-mode", "roll");
 		setprop (""~myNodeName~"/controls/flight/target-roll", 0);
+		if ((ats.team == "B" or ats.team == "C") and getprop(""~myNodeName~"/bombable/initializers/attack-initialized") == nil)
+		{
+			setprop (""~myNodeName~"/controls/flight/lateral-mode", "hdg");
+			settimer(func { updateWptHeading(loopid, myNodeName); }, 2.0 + rand());
+		} else {
+			setprop (""~myNodeName~"/controls/flight/lateral-mode", "roll");
+		}
 	}
 }
 
@@ -13247,7 +13340,7 @@ var flight_path = func(best_rwy, dist, approach_height_ft = nil, abort_delta_ft 
     }
 
     # 3. Calculate Altitudes (AGL in feet)
-    var alt_wpt1 = approach_height_ft;
+    var alt_wpt1 = approach_height_ft * (1.0 + rand() * 0.2); # Add slight randomization to approach height
     var alt_wpt2 = approach_height_ft;
     var alt_wpt3 = approach_height_ft + abort_delta_ft;
 
@@ -13335,67 +13428,16 @@ var init_ai_flightpath = func (ats, group, approach_dist_nm = 5.0) {
     return ats.flightpath;
 }
 
-# Helper to look up submodel index N by its defined name
-var get_submodel_index_by_name = func(target_name) {
-    var submodels_node = props.globals.getNode("/ai/submodels");
-    if (submodels_node == nil) return -1;
-
-    var children = submodels_node.getChildren("submodel");
-    forindex (var i; children) {
-        var name_node = children[i].getNode("name");
-        if (name_node != nil and name_node.getValue() == target_name) {
-            return i;
-        }
-    }
-    return -1;
-};
-
-########################## setBombArmingDelay ###########################
-# Wrapper function to add bomb arming delay to attributes.controls for non-attack aircraft
-# delay used by test_impact()
-# not used 
-# change to parsing submodels.xml to extract arming-time-sec for each weapon type
-# 
-
-var setBombArmingDelay = func(myNodeName) {
-    # 1. Look up submodel index for a given name
-    var submodel_name = "MK-82-LD-ter-2-0";
-    var idx = get_submodel_index_by_name(submodel_name);
-
-    if (idx == -1) {
-        print("[BOMBABLE ERROR] Submodel definition '", submodel_name, "' not found in /submodels");
-        return 0;
-    }
-
-    # 2. Extract arming-time-sec from /submodels/submodel[idx]
-    var submodel_path = sprintf("/submodels/submodel[%d]", idx);
-    var arming_time = getprop(submodel_path ~ "/arming-time-sec");
-
-    if (arming_time == nil) {
-        # Fallback default if property is missing in XML
-        arming_time = 2.0;
-        print("[BOMBABLE WARNING] arming-time-sec not set for ", submodel_name, ". Using fallback: 2.0s");
-    }
-
-    if (!contains(attributes, myNodeName) or attributes[myNodeName] == nil) {
-        print("[BOMBABLE ERROR] No attributes entry for node: ", myNodeName);
-        return 0;
-    }
-    
-    var ats = attributes[myNodeName];
-
-
-    ats.armingDelay = arming_time;
-
-    print("[BOMBABLE SUCCESS] Set ", myNodeName, " armingDelay = ", arming_time, "s");
-    return 1;
-};
-
+########################## drop_ai_bomb_via_teleport ###########################
 var drop_ai_bomb_via_teleport = func(ai_node_name, t1 = 0.05, t2 = 0.1) {
+
+	if (getprop("/controls/stealth") == 1) return(0); # already in operation, so don't trigger another drop
+
+
     var ai_node = props.globals.getNode(ai_node_name);
     if (ai_node == nil) {
         print("[BOMB DROP DEBUG] Target AI node not found!");
-        return;
+        return(0);
     }
 
     # 1. Fetch AI B-17 Position
@@ -13426,13 +13468,14 @@ var drop_ai_bomb_via_teleport = func(ai_node_name, t1 = 0.05, t2 = 0.1) {
     # print("[BOMB DROP DEBUG] Target Throttle   : ", throttle_target);
     # print("==================================================");
 
-    # 4. Apply Target Throttle & Inject Matching Velocity Vector Immediately
+
+    # Apply Target Throttle & Inject Matching Velocity Vector Immediately
     setprop("/controls/engines/engine[0]/throttle", throttle_target);
     setprop("/velocities/uBody-fps", target_spd * 1.68781);
     setprop("/velocities/true-airspeed-kt", target_spd);
     setprop("/velocities/groundspeed-kt", target_spd);
 
-    # 5. Wait Latency t1 -> Teleport & Fire Trigger
+    # Wait Latency t1 -> Teleport & Fire Trigger
     settimer(func {
         # var spd_at_teleport = getprop("/velocities/true-airspeed-kt") or 0.0;
         # print("[BOMB DROP DEBUG] Phase 1 Complete (t1 = ", t1, "s)");
@@ -13446,13 +13489,12 @@ var drop_ai_bomb_via_teleport = func(ai_node_name, t1 = 0.05, t2 = 0.1) {
 
         setprop("/controls/armament/trigger6", 1);
 
-        # 6. Wait Latency t2 -> Release Trigger & Restore Station
+        # Wait Latency t2 -> Release Trigger & Restore Station
         settimer(func {
-            # var spd_at_release = getprop("/velocities/true-airspeed-kt") or 0.0;
-            # print("[BOMB DROP DEBUG] Phase 2 Complete (t2 = ", t2, "s)");
-            # print("[BOMB DROP DEBUG] Speed at Release  : ", spd_at_release, " kt");
+            # Set to stationary at original position and direction
 
             setprop("/controls/armament/trigger6", 0);
+            setprop("/controls/stealth", 0);
 
             setprop("/position/latitude-deg", orig_lat);
             setprop("/position/longitude-deg", orig_lon);
@@ -13460,16 +13502,13 @@ var drop_ai_bomb_via_teleport = func(ai_node_name, t1 = 0.05, t2 = 0.1) {
             setprop("/orientation/heading-deg", orig_hdg);
             setprop("/orientation/pitch-deg", orig_pitch);
 
-            # Maintain steady throttle and bank to hold orbit station
-            # setprop("/controls/engines/engine[0]/throttle", 0.0);
-            setprop("/controls/engines/engine[0]/throttle", throttle_target);
-            setprop("/controls/flight/aileron", 0.03);
-            # print("[BOMB DROP DEBUG] UFO restored to orbit at 3-deg bank.");
-            # print("==================================================");
+            setprop("/controls/engines/engine[0]/throttle", 0.0);
+            setprop("/controls/flight/aileron", 0.0);
         }, t2);
 
     }, t1);
-};
+	return(1);
+}
 
 # ==============================================================================
 # TEST CODE: Execute drop after 0.05 second delay

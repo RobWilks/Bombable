@@ -337,7 +337,7 @@ var show_ai_view_menu_in_memory = func {
     var smooth_prop = "/sim/gui/dialogs/ai-view/smoothing-enabled";
 
     if (getprop(slot_prop) == nil) setprop(slot_prop, "101");
-    if (getprop(smooth_prop) == nil) setprop(smooth_prop, 1);
+    if (getprop(smooth_prop) == nil) setprop(smooth_prop, 0); # Default to smoothing disabled
 
     var current_slot = num(getprop(slot_prop));
     if (current_slot != nil) {
@@ -348,7 +348,7 @@ var show_ai_view_menu_in_memory = func {
         # ideally would be able to set a default in the ufo-bombable.xml file for aircraft config 
         # but there seem to be additional offsets applied when the view is first created
         setprop(x_off_prop, (cur_x != nil) ? cur_x : 0.0);
-        setprop(y_off_prop, (cur_y != nil and cur_y != 0.0) ? cur_y : -15.0);
+        setprop(y_off_prop, (cur_y != nil and cur_y != 0.0) ? cur_y : 15.0);
         setprop(z_off_prop, (cur_z != nil and cur_z != 0.0) ? cur_z : -40.0);
     }
 

@@ -444,7 +444,7 @@
     <trigger>controls/armament/trigger6</trigger>  
 		<speed>0</speed>
 		<repeat>true</repeat>
-		<delay>0.1</delay>
+		<delay>0.05</delay>
 		<count>-1</count>
     <x-offset>0.0</x-offset>
     <y-offset>0.0</y-offset>
@@ -453,7 +453,7 @@
 		<pitch-offset>-2</pitch-offset>
 		<cd>0.16</cd>
 		<weight>500</weight>  <!-- lbs -->
-		<fuse-range>2.2</fuse-range><!-- meter or feet ? -->
+		<fuse-range>2.2</fuse-range><!-- feet ? -->
 		<eda>0.61629</eda>
 		<life>50</life>
 		<buoyancy>0</buoyancy>
@@ -466,9 +466,10 @@
 			<enable-hot type="bool">false</enable-hot>
 		</animation>
     <randomness>
-      <azimuth>5.0</azimuth>
-      <elevation>5.0</elevation>
+      <azimuth>15.0</azimuth>
+      <elevation>15.0</elevation>
     </randomness>
+    <wind>1.0</wind>
 	</submodel>
 
 	<submodel>
