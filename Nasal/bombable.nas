@@ -13315,7 +13315,7 @@ var find_closest_runway_details = func(icao, mainAC_heading) {
 }
 
 
-##################### flight_path ##########################
+###################### flight_path ##########################
 # Generates a 3-element vector of 3D waypoint coordinates [[lat, lon, alt_ft], ...] based on runway geometry.
 # WPT1: Approach FAF (dist NM behind runway midpoint along approach heading)
 # WPT2: Runway physical midpoint
