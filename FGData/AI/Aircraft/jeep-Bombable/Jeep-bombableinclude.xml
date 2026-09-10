@@ -55,8 +55,22 @@
         # "c:/Program Files/FlightGear/data/AI/M1-Abrams/m1.xml" - this is not 
         # only long & complex but will change depending on the system
         # FG is running on.          
-        aircraft.jeep_dlg_config = gui.Dialog.new("ai/jeep/config/dialog","AI/Aircraft/jeep-bombable/Dialogs/config.xml");
-				
+
+        # 1. Get the directory containing the executing Nasal file
+        var script_dir = io.dirname(caller()[2]);
+
+        # 2. Build the path using standard string operations
+        var dialog_path = script_dir ~ "/../Dialogs/config.xml";
+
+        # 3. Print to terminal to verify
+        print("Resolved jeep dialog path: ", dialog_path);
+
+        # 4. Pass the resolved absolute path string to gui.Dialog
+        aircraft.jeep_dlg_config = gui.Dialog.new("ai/jeep/config/dialog", dialog_path);
+
+
+
+
 				#aircraft.jeep_dlg_config.toggle();
         
         #Doing this via a hot key wouldwork too but the menu option seems better

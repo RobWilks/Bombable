@@ -3763,6 +3763,9 @@ var put_splash = func (nodeName, iLat_deg,iLon_deg, iAlt_m, ballisticMass_lb, im
 			
 	if ((impactSplashPlaced == nil or impactSplashPlaced != impactObjectLat_deg) and iLat_deg != nil and iLon_deg != nil and iAlt_m != nil){
 				
+        # get current epoch - number of scenario resets
+        var current_epoch = bombable_epoch;
+        
 		records.record_impact ( myNodeName: myNodeName, damageRise:0, damageIncrease:0, damageValue:0, impactNodeName: nodeName, ballisticMass_lb: ballisticMass_lb, lat_deg: iLat_deg, lon_deg: iLon_deg, alt_m: iAlt_m );
 
 		if (ballisticMass_lb < 1.2) {
@@ -3792,9 +3795,6 @@ var put_splash = func (nodeName, iLat_deg,iLon_deg, iAlt_m, ballisticMass_lb, im
 		#for larger explosives (or a slight chance with smaller rounds, which
 		# all have some incendiary content) start a fire
 
-        # --- FIX: Capture current epoch generation ---
-        var current_epoch = bombable_epoch;
-        
         if (ballisticMass_lb > 1.2 or (ballisticMass_lb <= 1.2 and rand() < ballisticMass_lb / 10)) {
             settimer(func {
                 # Abort execution if scenario was reset while timer was waiting
@@ -3969,33 +3969,6 @@ var test_impact = func(changedNode, myNodeName) {
 	var impactNodeName = changedNode.getValue();
 	var ats = attributes[myNodeName]; 	
 
-	# rjw mod:  Check if the impactor is armed.  If not, skip the impact evaluation.
-	# Applies to bombs and other ordnance that have an arming delay after release.  
-	# If the ordnance is unarmed, it should not cause damage on impact.
-	# This approach failed:  if a collision occurs within the arming window the submodel is removed by the C++ submodel manager
-	# and the ordnance is lost even when detonation has been prevented
-
-
-	# var arming_delay = (getprop (""~impactNodeName~"/name") == "MK-82-LD-ter-2-0") ? 5.0 : 0.0;
-	# var timeElapsed = getprop (""~impactNodeName~"/sim/time/elapsed-sec");
-	# debprint ("Bombable: test_impact, ", myNodeName," ", impactNodeName, " arming_delay: ", arming_delay, " timeElapsed: ", timeElapsed);
-	# if (timeElapsed < arming_delay) return; # Submodel is not armed yet; skip impact evaluation
-
-	# var removeFlag = getprop (""~impactNodeName~"/remove");
-	# if (removeFlag == nil or removeFlag == 0) {
-	# 	setprop (""~impactNodeName~"/remove", 1); # set remove flag so that other listeners on this node don't set removal timers
-	# 	# Schedule cleanup after ALL 12 listener callbacks have finished executing
-    #     settimer(func {
-                
-    #             # 1. Force C++ submodel manager to retire the submodel slot
-    #             setprop(""~impactNodeName~"/sim/time/elapsed-sec", 0.0);
-
-    #             # 2. Reset transient impact flags so slot is clean for next release
-	# 			setprop (""~impactNodeName~"/remove", 0);
-    #         }
-    #     , 0.05); # 0.05s guarantees frame boundary separation
-	# }
-			
 	# debprint ("Bombable: test_impact, ", myNodeName," ", impactNodeName);
 
 	var oLat_deg = getprop (""~myNodeName~"/position/latitude-deg");
@@ -4003,13 +3976,6 @@ var test_impact = func(changedNode, myNodeName) {
 
 	debprint ("Bombable: test_impact oLat, iLat: ", oLat_deg, " ", iLat_deg );
 
-	# bhugh, 3/28/2013, not sure why this error is happening sometimes in 2.10:
-	# Nasal runtime error: No such member: maxLat
-	#  at E:/FlightGear 2.10.0/FlightGear/data/Nasal/bombable.nas, line 3405
-	#  called from: E:/FlightGear 2.10.0/FlightGear/data/Nasal/bombable.nas, line 8350
-	#  called from: E:/FlightGear 2.10.0/FlightGear/data/Nasal/globals.nas, line 100
-			
-			
 	var maxLat_deg = ats.dimensions['maxLat'];
 	var maxLon_deg = ats.dimensions['maxLon'];
 
@@ -10405,7 +10371,7 @@ var bombable_init_func = func(myNodeName)
 	{
 		#debprint ("i: " , i);
 		listenerid = setlistener(i, func ( changedImpactReporterNode ) {
-			if (!bombableMenu["bombable-enabled"] ) return 0;
+		if (!bombableMenu["bombable-enabled"] ) return 0;
 		test_impact( changedImpactReporterNode, myNodeName ); });
 		append(listenerids, listenerid);
 	}

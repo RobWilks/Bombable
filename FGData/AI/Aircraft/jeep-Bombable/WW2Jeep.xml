@@ -327,7 +327,7 @@
 </animation> -->
 
 	<model>
-		<path>AI/Aircraft/jeep-bombable/Models/pilot.xml</path>
+		<path>Models/pilot.xml</path>
 		<name>pilot</name>
 		<offsets>
 			<x-m>0.65</x-m>
@@ -349,7 +349,7 @@
 	</condition>
 </animation>
 <model>
-	<path>AI/Aircraft/jeep-bombable/Models/roof.ac</path>
+	<path>Models/roof.ac</path>
 	<name>softroof</name>
 	<offsets>
 		<x-m>0.0</x-m>
@@ -370,7 +370,7 @@
  
 	<!-- Origin of model has been displaced to approx position of CoG -->
 	<model>
-		<path>AI/Aircraft/jeep-bombable/Models/transparent.xml</path>
+		<path>Models/transparent.xml</path>
 		<offsets>
 			<x-m>-1.45</x-m>
 			<y-m>0.0</y-m>
@@ -413,7 +413,7 @@
     
 	<!-- fire animations -->
 	<!-- model>
-		<path>AI/Aircraft/jeep-bombable/Models/Effects/fire-particles.xml</path>
+		<path>Models/Effects/fire-particles.xml</path>
 		<offsets>
 			<x-m>0.0</x-m>
 			<y-m>0.0</y-m>
