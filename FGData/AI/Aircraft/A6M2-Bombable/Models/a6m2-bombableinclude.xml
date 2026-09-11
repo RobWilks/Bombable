@@ -150,7 +150,7 @@
                #longer will become more like an energy fighter that zooms
                #way out, turns around, etc. Set to 0 for kamikase behaviour
             
-            continueAttackAngle_deg : 110, #when within minDistance_m, the aircraft will continue to turn towards the main aircraft and attack *if* if the angle is less than this amount from dead ahead.  A wider angle will make it work more like a twisty/turning fighter, narrower angle more like an energy fighter.
+            continueAttackAngle_deg : 90, #when within minDistance_m, the aircraft will continue to turn towards the main aircraft and attack *if* if the angle is less than this amount from dead ahead.  A wider angle will make it work more like a twisty/turning fighter, narrower angle more like an energy fighter.
             altitudeHigherCutoff_m : 5000, # will attack the main aircraft unless this amount higher than it or more
             altitudeLowerCutoff_m : 5000, # will attack the main aircraft unless this amount lower than it or more 
             rollMin_deg : 68, #when turning on attack, roll to this angle min

@@ -2746,7 +2746,7 @@ var fire_loop = func(id, myNodeName = "") {
 ############################### hitground_stop_explode ###########################
 # Puts myNodeName right at ground level, explodes, sets up
 # for full damage & onGround trigger to make it stop real fast now
-# rjw in original code this function was only called for aircraft. var onGround is only set for aircraft 
+# this function only called for aircraft. var onGround is only set for aircraft 
 # function will be called several times until exploded flag set
 
 var hitground_stop_explode = func (myNodeName, alt) {
@@ -3002,7 +3002,7 @@ var ground_loop = func( id, myNodeName ) {
 
 	
 	#The first time this is called just initializes all the altitudes and exit
-	#rjw are these altitudes ever used again?
+
 	if ( alts.initialized != 1 ) 
 	{
 		var initial_altitude_ft = getprop (""~myNodeName~"/position/altitude-ft");
@@ -3057,10 +3057,12 @@ var ground_loop = func( id, myNodeName ) {
 	
 
 	# end of life:  damaged ships and ground vehicles grind to a halt; aircraft explode and flag onGround
+	# test to exit ground loop
 	# speed is adjusted by add_damage
+	# ships and groundvehicles might be stationary at the start of a scenario
 	if ((type == "groundvehicle") or (type == "ship")) 
 	{
-		if (speed_kt <= 1) 
+		if (speed_kt <= 1 and ats.damage > 0.9) 
 		{
 			debprint(sprintf
 				(
@@ -3289,7 +3291,7 @@ var ground_loop = func( id, myNodeName ) {
 			
 			
 	# now calculate how far to force the thing down if it is crashing/damaged
-	# rjw ships and aircraft will sink/fall when damaged; some ground vehicles are classed as ships!
+	# rjw ships and aircraft will sink/fall when damaged
 
 	var damageAltAddCurrent = 0; #local value of variable in attributes hash
 	var damageAltMaxPerCycle_ft = 0;
@@ -12751,7 +12753,7 @@ var startScenario = func(startTime)
 			airSpeed    : gNode.getNode("airSpeed", 1).getValue() * KT2MPS,
 			airportName : gNode.getNode("airportName", 1).getValue(),
 			heading     : gNode.getNode("heading", 1).getValue(),
-			alt         : gNode.getNode("alt", 1).getValue(),
+			alt         : gNode.getNode("alt", 1).getValue(), #ft
 			offsets     : offsetList
 		});
 	}
@@ -12804,51 +12806,28 @@ var startScenario = func(startTime)
 			debprint("Bombable: startScenario: Team "~teamName~" targets " ~ msg);
 		}
 		# location lead aircraft calculated from airport lat, lon, alt, heading, speed and arrival time
+		# group.alt (ft) is interpreted as height above the airport main runway.  ASL is calculated from it   
 		GeoCoord.set_latlon(from.lat, from.lon);
 		var dist = group.airSpeed * KT2MPS * group.arrivalTime;
 		var heading = group.heading;
 		GeoCoord.apply_course_distance(heading + 180, dist);
 		foreach (var o ; group.offsets)  
 		{
-			#calculate lon, lat
-			GeoCoord2.set_latlon ( GeoCoord.lat(), GeoCoord.lon());
-			var myHeading = math.atan2(o[1], -o[0]) * R2D;
-			var deltaHeading = heading + myHeading ;
-			dist2me = math.sqrt(o[0]*o[0] + o[1]*o[1]); 
-			GeoCoord2.apply_course_distance(deltaHeading, dist2me);    #frontreardist in meters
 			#get node
 			var count = teams[teamName].count;
 			if (count < size(teams[teamName].indices)) # check to ensure scenario definition and extension files are consistent
 			{
+				#get lon, lat of group
+				GeoCoord2.set_latlon ( GeoCoord.lat(), GeoCoord.lon());
 				myNodeName = nodes[teams[teamName].indices[count]];
 				var ats = attributes[myNodeName];
 				var type = ats.type;
 				count += 1;
 				teams[teamName].count = count;
-				setprop(""~myNodeName~"/orientation/true-heading-deg", group.heading);
-				setprop(""~myNodeName~"/orientation/roll-deg", 0);
-				setprop(""~myNodeName~"/orientation/pitch-deg", 0);
-				setprop(""~myNodeName~"/position/latitude-deg", GeoCoord2.lat());
-				setprop(""~myNodeName~"/position/longitude-deg", GeoCoord2.lon());
-				if (type == "aircraft")
-				{
-					setprop(""~myNodeName~"/velocities/true-airspeed-kt", group.airSpeed);
-					setprop(""~myNodeName~"/controls/flight/target-spd", group.airSpeed);
-					setprop(""~myNodeName~"/controls/flight/target-alt", group.alt + o[2] * M2FT);
-					setprop(""~myNodeName~"/controls/flight/target-hdg", group.heading);
-					setprop(""~myNodeName~"/position/altitude-ft", group.alt + o[2] * M2FT);
-				}
-				elsif (type == "ship")
-				{
-					setprop(""~myNodeName~"/controls/tgt-heading-degs", group.heading);
-					setprop(""~myNodeName~"/velocities/speed-kts", group.airSpeed);
-					setprop(""~myNodeName~"/controls/tgt-speed-kts", group.airSpeed);
-					setprop (""~myNodeName~"/surface-positions/rudder-pos-deg", 0);					
-				}
 
-				# construct flightpath of waypoints
-				# if successful start the loop to update the heading to the current waypoint
 				if ((teamName == "B" or teamName == "C") and getprop(""~myNodeName~"/bombable/initializers/attack-initialized") == nil) {
+					# construct flightpath of waypoints
+					# if successful start the loop to update the heading to the current waypoint
 					var segmentLength = 5.0; # nm between waypoints
 					init_ai_flightpath(ats, group, segmentLength);
 					# Navigating active waypoint via ats.flightpath:
@@ -12865,6 +12844,62 @@ var startScenario = func(startTime)
 						debprint ("Bombable: Initialised updateWptHeading for " ~ myNodeName);
 					}
 				}
+
+				# team W is a special case where an AI model is used as a stationary ground target
+				# in the middle of a runway
+				# by disabling dodge() we stop the target moving away; it just gets damaged
+				elsif (teamName == "W") {
+					var icao = group.airportName;
+
+					# get runway with orientation closest to the group heading
+					var best_rwy = find_closest_runway_details(icao, heading);
+					if (best_rwy == nil) 
+					{
+						print("Error: Could not find matching runway for airport: " ~ str(icao));
+					}
+					else
+					{
+						# change object co-ords to the runway midpoint 
+						GeoCoord2.set_latlon(best_rwy.lat, best_rwy.lon);
+						
+						var half_length_m = best_rwy.length_m / 2.0;
+						GeoCoord2.apply_course_distance(best_rwy.heading, half_length_m);
+					}
+				}
+
+				# apply offsets
+				var myHeading = math.atan2(o[1], -o[0]) * R2D;
+				var deltaHeading = heading + myHeading ;
+				dist2me = math.sqrt(o[0]*o[0] + o[1]*o[1]); 
+				GeoCoord2.apply_course_distance(deltaHeading, dist2me);    #frontreardist in meters
+
+
+				var alt_ft = group.alt + (from.elevation +o[2]) * M2FT;
+				# scenario altutude is in ft and relative to ground level at airport
+
+
+				setprop(""~myNodeName~"/orientation/true-heading-deg", group.heading);
+				setprop(""~myNodeName~"/orientation/roll-deg", 0);
+				setprop(""~myNodeName~"/orientation/pitch-deg", 0);
+				setprop(""~myNodeName~"/position/latitude-deg", GeoCoord2.lat());
+				setprop(""~myNodeName~"/position/longitude-deg", GeoCoord2.lon());
+				if (type == "aircraft")
+				{
+					setprop(""~myNodeName~"/velocities/true-airspeed-kt", group.airSpeed);
+					setprop(""~myNodeName~"/controls/flight/target-spd", group.airSpeed);
+					setprop(""~myNodeName~"/controls/flight/target-alt", alt_ft);
+					setprop(""~myNodeName~"/controls/flight/target-hdg", group.heading);
+					setprop(""~myNodeName~"/position/altitude-ft", alt_ft);
+				}
+				elsif (type == "ship" or type == "groundvehicle")
+				{
+					setprop(""~myNodeName~"/controls/tgt-heading-degs", group.heading);
+					setprop(""~myNodeName~"/velocities/speed-kts", group.airSpeed);
+					setprop(""~myNodeName~"/controls/tgt-speed-kts", group.airSpeed);
+					setprop (""~myNodeName~"/surface-positions/rudder-pos-deg", 0);	
+					setprop(""~myNodeName~"/position/altitude-ft", alt_ft);
+					debprint(sprintf("Bombable: Set speed and heading for %s type %s to %.1f and %.1f", myNodeName, type, group.heading, group.airSpeed));				
+				}
 			}
 		}
 	}
@@ -12879,10 +12914,11 @@ var startScenario = func(startTime)
 
 	setprop("/sim/ai/scenario-initialized", 1); # flag set to trigger start of all loops
 
-	# Dump bombable stats 400 seconds from simulator startup
+	# Dump bombable stats 600 seconds from simulator startup and reset scenario
 	settimer(func {
-    records.export_totals_csv(sprintf("Started at %.0fs", timeNow));
-	}, 400);
+		records.export_totals_csv(sprintf("Started at %.0fs", timeNow));
+		resetScenario();
+	}, 600);
 	
 }
 

@@ -116,7 +116,7 @@ Any aircraft that shoots guns or drops bombs can damage the Zeros and B-17.  A g
       <latitude type="double">26.1906</latitude>
       <longitude type="double">127.6380</longitude>
       <altitude type="double">5100</altitude>
-      <speed>1.0</speed>
+      <speed>0</speed>
       <rudder type="double">0</rudder>
       <turn-radius-ft>30</turn-radius-ft>
       <fixed-turn-radius-ft>30</fixed-turn-radius-ft>
