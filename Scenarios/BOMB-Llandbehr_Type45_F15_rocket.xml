@@ -98,8 +98,6 @@
 		<entry>
 			<search-order>PREFER_AI</search-order>
 			<type>static</type>
-			<callsign>Impaler</callsign>
-			<name>AIM_2</name>
 			<model type="string">Aircraft/Rockets/aster-30-exhaust.xml</model>
 			<latitude type="double">0</latitude>
 			<longitude type="double">0</longitude>
@@ -110,8 +108,6 @@
 		<entry>
 			<search-order>PREFER_AI</search-order>
 			<type>static</type>
-			<callsign>Excalibur</callsign>
-			<name>AIM_3</name>
 			<model type="string">Aircraft/Rockets/aster-30-exhaust.xml</model>
 			<latitude type="double">0</latitude>
 			<longitude type="double">0</longitude>
@@ -122,8 +118,6 @@
 		<entry>
 			<search-order>PREFER_AI</search-order>
 			<type>static</type>
-			<callsign>Sauron</callsign>
-			<name>AIM_4</name>
 			<model type="string">Aircraft/Rockets/aster-30-exhaust.xml</model>
 			<latitude type="double">0</latitude>
 			<longitude type="double">0</longitude>
@@ -134,8 +128,6 @@
 		<entry>
 			<search-order>PREFER_AI</search-order>
 			<type>static</type>
-			<callsign>Vis</callsign>
-			<name>AIM_5</name>
 			<model type="string">Aircraft/Rockets/aster-30-exhaust.xml</model>
 			<latitude type="double">0</latitude>
 			<longitude type="double">0</longitude>
@@ -146,8 +138,6 @@
 		<entry>
 			<search-order>PREFER_AI</search-order>
 			<type>static</type>
-			<callsign>Liberator</callsign>
-			<name>AIM_6</name>
 			<model type="string">Aircraft/Rockets/aster-30-exhaust.xml</model>
 			<latitude type="double">0</latitude>
 			<longitude type="double">0</longitude>
@@ -158,8 +148,6 @@
 		<entry>
 			<search-order>PREFER_AI</search-order>
 			<type>static</type>
-			<callsign>Xcaliber</callsign>
-			<name>AIM_7</name>
 			<model type="string">Aircraft/Rockets/aster-30-exhaust.xml</model>
 			<latitude type="double">0</latitude>
 			<longitude type="double">0</longitude>
@@ -170,8 +158,6 @@
 		<entry>
 			<search-order>PREFER_AI</search-order>
 			<type>static</type>
-			<callsign>Antithesis</callsign>
-			<name>AIM_8</name>
 			<model type="string">Aircraft/Rockets/aster-30-exhaust.xml</model>
 			<latitude type="double">0</latitude>
 			<longitude type="double">0</longitude>
@@ -182,8 +168,6 @@
 		<entry>
 			<search-order>PREFER_AI</search-order>
 			<type>static</type>
-			<callsign>ConsiderThis</callsign>
-			<name>AIM_9</name>
 			<model type="string">Aircraft/Rockets/aster-30-exhaust.xml</model>
 			<latitude type="double">0</latitude>
 			<longitude type="double">0</longitude>
@@ -194,8 +178,6 @@
 		<entry>
 			<search-order>PREFER_AI</search-order>
 			<type>static</type>
-			<callsign>GameOver</callsign>
-			<name>AIM_10</name>
 			<model type="string">Aircraft/Rockets/aster-30-exhaust.xml</model>
 			<latitude type="double">0</latitude>
 			<longitude type="double">0</longitude>

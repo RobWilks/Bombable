@@ -1,0 +1,11 @@
+Model Information:
+* title:	FLAK pack (low poly)
+* source:	https://sketchfab.com/3d-models/flak-pack-low-poly-1056ea79c3154aadb775e958924fd4c3
+* author:	Götz von Berlichingen (https://sketchfab.com/vonBerlichingen)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "FLAK pack (low poly)" (https://sketchfab.com/3d-models/flak-pack-low-poly-1056ea79c3154aadb775e958924fd4c3) by Götz von Berlichingen (https://sketchfab.com/vonBerlichingen) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)

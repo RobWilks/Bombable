@@ -107,14 +107,24 @@ Any aircraft that shoots guns or drops bombs can damage the Zeros and B-17.  A g
       <heading type="double">200</heading>
       <performance-class>ww2_fighter</performance-class>
     </entry> 
-    <!--  Jeep at airport -->
+    <!--  Flak at airport -->
     <entry>
       <search-order>PREFER_AI</search-order>
+      <type>static</type>
+      <name>88mmFlakGun_W</name>
+      <model type="string">Aircraft/Flak-Gun-Bombable/88mm-flak-gun.xml</model>
+      <latitude type="double">26.1902</latitude>
+      <longitude type="double">127.6392</longitude>
+      <altitude type="double">5100</altitude>
+      <heading type="double">0</heading>
+    </entry>
+    <!-- <entry>
+      <search-order>PREFER_AI</search-order>
       <type>ship</type>
-      <name>Jeep1_20_W</name>
-      <model type="string">Aircraft/jeep-Bombable/WW2Jeep.xml</model>
-      <latitude type="double">26.1906</latitude>
-      <longitude type="double">127.6380</longitude>
+      <name>88mmFlakGun_W</name>
+      <model type="string">Aircraft/Flak-Gun-Bombable/88mm-flak-gun.xml</model>
+      <latitude type="double">26.1902</latitude>
+      <longitude type="double">127.6392</longitude>
       <altitude type="double">5100</altitude>
       <speed>0</speed>
       <rudder type="double">0</rudder>
@@ -123,7 +133,7 @@ Any aircraft that shoots guns or drops bombs can damage the Zeros and B-17.  A g
       <rudder-constant>50</rudder-constant>
       <speed-constant>6</speed-constant>
       <heading type="double">0</heading>
-    </entry>
+    </entry> -->
     <!--  First Zero Squadron -->
     <entry>
       <search-order>PREFER_AI</search-order>

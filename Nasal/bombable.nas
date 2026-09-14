@@ -255,10 +255,11 @@ var put_remove_model = func(lat_deg = nil, lon_deg = nil, elev_m = nil, time_sec
 
 	if (lat_deg == nil or lon_deg == nil or elev_m == nil) { return; }
 
-	# Capture current epoch to invalidate timers across reset routines
-    var local_epoch = bombable_epoch;	
+	# Capture current epoch to invalidate timers across reset routines.  But these timers remove the models!
+    # var local_epoch = bombable_epoch;	
+
 	var delay_sec = 0.1; #particles/models seem to cause FG crash * sometimes * when appearing within a model
-	#we try to reduce this by making the smoke appear a fraction of a second later, after
+	# we try to reduce this by making the smoke appear a fraction of a second later, after
 	# the a/c model has moved out of the way. (possibly moved, anyway--depending on its speed)
 
 	# debprint ("Bombable: Placing flack");
@@ -298,7 +299,7 @@ var put_remove_model = func(lat_deg = nil, lon_deg = nil, elev_m = nil, time_sec
 		# debprint ("Bombable: Placed flack, ", flackModelNodeName);
 		
 		settimer ( func { 
-			if (local_epoch != bombable_epoch) return;
+			# if (local_epoch != bombable_epoch) return;
 
 			props.globals.getNode(flackModelNodeName).remove();
 			}, time_sec);
@@ -7524,7 +7525,6 @@ var newVelocity = func (thisWeapon, missileSpeed_mps, missileDir, deltaPhi, delt
 # note difference from guideRocket which calculates its overall flightpath
 # updates position, speed and orientation of AI model of rocket
 # the rocket position and orientation are forced to follow the calculated rocket flightpath
-# the AI controls are overriden
 
 var moveRocket = func (thisWeapon, index, timeInc) {
 
@@ -7553,7 +7553,7 @@ var moveRocket = func (thisWeapon, index, timeInc) {
 
 ############################ killRocket ##############################
 # call for effects	
-# move rocket out of scene
+# keep rocket model but move it out of scene
 
 var killRocket = func (myNodeName, elem) {
 	# debprint("Bombable: " ~ elem ~ " killed: rocket index " ~ thisWeapon.rocketsIndex);
@@ -9342,7 +9342,7 @@ records.show_totals_dialog = func
 
 records.export_totals_csv = func (scenario_name = "default") {
     # Logs bombable statistics to a CSV file in the user's FG_HOME directory (~/.fgfs/Export/scenario_results.csv)
-    # Called 400sec after the scenario starts, using a timer set in startScenario
+    # Called on end of epoch, using a timer set in startScenario
     # time measured using sim/time/elapsed-sec
 
     # 1. Fetch user FG_HOME directory (~/.fgfs)
@@ -10831,9 +10831,11 @@ var weapons_init_func = func(myNodeName)
 	if (count == nil) {
 		count = 0; #index of first fire particle for AI aircraft
 		}
-	var rocketCount = getprop ("/bombable/rockets/index") ;
-	if (rocketCount == nil) {
-		rocketCount = 0; #index of first rocket for AI aircraft
+	var rocketIndex = getprop ("/bombable/rockets/index") ;
+	if (rocketIndex == nil) {
+		rocketIndex = 100; 
+		# index of first rocket for AI aircraft
+		# start at 100 so that rocket indices are separate from other statics in the scenario
 		}
 
 	foreach (elem;keys (weaps) ) 
@@ -10844,9 +10846,9 @@ var weapons_init_func = func(myNodeName)
 
 		if (thisWeapon["weaponType"] == 1) 
 		{
-			if (rocket_init_func (thisWeapon, rocketCount))
+			if (rocket_init_func (thisWeapon, rocketIndex))
 			{
-				rocketCount += 1;
+				rocketIndex += 1;
 			}
 			else
 			{
@@ -10939,9 +10941,9 @@ var weapons_init_func = func(myNodeName)
 	}
 	
 	setprop ("/bombable/fire-particles/index" , count) ; #next unassigned fire particle
-	setprop ("/bombable/rockets/index" , rocketCount) ; #next unassigned rocket
-
-	if (rocketCount) 
+	setprop ("/bombable/rockets/index" , rocketIndex) ; #next unassigned rocket
+# TODO the next conditional is likely an error:  rocketIndex will be non zero if other nodes than myNodeName carry rockets
+	if (rocketIndex) 
 	{
 		if (ats.dimensions["safeDistance_m"] == nil) ats.dimensions["safeDistance_m"] = 200;
 	}
@@ -11141,7 +11143,7 @@ var rocketParmCheck = func( thisWeapon )
 # thisWeapon is a pointer to the attributes hash
 # two sets of parameters:  user supplied and internal
 
-var rocket_init_func = func (thisWeapon, rocketCount) {			
+var rocket_init_func = func (thisWeapon, rocketIndex) {			
 	# check parameters supplied by user
 	if (!rocketParmCheck( thisWeapon )) return (0);
 
@@ -11218,7 +11220,7 @@ var rocket_init_func = func (thisWeapon, rocketCount) {
 	thisWeapon.pidData.theta = new_pidVals();
 	thisWeapon.pidData.phi = new_pidVals();
 
-	thisWeapon["rocketsIndex"] = rocketCount;
+	thisWeapon["rocketsIndex"] = rocketIndex;
 
 	thisWeapon["loopCount"] = 0; # counts calls to guideRocket
 
@@ -12430,10 +12432,11 @@ var addToTargets = func(myNodeName)
 	setprop("/bombable/targets/index", myIndex + 1);
 	var callsign = getCallSign(myNodeName); 
 	var teamName = right(callsign, 1);
+	if (ats.type == "static") teamName = "W";
 	#check valid team
 	if (find(teamName, "BCDEFGHIJKLMNOPQRSTUVWXYZ") == -1)
 	{
-		debprint(callsign, " not a valid team - require (B-Z) - A is the main aircraft");
+		debprint("Bombable: error: ", callsign, " not a valid team - require (B-Z) - A is the main aircraft");
 		return;
 	}
 	if (teams[teamName] == nil) teams[teamName] = {indices: [], target: nil, count: 0};
@@ -12654,13 +12657,26 @@ var resetTargetShooter = func (myIndex) {
 
 ########################## waitForAI ###########################
 # delay to allow AI objects to load
+# count the number of models and check against the number of targets identified in the scenario extension
+# could also check against ai/models/count which includes rockets loaded as static models
 
 var waitForAI = func()
 {
 	# if (getprop("/bombable/targets/index") != getprop("/ai/models/count"))
-	if (getprop("/bombable/targets/index") != 
-	size(props.globals.getNode ("/ai/models").getChildren("aircraft")) +
-	size(props.globals.getNode ("/ai/models").getChildren("ship")) + 1)  # bombable uses only two types of AI object; 1 for main AC
+	var nAircraft = size(props.globals.getNode ("/ai/models").getChildren("aircraft"));
+	var nShips = size(props.globals.getNode ("/ai/models").getChildren("ship"));
+	var ai_models = props.globals.getNode("/ai/models");
+	var static_nodes = ai_models.getChildren("static");
+	var nStatic = 0;
+	foreach (var node; static_nodes) {
+		if (node.getIndex() < 100) {
+			nStatic += 1;
+		}
+	}
+
+	print("" ~ size(static_nodes) ~ " static models of which " ~ nStatic ~ " with index < 100");
+
+	if (getprop("/bombable/targets/index") != nAircraft + nShips + nStatic + 1)  # scenarios have 3 types of AI object; 1 for main AC
 	{
 		settimer (func {waitForAI();}, 5, 1); # wait til all 3D models have been loaded
 		return;
@@ -12855,7 +12871,7 @@ var startScenario = func(startTime)
 					var best_rwy = find_closest_runway_details(icao, heading);
 					if (best_rwy == nil) 
 					{
-						print("Error: Could not find matching runway for airport: " ~ str(icao));
+						debprint("Bombable: Error: Could not find matching runway for airport: " ~ str(icao));
 					}
 					else
 					{
@@ -12883,13 +12899,15 @@ var startScenario = func(startTime)
 				setprop(""~myNodeName~"/orientation/pitch-deg", 0);
 				setprop(""~myNodeName~"/position/latitude-deg", GeoCoord2.lat());
 				setprop(""~myNodeName~"/position/longitude-deg", GeoCoord2.lon());
+				setprop(""~myNodeName~"/position/altitude-ft", alt_ft);
+				debprint("Bombable: startScenario: " ~ myNodeName ~ " at alt=" ~ getprop(""~myNodeName~"/position/altitude-ft"));
+
 				if (type == "aircraft")
 				{
 					setprop(""~myNodeName~"/velocities/true-airspeed-kt", group.airSpeed);
 					setprop(""~myNodeName~"/controls/flight/target-spd", group.airSpeed);
 					setprop(""~myNodeName~"/controls/flight/target-alt", alt_ft);
 					setprop(""~myNodeName~"/controls/flight/target-hdg", group.heading);
-					setprop(""~myNodeName~"/position/altitude-ft", alt_ft);
 				}
 				elsif (type == "ship" or type == "groundvehicle")
 				{
@@ -12897,8 +12915,7 @@ var startScenario = func(startTime)
 					setprop(""~myNodeName~"/velocities/speed-kts", group.airSpeed);
 					setprop(""~myNodeName~"/controls/tgt-speed-kts", group.airSpeed);
 					setprop (""~myNodeName~"/surface-positions/rudder-pos-deg", 0);	
-					setprop(""~myNodeName~"/position/altitude-ft", alt_ft);
-					debprint(sprintf("Bombable: Set speed and heading for %s type %s to %.1f and %.1f", myNodeName, type, group.heading, group.airSpeed));				
+					debprint(sprintf("Bombable: Set speed and heading for %s type %s to %.1f and %.1f", myNodeName, type, group.airSpeed, group.heading));				
 				}
 			}
 		}
@@ -12914,8 +12931,11 @@ var startScenario = func(startTime)
 
 	setprop("/sim/ai/scenario-initialized", 1); # flag set to trigger start of all loops
 
+	var local_epoch = bombable_epoch;
+
 	# Dump bombable stats 600 seconds from simulator startup and reset scenario
 	settimer(func {
+		if (local_epoch != bombable_epoch) return;
 		records.export_totals_csv(sprintf("Started at %.0fs", timeNow));
 		resetScenario();
 	}, 600);
@@ -13105,7 +13125,7 @@ var resetScenarioMain = func()
 	tipMessageAI = "\n\n\n\n";
 	tipMessageMain = "\n\n\n\n";
 
-	# end all loops for all targets
+	# end all loops for all targets except the main AC
 	var loops = [];
 
 	foreach (var myNodeName; nodes)

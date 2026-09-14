@@ -54,7 +54,7 @@
             </offset>
         </offsets>
     </group>
-    <!-- Jeep -->
+    <!-- Flak -->
     <group>
         <team>W</team>
         <target>B</target>
@@ -62,7 +62,7 @@
         <airSpeed>0</airSpeed>
         <airportName>ROAH</airportName>
         <heading>177.59</heading>
-        <alt>20</alt>
+        <alt>13</alt>
         <offsets>
             <offset>
                 <behind>0</behind>

@@ -130,12 +130,16 @@ var find_closest_runway_details = func(icao, mainAC_heading) {
             lon: best_rwy.lon
         };
 
+        var elev = geo.elevation(result.lat, result.lon);
+        var elev_ft = elev * M2FT;
+
         # Print summary to console
         print(sprintf("\n--- Selected Runway Details for %s ---", icao));
         print(sprintf("Runway ID  : %s", result.id));
         print(sprintf("Heading    : %.2f deg (Off by %.2f deg)", result.heading, min_diff));
         print(sprintf("Length     : %.0f ft (%.1f m)", result.length_ft, result.length_m));
         print(sprintf("Threshold  : Lat %.6f, Lon %.6f", result.lat, result.lon));
+        print(sprintf("Elevation  : %.2f m %.2f ft", elev, elev_ft));
 
         return result;
     }
@@ -146,11 +150,31 @@ var find_closest_runway_details = func(icao, mainAC_heading) {
 var airport_name = "ROAH";
 find_closest_runway_details(airport_name, 180.0);
 
+
+##################### check teams ##########################
+
+
+			var teamName = "W";
+            var count = bombable.teams[teamName].count;
+			if (count < size(bombable.teams[teamName].indices)) {
+                print("error: " ~ count);
+            } # check to ensure scenario definition and extension files are consistent
+
+
+
+##################### dump attributes of ai model ##########################
+
+var myNodeName = "/ai/models/static";
+var ats = bombable.attributes[myNodeName];
+debug.dump(ats);
+
+debug.dump(bombable.nodes);
+
 ##################### dump branch of property tree ##########################
 
-var myNodeName = "/ai/models/ship";
+var myNodeName = "/ai/models/static";
 var ats = bombable.attributes[myNodeName];
-var key = "velocities";
+var key = "type";
 if (contains(ats, key)) {
 debug.dump(ats[key]);
 }
