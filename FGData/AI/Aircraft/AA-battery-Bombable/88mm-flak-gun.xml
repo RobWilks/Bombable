@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<PropertyList>
+
+    <params>
+        <turret-pos-deg>/flak_gun_88mm/turret-pos-deg</turret-pos-deg>
+        <cannon-elev-deg>/flak_gun_88mm/cannon-elev-deg</cannon-elev-deg>
+    </params>
+    
+    <!-- Path to the exported AC3D 3D mesh -->
+    <path>Models/88mm-flak-gun.ac</path>
+
+    <!-- 1. TRAVERSE (Yaw) Animation -->
+    <!-- Rotates both the mount AND barrel around the central vertical axis -->
+    <animation>
+        <type>rotate</type>
+        <object-name>gun_mount</object-name>
+        <object-name>gun_barrel</object-name>
+        <property alias="../../params/turret-pos-deg"/>       
+        <center>
+            <x-m>0.0</x-m>
+            <y-m>0.0</y-m>
+            <z-m>0.0</z-m>
+        </center>
+        <axis>
+            <x>0</x>
+            <y>0</y>
+            <z>1</z>
+        </axis>
+    </animation>    
+    
+    <!-- 2. ELEVATION (Pitch) Animation -->
+    <!-- Pitching the barrel around its local trunnion elevation axle -->
+    <animation>
+        <type>rotate</type>
+        <object-name>gun_barrel</object-name>
+        <property alias="../../params/cannon-elev-deg"/>
+        <center>
+            <x-m>0.667</x-m>
+            <y-m>0.0</y-m>
+            <z-m>1.8471</z-m>
+        </center>
+        <axis>
+            <x>0</x>
+            <y>1</y>
+            <z>0</z>
+        </axis>
+    </animation>        
+
+</PropertyList>

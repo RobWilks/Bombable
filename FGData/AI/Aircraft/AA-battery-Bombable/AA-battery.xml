@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<PropertyList include="AA-battery-bombableinclude.xml">
+
+    <!-- Center Gun Instance -->
+    <model>
+        <path>88mm-flak-gun.xml</path>
+        <name>88mm-flak-gun-centre</name>
+        <overlay>
+            <params>
+                <!-- YOU DEFINE THE PATHS HERE -->
+                <turret-pos-deg>flak_gun_88mm_centre/turret-pos-deg</turret-pos-deg>
+                <cannon-elev-deg>flak_gun_88mm_centre/cannon-elev-deg</cannon-elev-deg>
+            </params>
+        </overlay>
+        <offsets>
+            <x-m>0.0</x-m>
+            <y-m>0.0</y-m>
+            <z-m>0.0</z-m>
+        </offsets>
+    </model>
+
+    <!-- Rear Left Gun Instance -->
+    <model>
+        <path>88mm-flak-gun.xml</path>
+        <name>88mm-flak-gun-left</name>
+        <overlay>
+            <params>
+                <!-- YOU DEFINE THE PATHS HERE -->
+                <turret-pos-deg>flak_gun_88mm_left/turret-pos-deg</turret-pos-deg>
+                <cannon-elev-deg>flak_gun_88mm_left/cannon-elev-deg</cannon-elev-deg>
+            </params>
+        </overlay>
+        <offsets>
+            <x-m>34.6410</x-m>
+            <y-m>-20.0</y-m>
+            <z-m>0.0</z-m>
+        </offsets>    
+    </model>
+
+    <!-- Rear Right Gun Instance -->
+    <model>
+        <path>88mm-flak-gun.xml</path>
+        <name>88mm-flak-gun-right</name>
+        <overlay>
+            <params>
+                <!-- YOU DEFINE THE PATHS HERE -->
+                <turret-pos-deg>flak_gun_88mm_right/turret-pos-deg</turret-pos-deg>
+                <cannon-elev-deg>flak_gun_88mm_right/cannon-elev-deg</cannon-elev-deg>
+            </params>
+        </overlay>
+        <offsets>
+            <x-m>34.6410</x-m>
+            <y-m>20.0</y-m>
+            <z-m>0.0</z-m>
+        </offsets>
+    </model>
+
+</PropertyList>

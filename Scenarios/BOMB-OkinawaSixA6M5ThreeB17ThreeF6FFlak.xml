@@ -107,12 +107,12 @@ Any aircraft that shoots guns or drops bombs can damage the Zeros and B-17.  A g
       <heading type="double">200</heading>
       <performance-class>ww2_fighter</performance-class>
     </entry> 
-    <!--  Flak at airport -->
+    <!--  Flak battery at airport -->
     <entry>
       <search-order>PREFER_AI</search-order>
       <type>static</type>
-      <name>88mmFlakGun_W</name>
-      <model type="string">Aircraft/Flak-Gun-Bombable/88mm-flak-gun.xml</model>
+      <name>AA_battery_W</name>
+      <model type="string">Aircraft/AA-battery-Bombable/AA-battery.xml</model>
       <latitude type="double">26.1902</latitude>
       <longitude type="double">127.6392</longitude>
       <altitude type="double">5100</altitude>
