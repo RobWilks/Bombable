@@ -160,7 +160,118 @@ find_closest_runway_details(airport_name, 180.0);
                 print("error: " ~ count);
             } # check to ensure scenario definition and extension files are consistent
 
+##################### process_offsets ##########################
+var process_offsets = func(icao, offsets, is_runway_aligned = 0) {
+    # Find the airport object
+    var apt = airportinfo(icao);
+    if (apt == nil) {
+        print("Airport " ~ icao ~ " not found.");
+        return [];
+    }
+    
+    # Get the main runway
+    var rwys = apt.runways;
+    var rwy_keys = keys(rwys);
+    if (size(rwy_keys) == 0) {
+        print("No runways found for airport " ~ icao);
+        return [];
+    }
+    
+    var main_rwy = rwys[rwy_keys[0]];
+    
+    # Extract runway properties
+    var base_lat  = main_rwy.lat;
+    var base_lon  = main_rwy.lon;
+    var rwy_heading = main_rwy.heading;
 
+    var result_points = [];
+
+    foreach (var pair; offsets) {
+        # Construct the geo.Coord object
+        var target_pos = geo.Coord.new();
+        target_pos.set_latlon(base_lat, base_lon);
+
+        if (is_runway_aligned) {
+            var d_parallel = pair[0]; # Parallel along runway heading (m)
+            var d_perp     = pair[1]; # Perpendicular right of runway heading (m)
+
+            if (d_parallel != 0) {
+                var hdg_p = (d_parallel >= 0) ? rwy_heading : math.fmod(rwy_heading + 180.0, 360.0);
+                target_pos.apply_course_distance(hdg_p, math.abs(d_parallel));
+            }
+
+            if (d_perp != 0) {
+                var hdg_perp = (d_perp >= 0) ? math.fmod(rwy_heading + 90.0, 360.0) : math.fmod(rwy_heading + 270.0, 360.0);
+                target_pos.apply_course_distance(hdg_perp, math.abs(d_perp));
+            }
+
+        } else {
+            var dx = pair[0]; # Easting (m)
+            var dy = pair[1]; # Northing (m)
+
+            if (dx != 0) {
+                var hdg_x = (dx >= 0) ? 90.0 : 270.0;
+                target_pos.apply_course_distance(hdg_x, math.abs(dx));
+            }
+
+            if (dy != 0) {
+                var hdg_y = (dy >= 0) ? 0.0 : 180.0;
+                target_pos.apply_course_distance(hdg_y, math.abs(dy));
+            }
+        }
+
+        var new_lat = target_pos.lat();
+        var new_lon = target_pos.lon();
+
+        # Calculate elevation dynamically for the target coordinate:
+        # Option 1: Use geo.elevation(lat, lon)
+        var elev = geo.elevation(new_lat, new_lon);
+
+        # Fallback to main runway elevation if scenery terrain at point is unloaded (nil)
+        if (elev == nil) {
+            var info = geodinfo(new_lat, new_lon);
+            if (info != nil and info[0] != nil) {
+                elev = info[0];
+            } else {
+                elev = main_rwy.elevation;
+            }
+        }
+
+        var elev_ft = elev * M2FT;
+        append(result_points, [new_lat, new_lon, elev]);
+
+        # Output formatted for FlightGear scenario XML files
+        print('<latitude type="double">' ~ sprintf("%.8f", new_lat) ~ '</latitude>');
+        print('<longitude type="double">' ~ sprintf("%.8f", new_lon) ~ '</longitude>');
+        print('<altitude>' ~ sprintf("%.2f", elev_ft) ~ '</altitude>');
+    }
+
+    return result_points;
+};
+
+var airportName = "EGOD";
+var offsets =[
+    [0, 0],
+    [4, 0],
+    [8, 0],
+    [12, 0],
+    [16, 0],
+    [20, 0],
+    [-0, 0],
+    [-4, 0],
+    [-8, 0],
+    [-12, 0],
+    [-16, 0],
+    [-20, 0],
+];
+# var offsets =[
+#     [25, 12],
+#     [-25,-12],
+#     [50,25],
+#     [-50,-25]
+# ];
+var result = process_offsets(airportName, offsets, 1);
+debug.dump(result);
 
 ##################### dump attributes of ai model ##########################
 

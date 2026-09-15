@@ -21,7 +21,7 @@
 			<model type="string">Aircraft/Type45-Bombable/RN-Type45.xml</model>
 			<latitude type="double">52.810</latitude>
 			<longitude type="double">-4.125</longitude>
-			<altitude>0</altitude>
+			<altitude>20</altitude>
 			<speed>0</speed>
 			<rudder type="double">0</rudder>
 			<bank type="double">0</bank>
@@ -31,12 +31,12 @@
 			<search-order>PREFER_AI</search-order>
 			<type>aircraft</type>
 			<class>jet_fighter</class>
-			<callsign>SkyRuler_B</callsign>
+			<callsign>SkyRuler_D</callsign>
 			<name>F15_Eagle_1</name>
 			<model type="string">Aircraft/F-15-Bombable/Models/F-15-rocket.xml</model>
-			<latitude type="double">52.8115</latitude>
-			<longitude type="double">-4.1255</longitude>
-			<altitude>60</altitude>
+			<latitude type="double">52.79504323</latitude>
+			<longitude type="double">-4.12411742</longitude>
+			<altitude>18.02</altitude>
 			<speed>0</speed>
 			<bank type="double">0</bank>
 			<heading type="double">305</heading>
@@ -45,12 +45,12 @@
 			<search-order>PREFER_AI</search-order>
 			<type>aircraft</type>
 			<class>jet_fighter</class>
-			<callsign>WhiteStreak_B</callsign>
+			<callsign>WhiteStreak_D</callsign>
 			<name>F15_Eagle_2</name>
 			<model type="string">Aircraft/F-15-Bombable/Models/F-15-rocket.xml</model>
-			<latitude type="double">52.8115</latitude>
-			<longitude type="double">-4.1260</longitude>
-			<altitude>60</altitude>
+			<latitude type="double">52.79456307</latitude>
+			<longitude type="double">-4.12433721</longitude>
+			<altitude>18.23</altitude>
 			<speed>0</speed>
 			<bank type="double">0</bank>
 			<heading type="double">305</heading>
@@ -59,12 +59,12 @@
 			<search-order>PREFER_AI</search-order>
 			<type>aircraft</type>
 			<class>jet_fighter</class>
-			<callsign>TopGun_B</callsign>
+			<callsign>TopGun_D</callsign>
 			<name>F15_Eagle_3</name>
 			<model type="string">Aircraft/F-15-Bombable/Models/F-15-rocket.xml</model>
-			<latitude type="double">52.8105</latitude>
-			<longitude type="double">-4.1255</longitude>
-			<altitude>60</altitude>
+			<latitude type="double">52.79528490</latitude>
+			<longitude type="double">-4.12399290</longitude>
+			<altitude>17.91</altitude>
 			<speed>0</speed>
 			<bank type="double">0</bank>
 			<heading type="double">305</heading>
@@ -73,25 +73,43 @@
 			<search-order>PREFER_AI</search-order>
 			<type>aircraft</type>
 			<class>jet_fighter</class>
-			<callsign>Incisor_B</callsign>
-			<name>F15_Eagle_3</name>
+			<callsign>Incisor_D</callsign>
+			<name>F15_Eagle_4</name>
 			<model type="string">Aircraft/F-15-Bombable/Models/F-15-rocket.xml</model>
-			<latitude type="double">52.8125</latitude>
-			<longitude type="double">-4.1255</longitude>
-			<altitude>60</altitude>
+			<latitude type="double">52.79432140</latitude>
+			<longitude type="double">-4.12446173</longitude>
+			<altitude>18.33</altitude>
 			<speed>0</speed>
 			<bank type="double">0</bank>
 			<heading type="double">305</heading>
+		</entry>	
+		<entry>
+			<search-order>PREFER_AI</search-order>
+			<type>static</type>
+			<model type="string">Aircraft/Rockets/aster-30-exhaust.xml</model>
+			<latitude type="double">52.79480315</latitude>
+			<longitude type="double">-4.12422732</longitude>
+			<altitude>26.64</altitude>
+			<speed>0</speed>
+			<heading type="double">0</heading>
+		</entry>
+		<entry>
+			<search-order>PREFER_AI</search-order>
+			<type>static</type>
+			<model type="string">Aircraft/Rockets/aster-30-exhaust.xml</model>
+			<latitude type="double">52.79483852</latitude>
+			<longitude type="double">-4.12423781</longitude>
+			<altitude>26.65</altitude>
+			<speed>0</speed>
+			<heading type="double">0</heading>
 		</entry>		
 		<entry>
 			<search-order>PREFER_AI</search-order>
 			<type>static</type>
-			<callsign>Vlad</callsign>
-			<name>AIM_1</name>
 			<model type="string">Aircraft/Rockets/aster-30-exhaust.xml</model>
-			<latitude type="double">0</latitude>
-			<longitude type="double">0</longitude>
-			<altitude>0</altitude>
+			<latitude type="double">52.79487389</latitude>
+			<longitude type="double">-4.12424831</longitude>
+			<altitude>26.65</altitude>
 			<speed>0</speed>
 			<heading type="double">0</heading>
 		</entry>
@@ -99,19 +117,19 @@
 			<search-order>PREFER_AI</search-order>
 			<type>static</type>
 			<model type="string">Aircraft/Rockets/aster-30-exhaust.xml</model>
-			<latitude type="double">0</latitude>
-			<longitude type="double">0</longitude>
-			<altitude>0</altitude>
+			<latitude type="double">52.79490925</latitude>
+			<longitude type="double">-4.12425880</longitude>
+			<altitude>26.65</altitude>
 			<speed>0</speed>
 			<heading type="double">0</heading>
-		</entry>		
+		</entry>	
 		<entry>
 			<search-order>PREFER_AI</search-order>
 			<type>static</type>
 			<model type="string">Aircraft/Rockets/aster-30-exhaust.xml</model>
-			<latitude type="double">0</latitude>
-			<longitude type="double">0</longitude>
-			<altitude>0</altitude>
+			<latitude type="double">52.79494462</latitude>
+			<longitude type="double">-4.12426929</longitude>
+			<altitude>26.65</altitude>
 			<speed>0</speed>
 			<heading type="double">0</heading>
 		</entry>
@@ -119,9 +137,9 @@
 			<search-order>PREFER_AI</search-order>
 			<type>static</type>
 			<model type="string">Aircraft/Rockets/aster-30-exhaust.xml</model>
-			<latitude type="double">0</latitude>
-			<longitude type="double">0</longitude>
-			<altitude>0</altitude>
+			<latitude type="double">52.79497999</latitude>
+			<longitude type="double">-4.12427978</longitude>
+			<altitude>26.65</altitude>
 			<speed>0</speed>
 			<heading type="double">0</heading>
 		</entry>	
@@ -129,9 +147,19 @@
 			<search-order>PREFER_AI</search-order>
 			<type>static</type>
 			<model type="string">Aircraft/Rockets/aster-30-exhaust.xml</model>
-			<latitude type="double">0</latitude>
-			<longitude type="double">0</longitude>
-			<altitude>0</altitude>
+			<latitude type="double">52.79462631</latitude>
+			<longitude type="double">-4.12417486</longitude>
+			<altitude>26.64</altitude>			
+			<speed>0</speed>
+			<heading type="double">0</heading>
+		</entry>	
+		<entry>
+			<search-order>PREFER_AI</search-order>
+			<type>static</type>
+			<model type="string">Aircraft/Rockets/aster-30-exhaust.xml</model>
+			<latitude type="double">52.79480315</latitude>
+			<longitude type="double">-4.12422732</longitude>
+			<altitude>26.64</altitude>
 			<speed>0</speed>
 			<heading type="double">0</heading>
 		</entry>
@@ -139,9 +167,9 @@
 			<search-order>PREFER_AI</search-order>
 			<type>static</type>
 			<model type="string">Aircraft/Rockets/aster-30-exhaust.xml</model>
-			<latitude type="double">0</latitude>
-			<longitude type="double">0</longitude>
-			<altitude>0</altitude>
+			<latitude type="double">52.79476778</latitude>
+			<longitude type="double">-4.12421683</longitude>
+			<altitude>26.64</altitude>
 			<speed>0</speed>
 			<heading type="double">0</heading>
 		</entry>	
@@ -149,9 +177,9 @@
 			<search-order>PREFER_AI</search-order>
 			<type>static</type>
 			<model type="string">Aircraft/Rockets/aster-30-exhaust.xml</model>
-			<latitude type="double">0</latitude>
-			<longitude type="double">0</longitude>
-			<altitude>0</altitude>
+			<latitude type="double">52.79473241</latitude>
+			<longitude type="double">-4.12420633</longitude>
+			<altitude>26.64</altitude>
 			<speed>0</speed>
 			<heading type="double">0</heading>
 		</entry>	
@@ -159,19 +187,9 @@
 			<search-order>PREFER_AI</search-order>
 			<type>static</type>
 			<model type="string">Aircraft/Rockets/aster-30-exhaust.xml</model>
-			<latitude type="double">0</latitude>
-			<longitude type="double">0</longitude>
-			<altitude>0</altitude>
-			<speed>0</speed>
-			<heading type="double">0</heading>
-		</entry>
-		<entry>
-			<search-order>PREFER_AI</search-order>
-			<type>static</type>
-			<model type="string">Aircraft/Rockets/aster-30-exhaust.xml</model>
-			<latitude type="double">0</latitude>
-			<longitude type="double">0</longitude>
-			<altitude>0</altitude>
+			<latitude type="double">52.79469705</latitude>
+			<longitude type="double">-4.12419584</longitude>
+			<altitude>26.64</altitude>
 			<speed>0</speed>
 			<heading type="double">0</heading>
 		</entry>	
@@ -179,9 +197,9 @@
 			<search-order>PREFER_AI</search-order>
 			<type>static</type>
 			<model type="string">Aircraft/Rockets/aster-30-exhaust.xml</model>
-			<latitude type="double">0</latitude>
-			<longitude type="double">0</longitude>
-			<altitude>0</altitude>
+			<latitude type="double">52.79466168</latitude>
+			<longitude type="double">-4.12418535</longitude>
+			<altitude>26.64</altitude>
 			<speed>0</speed>
 			<heading type="double">0</heading>
 		</entry>	

@@ -3,8 +3,8 @@
     <group>
         <!-- Type45 (arrivalTime moved further into past so ship starts in the sea, not the beach) -->
         <team>Z</team>
-        <target>B</target>
-        <arrivalTime>-180</arrivalTime>
+        <target>D</target>
+        <arrivalTime>-360</arrivalTime>
         <airSpeed>25</airSpeed>
         <airportName>EGOD</airportName>
         <heading>225</heading>
@@ -19,7 +19,7 @@
     </group>
     <group>
         <!-- F15 -->
-        <team>B</team>
+        <team>D</team>
         <target>Z</target>
         <arrivalTime>120</arrivalTime>
         <airSpeed>512</airSpeed>

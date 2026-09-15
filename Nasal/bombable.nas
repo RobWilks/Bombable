@@ -81,7 +81,7 @@ var debprint = func {
 	setprop ("/sim/startup/terminal-ansi-colors",0);
 	
 	if (bombableMenu["debug"]) {
-		outputs = "";
+		outputs = "Bombable: ";
 		foreach (var elem;arg) {
 			if (elem != nil) {
 				if (typeof(elem) == "scalar") outputs = string.trim(outputs) ~ " " ~ elem;
@@ -137,7 +137,7 @@ var check_overall_initialized = func(nodeName)
 	
 	if (init_allowed != 1) 
 	{
-		bombable.debprint ("Bombable: Attempt to initialize a Bombable subroutine on an object that is not AI or Multiplayer; aborting initialization. ", nodeName);
+		bombable.debprint ("Attempt to initialize a Bombable subroutine on an object that is not AI or Multiplayer; aborting initialization. ", nodeName);
 		return 1; #1 means abort; it's initialized already or can't/shouldn't be initialized,
 	}
 	
@@ -147,7 +147,7 @@ var check_overall_initialized = func(nodeName)
 	
 	if (inited == 1) 
 	{
-		bombable.debprint ("Bombable: Attempt to re-initialize AI aircraft when it has not been de-initialized; aborting re-initialization. ", nodeName);
+		bombable.debprint ("Attempt to re-initialize AI aircraft when it has not been de-initialized; aborting re-initialization. ", nodeName);
 		return 1; #1 means abort; it's initialized already or can't/shouldn't be initialized,
 	}
 	# set to 1 if initialized and 0 when de-inited. Nil if never before inited.
@@ -198,7 +198,7 @@ var mpreceive = func (mpMessageNode) {
 	mpMessageNodeName = mpMessageNode.getPath();
 	mpNodeName = string.replace (mpMessageNodeName, MP_message_pp, "");
 	if (msg != nil and msg != "") {
-		debprint("Bombable: Message received from ", mpNodeName,": ", msg);
+		debprint("Message received from ", mpNodeName,": ", msg);
 		parse_msg (mpNodeName, msg);
 	}
 	
@@ -262,7 +262,7 @@ var put_remove_model = func(lat_deg = nil, lon_deg = nil, elev_m = nil, time_sec
 	# we try to reduce this by making the smoke appear a fraction of a second later, after
 	# the a/c model has moved out of the way. (possibly moved, anyway--depending on its speed)
 
-	# debprint ("Bombable: Placing flack");
+	# debprint ("Placing flack");
 	
 	settimer ( func 
 	{
@@ -296,7 +296,7 @@ var put_remove_model = func(lat_deg = nil, lon_deg = nil, elev_m = nil, time_sec
 			setprop(  flackModelNodeName ~"/"~ name ~ "-prop",flackModelNodeName ~ "/" ~ name );
 		}
 		
-		# debprint ("Bombable: Placed flack, ", flackModelNodeName);
+		# debprint ("Placed flack, ", flackModelNodeName);
 		
 		settimer ( func { 
 			# if (local_epoch != bombable_epoch) return;
@@ -318,11 +318,11 @@ var start_terrain_fire = func ( lat_deg, lon_deg, alt_m = 0, ballisticMass_lb = 
 	
 	
 	
-	debprint ("Bombable: Starting terrain fire at ", lat_deg, " ", lon_deg, " ", alt_m, " ", ballisticMass_lb);
+	debprint ("Starting terrain fire at ", lat_deg, " ", lon_deg, " ", alt_m, " ", ballisticMass_lb);
 	
 	#get the altitude of the terrain
 	if (info != nil) {
-		#debprint ("Bombable: Starting terrain fire at ", lat_deg, " ", lon_deg, " ", info[0]," ", info[1].solid );
+		#debprint ("Starting terrain fire at ", lat_deg, " ", lon_deg, " ", info[0]," ", info[1].solid );
 		
 		#if it's water we don't set a fire . . . TODO make a different explosion or fire effect for water
 		if (typeof(info[1]) == "hash" and contains(info[1], "solid") and info[1].solid == 0) return;
@@ -468,7 +468,7 @@ var speedDamage = func
 	
 	if (speedDamageMultiplier_PercentPerSecond == nil) speedDamageMultiplier_PercentPerSecond = 1;
 	
-	#debprint ("Bombable: Speed checking ", currSpeed_kt, " ", speedDamageThreshold_kt, " ", speedWarningThreshold_kt," ", speedDamageMultiplier_PercentPerSecond);
+	#debprint ("Speed checking ", currSpeed_kt, " ", speedDamageThreshold_kt, " ", speedWarningThreshold_kt," ", speedDamageMultiplier_PercentPerSecond);
 
 	if (warning_enabled and currSpeed_kt > speedWarningThreshold_kt ) {
 		var msg = "Overspeed warning: "~ round ( currSpeed_kt ) ~" kts";
@@ -505,7 +505,7 @@ var accelerationDamage = func {
 	if (! damage_enabled and ! warning_enabled ) return;
 	if (!bombableMenu["bombable-enabled"] ) return;
 	
-	#debprint ("Bombable: Checking acceleration");
+	#debprint ("Checking acceleration");
 	#The acceleration nodes are updated once per second
 	
 	
@@ -528,7 +528,7 @@ var accelerationDamage = func {
 	
 	if (accelDamageMultiplier_PercentPerSecond == nil) accelDamageMultiplier_PercentPerSecond = 8;
 	
-	# debprint ("Bombable: Accel checking ", a, " ", currAccel_g, " ", accelDamageThreshold_g, " ", accelWarningThreshold_g," ", accelDamageMultiplier_PercentPerSecond);
+	# debprint ("Accel checking ", a, " ", currAccel_g, " ", accelDamageThreshold_g, " ", accelWarningThreshold_g," ", accelDamageMultiplier_PercentPerSecond);
 
 	if (warning_enabled and currAccel_g > accelWarningThreshold_g ) {
 		var msg = "G-force warning: "~ round( currAccel_g ) ~"g";
@@ -553,7 +553,7 @@ var accelerationDamage = func {
 var damageCheck = func () {
 	settimer (func {damageCheck (); }, damageCheckTime);
 	if (!bombableMenu["bombable-enabled"] ) return;
-	#debprint ("Bombable: Checking damage.");
+	#debprint ("Checking damage.");
 	accelerationDamage();
 	speedDamage();
 
@@ -596,7 +596,7 @@ var damageCheck = func () {
 #  bombable.setAttributes (attsObject);
 #  otherwise, does not get called
 var setAttributes = func (attsObject = nil) {
-	debprint ("Bombable: Loading main aircraft vulnerability settings.");
+	debprint ("Loading main aircraft vulnerability settings.");
 	if (attsObject == nil) {
 		attsObject = {
 			
@@ -665,7 +665,7 @@ var setAttributes = func (attsObject = nil) {
 	var aircraftname = getprop("sim/aircraft");
 	if (string.match(aircraftname,"A6M2 * " ))
 	{
-		debprint ("Bombable: Loading A6M2 main aircraft vulnerabilities");
+		debprint ("Loading A6M2 main aircraft vulnerabilities");
 		attsObject = 
 		{
 			
@@ -724,7 +724,7 @@ var setAttributes = func (attsObject = nil) {
 	
 	} elsif ( string.match(aircraftname,"A-10 * " ) ) 
 	{
-		debprint ("Bombable: Loading A-10 main aircraft vulnerabilities");
+		debprint ("Loading A-10 main aircraft vulnerabilities");
 		attsObject = 
 		{
 			#########################################
@@ -784,7 +784,7 @@ var setAttributes = func (attsObject = nil) {
 		
 	} elsif ( string.match(aircraftname,"f6f * " ) ) 
 	{
-		debprint ("Bombable: Loading F6F Hellcat main aircraft vulnerabilities");
+		debprint ("Loading F6F Hellcat main aircraft vulnerabilities");
 		attsObject = 
 		{
 			#########################################
@@ -845,7 +845,7 @@ var setAttributes = func (attsObject = nil) {
 		
 	} elsif ( string.match(aircraftname," * sopwithCamel * " ) ) 
 	{
-		debprint ("Bombable: Loading SopwithCamel main aircraft vulnerabilities");
+		debprint ("Loading SopwithCamel main aircraft vulnerabilities");
 		attsObject = 
 		{
 			
@@ -904,7 +904,7 @@ var setAttributes = func (attsObject = nil) {
 	} elsif ( string.match(aircraftname, " * spadvii * " )  ) 
 	{
 		
-		debprint ("Bombable: Loading SPAD VII main aircraft vulnerabilities");
+		debprint ("Loading SPAD VII main aircraft vulnerabilities");
 		attsObject = 
 		{
 			#########################################
@@ -965,7 +965,7 @@ var setAttributes = func (attsObject = nil) {
 		}
 	} elsif ( string.match(aircraftname," * fkdr * " ) ) 
 	{
-		debprint ("Bombable: Loading Fokker DR.1 main aircraft vulnerabilities");
+		debprint ("Loading Fokker DR.1 main aircraft vulnerabilities");
 		attsObject = 
 		{
 			#########################################
@@ -1259,7 +1259,7 @@ var reset_damage_fires = func  {
 	}
 	
 	
-	debprint ("Bombable: Damage level & smoke reset for main object"~msg_add);
+	debprint ("Damage level & smoke reset for main object"~msg_add);
 
 	var msg = "Your damage reset to 0%";
 	mainStatusPopupTip (msg, 30);
@@ -1523,7 +1523,7 @@ var revitalizeAllAIObjects = func (revitType = "aircraft", preservePosSpeed = 0)
 		# we are in the middle of popping up our message.  So best to wait a while
 		# before doing it . . .
 		settimer ( func { targetStatusPopupTip (msg, 2);}, 13);
-		debprint ("Bombable: " ~ msg);
+		debprint ("" ~ msg);
 
 }
 
@@ -1534,7 +1534,7 @@ var revitalizeAllAIObjects = func (revitType = "aircraft", preservePosSpeed = 0)
 # #aircraft.
 
 var resetBombableDamageFuelWeapons = func (myNodeName) {
-	debprint ("Bombable: Resetting damage level and fires for ", myNodeName);
+	debprint ("Resetting damage level and fires for ", myNodeName);
 			
 	#don't do this for objects that don't even have bombable initialized
 	if (props.globals.getNode ( ""~myNodeName~"/bombable" ) == nil) return;
@@ -1609,7 +1609,7 @@ var resetAllAIDamage = func {
 			
 	msg = "Damage reset to 0 for all AI objects";
 	targetStatusPopupTip (msg, 2);
-	debprint ("Bombable: "~msg);
+	debprint (""~msg);
 			
 
 }
@@ -1624,7 +1624,7 @@ var resetMainAircraftDamage = func {
 			
 	msg = "Damage reset to 0 for main aircraft - you'll need to turn on your magnetos/restart your engines";
 	mainStatusPopupTip (msg, 2);
-	debprint ("Bombable: "~msg);
+	debprint (""~msg);
 
 }
 
@@ -1650,7 +1650,7 @@ var resetTerrainFires = func {
                 or find("splash", path) != -1 
                 or find("Bombable", path) != -1) {
                 
-                debprint("Bombable: Purging terrain effect model -> " ~ path);
+                debprint("Purging terrain effect model -> " ~ path);
                 
                 # Correct node removal on parent SGPropertyNode
                 models_root.removeChild("model", m.getIndex());
@@ -1658,7 +1658,7 @@ var resetTerrainFires = func {
         }
     }
 
-    debprint("Bombable: Terrain fires and splash models successfully purged for new epoch " ~ bombable_epoch);
+    debprint("Terrain fires and splash models successfully purged for new epoch " ~ bombable_epoch);
 };
 
 
@@ -1685,20 +1685,20 @@ var init_bombable_dialog = func () {
 			p = props.globals.getNode("/sim/menubar/default/menu["~i~"]");
 			if ( typeof(p) == "nil" ) {
 				bomb_menuNum = i;
-				print ("Bombable: Found empty menu: " ~ i);
+				print ("Found empty menu: " ~ i);
 				break;
 				} else {
 				# var l = props.globals.getNode("/sim/menubar/default/menu["~i~"]/name");
 				var n = p.getChild("name");
 				if (typeof(n) != "nil" ) var l = n.getValue();
-				print ("Bombable: Looking at menu found a " ~ typeof(l));
+				print ("Looking at menu found a " ~ typeof(l));
 						
 				#p = records.create_printable_summary(l);
 				if (typeof(l) != "nil") mss = l else mss = "nothing at " ~ i;
-				print ("Bombable: Looking @ menu found: " ~ mss);
+				print ("Looking @ menu found: " ~ mss);
 				if ( typeof(l) != "nil" and l == "Bombable") { # aha, we've already set up the menu once before.  So just re-use it. This happens in FG 2016.x etc when the user re-inits.
 					bomb_menuNum = i;
-					print ("Bombable: Found existing Bombable menu; re-initing: " ~ i);
+					print ("Found existing Bombable menu; re-initing: " ~ i);
 					break;
 				}
 			}
@@ -2137,7 +2137,7 @@ var dialog = {
 
 var bombable_dialog_save = func 
 {
-	debprint ("Bombable: iowriting, writing . . . ");
+	debprint ("iowriting, writing . . . ");
 	io.write_properties(bombable_settings_file, ""~bomb_menu_pp);
 	mirrorMenu(); #write to hash
 }
@@ -2155,9 +2155,9 @@ var init_bombable_dialog_listeners = func {
 		# changing menu values internally or setting menu defaults
 		# We only want to save the menu properties when the *  * user *  * 
 		# makes changes.
-		#  debprint ("Bombable: iowriting, checking lock . . . ");
+		#  debprint ("iowriting, checking lock . . . ");
 		#  if (!getprop(bomb_menu_save_lock)) {
-			#      debprint ("Bombable: iowriting, writing . . . ");
+			#      debprint ("iowriting, writing . . . ");
 			#      io.write_properties(bombable_settings_file, ""~bomb_menu_pp);
 		#  }
 				
@@ -2344,7 +2344,7 @@ var setupBombableMenu = func {
 	# the file just remains as our default.
 	#
 	# Now, read the menu default file:
-	debprint ("Bombable: ioreading . . . ");
+	debprint ("ioreading . . . ");
 	var target = props.globals.getNode("" ~ bomb_menu_pp);
 	io.read_properties(bombable_settings_file, target);
 	mirrorMenu();
@@ -2510,7 +2510,7 @@ var damage_msg = func (callsign, damageAdd, damageTotal, smoke = 0, fire = 0, me
 			setprop ("/bombable/locks/"~lockName~"/msg", "");
 			if (msg2 != nil and msg2 != ""){
 				mpsend(msg2);
-				debprint ("Bombable: Sending delayed message "~msg);
+				debprint ("Sending delayed message "~msg);
 			}
 		}, lockWaitTime);
 				
@@ -2550,8 +2550,8 @@ var parse_msg = func (source, msg) {
 	if (!getprop(MP_share_pp)) return;
 	if (!getprop (MP_broadcast_exists_pp)) return;
 	if (!bombableMenu["bombable-enabled"] ) return;
-	debprint("Bombable: typeof source: ", typeof(source));
-	debprint ("Bombable: source: ", source, " msg: ",msg);
+	debprint("typeof source: ", typeof(source));
+	debprint ("source: ", source, " msg: ",msg);
 	var ourcallsign = getprop ("/sim/multiplay/callsign");
 	var p = 0;
 	var msgcallsign = substr(msg, 0, 6);
@@ -2597,10 +2597,10 @@ var parse_msg = func (source, msg) {
 			#    mp_index = mp.getIndex();
 			#    mp_name = ai_loc~"/"~mp_childname~"["~mp_index~"]";
 			#    mp_path = cmdarg().getPath(mp);
-			#    debprint ("Bombable: mp_path = " ~mp_path);
+			#    debprint ("mp_path = " ~mp_path);
 					
 			mp_name = source;
-			debprint ("Bombable: Resetting fire/damage for - name: ", source, " callsign: "~string.trim(msgcallsign) );
+			debprint ("Resetting fire/damage for - name: ", source, " callsign: "~string.trim(msgcallsign) );
 					
 			#    if (sprintf ("%6s", mp_callsign) == sprintf ("%6s", msgcallsign)) {
 						
@@ -2612,7 +2612,7 @@ var parse_msg = func (source, msg) {
 				props.globals.getNode("/bombable").removeChild("locks",0);
 				resetBombableDamageFuelWeapons(source);
 				msg = string.trim(msgcallsign)~" is resetting; damage reset to 0% for "~string.trim(msgcallsign);
-				debprint ("Bombable: "~msg);
+				debprint (""~msg);
 				targetStatusPopupTip (msg, 30);
 						
 						
@@ -2638,7 +2638,7 @@ var parse_msg = func (source, msg) {
 					
 					
 			#    if (sprintf ("%6s", mp_callsign) == sprintf ("%6s", msgcallsign)) {
-				debprint ("Bombable: Updating fire/damage from - name: ", source ," callsign: "~string.trim(msgcallsign) );
+				debprint ("Updating fire/damage from - name: ", source ," callsign: "~string.trim(msgcallsign) );
 				var damageAdd = Binary.decodeDouble(substr(msg, p));
 				p  +=  Binary.sizeOf["double"];
 				var damageTotal = Binary.decodeDouble(substr(msg, p));
@@ -2915,11 +2915,11 @@ var ground_loop = func( id, myNodeName ) {
 			
 	if (lat == nil) {
 		lat = 0;
-		debprint ("Bombable: Lat = NIL, ground_loop ", myNodeName);
+		debprint ("Lat = NIL, ground_loop ", myNodeName);
 	}
 	if (lon == nil) {
 		lon = 0;
-		debprint ("Bombable: Lon = NIL, ground_loop ", myNodeName);
+		debprint ("Lon = NIL, ground_loop ", myNodeName);
 	}
 
 	var pitchangle_deg = 0;
@@ -2941,7 +2941,7 @@ var ground_loop = func( id, myNodeName ) {
 	GeoCoord.set_latlon(lat, lon);
 	var alt_ft = elev (GeoCoord.lat(), GeoCoord.lon()  ); #in feet
 	# assume lat, lon are at the centre of the object
-	#debprint ("Bombable: GeoCoord.apply_course_distance(heading, dims.length_m/2); ",heading, " ", dims.length_m/2 );
+	#debprint ("GeoCoord.apply_course_distance(heading, dims.length_m/2); ",heading, " ", dims.length_m/2 );
 	GeoCoord.apply_course_distance(heading, frontBack_m);    #frontreardist in meters
 	var toFrontAlt_ft = elev ( GeoCoord.lat(), GeoCoord.lon() ); #in feet
 			
@@ -3016,8 +3016,8 @@ var ground_loop = func( id, myNodeName ) {
 				
 		var target_alt_AGL_ft = initial_altitude_ft - alt_ft - alts.wheelsOnGroundAGL_ft; 
 				
-		debprint (sprintf("Bombable: Initial Altitude:%6.0f Target AGL:%6.0f Object = %s", initial_altitude_ft, target_alt_AGL_ft, myNodeName));
-		# debprint ("Bombable: ", alt_ft, " ", toRightAlt_ft, " ",toLeftAlt_ft, " ",toFrontAlt_ft," ", toLeftAlt_ft, " ", alts.wheelsOnGroundAGL_ft);
+		debprint (sprintf("Initial Altitude:%6.0f Target AGL:%6.0f Object = %s", initial_altitude_ft, target_alt_AGL_ft, myNodeName));
+		# debprint ("", alt_ft, " ", toRightAlt_ft, " ",toLeftAlt_ft, " ",toFrontAlt_ft," ", toLeftAlt_ft, " ", alts.wheelsOnGroundAGL_ft);
 		
 		if (type != "aircraft") 
 		{
@@ -3067,7 +3067,7 @@ var ground_loop = func( id, myNodeName ) {
 		{
 			debprint(sprintf
 				(
-				"Bombable: Ground loop terminated for %s speed_kt=%6.2f tgt_speed=%6.2f",
+				"Ground loop terminated for %s speed_kt=%6.2f tgt_speed=%6.2f",
 				myNodeName,
 				speed_kt,
 				getprop(""~myNodeName~"/controls/tgt-speed-kts")
@@ -3094,7 +3094,7 @@ var ground_loop = func( id, myNodeName ) {
 		)
 	)
 	{
-		debprint ("Bombable: Aircraft below lowest allowed altitude");
+		debprint ("Aircraft below lowest allowed altitude");
 		hitground_stop_explode(myNodeName, alt_ft); 
 		return;
 	}
@@ -3104,7 +3104,7 @@ var ground_loop = func( id, myNodeName ) {
 	{
 		#go to object's resting altitude
 		#rjw onGround is set by hitground_stop_explode
-		# debprint("Bombable: ", myNodeName, " on ground. Exploded = ", ats.exploded);
+		# debprint("", myNodeName, " on ground. Exploded = ", ats.exploded);
 		
 		setprop (""~myNodeName~"/position/altitude-ft", objectsLowestAllowedAlt_ft );
 		setprop (""~myNodeName~"/controls/flight/target-alt",  objectsLowestAllowedAlt_ft);
@@ -3224,7 +3224,7 @@ var ground_loop = func( id, myNodeName ) {
 					debprint
 					(
 						sprintf(
-							"Bombable: avoiding cliff, new target hdg = %5.1f, slope = %5.1f", 
+							"avoiding cliff, new target hdg = %5.1f, slope = %5.1f", 
 							newTargetHeading, slope_rad * R2D
 						)
 					);
@@ -3260,7 +3260,7 @@ var ground_loop = func( id, myNodeName ) {
 		setprop (""~myNodeName~"/orientation/pitch-animation", pitchangle_deg ); 
 		
 		# if (thorough) debprint(
-		# "Bombable: Ground_loop: ",
+		# "Ground_loop: ",
 		# sprintf("vertSpeed-fps = %4.1f", vert_speed),
 		# sprintf("pitchangle_deg = %4.1f", pitchangle_deg),
 		# sprintf("slopeAhead_deg = %4.1f", slope_rad * R2D),	
@@ -3268,7 +3268,7 @@ var ground_loop = func( id, myNodeName ) {
 		# );
 
 		# if (thorough and alts.initialized == 1) debprint(
-		# "Bombable: Ground_loop: ",
+		# "Ground_loop: ",
 		# "vels.speedOnFlat = ", vels.speedOnFlat
 		# );
 
@@ -3366,7 +3366,7 @@ var ground_loop = func( id, myNodeName ) {
 	if (type == "ship" and thorough )
 	{
 		# if (math.fmod(ctrls.groundLoopCounter , 10) == 0) debprint(
-		# "Bombable: Ground_loop: ",
+		# "Ground_loop: ",
 		# "vels.maxSpeedReduce_percent = ", vels.maxSpeedReduce_percent,
 		# "alts.initialAlt_ft = ", alts.initialAlt_ft
 		# );		
@@ -3448,7 +3448,7 @@ var ground_loop = func( id, myNodeName ) {
 				
 		if (currAlt_ft < toFrontAlt_ft + 25 ) 
 			{ #dramatic correction
-			debprint ("Bombable: Avoiding ground collision, "~ myNodeName);
+			debprint ("Avoiding ground collision, "~ myNodeName);
 					
 			setprop (""~myNodeName~"/position/altitude-ft", toFrontAlt_ft + 40 );
 			setprop (""~myNodeName~"/controls/flight/target-alt",  toFrontAlt_ft + 40);
@@ -3503,7 +3503,7 @@ var ground_loop = func( id, myNodeName ) {
 				if ( orientPitch_deg > -10)
 				{
 					setprop (""~myNodeName~"/orientation/pitch-deg", orientPitch_deg - 1 );
-					debprint ("Bombable: Changed pitch mild");
+					debprint ("Changed pitch mild");
 				}
 						
 			}
@@ -3518,13 +3518,13 @@ var ground_loop = func( id, myNodeName ) {
 				if (orientPitch_deg > -20) 
 				{
 					setprop (""~myNodeName~"/orientation/pitch-deg", orientPitch_deg - 1 );
-					debprint ("Bombable: Changed pitch severe");
+					debprint ("Changed pitch severe");
 				}
 			} 
 			else
 			{ 
 				#closer to the ground than MaxPerCycle so terminate and explode
-				debprint ("Bombable: Aircraft hit ground");
+				debprint ("Aircraft hit ground");
 				hitground_stop_explode(myNodeName, objectsLowestAllowedAlt_ft);
 			}
 
@@ -3537,7 +3537,7 @@ var ground_loop = func( id, myNodeName ) {
 						
 			if ( currAlt_ft < alt_ft - 5 )  
 			{
-				debprint ("Bombable: Aircraft below ground! Terminated.");
+				debprint ("Aircraft below ground! Terminated.");
 				hitground_stop_explode(myNodeName, objectsLowestAllowedAlt_ft );
 			}
 					
@@ -3613,11 +3613,11 @@ var location_loop = func(id, myNodeName) {
 			
 	if (lat == nil) {
 		lat = 0;
-		debprint ("Bombable: Lat = NIL, location_loop", myNodeName);
+		debprint ("Lat = NIL, location_loop", myNodeName);
 	}
 	if (lon == nil) {
 		lon = 0;
-		debprint ("Bombable: Lon = NIL, location_loop", myNodeName);
+		debprint ("Lon = NIL, location_loop", myNodeName);
 	}
 
 
@@ -3680,7 +3680,7 @@ var location_loop = func(id, myNodeName) {
 			lon = prevlon;
 			alt_ft = prevalt_ft;
 					
-			debprint ("Bombable: Repositioned object "~ myNodeName~ " to lat: "~ prevlat~ " long: "~ prevlon~ " altitude: "~ prevalt_ft~" ft.");
+			debprint ("Repositioned object "~ myNodeName~ " to lat: "~ prevlat~ " long: "~ prevlon~ " altitude: "~ prevalt_ft~" ft.");
 		}
 	}
 	# now we save the current position
@@ -3748,7 +3748,7 @@ var altClosestApproachCalc = func {
 	closestApproachXY_m * closestApproachXY_m +
 	closestApproachPitch_m * closestApproachPitch_m);
 			
-	#debprint ("Bombable: Projected closest impact distance : ", closestApproachOLDWAY_m, "FG Impact Detection Point: ", impactDistance_m, " XY: ", closestApproachXY_m, " Pitch: ", closestApproachPitch_m, " impactDistance_m = ",impactDistance_m, " impactDistanceXY_m = ",impactDistanceXY_m, " ballisticMass_lb = ", ballisticMass_lb);
+	#debprint ("Projected closest impact distance : ", closestApproachOLDWAY_m, "FG Impact Detection Point: ", impactDistance_m, " XY: ", closestApproachXY_m, " Pitch: ", closestApproachPitch_m, " impactDistance_m = ",impactDistance_m, " impactDistanceXY_m = ",impactDistanceXY_m, " ballisticMass_lb = ", ballisticMass_lb);
 			
 	if (impactDistance_m < closestApproach_m) debprint ("#########CLOSEST APPROACH CALC ERROR########");
 
@@ -3792,7 +3792,7 @@ var put_splash = func (nodeName, iLat_deg,iLon_deg, iAlt_m, ballisticMass_lb, im
 			impLength_sec  *=  5;
 		}
 
-		#debprint ("Bombable: Drawing impact, ", nodeName, " ", iLat_deg, " ", iLon_deg, " ",  iAlt_m, " refined:", refinedSplash );
+		#debprint ("Drawing impact, ", nodeName, " ", iLat_deg, " ", iLon_deg, " ",  iAlt_m, " refined:", refinedSplash );
 		put_remove_model(iLat_deg,iLon_deg, iAlt_m, impLength_sec, startSize_m, endSize_m);
 
 		#for larger explosives (or a slight chance with smaller rounds, which
@@ -3821,7 +3821,7 @@ var exit_test_impact = func(nodeName, myNodeName){
 	# instances will pick it up & we don't need to worry about it.
 	var impactTerrain = getprop(""~nodeName~"/impact/type");
 	if (impactTerrain != "terrain") {
-		#debprint ("Bombable: Not drawing impact; object impact");
+		#debprint ("Not drawing impact; object impact");
 		return;
 	}
 			
@@ -3832,7 +3832,7 @@ var exit_test_impact = func(nodeName, myNodeName){
 			
 	var ballisticMass_lb = getBallisticMass_lb(nodeName);
 
-	#debprint ("Bombable: Exiting test_impact with a splash, ", nodeName, " ", ballisticMass_lb, " ", impactTerrain," ", iLat_deg, " ", iLon_deg, " ", iAlt_m);
+	#debprint ("Exiting test_impact with a splash, ", nodeName, " ", ballisticMass_lb, " ", impactTerrain," ", iLat_deg, " ", iLon_deg, " ", iAlt_m);
 			
 	put_splash (nodeName, iLat_deg, iLon_deg, iAlt_m, ballisticMass_lb, impactTerrain, 0, myNodeName );
 
@@ -3856,7 +3856,7 @@ var getBallisticMass_lb = func (impactNodeName) {
 	else {
 		ballisticMass_lb = .25;
 		var impactType = getprop (""~impactNodeName~"/name");
-		#debprint ("Bombable: ImpactNodeType = ", impactType);
+		#debprint ("ImpactNodeType = ", impactType);
 		if (impactType == nil) impactType = "bullet";
 
 				
@@ -3972,12 +3972,12 @@ var test_impact = func(changedNode, myNodeName) {
 	var impactNodeName = changedNode.getValue();
 	var ats = attributes[myNodeName]; 	
 
-	# debprint ("Bombable: test_impact, ", myNodeName," ", impactNodeName);
+	# debprint ("test_impact, ", myNodeName," ", impactNodeName);
 
 	var oLat_deg = getprop (""~myNodeName~"/position/latitude-deg");
 	var iLat_deg = getprop (""~impactNodeName~"/impact/latitude-deg");
 
-	debprint ("Bombable: test_impact oLat, iLat: ", oLat_deg, " ", iLat_deg );
+	debprint ("test_impact oLat, iLat: ", oLat_deg, " ", iLat_deg );
 
 	var maxLat_deg = ats.dimensions['maxLat'];
 	var maxLon_deg = ats.dimensions['maxLon'];
@@ -4127,7 +4127,7 @@ var test_impact = func(changedNode, myNodeName) {
 	var damAdd = 0; #total amount of damage actually added as the result of the impact
 	var impactTerrain = getprop (""~impactNodeName~"/impact/type");
 			
-	#debprint ("Bombable: Possible hit - calculating . . . ", impactTerrain);
+	#debprint ("Possible hit - calculating . . . ", impactTerrain);
 
 	#Potential for adding serious damage increases the closer we are to the center
 	#of the object.  We'll say more than damageRadius meters away, no potential for increased damage
@@ -4179,7 +4179,7 @@ var test_impact = func(changedNode, myNodeName) {
 		}
 	}
 
-	#debprint ("Bombable: Projected closest impact distance delta : ", closestApproachOLDWAY_m-closestApproach_m, "FG Impact Detection Point delta: ", impactDistance_m - cartesianDistance(deltaX_m,deltaY_m,deltaAlt_m), " ballisticMass_lb = ", ballisticMass_lb);
+	#debprint ("Projected closest impact distance delta : ", closestApproachOLDWAY_m-closestApproach_m, "FG Impact Detection Point delta: ", impactDistance_m - cartesianDistance(deltaX_m,deltaY_m,deltaAlt_m), " ballisticMass_lb = ", ballisticMass_lb);
 
 	#var tgt_ht_m = 50/.3042 + 5; # AIManager.cxx it is 50 ft for aircraft & multiplayer;extra 5 m is fudge factor
 	#var tgt_length_m = 100/.3024 + 5; # AIManager.cxx it is 100 ft for aircraft & multiplayer; extra 5 m is fudge factor
@@ -4241,7 +4241,7 @@ var test_impact = func(changedNode, myNodeName) {
 				damagePotential = impactLikelihood * vuls.damageVulnerability / 200; #possibility of causing a high amount of damage
 				outsideIDdamagePotential = impactLikelihood; #possibility of causing a routine amount of damage
 						
-				#          debprint ("Bombable: Direct hit, "~ impactNodeName~ " on ", myNodeName, " Distance = ", closestApproach_m, " heightDiff = ", deltaAlt_m, " terrain = ", impactTerrain, " radius = ", damageRadius_m, " dP:", damagePotential, " oIdP:", outsideIDdamagePotential, " bM:", ballisticMass_lb);
+				#          debprint ("Direct hit, "~ impactNodeName~ " on ", myNodeName, " Distance = ", closestApproach_m, " heightDiff = ", deltaAlt_m, " terrain = ", impactTerrain, " radius = ", damageRadius_m, " dP:", damagePotential, " oIdP:", outsideIDdamagePotential, " bM:", ballisticMass_lb);
 						
 						
 				} else {
@@ -4264,7 +4264,7 @@ var test_impact = func(changedNode, myNodeName) {
 				#
 				outsideIDdamagePotential = math.pow (impactLikelihood, 1.5) ;# ^2 makes it a bit too difficult to get a hit/let's try ^1.5 instead
 						
-				#           debprint ("Bombable: Near hit, "~ impactNodeName~ " on ", myNodeName, " Distance = ", closestApproach_m, " heightDiff = ", deltaAlt_m, " terrain = ", impactTerrain, " radius = ", damageRadius_m, " dP ", damagePotential, " OIdP ", outsideIDdamagePotential, " vitalHitchance% ", damagePotential * vuls.damageVulnerability * easyModeProbability * ballisticMass_lb / 5);
+				#           debprint ("Near hit, "~ impactNodeName~ " on ", myNodeName, " Distance = ", closestApproach_m, " heightDiff = ", deltaAlt_m, " terrain = ", impactTerrain, " radius = ", damageRadius_m, " dP ", damagePotential, " OIdP ", outsideIDdamagePotential, " vitalHitchance% ", damagePotential * vuls.damageVulnerability * easyModeProbability * ballisticMass_lb / 5);
 						
 			}
 					
@@ -4282,18 +4282,18 @@ var test_impact = func(changedNode, myNodeName) {
 					if ( rand() < damagePotential * easyModeProbability) 
 					{
 						damageCaused = (weaponDamageCapability + rand() * weaponDamageCapability * 2) * vuls.damageVulnerability * easyMode;
-						#debprint ("Bombable: Direct Hit/Vital hit. ballisticMass: ", ballisticMass_lb," damPotent: ", damagePotential, " weaponDamageCapab:", weaponDamageCapability);
+						#debprint ("Direct Hit/Vital hit. ballisticMass: ", ballisticMass_lb," damPotent: ", damagePotential, " weaponDamageCapab:", weaponDamageCapability);
 
-						debprint ("Bombable: Small weapons, direct hit, very damaging");
+						debprint ("Small weapons, direct hit, very damaging");
 								
 						#Otherwise the possibility of damage
 					}
 					elsif (rand() < outsideIDdamagePotential) 
 					{
 						damageCaused = rand () * weaponDamageCapability * vuls.damageVulnerability * easyMode * outsideIDdamagePotential;
-						#debprint ("Bombable: Direct Hit/Nonvital hit. ballisticMass: ", ballisticMass_lb," outsideIDDamPotent: ", outsideIDdamagePotential, " weaponDamageCapab:", weaponDamageCapability  );
+						#debprint ("Direct Hit/Nonvital hit. ballisticMass: ", ballisticMass_lb," outsideIDDamPotent: ", outsideIDdamagePotential, " weaponDamageCapab:", weaponDamageCapability  );
 
-						debprint ("Bombable: Small weapons, direct hit, damaging");
+						debprint ("Small weapons, direct hit, damaging");
 					}
 				}
 				else 
@@ -4310,11 +4310,11 @@ var test_impact = func(changedNode, myNodeName) {
 				else  #if it hits a regular or less vital spot
 				damageCaused = rand () * ballisticMass_lb * vuls.damageVulnerability * easyMode * outsideIDdamagePotential;
 
-				debprint ("Bombable: Heavy weapon or bomb, direct hit, damaging");
+				debprint ("Heavy weapon or bomb, direct hit, damaging");
 						
 				}
 
-			#debprint ("Bombable: Damaging hit, "~ " Distance = ", closestApproach_m, "by ", impactNodeName~ " on ", myNodeName," terrain = ", impactTerrain, " damageRadius = ", damageRadius_m," weaponDamageCapability ", weaponDamageCapability, " damagePotential ", damagePotential, " OIdP ", outsideIDdamagePotential, " Par damage: ", weaponDamageCapability * vuls.damageVulnerability);
+			#debprint ("Damaging hit, "~ " Distance = ", closestApproach_m, "by ", impactNodeName~ " on ", myNodeName," terrain = ", impactTerrain, " damageRadius = ", damageRadius_m," weaponDamageCapability ", weaponDamageCapability, " damagePotential ", damagePotential, " OIdP ", outsideIDdamagePotential, " Par damage: ", weaponDamageCapability * vuls.damageVulnerability);
 
 			damAdd = add_damage( damageCaused, "weapon", myNodeName, , impactNodeName, ballisticMass_lb, iLat_deg, iLon_deg, iAlt_m  );
 
@@ -4354,7 +4354,7 @@ var test_impact = func(changedNode, myNodeName) {
 						var crossProdObj_ImpY_m = impactorDirectionZ * crossProdX_m - impactorDirectionX * crossProdZ_m;
 						var crossProdObj_ImpZ_m = impactorDirectionX * crossProdY_m - impactorDirectionY * crossProdX_m;
 								
-						debprint ("Bombable: Put splash direct hit");
+						debprint ("Put splash direct hit");
 						put_splash (impactNodeName, oLat_deg+crossProdObj_ImpY_m/m_per_deg_lat, oLon_deg+crossProdObj_ImpX_m/m_per_deg_lon,
 						oAlt_m+crossProdObj_ImpZ_m, ballisticMass_lb, impactTerrain, 1, myNodeName);
 					}
@@ -4395,7 +4395,7 @@ var test_impact = func(changedNode, myNodeName) {
 						var crossProdObj_ImpY_m = impactorDirectionZ * crossProdX_m - impactorDirectionX * crossProdZ_m;
 						var crossProdObj_ImpZ_m = impactorDirectionX * crossProdY_m - impactorDirectionY * crossProdX_m;
 								
-						debprint ("Bombable: Put splash near hit > 1.2 ", ballisticMass_lb, " ", impactNodeName);
+						debprint ("Put splash near hit > 1.2 ", ballisticMass_lb, " ", impactNodeName);
 						put_splash (impactNodeName,
 						oLat_deg+crossProdObj_ImpY_m/m_per_deg_lat,
 						oLon_deg+crossProdObj_ImpX_m/m_per_deg_lon,
@@ -4406,7 +4406,7 @@ var test_impact = func(changedNode, myNodeName) {
 					
 				if (ballisticMass_lb > 1.2) {
 							
-					debprint ("Bombable: Close hit by bomb, "~ impactNodeName~ " on "~ myNodeName~ " Distance = "~ closestApproach_m ~ " terrain = "~ impactTerrain~ " radius = "~ damageRadius_m~" mass = "~ballisticMass_lb);
+					debprint ("Close hit by bomb, "~ impactNodeName~ " on "~ myNodeName~ " Distance = "~ closestApproach_m ~ " terrain = "~ impactTerrain~ " radius = "~ damageRadius_m~" mass = "~ballisticMass_lb);
 				}
 
 						
@@ -4700,14 +4700,14 @@ var speed_adjust = func (myNodeName, time_sec ) {
 		# acceleration during level flight
 		add_velocity_fps = math.sgn (targetSpeed_kt - airspeed_kt) * math.pow(math.abs(fact),0.5) * targetSpeed_kt * time_sec * KT2FPS / 70 ;
 		termVel_kt = targetSpeed_kt;
-		#debprint ("Bombable: Speed Adjust, level:", add_velocity_fps * fps2knots, " airspeed: ", airspeed_kt, " termVel: ", termVel_kt, " ", myNodeName );
+		#debprint ("Speed Adjust, level:", add_velocity_fps * fps2knots, " airspeed: ", airspeed_kt, " termVel: ", termVel_kt, " ", myNodeName );
 	} 
 	elsif (sin_pitch > 0 ) 
 	{
 		# climbing, so we reduce our airspeed, tending towards V (s)
 		var deltaSpeed_kt = airspeed_kt-minSpeed_kt;
 					
-		# debprint ("Bombable: deltaS",deltaSpeed_kt, " maxS:", maxSpeed_kt, " minS:", minSpeed_kt," grav:",  grav_fpss, " timeS:", time_sec," sinP",  sin_pitch   );
+		# debprint ("deltaS",deltaSpeed_kt, " maxS:", maxSpeed_kt, " minS:", minSpeed_kt," grav:",  grav_fpss, " timeS:", time_sec," sinP",  sin_pitch   );
 		# add_velocity_fps = -(deltaSpeed_kt/(maxSpeed_kt-minSpeed_kt)) * grav_fpss * time_sec * sin_pitch * 10;
 		#
 					
@@ -4742,7 +4742,7 @@ var speed_adjust = func (myNodeName, time_sec ) {
 					
 					
 					
-		# debprint ("Bombable: Speed Adjust, climbing:", add_velocity_fps * fps2knots, " airspeed: ", airspeed_kt, " termVel: ", termVel_kt, " ", myNodeName );
+		# debprint ("Speed Adjust, climbing:", add_velocity_fps * fps2knots, " airspeed: ", airspeed_kt, " termVel: ", termVel_kt, " ", myNodeName );
 	} 
 	elsif (sin_pitch < 0 )
 	{
@@ -4772,7 +4772,7 @@ var speed_adjust = func (myNodeName, time_sec ) {
 		# (
 		# 	sprintf
 		# 	(
-		# 		"Bombable: Speed Adjust, diving: %6.1f airspeed: %6.1f termVel: %6.1f %s",
+		# 		"Speed Adjust, diving: %6.1f airspeed: %6.1f termVel: %6.1f %s",
 		# 		add_velocity_fps * fps2knots,
 		# 		airspeed_kt,
 		# 		termVel_kt,
@@ -4792,7 +4792,7 @@ var speed_adjust = func (myNodeName, time_sec ) {
 		
 				
 				
-	#debprint ("Bombable: Speed Adjust:", add_velocity_fps * fps2knots, " TermVel:", termVel_kt, "sinPitch:", sin_pitch );
+	#debprint ("Speed Adjust:", add_velocity_fps * fps2knots, " TermVel:", termVel_kt, "sinPitch:", sin_pitch );
 	var finalSpeed_kt = airspeed_kt + add_velocity_fps * fps2knots;
 	#Zero/negative airspeed causes problems . . .
 	if (finalSpeed_kt < minSpeed_kt / 3) finalSpeed_kt = minSpeed_kt / 3;
@@ -4908,11 +4908,11 @@ var do_acrobatic_loop_loop = func
 	#    then we terminate the loop & the dodge
 	if (stalling or currSpeed_kt > vels.maxSpeed_kt or currSpeed_kt < vels.minSpeed_kt * 1.1 ) 
 	{
-		debprint ("Bombable: Exiting loop " ~myNodeName ~ ": ", stalling, " ", currSpeed_kt, "currAlt: ", currAlt_m );
+		debprint ("Exiting loop " ~myNodeName ~ ": ", stalling, " ", currSpeed_kt, "currAlt: ", currAlt_m );
 		attributes[myNodeName].controls.dodgeInProgress = 0;
 		return;
 	}
-	# debprint("Bombable:  do_acrobatic_loop_loop ", loop_time, " ", full_loop_steps, " ", exit_steps, " ", direction, " ", rolldirenter, " ", rolldirexit, " ", vert_speed_add_kt, " ", loop_count);
+	# debprint(" do_acrobatic_loop_loop ", loop_time, " ", full_loop_steps, " ", exit_steps, " ", direction, " ", rolldirenter, " ", rolldirexit, " ", vert_speed_add_kt, " ", loop_count);
 	loop_count += 1;
 	if (loop_count <= exit_steps ) settimer (func { do_acrobatic_loop_loop(id, myNodeName, loop_time, full_loop_steps, exit_steps, direction, rolldirenter, rolldirexit,vert_speed_add_kt, loop_count);}, loop_time/full_loop_steps);
 				
@@ -4934,7 +4934,7 @@ var do_acrobatic_loop_loop = func
 	#var sgn = math.sgn (curr_acrobat_vertical_speed_fps);
 	#if ( sgn * curr_acrobat_vertical_speed_fps >= sgn * proposed_vertical_speed_fps) setprop ("" ~ myNodeName ~ "/velocities/vertical-speed-fps", proposed_vertical_speed_fps);
 				
-	# debprint ("Bombable: Acrobatic loop, ideal vertfps: ", curr_acrobat_vertical_speed_fps );
+	# debprint ("Acrobatic loop, ideal vertfps: ", curr_acrobat_vertical_speed_fps );
 				
 	#The FG vert-speed prop sort of wiggles around for various reasons,
 	# so we are just basically going to force it where we want it, no
@@ -4979,7 +4979,7 @@ var do_acrobatic_loop_loop = func
 	}
 				
 	setprop ("" ~ myNodeName ~ "/velocities/vertical-speed-fps", curr_acrobat_vertical_speed_fps);
-	# debprint ("Bombable: Acrobatic loop, actual vertfps: ", curr_acrobat_vertical_speed_fps, "previous vertspd:",  curr_vertical_speed_fps);
+	# debprint ("Acrobatic loop, actual vertfps: ", curr_acrobat_vertical_speed_fps, "previous vertspd:",  curr_vertical_speed_fps);
 				
 	#target-alt will affect the vert speed unless we keep it close to current alt
 	setprop (""~myNodeName~"/controls/flight/target-alt", currAlt_ft);
@@ -5024,7 +5024,7 @@ var do_acrobatic_loop = func
 	# (
 	# 	sprintf
 	# 	(
-	# 		"Bombable: Starting acrobatic loop for %s loop_time %5.1f full_loop_steps %3.0f exit_steps %3.0f direction %s", 
+	# 		"Starting acrobatic loop for %s loop_time %5.1f full_loop_steps %3.0f exit_steps %3.0f direction %s", 
 	# 		myNodeName,
 	# 		loop_time,
 	# 		full_loop_steps,
@@ -5170,7 +5170,7 @@ var choose_attack_acrobatic = func
 		# (
 		# 	sprintf
 		# 	(
-		# 		"Bombable: Attack acrobatic loop %s for %s of %2.0f/100 steps, %s roll to enter, %s roll to exit",
+		# 		"Attack acrobatic loop %s for %s of %2.0f/100 steps, %s roll to enter, %s roll to exit",
 		# 		steps, 
 		# 		myNodeName, 
 		# 		direction,
@@ -5276,7 +5276,7 @@ var rudder_roll_climb = func (myNodeName, degrees = 15, alt_ft = -20, time = 10,
 	(
 		sprintf
 			(
-				"Bombable: rudder_roll_climb for %s deg:%6.1f time:%5.1f alt_ft:%6.1f",
+				"rudder_roll_climb for %s deg:%6.1f time:%5.1f alt_ft:%6.1f",
 				myNodeName,
 				degrees,
 				newTime,
@@ -5303,7 +5303,7 @@ var dodge = func(myNodeName, dodgeAmount_deg = 0, dodgeDelay = 1)
 				
 	if ( ctrls.dodgeInProgress ) 
 	{
-		debprint ("Bombable: Dodge temporarily locked for ", myNodeName );
+		debprint ("Dodge temporarily locked for ", myNodeName );
 		return;
 	}
 	# Don't change rudder/roll again until the delay
@@ -5314,7 +5314,7 @@ var dodge = func(myNodeName, dodgeAmount_deg = 0, dodgeDelay = 1)
 	var dims = ats.dimensions;
 	var evas = ats.evasions;
 
-	debprint ("Bombable: Starting Dodge", myNodeName, " type = ", type);
+	debprint ("Starting Dodge", myNodeName, " type = ", type);
 				
 
 
@@ -5411,12 +5411,12 @@ var dodge = func(myNodeName, dodgeAmount_deg = 0, dodgeDelay = 1)
 				{
 				ctrls.dodgeInProgress = 0;
 				setprop (""~myNodeName~"/controls/flight/target-roll", 0); 
-				# debprint(sprintf("Bombable: Target roll reset for %s", myNodeName));
+				# debprint(sprintf("Target roll reset for %s", myNodeName));
 				# This resets the aircraft to 0 deg roll (via FG's
 				# AI system target roll; leaves target altitude unchanged  )
 				if (getprop(""~myNodeName~"/bombable/initializers/attack-initialized") == nil) {
 					setprop (""~myNodeName~"/controls/flight/lateral-mode", "hdg"); 
-					debprint(sprintf("Bombable: %s flight mode set to hdg", myNodeName));
+					debprint(sprintf("%s flight mode set to hdg", myNodeName));
 				}
 				},
 				dodgeDelay
@@ -5445,7 +5445,7 @@ var dodge = func(myNodeName, dodgeAmount_deg = 0, dodgeDelay = 1)
 			);	
 	}
 			
-	# debprint ("Bombable: Dodge alt:", dodgeAltAmount_ft, " degrees:", dodgeAmount_deg, " delay:", dodgeDelay);
+	# debprint ("Dodge alt:", dodgeAltAmount_ft, " degrees:", dodgeAmount_deg, " delay:", dodgeDelay);
 }
 
 ################################## stopDodgeAttack ################################
@@ -5510,7 +5510,7 @@ var mp_update_damage = func (myNodeName = "", damageRise = 0, damageTotal = 0, s
 					
 		if (myNodeName == "") mainStatusPopupTip (msg, 30);
 		else targetStatusPopupTip (msg, 30);
-		debprint ("Bombable: " ~ msg ~ " (" ~ myNodeName ~ ")" );
+		debprint ("" ~ msg ~ " (" ~ myNodeName ~ ")" );
 					
 	}
 				
@@ -5627,7 +5627,7 @@ var mainAC_add_damage = func (damageRise = 0, damageTotal = 0, source = "", mess
 		elsif (damageValue < 1) msg = sprintf( addMsg1 ~ " Damage added %1.0f%% - Total damage %1.0f%%", damageIncrease * 100, damageValue * 100);
 		else msg = sprintf( " ==  ==  ==  == " ~ addMsg2 ~ " Damage added %1.0f%% - Total damage %1.0f%% ==  ==  ==  == ", damageIncrease * 100, damageValue * 100 );
 		mainStatusPopupTip (msg, 15);
-		debprint ("Bombable: " ~ msg );
+		debprint ("" ~ msg );
 					
 		if (damageValue == 1) {
 			#So that ppl know their engine/magneto has been switched off, so they'll
@@ -5636,7 +5636,7 @@ var mainAC_add_damage = func (damageRise = 0, damageTotal = 0, source = "", mess
 				if (getprop("/controls/engines/engine[0]/magnetos") == 0 ) {
 					msg = " ==  ==  ==  == Damage 100% - your engines and magnetos have been switched off ==  ==  ==  == ";
 					mainStatusPopupTip (msg, 10);
-					debprint ("Bombable: " ~ msg );
+					debprint ("" ~ msg );
 				}
 			} , 15);
 		}
@@ -5686,7 +5686,7 @@ var mainAC_add_damage = func (damageRise = 0, damageTotal = 0, source = "", mess
 	) {
 					
 					
-		debprint ("Bombable: Starting fire for main aircraft");
+		debprint ("Starting fire for main aircraft");
 					
 		#use small, medium, large smoke column depending on vuls.damageVulnerability
 		#(high vuls.damageVulnerability means small/light/easily damaged while
@@ -5818,7 +5818,7 @@ var fireAIWeapon = func (time_sec, myNodeName, elem, speed) {
 	setprop("bombable/fire-particles/projectile-tracer[" ~ index ~ "]/speed", speed);
 	setprop("bombable/fire-particles/projectile-tracer[" ~ index ~ "]/ai-weapon-firing", 1); 
 	var loopid = inc_loopid(myNodeName, "fireAIWeapon" ~ index);
-	# debprint (	"Bombable: myNodeName " ~ myNodeName ~
+	# debprint (	"myNodeName " ~ myNodeName ~
 	# 			" index " ~ index,
 	# 			" time " ~ time_sec);
 	settimer ( func { fireAIWeapon_stop(loopid, myNodeName, index)}, time_sec);
@@ -5914,7 +5914,7 @@ var checkAim = func ( thisWeapon,
 	thisWeapon.aim.nHit = 0;
 				
 	# Weapons malfunction in proportion to the damageValue, to 100% of the time when damage = 100%
-	# debprint ("Bombable: AI weapons, ", myNodeName1, ", ", myNodeName2);
+	# debprint ("AI weapons, ", myNodeName1, ", ", myNodeName2);
 	if (rand() < damageValue) return (targetSighted) ;
 
 	# correct targetDispRefFrame for weapon offset
@@ -5998,7 +5998,7 @@ var checkAim = func ( thisWeapon,
 	
 	# debprint (
 		# sprintf(
-			# "Bombable: intercept time =%8.1f Intercept vector =[%8.2f, %8.2f, %8.2f]",
+			# "intercept time =%8.1f Intercept vector =[%8.2f, %8.2f, %8.2f]",
 			# intercept.time, interceptDirRefFrame[0], interceptDirRefFrame[1], interceptDirRefFrame[2] 
 		# )
 	# );
@@ -6033,19 +6033,19 @@ var checkAim = func ( thisWeapon,
 				horz : 0.5 * (dims.width_m + dims.length_m) ,
 			};
 		}
-		# debprint ("Bombable: Target size ", targetSize_m.vert, " by ", targetSize_m.horz, " for ", myNodeName );
+		# debprint ("Target size ", targetSize_m.vert, " by ", targetSize_m.horz, " for ", myNodeName );
 
 		# only calculate pRound if target direction within 10 degrees of weapon direction
 		var targetOffset_rad = math.acos(cosOffset); # angular offset from weapon direction
 		var targetSize_rad = math.atan2(math.sqrt(targetSize_m.horz * targetSize_m.vert) / 2 , distance_m);	
 		# geometric mean of key dimensions and half angle
 
-		# debprint (sprintf("Bombable: checkAim for %s targetOffset_rad =%8.2f targetSize_rad =%8.2f", 
+		# debprint (sprintf("checkAim for %s targetOffset_rad =%8.2f targetSize_rad =%8.2f", 
 			# myNodeName1,
 			# targetOffset_rad,
 			# targetSize_rad));
-		# debprint (sprintf("Bombable: newDir[%8.2f,%8.2f,%8.2f] dist=%6.0f", newDir[0], newDir[1], newDir[2], distance_m));
-		# debprint (sprintf("Bombable: weapDir[%8.2f,%8.2f,%8.2f]", weapDir[0], weapDir[1], weapDir[2]));
+		# debprint (sprintf("newDir[%8.2f,%8.2f,%8.2f] dist=%6.0f", newDir[0], newDir[1], newDir[2], distance_m));
+		# debprint (sprintf("weapDir[%8.2f,%8.2f,%8.2f]", weapDir[0], weapDir[1], weapDir[2]));
 		
 
 		# pRound ranges 0 to 1, 1 is a direct hit			
@@ -6070,7 +6070,7 @@ var checkAim = func ( thisWeapon,
 		# debprint 
 		# (
 		# 	sprintf(
-		# 	"Bombable: Hit %s nHit = %6.3f offset deg = %6.2f weapPowerSkill = %4.1f",
+		# 	"Hit %s nHit = %6.3f offset deg = %6.2f weapPowerSkill = %4.1f",
 		# 	myNodeName1 ~ ": " ~ thisWeapon.name,
 		# 	thisWeapon.aim.nHit,
 		# 	targetOffset_rad * R2D,
@@ -6242,7 +6242,7 @@ var weapons_loop = func (id, myNodeName1 = "") {
 			"Kamikase strike" : "Collision";
 			msg = msg ~ " with " ~ getCallSign (myNodeName1) ~ " !";
 			targetStatusPopupTip (msg, 5); # add_damage will immediately report damage stats
-			debprint("Bombable: " ~ msg);
+			debprint("" ~ msg);
 			var mass1 = attributes[myNodeName1].vulnerabilities.explosiveMass_kg; 
 			var mass2 = ats2.vulnerabilities.explosiveMass_kg; 
 			var damageRatio = mass2 / mass1; 
@@ -6408,7 +6408,7 @@ var weapons_loop = func (id, myNodeName1 = "") {
 			continue;
 		}
 	
-		# if (ats.index == 1) debprint("Bombable: Weapons_loop for ", nodes[ats.index], " target = ", ind, "pos = ", pos, sprintf(" distance = %5.0fm nHit = %5.3f", targetData[pos][3], thisWeapon.aim.nHit));
+		# if (ats.index == 1) debprint("Weapons_loop for ", nodes[ats.index], " target = ", ind, "pos = ", pos, sprintf(" distance = %5.0fm nHit = %5.3f", targetData[pos][3], thisWeapon.aim.nHit));
 		if (thisWeapon.aim.nHit == 0) 
 		{
 			pos += 1;
@@ -6426,10 +6426,10 @@ var weapons_loop = func (id, myNodeName1 = "") {
 		# corresponding maxDamage_percent figures: 3%, 4%, 50%
 
 		if (thisWeapon.aim.nHit > 0.1)
-		# debprint (sprintf("Bombable: Weapons_loop %s  weapPowerSkill = %4.1f  total ballistic mass =  %5.2f", myNodeName1, weapPowerSkill, ballisticMass_lb * thisWeapon.aim.nHit));
+		# debprint (sprintf("Weapons_loop %s  weapPowerSkill = %4.1f  total ballistic mass =  %5.2f", myNodeName1, weapPowerSkill, ballisticMass_lb * thisWeapon.aim.nHit));
 		
 		# debprint (
-		# 	"Bombable: Weapons_loop " ~ myNodeName1 ~ " " ~ elem, 
+		# 	"Weapons_loop " ~ myNodeName1 ~ " " ~ elem, 
 		# 	" heading = ", thisWeapon.weaponAngle_deg.heading, 
 		# 	" elevation = ", thisWeapon.weaponAngle_deg.elevation
 		# );
@@ -6451,7 +6451,7 @@ var weapons_loop = func (id, myNodeName1 = "") {
 		# if (0) # omit for testing
 		if (thisWeapon.aim.nHit * ballisticMass_lb > (0.0166666 * weapPowerSkill + 0.003333)) # 0.02;0.005
 		{
-			# debprint ("Bombable: AI aircraft aimed at main aircraft, ",
+			# debprint ("AI aircraft aimed at main aircraft, ",
 			# myNodeName1, " ", thisWeapon.name, " ", elem,
 			# " accuracy ", round(thisWeapon.aim.nHit * 100 ),"%",
 			# " interceptSpeed", round(thisWeapon.aim.interceptSpeed), " mps");
@@ -6506,7 +6506,7 @@ var weapons_loop = func (id, myNodeName1 = "") {
 			}
 		}
 		# var t_weap = (ot.timestamp.elapsedUSec()/ot.resolution_uS);
-		# debprint(sprintf("Bombable: "~elem~" t_weap = %6.3f msec", t_weap));
+		# debprint(sprintf(""~elem~" t_weap = %6.3f msec", t_weap));
 	} # next weapon
 }
 
@@ -6575,7 +6575,7 @@ var launchRocket = func (id, myNodeName1, elem) {
 
 
 	# AI model of rocket initiated by moving it from {lat, lon} {0, 0} to location of AC / ship
-	var rp = "ai/models/static[" ~ thisWeapon.rocketsIndex ~ "]";
+	var rp = "ai/models/static[" ~ thisWeapon.modelIndex ~ "]";
 	var pitch = math.asin(thisWeapon.aim.weaponDirRefFrame[2]) * R2D; # orientation of rocket
 	var heading = math.atan2(thisWeapon.aim.weaponDirRefFrame[0], thisWeapon.aim.weaponDirRefFrame[1]) * R2D;
 
@@ -6634,7 +6634,7 @@ var launchRocket = func (id, myNodeName1, elem) {
 
 	targetStatusPopupTip (msg, 20);
 
-	debprint ("Bombable: " ~ msg ~ " " ~ myNodeName1 ~ ", " ~ elem);
+	debprint ("" ~ msg ~ " " ~ myNodeName1 ~ ", " ~ elem);
 
 	thisWeapon.controls.launched = 1;
 
@@ -6714,7 +6714,7 @@ var guideRocket = func
 
 	var myNodeName2 = nodes[thisWeapon.aim.target];
 	var dim = attributes[myNodeName1].dimensions;  
-	var rp = "ai/models/static[" ~ thisWeapon.rocketsIndex ~ "]"; # static model for rocket
+	var rp = "ai/models/static[" ~ thisWeapon.modelIndex ~ "]"; # static model for rocket
 	var delta_t = LOOP_TIME;
 
 	thisWeapon.aim.nHit = 0;
@@ -6746,7 +6746,7 @@ var guideRocket = func
 		}
 		else
 		{
-			debprint("Bombable: ", getCallSign(myNodeName1), " ", thisWeapon.name, " removing target ",rocketAts.name," launched from ",getCallSign(myNodeName2));
+			debprint("", getCallSign(myNodeName1), " ", thisWeapon.name, " removing target ",rocketAts.name," launched from ",getCallSign(myNodeName2));
 			thisWeapon.aim.rn = nil; # target platform instead
 			targetRocket = nil;
 		}
@@ -6806,7 +6806,7 @@ var guideRocket = func
 			# change choice from rocket to its platform - switch only happens once
 			choice = 1; 
 			thisWeapon.aim["rn"] = nil;
-			debprint ("Bombable: "~getCallSign(myNodeName1)~" "~elem~" switching target to "~getCallSign(myNodeName2));
+			debprint (""~getCallSign(myNodeName1)~" "~elem~" switching target to "~getCallSign(myNodeName2));
 		}
 		var deltaX_m = r[choice][0] ;
 		var deltaY_m = r[choice][1] ;
@@ -6853,7 +6853,7 @@ var guideRocket = func
 	
 	# debprint (
 	# 	sprintf(
-	# 		"Bombable: distance vector to target =[%8.2f, %8.2f, %8.2f]",
+	# 		"distance vector to target =[%8.2f, %8.2f, %8.2f]",
 	# 		deltaX_m, deltaY_m, deltaAlt_m 
 	# 	)
 	# );
@@ -6926,7 +6926,7 @@ var guideRocket = func
 			and (t_intercept <0)) t_intercept = 0; # already reached closest approach
 		# debprint (
 		# 	sprintf(
-		# 	"Bombable: time to intercept %5.2f", 
+		# 	"time to intercept %5.2f", 
 		# 	t_intercept
 		# 	)
 		# );
@@ -6939,7 +6939,7 @@ var guideRocket = func
 
 			debprint (
 				sprintf(
-				"Bombable: closest approach for %s:%6.1fm intercept time:%6.1fs", 
+				"closest approach for %s:%6.1fm intercept time:%6.1fs", 
 				myNodeName1 ~ "/" ~ elem ,
 				closestApproach,
 				t_intercept
@@ -7035,7 +7035,7 @@ var guideRocket = func
 	var ground_Alt_m = elev (GeoCoord.lat(), GeoCoord.lon()) * FT2M; 
 	if (ground_Alt_m > aAlt_m) 
 	{
-		debprint (sprintf("Bombable: checkAGL for %s: rocket alt = %6.0fm ground alt = %6.0fm",  myNodeName1 ~ "/" ~ elem , aAlt_m, ground_Alt_m));
+		debprint (sprintf("checkAGL for %s: rocket alt = %6.0fm ground alt = %6.0fm",  myNodeName1 ~ "/" ~ elem , aAlt_m, ground_Alt_m));
 
 		var msg = thisWeapon.name ~ " from " ~ 
 		getCallSign(myNodeName1) ~ 
@@ -7093,11 +7093,11 @@ var guideRocket = func
 
 	if (intercept.time != 9999) 
 	{
-		# if (!thisWeapon.rocketsIndex) 
+		# if (!thisWeapon.modelIndex) 
 		# {
 		# 	debprint (
 		# 		sprintf(
-		# 			"Bombable: intercept.vector =[%0.1f, %0.1f, %0.1f] intercept.time= %3.1fs",
+		# 			"intercept.vector =[%0.1f, %0.1f, %0.1f] intercept.time= %3.1fs",
 		# 			intercept.vector[0], intercept.vector[1], intercept.vector[2], intercept.time
 		# 		)
 		# 	);
@@ -7114,7 +7114,7 @@ var guideRocket = func
 	else
 	# no intercept - at start of flight it is not possible to calculate an intercept because the speed is too low 
 	{
-		# if (!thisWeapon.rocketsIndex) debprint("No intercept");
+		# if (!thisWeapon.modelIndex) debprint("No intercept");
 		var interceptDirRefFrame =
 		[
 			targetDispRefFrame[0] / distance_m,
@@ -7154,7 +7154,7 @@ var guideRocket = func
 				interceptDirRefFrame = [0, 0, 1]; # instead might follow gradient of ground in xy direction of travel
 				# debprint (
 				# 	sprintf(
-				# 		"Bombable: ground avoidance: AGL =%8.1f Vertical speed =%8.1f mps",
+				# 		"ground avoidance: AGL =%8.1f Vertical speed =%8.1f mps",
 				# 		aAlt_m - ground_Alt_m,
 				# 		missileDir[2] * missileSpeed_mps * delta_t 
 				# 	)
@@ -7250,7 +7250,7 @@ var guideRocket = func
 	thisWeapon.position.latitude_deg = alat_deg + deltaLat;
 	thisWeapon.position.altitude_ft = ( aAlt_m + deltaAlt ) * M2FT;
 
-	var rp = "ai/models/static[" ~ thisWeapon.rocketsIndex ~ "]";
+	var rp = "ai/models/static[" ~ thisWeapon.modelIndex ~ "]";
 	setprop("" ~ rp ~ "/velocities/true-airspeed-kt", newMissileSpeed_mps); # used for debug only
 
 	if ((targetRocket == nil) and (myNodeName2 != "") and (intercept.time < 5) and (rand() < calcPilotSkill (myNodeName2) / 6)) dodge (myNodeName2);
@@ -7295,14 +7295,14 @@ var guideRocket = func
 
 	# debprint (
 	# 	sprintf(
-	# 		"Bombable: co-ords: lon = %8.4f lat = %8.4f alt = %8.4f",
+	# 		"co-ords: lon = %8.4f lat = %8.4f alt = %8.4f",
 	# 		alon_deg + deltaLon, alat_deg + deltaLat, aAlt_m + deltaAlt
 	# 	)
 	# );
 
 	# debprint (
 	# 	sprintf(
-	# 		"Bombable: intercept vector  =[%8.3f, %8.3f, %8.3f] intercept time =%8.1f",
+	# 		"intercept vector  =[%8.3f, %8.3f, %8.3f] intercept time =%8.1f",
 	# 		interceptDirRefFrame[0], interceptDirRefFrame[1], interceptDirRefFrame[2],
 	# 		intercept.time
 	# 	)
@@ -7310,21 +7310,21 @@ var guideRocket = func
 
 	# debprint (
 	# 	sprintf(
-	# 		"Bombable: thrust direction  =[%8.3f, %8.3f, %8.3f]",
+	# 		"thrust direction  =[%8.3f, %8.3f, %8.3f]",
 	# 		thisWeapon.velocities.thrustDir[0], thisWeapon.velocities.thrustDir[1], thisWeapon.velocities.thrustDir[2] 
 	# 	)
 	# );
 
 	# debprint (
 	# 	sprintf(
-	# 		"Bombable: missile direction =[%8.3f, %8.3f, %8.3f]",
+	# 		"missile direction =[%8.3f, %8.3f, %8.3f]",
 	# 		newMissileDir[0], newMissileDir[1], newMissileDir[2] 
 	# 	)
 	# );
 
 	# debprint(
 	# 	sprintf(
-	# 		"Bombable: t = %6.1f pitch = %6.1f hdg = %6.1f spd_mps = %8.2f mach = %6.1f turnRate = %6.2f",
+	# 		"t = %6.1f pitch = %6.1f hdg = %6.1f spd_mps = %8.2f mach = %6.1f turnRate = %6.2f",
 	# 		thisWeapon.controls.flightTime,
 	# 		newPitch,
 	# 		newHeading,
@@ -7349,7 +7349,7 @@ var guideRocket = func
 		}, delta_t);
 
 	# var t_guideRocket = (ot.timestamp.elapsedUSec()/ot.resolution_uS);
-	# debprint(sprintf("Bombable: " ~ elem ~ " t_guideRocket = %6.3f msec", t_guideRocket));
+	# debprint(sprintf("" ~ elem ~ " t_guideRocket = %6.3f msec", t_guideRocket));
 
 	return ();
 }
@@ -7374,7 +7374,7 @@ var changeDirection = func ( thisWeapon, missileDir, interceptDir, missileSpeed_
 
 	# debprint (
 	# 	sprintf(
-	# 		"Bombable: pid: theta =%8.3f int =%8.3f meas =%8.3f set =%8.3f err =%8.3f",
+	# 		"pid: theta =%8.3f int =%8.3f meas =%8.3f set =%8.3f err =%8.3f",
 	# 		thetaNew,
 	# 		thisWeapon.pidData.theta.integrator,
 	# 		thisWeapon.pidData.theta.prevMeasurement,
@@ -7384,7 +7384,7 @@ var changeDirection = func ( thisWeapon, missileDir, interceptDir, missileSpeed_
 	# );
 	# debprint (
 	# 	sprintf(
-	# 		"Bombable: pid: phi =%8.3f int =%8.3f meas =%8.3f set =%8.3f err =%8.3f",
+	# 		"pid: phi =%8.3f int =%8.3f meas =%8.3f set =%8.3f err =%8.3f",
 	# 		phiNew,
 	# 		thisWeapon.pidData.phi.integrator,
 	# 		thisWeapon.pidData.phi.prevMeasurement,
@@ -7465,7 +7465,7 @@ var newVelocity = func (thisWeapon, missileSpeed_mps, missileDir, deltaPhi, delt
 
 	# debprint (
 	# 	sprintf(
-	# 		"Bombable: normal force vector =[%8.3f, %8.3f, %8.3f]",
+	# 		"normal force vector =[%8.3f, %8.3f, %8.3f]",
 	# 		normalForceVector[0], normalForceVector[1], normalForceVector[2] 
 	# 	)
 	# );
@@ -7512,7 +7512,7 @@ var newVelocity = func (thisWeapon, missileSpeed_mps, missileDir, deltaPhi, delt
 	
 	# debprint (
 	# 	sprintf(
-	# 		"Bombable: new velocity vector =[%8.3f, %8.3f, %8.3f]",
+	# 		"new velocity vector =[%8.3f, %8.3f, %8.3f]",
 	# 		newV[0], newV[1], newV[2] 
 	# 	)
 	# );
@@ -7534,7 +7534,7 @@ var moveRocket = func (thisWeapon, index, timeInc) {
 	#get flighpath waypoint
 	var fpath = thisWeapon.controls.flightPath;
 
-	var rp = "ai/models/static[" ~ thisWeapon.rocketsIndex ~ "]";
+	var rp = "ai/models/static[" ~ thisWeapon.modelIndex ~ "]";
 
 	setprop (rp ~ "/position/longitude-deg", fpath[index].lon);
 	setprop (rp ~ "/position/latitude-deg", fpath[index].lat);
@@ -7556,14 +7556,14 @@ var moveRocket = func (thisWeapon, index, timeInc) {
 # keep rocket model but move it out of scene
 
 var killRocket = func (myNodeName, elem) {
-	# debprint("Bombable: " ~ elem ~ " killed: rocket index " ~ thisWeapon.rocketsIndex);
+	# debprint("" ~ elem ~ " killed: rocket index " ~ thisWeapon.modelIndex);
 	var ats = attributes[myNodeName];
 	var thisWeapon = ats.weapons[elem];
 	thisWeapon.destroyed = 1;
 	ats.attacks.rocketsInAir -= 1;
 	thisWeapon.controls.index += 1;
 	if (ats.maxTargets) ats.maxTargets -= 1;
-	var rp = "ai/models/static[" ~ thisWeapon.rocketsIndex ~ "]";	
+	var rp = "ai/models/static[" ~ thisWeapon.modelIndex ~ "]";	
 	setprop (rp ~ "/controls/engine", 0);
 	deleteSmoke ("skywriting", rp);
 	startSmoke ("flare", rp, "AI/Aircraft/Fire-Particles/large-explosion-particles.xml" ); 
@@ -7934,7 +7934,7 @@ stores.fillFuel = func (myNodeName,amount = 1){
 	! contains ( attributes[myNodeName], "stores") ) return;
 				
 	var stos = attributes[myNodeName].stores;
-	debprint ("Bombable: Filling fuel for", myNodeName);
+	debprint ("Filling fuel for", myNodeName);
 	if (stos["fuel"] == nil) stos["fuel"] = 0;
 	stos["fuel"] +=  amount;
 	if (stos["fuel"] > 1 ) stos["fuel"] = 1;
@@ -7950,7 +7950,7 @@ stores.fillWeapons = func (myNodeName, amount = 1) {
 	! contains ( attributes[myNodeName], "stores") or
 	! contains ( attributes[myNodeName], "weapons") ) return;
 
-	debprint ("Bombable: Filling weapons for", myNodeName);
+	debprint ("Filling weapons for", myNodeName);
 
 	var ats = attributes[myNodeName];
 	var weaps = ats.weapons;
@@ -8045,7 +8045,7 @@ stores.fuelLevel = func (myNodeName) {
 stores.checkAttackReadiness = func (myNodeName) {
 	var ats = attributes[myNodeName];
 	var ret = 1;
-	var msg = "Bombable: CheckAttackReadiness for  " ~ myNodeName;
+	var msg = "CheckAttackReadiness for  " ~ myNodeName;
 	var stos = ats.stores;
 	var weaps = ats.weapons;
 				
@@ -8113,7 +8113,7 @@ stores.revitalizeAttackReadiness = func (myNodeName,dist_m = 1000000){
 			stos["messages"]["unreadymessageposted"] = 0;
 			stos["messages"]["readymessageposted"] = 1;
 		}
-		debprint ("Bombable: Revitalizing attack readiness for ", myNodeName);
+		debprint ("Revitalizing attack readiness for ", myNodeName);
 	}
 				
 }
@@ -8241,7 +8241,7 @@ var attack_loop = func ( id, myNodeName ) {
 
 	#error trap and report
 	if (!contains(atts,"loopTime")) {
-		debprint("Bombable: " ~ myNodeName ~ " id= " ~ id);
+		debprint("" ~ myNodeName ~ " id= " ~ id);
 		debug.dump(ats.loopids);
 	}
 				
@@ -8283,13 +8283,13 @@ var attack_loop = func ( id, myNodeName ) {
 	var dist = distHdg.distance;
 	var courseToTarget_deg = distHdg.heading; # absolute bearing
 	
-	#debprint ("Bombable: Checking attack parameters: ", dist[0], " ", atts.maxDistance_m, " ",atts.minDistance_m, " ",dist[1], " ",-atts.altitudeLowerCutoff_m, " ",dist[1] < atts.altitudeHigherCutoff_m );
+	#debprint ("Checking attack parameters: ", dist[0], " ", atts.maxDistance_m, " ",atts.minDistance_m, " ",dist[1], " ",-atts.altitudeLowerCutoff_m, " ",dist[1] < atts.altitudeHigherCutoff_m );
 	if (ctrls.stayInFormation)
 	{
 		if ( dist[0] > atts.maxDistance_m or rand() < .1) return; # if check time 10s then will attack within 1s of entering maxDist perimeter
 		var msg = getCallSign(myNodeName)~" breaking formation";
 		targetStatusPopupTip (msg, 5);
-		# debprint ("Bombable: "~msg); 
+		# debprint (""~msg); 
 		ctrls.stayInFormation = 0; 			
 	}
 				
@@ -8380,7 +8380,7 @@ var attack_loop = func ( id, myNodeName ) {
 				
 	# criteria for not attacking
 	# if we fail to meet any of these criteria we do a few things then exit without attacking. Logic: not (A and B) = not A or not B 
-	# debprint ("Bombable: Attack criteria: ", (dist[0] < atts.maxDistance_m ), " ", ( dist[0] > atts.minDistance_m or continueAttack ) , " ",
+	# debprint ("Attack criteria: ", (dist[0] < atts.maxDistance_m ), " ", ( dist[0] > atts.minDistance_m or continueAttack ) , " ",
 	# (dist[1] > -atts.altitudeLowerCutoff_m), " ", (dist[1] < atts.altitudeHigherCutoff_m), " ",  
 	# readinessAttack, " ", ( (attentionFactor and distanceFactor) or attack_inprogress ), " for ", myNodeName, " ");
 	
@@ -8388,7 +8388,7 @@ var attack_loop = func ( id, myNodeName ) {
 	(dist[1] > -atts.altitudeLowerCutoff_m) and (dist[1] < atts.altitudeHigherCutoff_m)  and  
 	readinessAttack and ( (attentionFactor and distanceFactor) or attack_inprogress ) ) )  
 	{
-		# debprint ("Bombable: Not attacking ", continueAttack, " ", readinessAttack, " ", attentionFactor, " ", distanceFactor, " ", attack_inprogress, " for ", myNodeName, " " );
+		# debprint ("Not attacking ", continueAttack, " ", readinessAttack, " ", attentionFactor, " ", distanceFactor, " ", attack_inprogress, " for ", myNodeName, " " );
 		#OK, no attack, we're too far away or too close & passed it, too low, too high, etc etc etc
 		#Instead we: 1. dodge if necessary 2. exit
 		#always dodge when close to Target aircraft--unless we're aiming at it
@@ -8433,14 +8433,14 @@ var attack_loop = func ( id, myNodeName ) {
 				}
 			}
 			aircraftTurnToHeading ( myNodeName, 60 );
-			debprint ("Bombable: ", myNodeName, " Turning in direction of " ~ whereNow);
+			debprint ("", myNodeName, " Turning in direction of " ~ whereNow);
 		}
 		
 		if ( dist[0] > atts.maxDistance_m ) stores.revitalizeAttackReadiness(myNodeName, dist[0]);
 
 		atts.loopTime = atts.attackCheckTime_sec;
 		ctrls.attackInProgress = 0;
-		if (attack_inprogress) debprint ("Bombable: End of attack for ", myNodeName);
+		if (attack_inprogress) debprint ("End of attack for ", myNodeName);
 		return;
 	}
 				
@@ -8527,7 +8527,7 @@ var attack_loop = func ( id, myNodeName ) {
 		) 
 		{
 			targetAGL_m = ctrls.attackClimbDiveTargetAGL_m;
-			# debprint ("Bombable: Continuing attack for ", myNodeName," targetAGL_m = ", targetAGL_m);
+			# debprint ("Continuing attack for ", myNodeName," targetAGL_m = ", targetAGL_m);
 		} 
 		else
 		{
@@ -8540,7 +8540,7 @@ var attack_loop = func ( id, myNodeName ) {
 			# TODO: This varies by AC.  As a first try we're going with 2X
 			# minSpeed_kt to complete the loop.
 			#
-			# debprint ("Bombable: Starting attack for " ~ getCallSign (myNodeName) );
+			# debprint ("Starting attack for " ~ getCallSign (myNodeName) );
 			vels = attributes[myNodeName].velocities;
 			var currSpeed_kt = getprop (""~myNodeName~"/velocities/true-airspeed-kt");
 			if (currSpeed_kt > 2.2 * vels.minSpeed_kt and rand() < (skill+8)/15 and (atts.allGround ? rand() < 0.2 : 1)) 
@@ -8610,7 +8610,7 @@ var attack_loop = func ( id, myNodeName ) {
 			{
 				if (targetAGL_m > 1000) targetAGL_m = 1000; # if all targets are on the ground (or sea) then do not exceed 1000m AGL
 			}						
-			# debprint ("Bombable: Starting attack turn/loop for ", myNodeName," targetAGL_m = ", targetAGL_m);
+			# debprint ("Starting attack turn/loop for ", myNodeName," targetAGL_m = ", targetAGL_m);
 			ctrls.attackClimbDiveInProgress = 1;
 			ctrls.attackClimbDiveTargetAGL_m = targetAGL_m;
 		}
@@ -8733,7 +8733,7 @@ var aircraftTurnToHeadingControl = func (myNodeName, id, rolldegrees = 45, targe
 	setprop (""~myNodeName~ "/orientation/roll-deg", targetRoll_deg);
 	ctrls.roll_deg_bombable = targetRoll_deg;
 				
-	# debprint ("Bombable: Setting roll-deg for ", myNodeName , " to ", targetRoll_deg);
+	# debprint ("Setting roll-deg for ", myNodeName , " to ", targetRoll_deg);
 				
 	#set the target altitude as well.  flight/target-alt is in ft
 	if (targetAlt_m != "none") 
@@ -8768,7 +8768,7 @@ var aircraftTurnToHeadingControl = func (myNodeName, id, rolldegrees = 45, targe
 	}
 				
 		# debprint(sprintf(
-		# 	"Bombable: RollControl: delta = %3.1fdeg, target roll = %3.1fdeg, delta hdg = %4.1fdeg, %s",
+		# 	"RollControl: delta = %3.1fdeg, target roll = %3.1fdeg, delta hdg = %4.1fdeg, %s",
 		# 	delta_deg,
 		# 	targetRoll_deg,
 		# 	delta_heading_deg,
@@ -8789,7 +8789,7 @@ var aircraftTurnToHeadingControl = func (myNodeName, id, rolldegrees = 45, targe
 	else 
 	{
 		ctrls.rollTimeElapsed = 0;
-		# debprint ("Bombable: Ending aircraft turn-to-heading routine for " ~ myNodeName);
+		# debprint ("Ending aircraft turn-to-heading routine for " ~ myNodeName);
 		# aircraftRoll(myNodeName, 0, rolltime, roll_limit_deg);
 		# rjw not needed since AI model flight lateral-mode control in "roll" - not "hdg" ?
 		# setprop(""~myNodeName~"/controls/flight/target-hdg", targetdegrees);
@@ -8831,7 +8831,7 @@ var aircraftTurnToHeading = func (myNodeName, rolldegrees = 45, targetAlt_m = "n
 
 	aircraftTurnToHeadingControl ( myNodeName, loopid, rolldegrees_, targetAlt_m );
 				
-	# debprint (sprintf("Bombable: Starting turn-to-heading routine for %s, loopid= %d, rolldegrees= %3.1f, course_deg= %3.1f",
+	# debprint (sprintf("Starting turn-to-heading routine for %s, loopid= %d, rolldegrees= %3.1f, course_deg= %3.1f",
 	# myNodeName, loopid, rolldegrees_, ctrls.courseToTarget_deg));
 }
 
@@ -8875,7 +8875,7 @@ delta_deg, delta_t) {
 	# setprop (""~myNodeName~ "/controls/flight/target-roll", targetRoll_deg);
 	
 	var rollTimeElapsed = ctrls.rollTimeElapsed;
-	# debprint(sprintf("Bombable: RollControl: delta = %.3f target = %.2f time left = %.2f %s", delta_deg, targetRoll_deg, rolltime - rollTimeElapsed, myNodeName));
+	# debprint(sprintf("RollControl: delta = %.3f target = %.2f time left = %.2f %s", delta_deg, targetRoll_deg, rolltime - rollTimeElapsed, myNodeName));
 				
 	if ( rollTimeElapsed < rolltime )
 	{
@@ -8889,7 +8889,7 @@ delta_deg, delta_t) {
 	else 
 	{
 		ctrls.rollTimeElapsed = 0;
-		debprint ("Bombable: Ending aircraft roll routine for " ~ myNodeName);
+		debprint ("Ending aircraft roll routine for " ~ myNodeName);
 	}
 }
 
@@ -8912,7 +8912,7 @@ var aircraftRoll = func (myNodeName, rolldegrees = -60, rolltime = 5, roll_limit
 
 	aircraftRollControl(myNodeName, loopid, rolldegrees, rolltime, roll_limit_deg, delta_deg, updateinterval_sec);
 				
-	debprint (sprintf("Bombable: Starting roll routine, loopid = %d target rolldegrees = %6.1f rolltime = %5.1f for %s",loopid, rolldegrees, rolltime, myNodeName));
+	debprint (sprintf("Starting roll routine, loopid = %d target rolldegrees = %6.1f rolltime = %5.1f for %s",loopid, rolldegrees, rolltime, myNodeName));
 }
 
 ################################# aircraftCrashControl #################################
@@ -8945,7 +8945,7 @@ var aircraftCrashControl = func (myNodeName) {
 	#If we have hit the ground, stop crashing:
 	if (ctrls.onGround) 
 	{
-		debprint ("Bombable: Ending aircraft crash control for " ~ myNodeName);
+		debprint ("Ending aircraft crash control for " ~ myNodeName);
 		return();
 	}
 
@@ -9001,7 +9001,7 @@ var aircraftCrashControl = func (myNodeName) {
 	# debprint
 	# (
 	# 	sprintf(
-	# 	"Bombable: CrashControl for %s: newTrueAirspeed_fps = %6.1f newVertSpeed = %6.1f newPitchAngle = %6.1f target-alt = %5.0f",
+	# 	"CrashControl for %s: newTrueAirspeed_fps = %6.1f newVertSpeed = %6.1f newPitchAngle = %6.1f target-alt = %5.0f",
 	# 	getCallSign(myNodeName),
 	# 	newTrueAirspeed_fps,
 	# 	newVertSpeed,
@@ -9060,7 +9060,7 @@ var aircraftCrash = func (myNodeName) {
 		elapsedTime : 0 ,
 	};
 
-	debprint (sprintf("Bombable: Starting crash control for %s, pitchChange = %5.1f, speedChange = %5.1f",
+	debprint (sprintf("Starting crash control for %s, pitchChange = %5.1f, speedChange = %5.1f",
 		getCallSign(myNodeName),
 		pitchChange,
 		speedChange	
@@ -9566,7 +9566,7 @@ var add_damage = func
 							
 							
 			var msg = "Damage added: " ~ damageRiseDisplay ~ "% for " ~  callsign ~ " Total: " ~ round ( damageValue * 100 ) ~ "%, Skill: " ~ math.ceil(10 * weapPowerSkill) ~ msg2;
-			debprint ( "Bombable: " ~ msg ~ " " ~ myNodeName );
+			debprint ( "" ~ msg ~ " " ~ myNodeName );
 							
 			targetStatusPopupTip (msg, 20);
 		}
@@ -9733,7 +9733,7 @@ var add_damage = func
 	# a percentage change of starting a fire with each hit
 	if( rand() < .035 * damageRise * (vuls.fireVulnerability_percent) and !fireStarted ) 
 	{
-		debprint ("Bombable: Starting fire for" ~ myNodeName);
+		debprint ("Starting fire for" ~ myNodeName);
 						
 		#use small, medium, large smoke column depending on vuls.damageVulnerability
 		#(high vuls.damageVulnerability means small/light/easily damaged while
@@ -9820,7 +9820,7 @@ var set_livery = func (myNodeName, liveries) {
 						
 	if (! contains (bombable.attributes, myNodeName)) {
 		bombable.attributes[myNodeName] = {};
-		debprint("Bombable: set_livery:" ~ myNodeName ~ " node not initialised yet");
+		debprint("set_livery:" ~ myNodeName ~ " node not initialised yet");
 	}
 
 	bombable.attributes[myNodeName].damageLiveries = {};
@@ -9832,7 +9832,7 @@ var set_livery = func (myNodeName, liveries) {
 	livs.damageLivery = liveries;
 	livs.count = size (liveries);
 	bombable.attributes[myNodeName].damageLiveries = livs;
-	debprint("Bombable: Set_livery: livs = ",livs);					
+	debprint("Set_livery: livs = ",livs);					
 
 	
 	#current color (we'll set it to the undamaged color;
@@ -9869,7 +9869,7 @@ var checkRangeHash = func (b = nil, v = nil, low = nil, high = nil, default = 1)
 #It takes about 60 seconds to get them all initialized.
 #
 var initialize = func (b) {
-	debprint ("Bombable: Delaying initialize . . . ", b.objectNodeName);
+	debprint ("Delaying initialize . . . ", b.objectNodeName);
 	settimer (func {initialize_func(b);}, 30, 1);
 
 }
@@ -9915,7 +9915,7 @@ var initialize_func = func ( b ){
 	if (find ("/multiplayer/", b.objectNodeName ) != -1 ) init_allowed = 1;
 
 	if (init_allowed != 1) {
-		debprint ("Bombable: Attempt to initialize a Bombable subroutine on an object that is not AI or Multiplayer; aborting initialization. ", b.objectNodeName);
+		debprint ("Attempt to initialize a Bombable subroutine on an object that is not AI or Multiplayer; aborting initialization. ", b.objectNodeName);
 		return;
 	}
 						
@@ -9930,12 +9930,12 @@ var initialize_func = func ( b ){
 	var inited = getprop(""~b.objectNodeName~"/bombable/initializers/attributes-initialized");
 						
 	if (inited == 1) {
-		debprint ("Bombable: Attempt to re-initialize attributes when it has not been de-initialized; aborting re-initialization. ", b.objectNodeName);
+		debprint ("Attempt to re-initialize attributes when it has not been de-initialized; aborting re-initialization. ", b.objectNodeName);
 		return;
 	}
 	# set to 1 if initialized and 0 when de-inited. Nil if never before inited.
 	setprop(""~b.objectNodeName~"/bombable/initializers/attributes-initialized", 1);
-	debprint( "Bombable: Initializing bombable attributes for ", b.objectNodeName);
+	debprint( "Initializing bombable attributes for ", b.objectNodeName);
 
 
 	b.updateTime_s = checkRange ( b.updateTime_s, 0, 10, 1);
@@ -10184,6 +10184,7 @@ var initialize_func = func ( b ){
 	b.stores["messages"]["unreadymessageposted"] = 0;
 	b.stores["messages"]["readymessageposted"] = 1;
 
+	var rocketCount = 0;
 	# weapons sanity checking
 	if (contains(b, "weapons") and typeof (b.weapons) == "hash") {
 		var n = 0;
@@ -10209,11 +10210,19 @@ var initialize_func = func ( b ){
 
 			if (!contains(b.weapons[elem], "weaponSize_m"))
 			b.weapons[elem].weaponSize_m = {start:nil, end:nil};
-								
+
 			if (b.weapons[elem].weaponSize_m.start == nil
 			or b.weapons[elem].weaponSize_m.start <= 0 ) b.weapons[elem].weaponSize_m.start = 0.07;
 			if (b.weapons[elem].weaponSize_m.end == nil
 			or b.weapons[elem].weaponSize_m.end <= 0 ) b.weapons[elem].weaponSize_m.end = 0.05;
+
+			if (!contains(b.weapons[elem], "weaponType"))
+			b.weapons[elem].weaponType = 0;
+			# key to allow inclusion of new types of weapons such as rockets
+
+			if (b.weapons[elem].weaponType == 1) rocketCount += 1; 
+			# each rocket is a static model in the scenario xml 
+			# we keep track of the number as a check of correct initialisation
 		}
 	}
 						
@@ -10253,8 +10262,11 @@ var initialize_func = func ( b ){
 		setprop (""~myNodeName~"/controls/flight/lateral-mode", "roll");
 	}
 
-	addToTargets(myNodeName); # add AI model to list of targets and ID its team.  Targets are assigned after scenario initialization
+	print(myNodeName ~ " has " ~ rocketCount ~ " rockets");
+	var nRockets = getprop("/bombable/rockets/count") or 0;
+	setprop("/bombable/rockets/count", nRockets + rocketCount);
 
+	addToTargets(myNodeName); # add AI model to list of targets and ID its team.  Targets are assigned after scenario initialization
 	
 }
 
@@ -10298,20 +10310,20 @@ var setMaxLatLon = func (myNodeName, damageDetectDistance_m){
 	var maxLat_deg =  damageDetectDistance_m / m_per_deg_lat;
 	var maxLon_deg =  damageDetectDistance_m / m_per_deg_lon;
 						
-	debprint ("Bombable: maxLat = ", maxLat_deg, " maxLon = ", maxLon_deg);
+	debprint ("maxLat = ", maxLat_deg, " maxLon = ", maxLon_deg);
 						
 	#put these in global hash so they are accessible
 						
 	attributes[myNodeName].dimensions['maxLat'] = maxLat_deg;
 	attributes[myNodeName].dimensions['maxLon'] = maxLon_deg;
 						
-	# debprint ("Bombable: maxLat = ", attributes[myNodeName].dimensions.maxLat, " maxLon = ", attributes[myNodeName].dimensions.maxLon, " for ", myNodeName );
+	# debprint ("maxLat = ", attributes[myNodeName].dimensions.maxLat, " maxLon = ", attributes[myNodeName].dimensions.maxLon, " for ", myNodeName );
 }
 
 
 ######################### bombable_init ############################
 var bombable_init = func (myNodeName = "") {
-	debprint ("Bombable: Delaying bombable_init . . . ", myNodeName);
+	debprint ("Delaying bombable_init . . . ", myNodeName);
 	settimer (func {bombable_init_func(myNodeName);}, 35 + rand(),1);
 }
 
@@ -10330,7 +10342,7 @@ var bombable_init_func = func(myNodeName)
 	if (find ("/multiplayer/", myNodeName ) != -1 ) init_allowed = 1;
 
 	if (init_allowed != 1) {
-		debprint ("Bombable: Attempt to initialize a Bombable subroutine on an object that is not AI or Multiplayer; aborting initialization. ", myNodeName);
+		debprint ("Attempt to initialize a Bombable subroutine on an object that is not AI or Multiplayer; aborting initialization. ", myNodeName);
 		return;
 	}
 
@@ -10339,7 +10351,7 @@ var bombable_init_func = func(myNodeName)
 	# if it 1 and we're trying to initialize, something has gone wrong and we abort with a message.
 	var inited = getprop(""~myNodeName~"/bombable/initializers/bombable-initialized");
 	if (inited == 1) {
-		debprint ("Bombable: Attempt to re-initialize bombable_init when it has not been de-initialized; aborting re-initialization. ", myNodeName);
+		debprint ("Attempt to re-initialize bombable_init when it has not been de-initialized; aborting re-initialization. ", myNodeName);
 		return;
 	}
 	# set to 1 if initialized and 0 when de-inited. Nil if never before inited.
@@ -10348,10 +10360,10 @@ var bombable_init_func = func(myNodeName)
 
 
 						
-	debprint ("Bombable: Starting to initialize for "~myNodeName);
+	debprint ("Starting to initialize for "~myNodeName);
 	if (myNodeName == "" or myNodeName == nil) {
 		myNodeName = cmdarg().getPath();
-		debprint ("Bombable: myNodeName blank, re-reading: "~myNodeName);
+		debprint ("myNodeName blank, re-reading: "~myNodeName);
 	}
 						
 	var node = props.globals.getNode (""~myNodeName);
@@ -10384,14 +10396,14 @@ var bombable_init_func = func(myNodeName)
 	#start the loop to check for fire damage
 	settimer(func{fire_loop(loopid,myNodeName);},5.2 + rand());
 						
-	debprint ("Bombable: Effect * bombable * loaded for "~myNodeName~" loopid = "~ loopid);
+	debprint ("Effect * bombable * loaded for "~myNodeName~" loopid = "~ loopid);
 
 	#what to do when re-set is selected
 	setlistener("/sim/signals/reinit", func {
 		if (!bombableMenu["bombable-enabled"] ) return 0;
 		resetBombableDamageFuelWeapons (myNodeName);
 		if (type == "multiplayer") mp_send_damage(myNodeName, 0);
-		debprint ("Bombable: Damage level and smoke reset for "~ myNodeName);
+		debprint ("Damage level and smoke reset for "~ myNodeName);
 	});
 						
 	if (type == "multiplayer") 
@@ -10406,7 +10418,7 @@ var bombable_init_func = func(myNodeName)
 							
 		#We're using a listener rather than the settimer now, so the line below is removed
 		#settimer (func {mpreceive(myNodeName,loopid)}, mpTimeDelayReceive);
-		debprint ("Bombable: Setup mpreceive for ", myNodeName);
+		debprint ("Setup mpreceive for ", myNodeName);
 	}
 						
 	props.globals.getNode(""~myNodeName~"/bombable/listenerids",1).setValues({"listenerids":listenerids });
@@ -10424,7 +10436,7 @@ var ground_init = func (myNodeName = "") {
 		settimer (func {ground_init(myNodeName);}, 5, 1);
 		return;
 	}	
-	debprint ("Bombable: Delaying ground_init . . . ", myNodeName);
+	debprint ("Delaying ground_init . . . ", myNodeName);
 	settimer (func {bombable.ground_init_func(myNodeName);}, 45 + rand(),1);
 
 }
@@ -10448,7 +10460,7 @@ var ground_init_func = func( myNodeName ) {
 	if (find ("/multiplayer/", myNodeName ) != -1 ) init_allowed = 1;
 
 	if (init_allowed != 1) {
-		debprint ("Bombable: Attempt to initialize a Bombable subroutine on an object that is not AI or Multiplayer; aborting initialization. ", myNodeName);
+		debprint ("Attempt to initialize a Bombable subroutine on an object that is not AI or Multiplayer; aborting initialization. ", myNodeName);
 		return;
 	}
 
@@ -10464,7 +10476,7 @@ var ground_init_func = func( myNodeName ) {
 	var inited = getprop(""~myNodeName~"/bombable/initializers/ground-initialized");
 	if (inited == 1) 
 	{
-		debprint ("Bombable: Attempt to re-initialize ground_init when it has not been de-initialized; aborting re-initialization. ", myNodeName);
+		debprint ("Attempt to re-initialize ground_init when it has not been de-initialized; aborting re-initialization. ", myNodeName);
 		return;
 	}
 						
@@ -10497,7 +10509,7 @@ var ground_init_func = func( myNodeName ) {
 						
 	settimer(func {ground_loop(loopid, myNodeName); }, 4.1 + rand());
 						
-	debprint ("Bombable: Effect * maintain altitude above ground level * loaded for "~ myNodeName);
+	debprint ("Effect * maintain altitude above ground level * loaded for "~ myNodeName);
 	# altitude adjustment = ", alts.wheelsOnGroundAGL_ft, " max drop/fall when damaged = ",
 	# damageAltAdd, " loopid = ", loopid);
 	
@@ -10505,7 +10517,7 @@ var ground_init_func = func( myNodeName ) {
 	# if (type == "ship") {							
 		# var haloopid = inc_loopid (myNodeName, "height_adjust");
 		# settimer (func {height_adjust_loop ( haloopid, myNodeName, .1 + rand()/100); }, 12 + rand());
-		# debprint ("Bombable: Effect * adjust height * loaded for "~ myNodeName);
+		# debprint ("Effect * adjust height * loaded for "~ myNodeName);
 
 	# }
 
@@ -10515,8 +10527,8 @@ var ground_init_func = func( myNodeName ) {
 
 var location_init = func (myNodeName = "") {
 	# function disabled:  incorrect logic
-	# debprint ("Bombable: Delaying location_init . . . ", myNodeName);
-	debprint ("Bombable: Disabled location_init . . . ", myNodeName);
+	# debprint ("Delaying location_init . . . ", myNodeName);
+	debprint ("Disabled location_init . . . ", myNodeName);
 	# settimer (func {bombable.location_init_func(myNodeName);}, 50 + rand(),1);
 
 }
@@ -10542,7 +10554,7 @@ var location_init_func = func(myNodeName)
 	if (find ("/multiplayer/", myNodeName ) != -1 ) init_allowed = 1;
 
 	if (init_allowed != 1) {
-		debprint ("Bombable: Attempt to initialize a Bombable subroutine on an object that is not AI or Multiplayer; aborting initialization. ", myNodeName);
+		debprint ("Attempt to initialize a Bombable subroutine on an object that is not AI or Multiplayer; aborting initialization. ", myNodeName);
 		return;
 	}
 
@@ -10556,7 +10568,7 @@ var location_init_func = func(myNodeName)
 	# if it 1 and we're trying to initialize, something has gone wrong and we abort with a message.
 	var inited = getprop(""~myNodeName~"/bombable/initializers/location-initialized");
 	if (inited == 1) {
-		debprint ("Bombable: Attempt to re-initialize location_init when it has not been de-initialized; aborting re-initialization. ", myNodeName);
+		debprint ("Attempt to re-initialize location_init when it has not been de-initialized; aborting re-initialization. ", myNodeName);
 		return;
 	}
 	# set to 1 if initialized and 0 when de-inited. Nil if never before inited.
@@ -10570,7 +10582,7 @@ var location_init_func = func(myNodeName)
 						
 	settimer(func { location_loop(loopid, myNodeName); }, 15.15 + rand());
 
-	debprint ("Bombable: Effect * relocate after reset * loaded for "~ myNodeName~ " loopid = "~ loopid);
+	debprint ("Effect * relocate after reset * loaded for "~ myNodeName~ " loopid = "~ loopid);
 
 }
 
@@ -10580,7 +10592,7 @@ var attack_init = func (myNodeName = "") {
 		settimer (func {attack_init(myNodeName);}, 5, 1);
 		return;
 	}
-	debprint ("Bombable: Delaying attack_init . . . ", myNodeName);
+	debprint ("Delaying attack_init . . . ", myNodeName);
 	settimer (func {bombable.attack_init_func(myNodeName);}, 55 + rand(),1 );
 }
 
@@ -10602,7 +10614,7 @@ var attack_init_func = func(myNodeName)
 						
 	if (init_allowed != 1) 
 	{
-		debprint ("Bombable: Attempt to initialize a Bombable subroutine on an object that is not AI or Multiplayer; aborting initialization. ", myNodeName);
+		debprint ("Attempt to initialize a Bombable subroutine on an object that is not AI or Multiplayer; aborting initialization. ", myNodeName);
 		return;
 	}
 
@@ -10610,7 +10622,7 @@ var attack_init_func = func(myNodeName)
 	var type = node.getName();
 	#don't even try to do this to multiplayer aircraft
 	if (type == "multiplayer") {
-		debprint ("Bombable: Not initializing attack for multiplayer aircraft; exiting . . . ");
+		debprint ("Not initializing attack for multiplayer aircraft; exiting . . . ");
 		return;
 	}
 
@@ -10619,7 +10631,7 @@ var attack_init_func = func(myNodeName)
 	var inited = getprop(""~myNodeName~"/bombable/initializers/attack-initialized");
 	if (inited == 1)
 	{
-		debprint ("Bombable: Attempt to re-initialize attack_init when it has not been de-initialized; aborting re-initialization. ", myNodeName);
+		debprint ("Attempt to re-initialize attack_init when it has not been de-initialized; aborting re-initialization. ", myNodeName);
 		return;
 	}
 	# set to 1 if initialized and 0 when de-inited. Nil if never before inited.
@@ -10647,7 +10659,7 @@ var attack_init_func = func(myNodeName)
 		settimer (func {speed_adjust_loop ( speedAdjust_loopid, myNodeName, .3 + rand() / 30); }, 12 + rand() );
 	}
 	
-	debprint ("Bombable: Effect * attack * loaded for "~ myNodeName~ " loopid = "~ loopid, " attackCheckTime = ", attackCheckTime);
+	debprint ("Effect * attack * loaded for "~ myNodeName~ " loopid = "~ loopid, " attackCheckTime = ", attackCheckTime);
 
 }
 
@@ -10740,7 +10752,7 @@ var weaponsTrigger_listener = func (changedNode,listenedNode){
 	
 	# rjw TODO include MP ACs in the stack of projectile tracer models 
 	if (!bombableMenu["bombable-enabled"] ) return 0;
-	# debprint ("Bombable: WeaponsTrigger_listener: ",changedNode.getValue(), " ", changedNode.getPath());
+	# debprint ("WeaponsTrigger_listener: ",changedNode.getValue(), " ", changedNode.getPath());
 	if ( changedNode.getValue()) {
 		setprop("/bombable/fire-particles/ai-weapon-firing",1);
 		} else {
@@ -10761,7 +10773,7 @@ var weapons_init = func (myNodeName = "") {
 		settimer (func {weapons_init(myNodeName);}, 5, 1);
 		return;
 	}
-	debprint ("Bombable: Delaying weapons_init . . . ", myNodeName);
+	debprint ("Delaying weapons_init . . . ", myNodeName);
 
 	settimer (func {weapons_init_func(myNodeName);}, 60 + rand(), 1);
 
@@ -10790,7 +10802,7 @@ var weapons_init_func = func(myNodeName)
 	if (find ("/multiplayer/", myNodeName ) != -1 ) init_allowed = 1;
 						
 	if (init_allowed != 1) {
-		debprint ("Bombable: Attempt to initialize a Bombable subroutine on an object that is not AI or Multiplayer; aborting initialization. ", myNodeName);
+		debprint ("Attempt to initialize a Bombable subroutine on an object that is not AI or Multiplayer; aborting initialization. ", myNodeName);
 		return;
 	}
 						
@@ -10804,7 +10816,7 @@ var weapons_init_func = func(myNodeName)
 	# if it 1 and we're trying to initialize, something has gone wrong and we abort with a message.
 	var inited = getprop(""~myNodeName~"/bombable/initializers/weapons-initialized");
 	if (inited == 1) {
-		debprint ("Bombable: Attempt to re-initialize weapons_init when it has not been de-initialized; aborting re-initialization. ", myNodeName);
+		debprint ("Attempt to re-initialize weapons_init when it has not been de-initialized; aborting re-initialization. ", myNodeName);
 		return;
 	}
 						
@@ -10833,20 +10845,18 @@ var weapons_init_func = func(myNodeName)
 		}
 	var rocketIndex = getprop ("/bombable/rockets/index") ;
 	if (rocketIndex == nil) {
-		rocketIndex = 100; 
-		# index of first rocket for AI aircraft
-		# start at 100 so that rocket indices are separate from other statics in the scenario
+		rocketIndex = 0; 
+		# index into list of rocket static models
 		}
 
 	foreach (elem;keys (weaps) ) 
 	{
 		var thisWeapon = weaps[elem]; # a pointer into the attributes hash
-		if (thisWeapon["weaponType"] == nil) thisWeapon["weaponType"] = 0;
-		# key to allow inclusion of new types of weapons such as rockets
 
 		if (thisWeapon["weaponType"] == 1) 
 		{
-			if (rocket_init_func (thisWeapon, rocketIndex))
+			if (rocket_init_func (thisWeapon, rocketIndexLookup[rocketIndex]))
+			#rocketIndexLookup converts the index for the rocket into the index for the static model
 			{
 				rocketIndex += 1;
 			}
@@ -10942,18 +10952,15 @@ var weapons_init_func = func(myNodeName)
 	
 	setprop ("/bombable/fire-particles/index" , count) ; #next unassigned fire particle
 	setprop ("/bombable/rockets/index" , rocketIndex) ; #next unassigned rocket
-# TODO the next conditional is likely an error:  rocketIndex will be non zero if other nodes than myNodeName carry rockets
-	if (rocketIndex) 
-	{
-		if (ats.dimensions["safeDistance_m"] == nil) ats.dimensions["safeDistance_m"] = 200;
-	}
+
+	if (ats.dimensions["safeDistance_m"] == nil) ats.dimensions["safeDistance_m"] = 200;
 
 	props.globals.getNode(""~myNodeName~"/bombable/weapons/listenerids",1);
 	#do the visual weapons effect setup for multiplayer . . .
 						
 	if (type == "multiplayer") {
 
-		debprint ("Bombable: Setting up MP weapons for ", myNodeName, " type ", type);
+		debprint ("Setting up MP weapons for ", myNodeName, " type ", type);
 							
 		#setup alias for remote weapon trigger(s) and a listener to trigger
 		# our local weapons visual effect whenever it a trigger is set to 1
@@ -10971,7 +10978,7 @@ var weapons_init_func = func(myNodeName)
 			# myNode.getNode("controls/armament/trigger"~appendnum, 1).
 			# listenNodeName = ""~myNodeName~"/controls/armament/trigger";
 			# alias(myNode.getNode("sim/multiplay/generic/int["~genericintNum~"]"));
-			# debprint ("Bombable: Setting up listener for ", listenNodeName ~ appendnum);
+			# debprint ("Setting up listener for ", listenNodeName ~ appendnum);
 			# listenerid = setlistener ( listenNodeName ~ appendnum, weaponsTrigger_listener, 1, 0 );  #final 0 makes it listen only when the value is changed
 								
 			#So we're doing it the basic way: just listen directly to the generic/int node, 10-19:
@@ -11003,7 +11010,7 @@ var weapons_init_func = func(myNodeName)
 		settimer (  func { weapons_loop (loopid, myNodeName)}, 5 + rand());
 	}
 
-	debprint ("Bombable: Effect * weapons * loaded for ", myNodeName);
+	debprint ("Effect * weapons * loaded for ", myNodeName);
 
 						
 }
@@ -11072,7 +11079,7 @@ var rocketParmCheck = func( thisWeapon )
 		if (thisWeapon[weaponVars[i].name] == nil) 
 		{
 			thisWeapon[weaponVars[i].name] = weaponVars[i].default;
-			debprint ("Bombable: " ~ thisWeapon.name ~ " " ~ weaponVars[i].name ~ " set to " ~ weaponVars[i].default);
+			debprint ("" ~ thisWeapon.name ~ " " ~ weaponVars[i].name ~ " set to " ~ weaponVars[i].default);
 		}
 		thisWeapon[weaponVars[i].name] = clamp
 		(
@@ -11084,11 +11091,11 @@ var rocketParmCheck = func( thisWeapon )
 
 	if (nBurn == 0) 
 	{
-		debprint ("Bombable: warning: no stages specified, using default values");
+		debprint ("warning: no stages specified, using default values");
 	}
 	elsif ((nBurn != nMassFuel) or (nMassFuel != nSpecificImpulse)) 
 	{
-		debprint ("Bombable: error: specify burn time, mass of fuel and specific impulse of fuel for each stage (up to 3)");
+		debprint ("error: specify burn time, mass of fuel and specific impulse of fuel for each stage (up to 3)");
 		return(0);
 	}
 
@@ -11107,7 +11114,7 @@ var rocketParmCheck = func( thisWeapon )
 	var maxMassFraction = 0.5;
 	if ( massFraction > maxMassFraction )
 	{ 
-		debprint ("Bombable: warning: total launch mass must be at least 2x fuel mass, mass of fuel scaled down");
+		debprint ("warning: total launch mass must be at least 2x fuel mass, mass of fuel scaled down");
 		for (var j=1; j < 4; j = j + 1) thisWeapon["massFuel_"~j] *= ( maxMassFraction / massFraction);
 	}
 
@@ -11118,7 +11125,7 @@ var rocketParmCheck = func( thisWeapon )
 		debprint (
 		sprintf
 			(
-				"Bombable: %s stage %i thrust %6.0fN calculated from burn time %6.0fs, fuel mass %6.0fkg and specific impulse %6.0fs",
+				"%s stage %i thrust %6.0fN calculated from burn time %6.0fs, fuel mass %6.0fkg and specific impulse %6.0fs",
 				thisWeapon.name,
 				j,
 				thisWeapon["thrust"~j],
@@ -11143,7 +11150,7 @@ var rocketParmCheck = func( thisWeapon )
 # thisWeapon is a pointer to the attributes hash
 # two sets of parameters:  user supplied and internal
 
-var rocket_init_func = func (thisWeapon, rocketIndex) {			
+var rocket_init_func = func (thisWeapon, modelNo) {			
 	# check parameters supplied by user
 	if (!rocketParmCheck( thisWeapon )) return (0);
 
@@ -11220,7 +11227,7 @@ var rocket_init_func = func (thisWeapon, rocketIndex) {
 	thisWeapon.pidData.theta = new_pidVals();
 	thisWeapon.pidData.phi = new_pidVals();
 
-	thisWeapon["rocketsIndex"] = rocketIndex;
+	thisWeapon["modelIndex"] = modelNo;
 
 	thisWeapon["loopCount"] = 0; # counts calls to guideRocket
 
@@ -11256,7 +11263,7 @@ var initialize_del = func(myNodeName, id = "") {
 						
 	#set this to 0/false when de-inited
 	setprop(""~myNodeName~"/bombable/initializers/attributes-initialized", 0);
-	debprint ("Bombable: Effect initialize unloaded for "~ myNodeName );
+	debprint ("Effect initialize unloaded for "~ myNodeName );
 						
 }
 
@@ -11300,7 +11307,7 @@ var bombable_del = func(myNodeName, id = "") {
 						
 	#set this to 0/false when de-inited
 	setprop(""~myNodeName~"/bombable/initializers/bombable-initialized", 0);
-	debprint ("Bombable: Effect * bombable * unloaded for "~ myNodeName~ " loopid2 = ", loopid2);
+	debprint ("Effect * bombable * unloaded for "~ myNodeName~ " loopid2 = ", loopid2);
 						
 
 }
@@ -11319,7 +11326,7 @@ var ground_del = func(myNodeName) {
 	#set this to 0/false when de-inited
 	setprop(""~myNodeName~"/bombable/initializers/ground-initialized", 0);
 						
-	debprint ("Bombable: Effect * drive on ground * unloaded for "~ myNodeName~ " loopid = "~ loopid);
+	debprint ("Effect * drive on ground * unloaded for "~ myNodeName~ " loopid = "~ loopid);
 
 						
 }
@@ -11339,7 +11346,7 @@ var location_del = func(myNodeName) {
 	#set this to 0/false when de-inited
 	setprop(""~myNodeName~"/bombable/initializers/location-initialized", 0);
 
-	debprint ("Bombable: Effect * relocate after reset * unloaded for "~ myNodeName~ " loopid = "~ loopid);
+	debprint ("Effect * relocate after reset * unloaded for "~ myNodeName~ " loopid = "~ loopid);
 
 }
 
@@ -11358,7 +11365,7 @@ var attack_del = func(myNodeName)
 	#set this to 0/false when de-inited
 	setprop(""~myNodeName~"/bombable/initializers/attack-initialized", 0);
 
-	debprint ("Bombable: Effect * attack * unloaded for "~ myNodeName~ " loopid = "~ loopid);
+	debprint ("Effect * attack * unloaded for "~ myNodeName~ " loopid = "~ loopid);
 
 }
 
@@ -11385,10 +11392,62 @@ var weapons_del = func(myNodeName)
 	}
 	props.globals.getNode(""~myNodeName~"/bombable/weapons/listenerids",1).removeChildren();
 
-	debprint ("Bombable: Effect * weapons * unloaded for "~ myNodeName~ " weapons loopid = "~ loopid ~
+	debprint ("Effect * weapons * unloaded for "~ myNodeName~ " weapons loopid = "~ loopid ~
 	" and weaponsOrientation loopid = "~loopid2);
 }
 
+#################################### buildRocketIndexLookup ####################################
+# 
+
+var buildRocketIndexLookup = func {
+    var aiModelsNode = props.globals.getNode("/ai/models");
+	if (aiModelsNode == nil) {
+        print("[ERROR] /ai/models node not found.");
+        return;
+    }
+	# var aiTypes = ["aircraft", "ship", "carrier", "static", "ground"];
+	var aiTypes = ["static"];
+    foreach (var typeName; aiTypes) {
+        var nodes = aiModelsNode.getChildren(typeName);
+        foreach (var node; nodes) {
+            var pathNode = node.getNode("sim/model/path");
+            if (pathNode != nil) {
+                var pathStr = pathNode.getValue() or "";
+                if (find("/Rocket", pathStr) != -1) append(rocketIndexLookup, node.getIndex());
+            }
+        }
+    }
+    print(sprintf("Rocket index lookup ready with %d entries.", size(rocketIndexLookup)));
+}
+
+#################################### waitForAIModels ####################################
+
+var waitForAIModels = func(lastCount = -1, stableCountFrames = 0) {
+    # Read the C++ maintained total count directly
+    var currentCount = getprop("/ai/models/count") or 0;
+
+    # Check for non-zero stability across consecutive checks
+    if (currentCount > 0 and currentCount == lastCount) {
+        stableCountFrames += 1;
+    } else {
+        lastCount = currentCount;
+        stableCountFrames = 0;
+    }
+
+    # Require count stability over 3 consecutive checks (1.5s total)
+    if (stableCountFrames < 3) {
+        if (defined("debprint")) debprint("Waiting for AI scenario models to stabilize...");
+        
+        # Corrected settimer wrapper pass:
+        settimer(func { waitForAIModels(lastCount, stableCountFrames); }, 0.5);
+        return;
+    }
+
+    print(sprintf("AI model loading complete: %d total models registered.", currentCount));
+	buildRocketIndexLookup();
+	settimer (func { waitForAttributes() }, 5); #wait till bombable attributes loaded
+
+}
 
 ###########################################################
 # initializers
@@ -11471,6 +11530,7 @@ var LOOP_TIME = 0.25; # timing of weapons loop and guide rocket
 var N_STEPS = 8; # resolution of flight path calculation
 var ot = emexec.OperationTimer.new("VSD");
 var handicap = 0; #percentage handicap for side (1)
+var rocketIndexLookup = [];
 
 # List of nodes that listeners will use when checking for impact damage.
 # FG aircraft use a wide variety of nodes to report impact of armament
@@ -11527,27 +11587,30 @@ var nodes = [""]; #1st element is main AC
 settimer (func 
 {
 	mainStatusPopupTip ("Pan around you. The scenario does not load until you have seen the AI objects  . . .", 15 );
-	debprint ("Bombable: Delaying start scenario . . . ", getprop("/sim/ai/scenario"));
+	debprint ("Delaying start scenario . . . ", getprop("/sim/ai/scenario"));
 }, 5);
 
 
 bombableMenu = {}; # used for menu items accessed frequently
 
 setprop("/sim/ai/scenario-initialized", 0);
-debprint ("Bombable: Delaying start scenario . . . ", getprop("/sim/ai/scenario"));
-settimer (func { waitForAI() }, 5); #wait till objects loaded
+debprint ("Delaying start scenario . . . ", getprop("/sim/ai/scenario"));
+
+settimer (func { waitForAIModels() }, 5); #wait till AI models loaded
+
+
 
 
 
 #################################### bombableInit ####################################
 var bombableInit = func {
-	debprint("Bombable: Initializing variables.");
+	debprint("Initializing variables.");
 	screenHProp = props.globals.getNode("/sim/startup/ysize");
 	tipArgTarget = props.Node.new({ "dialog-name" : "PopTipTarget" });
 	tipArgSelf = props.Node.new({ "dialog-name" : "PopTipSelf" });
 						
 	if ( ! getprop("/sim/ai/enabled") ) {
-		var msg = "Bombable: WARNING! The Bombable module is active, but you have disabled the
+		var msg = "WARNING! The Bombable module is active, but you have disabled the
 		entire FlightGear AI system using --disable-ai-models.  You will not be able to see
 		any AI or Multiplayer objects or use Bombable.  To fix this problem, remove
 		--disable-ai-models from your command line (or check/un-check the appropriate item in
@@ -11649,14 +11712,14 @@ var bombableInit = func {
 			if (!bombableMenu["bombable-enabled"] ) return 0;
 			mainAC_add_damage(1, 1, "crash", "You crashed!");   #adds the damage to the main aircraft
 								
-			debprint ("Bombable: You crashed - on fire and damage set to 100%");
+			debprint ("You crashed - on fire and damage set to 100%");
 								
 			#experimental/doesn't quite work right yet
 			#aircraftCrash(""); #Experimental!
 		} 
 		else
 		{
-			debprint ("Bombable: Un-crashed--resetting damage & fires.");
+			debprint ("Un-crashed--resetting damage & fires.");
 			reset_damage_fires ();
 		}
 	});
@@ -11695,12 +11758,12 @@ var bombableInit = func {
 	if ( getprop("/sim/multiplay/txhost") ) 
 	{
 		Binary = mp_broadcast.Binary;
-		print("Bombable: Bombable successfully set up and enabled for multiplayer dogfighting (you can disable Multiplayer Bombable in the Bombable menu)");
+		print("Bombable successfully set up and enabled for multiplayer dogfighting (you can disable Multiplayer Bombable in the Bombable menu)");
 		props.globals.getNode(MP_broadcast_exists_pp, 1).setBoolValue(1);
 	}
 						
 	#broadcast = mp_broadcast.BroadcastChannel.new(msg_channel_mpp, parse_msg, 0);
-	#if (broadcast == nil) print ("Bombable: Error, mp_broadcast was not set up correctly");
+	#if (broadcast == nil) print ("Error, mp_broadcast was not set up correctly");
 	#else {
 							
 	#};
@@ -11730,9 +11793,9 @@ var reduceRPM = func(myNodeName) {
 	for (var noEngine = 0; noEngine < 6; noEngine  +=  1) {
 		engineRevs[noEngine] = getprop(""~myNodeName~"/engines/engine["~noEngine~"]/rpm");
 		if (engineRevs[noEngine] == nil) break;
-		#debprint("Bombable: revs = ",revs);
+		#debprint("revs = ",revs);
 		}
-	# debprint("Bombable: noEngines for " ~ myNodeName ~ " = ",noEngine);
+	# debprint("noEngines for " ~ myNodeName ~ " = ",noEngine);
 	if (noEngine == 0) return;
 	var offset = int( rand() * noEngine );
 	var chooseEngine = offset; # the engine for which we reduce rpm
@@ -11743,7 +11806,7 @@ var reduceRPM = func(myNodeName) {
 		else {
 			var j = i - noEngine; 
 			}
-		# debprint("Bombable: j = ",j,"revs = ",engineRevs[j]);
+		# debprint("j = ",j,"revs = ",engineRevs[j]);
 		# 90% of calls will spin down engines that are already damaged
 		if (rand() > .1) {
 			if (engineRevs[j] == 400) chooseEngine = j;
@@ -12271,7 +12334,7 @@ var vectorModulus = func(vector) {
 	# if (mod < 0) {
 	# 	debprint (
 	# 		sprintf(
-	# 		"Bombable: modulus_vector =[%8.3f, %8.3f, %8.3f]",
+	# 		"modulus_vector =[%8.3f, %8.3f, %8.3f]",
 	# 		vector[0], vector[1], vector[2] 
 	# 		)
 	# 	);
@@ -12436,7 +12499,7 @@ var addToTargets = func(myNodeName)
 	#check valid team
 	if (find(teamName, "BCDEFGHIJKLMNOPQRSTUVWXYZ") == -1)
 	{
-		debprint("Bombable: error: ", callsign, " not a valid team - require (B-Z) - A is the main aircraft");
+		debprint("error: ", callsign, " not a valid team - require (B-Z) - A is the main aircraft");
 		return;
 	}
 	if (teams[teamName] == nil) teams[teamName] = {indices: [], target: nil, count: 0};
@@ -12470,7 +12533,7 @@ var initTargets = func () {
 		settimer(func{initTargets()}, 5); 
 		return;
 	}
-	debprint("Bombable: initializing targets");
+	debprint("initializing targets");
 
 	var foundTarget = -1;
 	foreach (var side; [0, 1]) allPlayers[side] = shuffle(allPlayers[side]);
@@ -12496,10 +12559,10 @@ var initTargets = func () {
 				}
 				if (foundTarget == -1) break;
 			}
-			debprint("Bombable: initTargets: ", j, " targets assigned for ", getCallSign(nodes[myIndex]), " team ", teamName);
+			debprint("initTargets: ", j, " targets assigned for ", getCallSign(nodes[myIndex]), " team ", teamName);
 			count += j;
 		}
-		debprint( "Bombable: initTargets: Total of ", count, " targets in", (targetTeam != nil ) ? " team " ~ targetTeam : "", " side (", side, ") assigned for team ", teamName );
+		debprint( "initTargets: Total of ", count, " targets in", (targetTeam != nil ) ? " team " ~ targetTeam : "", " side (", side, ") assigned for team ", teamName );
 	}
 
 	# apply handicap to side (1) by reducing pilot skills by a fixed percentage
@@ -12507,7 +12570,7 @@ var initTargets = func () {
 	{
 		attributes[nodes[allPlayers[1][i]]].controls.pilotAbility *= ( 1 - handicap / 100 );
 	}
-	debprint("Bombable: Handicap of ", handicap, "% applied to side (1)");
+	debprint("Handicap of ", handicap, "% applied to side (1)");
 }
 
 
@@ -12586,7 +12649,7 @@ var findNewTarget = func (myIndex) {
 	{
 		foundTarget = assignOneTarget (myIndex, allPlayers[otherSide]);
 	}
-	debprint("Bombable: foundTarget ", (foundTarget != -1) ? nodes[foundTarget] : "fail", " for ", nodes[myIndex]);
+	debprint("foundTarget ", (foundTarget != -1) ? nodes[foundTarget] : "fail", " for ", nodes[myIndex]);
 	return(foundTarget);
 }
 
@@ -12605,7 +12668,7 @@ var findNewShooter = func (myIndex) {
 	{
 		foundShooter = assignOneShooter (myIndex, allPlayers[otherSide]);
 	}
-	debprint("Bombable: foundShooter ", (foundShooter !=-1) ? nodes[foundShooter] : "fail", " for ", nodes[myIndex]);
+	debprint("foundShooter ", (foundShooter !=-1) ? nodes[foundShooter] : "fail", " for ", nodes[myIndex]);
 	return(foundShooter);
 }
 
@@ -12652,36 +12715,29 @@ var resetTargetShooter = func (myIndex) {
 		allPlayers[ats.side] = removeElem(allPlayers[ats.side], myIndex);
 		ats.targetIndex = [];
 		ats.shooterIndex = []; # remove shooters from dead object
-		debprint("Bombable: ", nodes[myIndex], " no longer a target");
+		debprint("", nodes[myIndex], " no longer a target");
 }
 
-########################## waitForAI ###########################
+########################## waitForAttributes ###########################
 # delay to allow AI objects to load
 # count the number of models and check against the number of targets identified in the scenario extension
 # could also check against ai/models/count which includes rockets loaded as static models
+# scenarios have 3 types of AI object; 1 for main AC
 
-var waitForAI = func()
+var waitForAttributes = func()
 {
-	# if (getprop("/bombable/targets/index") != getprop("/ai/models/count"))
-	var nAircraft = size(props.globals.getNode ("/ai/models").getChildren("aircraft"));
-	var nShips = size(props.globals.getNode ("/ai/models").getChildren("ship"));
-	var ai_models = props.globals.getNode("/ai/models");
-	var static_nodes = ai_models.getChildren("static");
-	var nStatic = 0;
-	foreach (var node; static_nodes) {
-		if (node.getIndex() < 100) {
-			nStatic += 1;
-		}
+	# wait til bombable attributes loaded
+    var currentCount = getprop("/ai/models/count") or 0;
+	var nRockets = getprop("/bombable/rockets/count") or 0;
+	var nTargets = getprop("/bombable/targets/index") or 0;
+	if ((currentCount != nRockets + nTargets - 1) or nTargets == 0) { #nTargets includes main AC
+		debprint(" AI model count: " ~ currentCount ~ " Target count: " ~ nTargets ~ " ...waiting...");
+		settimer(func { waitForAttributes(); }, 1); # Re-poll every 1s until count stabilizes
+		return;
 	}
 
-	print("" ~ size(static_nodes) ~ " static models of which " ~ nStatic ~ " with index < 100");
-
-	if (getprop("/bombable/targets/index") != nAircraft + nShips + nStatic + 1)  # scenarios have 3 types of AI object; 1 for main AC
-	{
-		settimer (func {waitForAI();}, 5, 1); # wait til all 3D models have been loaded
-		return;
-	}	
-
+	# next steps
+	
 	foreach (var myNodeName; nodes)
 	{
 		if (myNodeName != "") # omit main AC
@@ -12699,7 +12755,7 @@ var waitForAI = func()
 	var timeNow = getprop("/sim/time/elapsed-sec");
 	var startTime = timeNow + 120;
 	setprop("/sim/speed-up", 16);
-	debprint("Bombable: delaying start");
+	debprint("delaying start");
 	settimer(func{startScenario(startTime)}, 1);
 }
 
@@ -12732,7 +12788,7 @@ var startScenario = func(startTime)
 	setprop("/sim/speed-up", 1);
 	var scenarioName = getprop("/sim/ai/scenario");
 	if (scenarioName == nil) scenarioName = "BOMB-Llandbehr_Type45_F15_rocket";
-	debprint("Bombable: starting scenario "~scenarioName);
+	debprint("starting scenario "~scenarioName);
 
 	# Construct file path relative to addon path
 	var scenarioFilePath = getprop("/sim/fg-aircraft") ~ "/../../Scenarios/Extensions/" ~ scenarioName ~ ".xml";
@@ -12740,7 +12796,7 @@ var startScenario = func(startTime)
 	# Load XML into a temporary property branch
 	var targetTree = props.globals.getNode("/sim/ai/bombable-temp", 1);
 	if (!io.read_properties(scenarioFilePath, targetTree)) {
-		debprint("Bombable: startScenario: Error loading file " ~ scenarioFilePath);
+		debprint("startScenario: Error loading file " ~ scenarioFilePath);
 		return;
 	}
 
@@ -12786,7 +12842,7 @@ var startScenario = func(startTime)
 		var from = airportinfo(group.airportName); # provides lat, lon, alt of airport
 		if (from == nil)
 		{
-			debprint("Bombable: startScenario: Error in scenario definition - airport not found: "~group.airportName);
+			debprint("startScenario: Error in scenario definition - airport not found: "~group.airportName);
 			break;
 		}
 		else
@@ -12796,17 +12852,17 @@ var startScenario = func(startTime)
 		var teamName = group.team;
 		if (teamName == "A")
 		{
-			debprint("Bombable: startScenario: Error in scenario definition \"A\" reserved for main AC");
+			debprint("startScenario: Error in scenario definition \"A\" reserved for main AC");
 			break;
 		}
 		if (find(teamName, "BCDEFGHIJKLMNOPQRSTUVWXYZ") == -1)
 		{
-			debprint("Bombable: startScenario: Error in scenario definition team name missing or invalid: "~teamName~" - must be (B-Z)");
+			debprint("startScenario: Error in scenario definition team name missing or invalid: "~teamName~" - must be (B-Z)");
 			break;
 		}
 		if(!contains(teams, teamName))
 		{
-			debprint("Bombable: startScenario: Error scenario team "~teamName~" not found in objects");
+			debprint("startScenario: Error scenario team "~teamName~" not found in objects");
 			break;
 		}
 		var targetTeam = group.target;
@@ -12814,12 +12870,12 @@ var startScenario = func(startTime)
 		{
 			if(!contains(teams, targetTeam))
 			{
-				debprint("Bombable: startScenario: Error scenario team "~targetTeam~" not found in objects");
+				debprint("startScenario: Error scenario team "~targetTeam~" not found in objects");
 				break;
 			}
 			teams[teamName].target = targetTeam;
 			var msg = (targetTeam == "A") ? "main AC" : "team " ~ targetTeam;
-			debprint("Bombable: startScenario: Team "~teamName~" targets " ~ msg);
+			debprint("startScenario: Team "~teamName~" targets " ~ msg);
 		}
 		# location lead aircraft calculated from airport lat, lon, alt, heading, speed and arrival time
 		# group.alt (ft) is interpreted as height above the airport main runway.  ASL is calculated from it   
@@ -12857,7 +12913,7 @@ var startScenario = func(startTime)
 									myNodeName, idx, nav.heading, nav.distance[0] / 1852.0));
 						var loopid = inc_loopid(myNodeName, "updateWptHeading");
 						updateWptHeading_func(loopid, myNodeName);
-						debprint ("Bombable: Initialised updateWptHeading for " ~ myNodeName);
+						debprint ("Initialised updateWptHeading for " ~ myNodeName);
 					}
 				}
 
@@ -12871,7 +12927,7 @@ var startScenario = func(startTime)
 					var best_rwy = find_closest_runway_details(icao, heading);
 					if (best_rwy == nil) 
 					{
-						debprint("Bombable: Error: Could not find matching runway for airport: " ~ str(icao));
+						debprint("Error: Could not find matching runway for airport: " ~ str(icao));
 					}
 					else
 					{
@@ -12900,7 +12956,7 @@ var startScenario = func(startTime)
 				setprop(""~myNodeName~"/position/latitude-deg", GeoCoord2.lat());
 				setprop(""~myNodeName~"/position/longitude-deg", GeoCoord2.lon());
 				setprop(""~myNodeName~"/position/altitude-ft", alt_ft);
-				debprint("Bombable: startScenario: " ~ myNodeName ~ " at alt=" ~ getprop(""~myNodeName~"/position/altitude-ft"));
+				debprint("startScenario: " ~ myNodeName ~ " at alt=" ~ getprop(""~myNodeName~"/position/altitude-ft"));
 
 				if (type == "aircraft")
 				{
@@ -12915,14 +12971,14 @@ var startScenario = func(startTime)
 					setprop(""~myNodeName~"/velocities/speed-kts", group.airSpeed);
 					setprop(""~myNodeName~"/controls/tgt-speed-kts", group.airSpeed);
 					setprop (""~myNodeName~"/surface-positions/rudder-pos-deg", 0);	
-					debprint(sprintf("Bombable: Set speed and heading for %s type %s to %.1f and %.1f", myNodeName, type, group.airSpeed, group.heading));				
+					debprint(sprintf("Set speed and heading for %s type %s to %.1f and %.1f", myNodeName, type, group.airSpeed, group.heading));				
 				}
 			}
 		}
 	}
 	foreach (var t; keys(teams))
 	{
-		if (teams[t].count != size(teams[t].indices)) debprint("Bombable: startScenario: Count for "~teams[t]~" in scenario: "~count~" is not equal to objects loaded: "~teams[t].indices);
+		if (teams[t].count != size(teams[t].indices)) debprint("startScenario: Count for "~teams[t]~" in scenario: "~count~" is not equal to objects loaded: "~teams[t].indices);
 	}
 
 	mainStatusPopupTip ("Scenario "~scenarioName~" loaded . . .", 15 );
@@ -12990,7 +13046,7 @@ var updateWptHeading = func(id, myNodeName) {
 			var logAndDisplay = func(txt) {
 				gui.popupTip(txt, 5);               
 				mainStatusPopupTip(txt, 5);
-				debprint("Bombable: " ~ txt);
+				debprint("" ~ txt);
 			};
 
 			# Event triggers based on reached waypoint index
@@ -13037,7 +13093,7 @@ var updateWptHeading = func(id, myNodeName) {
 		{
 			setprop(myNodeName ~ "/controls/flight/target-hdg", targetHdg);
 			setprop(myNodeName ~ "/controls/flight/lateral-mode", "hdg");
-			debprint(sprintf("Bombable: Updated target heading for %s to WPT%d from %.1f deg to %.1f deg (delta %.1f deg)", 
+			debprint(sprintf("Updated target heading for %s to WPT%d from %.1f deg to %.1f deg (delta %.1f deg)", 
 						myNodeName, ats.flightpath.wpt_index, oldHdg, targetHdg, diff));
 		}
 		else
@@ -13051,7 +13107,7 @@ var updateWptHeading = func(id, myNodeName) {
 		{
 			# Set target altitude to the altitude of the next waypoint
 			setprop(myNodeName ~ "/controls/flight/target-alt", targetAlt);
-			debprint(sprintf("Bombable: Updated target altitude for %s to WPT%d from %.1f deg to %.1f", 
+			debprint(sprintf("Updated target altitude for %s to WPT%d from %.1f deg to %.1f", 
 						myNodeName, ats.flightpath.wpt_index, oldTgtAlt, targetAlt));
 		}
 	}
@@ -13144,7 +13200,7 @@ var resetScenarioMain = func()
 			{
 				var loopName = substr(raw_key, 0, key_len - 7);
 				inc_loopid(myNodeName, loopName);
-				debprint("Bombable: Ending loop " ~ loopName ~ " for " ~ myNodeName);
+				debprint("Ending loop " ~ loopName ~ " for " ~ myNodeName);
 				append(loops, loopName);
 			}
 		}
@@ -13205,7 +13261,7 @@ var resetScenarioMain = func()
 	var timeNow = getprop("/sim/time/elapsed-sec");
 	var startTime = timeNow + 120;
 	setprop("/sim/speed-up", 16);
-	msg = "Bombable: delaying restart";
+	msg = "delaying restart";
 	debprint(msg);
 	mainStatusPopupTip(msg, 5);
 	settimer(func{startScenario(startTime)}, 1);
@@ -13443,7 +13499,7 @@ var init_ai_flightpath = func (ats, group, approach_dist_nm = 5.0) {
         waypoints : waypoints  # 3D Waypoint triplet vector
     };
 
-    debprint(sprintf("Bombable: Initialized ats.flightpath for AI target (%s RWY %s) - wpt_index = 1", 
+    debprint(sprintf("Initialized ats.flightpath for AI target (%s RWY %s) - wpt_index = 1", 
                   icao, best_rwy.id));
 
     # Return reference to the flightpath sub-hash
