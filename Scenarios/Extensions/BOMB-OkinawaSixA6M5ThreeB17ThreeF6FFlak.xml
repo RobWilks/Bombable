@@ -4,11 +4,11 @@
         <!-- B17s -->
         <team>B</team>
         <target>X</target>
-        <arrivalTime>320</arrivalTime>
+        <arrivalTime>240</arrivalTime>
         <airSpeed>182</airSpeed>
         <airportName>ROAH</airportName>
         <heading>225</heading>
-        <alt>8000</alt>
+        <alt>5000</alt>
         <offsets>
             <offset>
                 <behind>0</behind>
@@ -75,7 +75,7 @@
     <group>
         <team>X</team>
         <target>B</target>
-        <arrivalTime>200</arrivalTime>
+        <arrivalTime>900</arrivalTime>
         <airSpeed>250</airSpeed>
         <airportName>ROAH</airportName>
         <heading>160</heading>
@@ -102,7 +102,7 @@
     <group>
         <team>Y</team>
         <target>B</target>
-        <arrivalTime>210</arrivalTime>
+        <arrivalTime>600</arrivalTime>
         <airSpeed>250</airSpeed>
         <airportName>ROAH</airportName>
         <heading>160</heading>

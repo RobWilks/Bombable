@@ -5990,7 +5990,12 @@ var checkAim = func ( thisWeapon,
 	);
 
 	if (intercept.time == 9999) return(targetSighted);
-	#target has been sighted, now aim weapon towards it
+
+	# target has been sighted, now aim weapon towards it
+
+
+	# first check angular offset of target if within cos_max_offset, a global var
+	# then calculate probability of hitting it
 	targetSighted = 1;
 	thisWeapon.aim.interceptSpeed = vectorModulus(intercept.vector);
 
@@ -6020,7 +6025,7 @@ var checkAim = func ( thisWeapon,
 	var cosOffset = dotProduct(newDir, weapDir);
 
 	#calculate probability of hitting target, pRound
-	if (cosOffset > 0.985)
+	if (cosOffset > cos_max_offset)
 	{
 		# get targetSize. Can simplify only used here
 		var targetSize_m = { vert : 4, horz : 8 }; 
@@ -6047,20 +6052,23 @@ var checkAim = func ( thisWeapon,
 		# debprint (sprintf("newDir[%8.2f,%8.2f,%8.2f] dist=%6.0f", newDir[0], newDir[1], newDir[2], distance_m));
 		# debprint (sprintf("weapDir[%8.2f,%8.2f,%8.2f]", weapDir[0], weapDir[1], weapDir[2]));
 		
-
+		# CALCULATION OF AVERAGE NUMBER OF ROUNDS THAT HIT TARGET 
+		# nHit is the average number of rounds that hit during LOOP_TIME
 		# pRound ranges 0 to 1, 1 is a direct hit			
 		# calculate pRound as a joint probability distribution: the angular range of fire of the weapon and the angular range subtended by the target
-		# Assume:  pTargetHit = 1 within the angle range the target subtends at the weapon
-		# Assume:  angular distribution of bullets from weapon is a normal distribution centred on weapon and of SD 5 degrees i.e. 1/12 radian
-		# could approximate normal distribution using central limit https://en.wikipedia.org/wiki/Normal_distribution#Generating_values_from_normal_distribution and use MonteCarlo
-		# instead use error function to calculate integral of normal distribution
+		# assume:  pTargetHit = 1 within the angle range the target subtends at the weapon
+		# assume:  angular distribution of bullets from weapon is a normal distribution centred on weapon
+		# we define weapon accuracy as the SD of this distribution, measured in radians
 
+		# we use error function to calculate integral of normal distribution
 		# probability x between p and q
 		# p(x) = (a/pi)^0.5 * 0.5 * ( erf (q * a^0.5) - erf (p * a^0.5) )  where a = 1 / 2 / SD^2, if SD = 5 deg, sqrt_a  = 8.103
+		
+		# note, we could approximate normal distribution using central limit https://en.wikipedia.org/wiki/Normal_distribution#Generating_values_from_normal_distribution and use MonteCarlo
 
-		# probability P of one hit or more over the period of fire is P = 1 - ( 1 - pRound) ^ (LOOP_TIME * rounds per sec)
+		# NOT USED: probability P of one hit or more over the period of fire is P = 1 - ( 1 - pRound) ^ (LOOP_TIME * rounds per sec)
 		# pMiss for one round = 1 - pRound 
-		# <nHit> is the average number of rounds that hit during LOOP_TIME
+
 
 		var sqrt_a = 0.7071 / thisWeapon.accuracy;
 		var pRound = erf(( targetOffset_rad + targetSize_rad ) * sqrt_a) -  erf(( targetOffset_rad - targetSize_rad ) * sqrt_a);
@@ -6076,7 +6084,8 @@ var checkAim = func ( thisWeapon,
 		# 	targetOffset_rad * R2D,
 		# 	weapPowerSkill)
 		# );
-	}
+	} # end of section to calculate probability of hitting target
+
 	if (thisWeapon.aim.fixed == 1 or thisWeapon.weaponType == 1)
 	# no change to weaponDirModelFrame (set in weapons_init_func)
 	# but need to calculate direction of weapon in reference frame
@@ -6090,6 +6099,7 @@ var checkAim = func ( thisWeapon,
 		# change orientation of weapon if not fixed
 		# a skilled gunner changes the direction of their weapon more frequently 
 		# weapons on slaved turrets ('children') must update more frequently since their aim is lost on movement of the parent turret
+		# -1 indicates that the aim has not been set yet
 		if ( rand() < weapPowerSkill * ((thisWeapon.parent != "") ? 1 : .5) or thisWeapon.aim.weaponDirRefFrame[2] == -1)
 		{ 
 			# ensure that newDir is in range of movement of weapon
@@ -6121,7 +6131,7 @@ var checkAim = func ( thisWeapon,
 }
 
 ############################ weapons_loop #############################
-# weapons_loop - main timer loop for check AI weapon aim & damage
+# weapons_loop - main timer loop to check AI weapon aim & damage
 # to main aircraft
 #
 # Todo: We could check how often this loop is being called (by all AI objects
@@ -6131,8 +6141,8 @@ var checkAim = func ( thisWeapon,
 #
 # We could implement an approach to finding distance/direction more like the one
 # in test_impact, where we just use a local coordinate system of lat/lon/elev
-# to calculate target distance. That seems far more frugal of CPU time than
-# geoCoord and directdistanceto, which both seem quite expensive of CPU.
+# to calculate target distance. That is far more frugal of CPU time than
+# geoCoord and directdistanceto.
 			
 var weapons_loop = func (id, myNodeName1 = "") {
 	var ats = attributes[myNodeName1];
@@ -6195,7 +6205,7 @@ var weapons_loop = func (id, myNodeName1 = "") {
 	var detectionRange = 7000;
 	var indexClosest = nil;
 	ats.attacks.allGround = 1;
-
+	# find distance and displacement of all targets and store the closest
 	foreach (target; myTargets)
 	{
 		var myNodeName2 = nodes[target];
@@ -6210,7 +6220,8 @@ var weapons_loop = func (id, myNodeName1 = "") {
 		var deltaY_m = (targetLat_deg - alat_deg) * m_per_deg_lat;
 		var deltaAlt_m = targetAlt_m - aAlt_m;
 					
-		# calculate targetDispRefFrame, the displacement vector from node1 (shooter) to node2 (target) in a lon-lat-alt (x-y-z) frame of reference aka 'reference frame'
+		# calculate targetDispRefFrame, the displacement vector from node1 (shooter) to node2 (target) in a Cartesian frame of reference
+		# lon-lat-alt <> x-y-z
 		# the shooter is at < 0,0,0 > 
 		var targetDispRefFrame = [deltaX_m, deltaY_m, deltaAlt_m];
 		var distance_m = math.sqrt(deltaX_m * deltaX_m + deltaY_m * deltaY_m + deltaAlt_m * deltaAlt_m);
@@ -6222,7 +6233,7 @@ var weapons_loop = func (id, myNodeName1 = "") {
 		if ( distance_m < detectionRange) 
 		{
 			threatLevel += 1;
-			if (target) #ignore main AC
+			if (target) #ignore main AC which has index 0
 			{
 				if (ats2.type == "aircraft") ats.attacks.allGround = 0;
 			}
@@ -6238,8 +6249,7 @@ var weapons_loop = func (id, myNodeName1 = "") {
 			if (ats.collided == 1 or ats2.collided == 1) return; # already processed this collision
 			if (myNodeName2 == "" and getprop("/controls/flight/stealth") == 1) return; # ignore collision with main AC if it is in stealth mode
 			# report collision to player
-			var msg = (attributes[myNodeName1].controls.kamikase == -1) ?
-			"Kamikase strike" : "Collision";
+			var msg = (attributes[myNodeName1].controls.kamikase == -1) ? "Kamikase strike" : "Collision";
 			msg = msg ~ " with " ~ getCallSign (myNodeName1) ~ " !";
 			targetStatusPopupTip (msg, 5); # add_damage will immediately report damage stats
 			debprint("" ~ msg);
@@ -6274,9 +6284,9 @@ var weapons_loop = func (id, myNodeName1 = "") {
 			groundCheck = (ground_Alt_m < mid_Alt_m);
 		}
 		append ( groundData,  groundCheck );
-		if (groundCheck) noLoS = 0;
+		if (groundCheck) noLoS = 0; # if groundcheck is passed once then we have a target
 
-		if (target ? (ats2.nRockets > 0) : 0) append(rocketCarriers, target); # separate check for main AC
+		if (target and ats2.nRockets > 0) append(rocketCarriers, target); # separate check for main AC
 
 	}
 	if (noLoS) return; #if no target in line of sight then no need to check aim.  Assumption! Does not hold for self-guided rockets or parabolic flight trajectory
@@ -6382,7 +6392,7 @@ var weapons_loop = func (id, myNodeName1 = "") {
 			if ( targetSighted ) weaponsOrientationPositionUpdate(myNodeName1, elem);
 		}
 	
-		if (thisWeapon.weaponType == 1) 
+		if (thisWeapon.weaponType == 1) #rocket section
 		{
 			if (thisWeapon.controls.launched == 1) continue;
 
@@ -6406,7 +6416,7 @@ var weapons_loop = func (id, myNodeName1 = "") {
 				if (rand() < 0.02 * weapPowerSkill * threatLevel / (r * r * r + 1)) launchRocket (id, myNodeName1, elem);
 			}
 			continue;
-		}
+		} # end of rocket section
 	
 		# if (ats.index == 1) debprint("Weapons_loop for ", nodes[ats.index], " target = ", ind, "pos = ", pos, sprintf(" distance = %5.0fm nHit = %5.3f", targetData[pos][3], thisWeapon.aim.nHit));
 		if (thisWeapon.aim.nHit == 0) 
@@ -6422,10 +6432,10 @@ var weapons_loop = func (id, myNodeName1 = "") {
 		# approximate ballisticMass_lb:
 		# 0.08 lb for a 303 Vickers - see getBallisticMass_lb func 
 		# 0.13 lb for a WWII 20mm Oerlikon cannon
+		# 20.7 lb for a High Explosive Anti-Aircraft / Fragmentation (Sprenggranate L/4.5) WWII German anti-aircraft guns (8.8 cm FlaK 18/36/37)
 		# 25 lb for a M830 round from the M256 120mm gun used on the M1 Abram
 		# corresponding maxDamage_percent figures: 3%, 4%, 50%
 
-		if (thisWeapon.aim.nHit > 0.1)
 		# debprint (sprintf("Weapons_loop %s  weapPowerSkill = %4.1f  total ballistic mass =  %5.2f", myNodeName1, weapPowerSkill, ballisticMass_lb * thisWeapon.aim.nHit));
 		
 		# debprint (
@@ -6434,6 +6444,15 @@ var weapons_loop = func (id, myNodeName1 = "") {
 		# 	" elevation = ", thisWeapon.weaponAngle_deg.elevation
 		# );
 
+		if (myNodeName1 == "/ai/models/static")
+		{
+			debprint (sprintf("%s weapon %s aimed at %s with nHit = %.4f ballisticMass_lb = %.1f", 
+			myNodeName1, 
+			thisWeapon.name, 
+			myNodeName2,
+			thisWeapon.aim.nHit,
+			ballisticMass_lb));
+		}
 
 		# fire weapon
 		# expectation value of damage is no hits * ballistic mass per round
@@ -6447,14 +6466,8 @@ var weapons_loop = func (id, myNodeName1 = "") {
 		# if (thisWeapon.aim.nHit * ballisticMass_lb > ( 0.044444 * weapPowerSkill + 0.1555555 )) # 0.2;0.16
 		# if (thisWeapon.aim.nHit * ballisticMass_lb > ( 0.55555 * weapPowerSkill + 0.3444444 )) # 0.9;0.4
 		# if (thisWeapon.aim.nHit * ballisticMass_lb > (0.277777 * weapPowerSkill + 0.022222)) # 0.3;0.05
-
-		# if (0) # omit for testing
 		if (thisWeapon.aim.nHit * ballisticMass_lb > (0.0166666 * weapPowerSkill + 0.003333)) # 0.02;0.005
 		{
-			# debprint ("AI aircraft aimed at main aircraft, ",
-			# myNodeName1, " ", thisWeapon.name, " ", elem,
-			# " accuracy ", round(thisWeapon.aim.nHit * 100 ),"%",
-			# " interceptSpeed", round(thisWeapon.aim.interceptSpeed), " mps");
 			
 			# fire weapons for visual effect
 			var time2Fire =  3;
@@ -7943,7 +7956,7 @@ stores.fillFuel = func (myNodeName,amount = 1){
 ###############################################
 # FUNCTION fillWeapons
 # each rocket is a separate weapon with a separate AI model - not tied to the parent AC/ship
-#
+# analyse the weapons to determine their type and targetting flexibility
 #
 stores.fillWeapons = func (myNodeName, amount = 1) {
 	if ( ! contains ( attributes, myNodeName) or
@@ -7957,7 +7970,9 @@ stores.fillWeapons = func (myNodeName, amount = 1) {
 	var stos = ats.stores;
 	var nFixed = 0;
 	var nRockets = 0;
-	foreach (weap; keys(weaps))
+	# count number of rockets and number of fixed weapons
+	# determine capacity of AI model to shoot at multiple targets given the number of weapons fixed to the platform
+	foreach (weap; keys(weaps)) 
 	{
 		if (stos["weapons"][weap] == nil) stos["weapons"][weap] = 0;
 		stos["weapons"][weap] +=  amount;
@@ -9444,8 +9459,8 @@ records.export_totals_csv = func (scenario_name = "default") {
 
 ################################ add_damage ################################
 # function adds damage to an AI aircraft, ship or groundvehicle
-# (called by the fire loop and ballistic impact
-# listener function, typically)
+# (called by the fire loop and ballistic impact listener function, typically)
+# damageRise allowed values (0 - 1)
 # returns the amount of damage added (which may be smaller than the damageRise requested, for various reasons)
 # damageType is "weapon" or "nonweapon".  nonweapon damage (fire, crash into
 # ground, etc) is not passed on via multiplayer (fire, crash, etc damage is
@@ -10674,7 +10689,7 @@ var weaponsOrientationPositionUpdate = func (myNodeName, elem) {
 	# make weapon and projectile point in the direction of the target
 	# the direction is calculated in the checkAim loop
 	# first point weapon in the direction of the target
-	# and then the projectile in the direction of the weapon
+	# and then the projectile a separate model in the direction of the weapon
 
 	# no need to do this if any of these are turned off in the bombable menu
 	# though we may update weapons_loop to rely on these numbers as well
@@ -10718,7 +10733,7 @@ var weaponsOrientationPositionUpdate = func (myNodeName, elem) {
 	getprop("" ~ myNodeName ~ "/position/longitude-deg") + aim.weaponOffsetRefFrame[0] / m_per_deg_lon);
 
 		
-	# debprint("weaponsOrientationPositionUpdate_loop " ~ elem ~ 
+	# debprint("weaponsOrientationPositionUpdate " ~ elem ~ 
 		# sprintf(" newElev =%8.1f pitch-deg =%8.1f newHeading =%8.1f true-heading-deg =%8.1f", 
 			# newElev, 
 			# newElev_ref,
@@ -11527,6 +11542,7 @@ var m_per_deg_lon = 111321.5 * math.cos (aLat_rad);
 var attributes = {};
 #global variable used for sighting weapons
 var LOOP_TIME = 0.25; # timing of weapons loop and guide rocket
+var cos_max_offset = math.cos(PI / 18.0); # sets minimum angluar offset of target to shooter
 var N_STEPS = 8; # resolution of flight path calculation
 var ot = emexec.OperationTimer.new("VSD");
 var handicap = 0; #percentage handicap for side (1)
@@ -12085,7 +12101,8 @@ var erf = func (xVal) {
 }
 ########################## setWeaponPowerSkill ###########################
 # called by resetBombableDamageFuelWeapons and weapons_init_func
-# note weapon power measures effectiveness - not simply explosive force - which includes how accurately it can be targetted
+# note weapon power measures the effectiveness of the weapon e.g. explosive force.  Pilot_ability indicates how accurately it can be targetted
+# for many ACs the gunner is not the pilot but we assume equally skilled
 
 var setWeaponPowerSkill = func(myNodeName)
 {
@@ -12104,7 +12121,7 @@ var setWeaponPowerSkill = func(myNodeName)
 	# var skill = rand();
 
 
-	# Set weapPowerSkill, 0 to 1, an equal combination of weapon effectiveness and skill of pilot or gunner
+	# Set weapPowerSkill, 0 to 1, an equal combination of weapon effectiveness and skill of pilot or gunner or bomb aimer
 	# probability of a hit depends on effectiveness, skill and the number of attempts
 	# attempt frequency is set by LOOP_TIME the update time for the weapons loop (not modelled)
 	# var weapPowerSkill = math.pow(( power + skill ) / 2.0, LOOP_TIME);
@@ -12900,7 +12917,7 @@ var startScenario = func(startTime)
 				if ((teamName == "B" or teamName == "C") and getprop(""~myNodeName~"/bombable/initializers/attack-initialized") == nil) {
 					# construct flightpath of waypoints
 					# if successful start the loop to update the heading to the current waypoint
-					var segmentLength = 5.0; # nm between waypoints
+					var segmentLength = 3.0; # nm between waypoints
 					init_ai_flightpath(ats, group, segmentLength);
 					# Navigating active waypoint via ats.flightpath:
 					if (contains(ats, "flightpath")) {
