@@ -141,7 +141,7 @@
               {               
                 name : "Flak gun 88mm centre", # name presented to users, ie in on-screen messages
                 maxDamage_percent : 45.5, # maximum percentage damage one hit from the aircraft's main weapon/machine guns will do to an opponent
-                maxDamageDistance_m : 8000, # maximum distance at which the aircrafts main weapon/maching guns will be able to damage an opponent
+                maxDamageDistance_m : 5000, # maximum distance at which the aircrafts main weapon/maching guns will be able to damage an opponent
                 weaponAngle_deg  :  { heading: 0, elevation: 70.0, headingMin: -180, headingMax: 180, elevationMin: 0.0, elevationMax: 85.0  }, # direction the aircraft's main weapon is aimed.   
                                                                   # 0,0 = straight ahead, 90,0=directly right, 0,90=directly up, 0,180=directly back, etc.
                 weaponOffset_m : {x:0.667, y:0, z:1.8471}, # Offset of the weapon from the main aircraft center
@@ -155,7 +155,7 @@
               {               
                 name : "Flak gun 88mm left", # name presented to users, ie in on-screen messages
                 maxDamage_percent : 45.5, # maximum percentage damage one hit from the aircraft's main weapon/machine guns will do to an opponent
-                maxDamageDistance_m : 8000, # maximum distance at which the aircrafts main weapon/maching guns will be able to damage an opponent
+                maxDamageDistance_m : 5000, # maximum distance at which the aircrafts main weapon/maching guns will be able to damage an opponent
                 weaponAngle_deg  :  { heading: 0, elevation: 70.0, headingMin: -180, headingMax: 180, elevationMin: 0.0, elevationMax: 85.0  }, # direction the aircraft's main weapon is aimed.   
                                                                   # 0,0 = straight ahead, 90,0=directly right, 0,90=directly up, 0,180=directly back, etc.
                 weaponOffset_m : {x: 35.308, y: -20.0, z: 1.8471}, # Offset of the weapon from the main aircraft center
@@ -169,7 +169,7 @@
               {               
                 name : "Flak gun 88mm right", # name presented to users, ie in on-screen messages
                 maxDamage_percent : 45.5, # maximum percentage damage one hit from the aircraft's main weapon/machine guns will do to an opponent
-                maxDamageDistance_m : 8000, # maximum distance at which the aircrafts main weapon/maching guns will be able to damage an opponent
+                maxDamageDistance_m : 5000, # maximum distance at which the aircrafts main weapon/maching guns will be able to damage an opponent
                 weaponAngle_deg  :  { heading: 0, elevation: 70.0, headingMin: -180, headingMax: 180, elevationMin: 0.0, elevationMax: 85.0  }, # direction the aircraft's main weapon is aimed.   
                                                                   # 0,0 = straight ahead, 90,0=directly right, 0,90=directly up, 0,180=directly back, etc.
                 weaponOffset_m : {x: 35.308, y: 20.0, z: 1.8471}, # Offset of the weapon from the main aircraft center

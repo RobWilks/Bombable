@@ -1635,7 +1635,7 @@ var resetMainAircraftDamage = func {
 
 var resetTerrainFires = func {
 
-    # 2. Search and remove all dynamic models under /models/ created by put_remove_model / start_terrain_fire
+    # Search for and remove all dynamic models under /models/ created by put_remove_model / start_terrain_fire
     var models_root = props.globals.getNode("/models");
     if (models_root != nil) {
         # Iterate backwards through children to prevent index shifting issues during deletion
@@ -2356,9 +2356,9 @@ var setupBombableMenu = func {
 
 	# Open multiple property browsers at specific paths
     var paths = [
-        "/ai/models/aircraft/position",
-        "/ai/models/aircraft/orientation",
-        "/ai/models/aircraft/controls/flight"
+        "/bombable/fire-particles/projectile-tracer[0]",
+        "/bombable/fire-particles/projectile-tracer[1]",
+        "/bombable/fire-particles/projectile-tracer[2]"
     ];
 
     foreach (var path; paths) {
@@ -2370,7 +2370,7 @@ var setupBombableMenu = func {
             gui.property_browser(node);
 			}
 		}
-	}, 2);
+	}, 10);
 
 }
 ######################## mirrorMenu #############################
@@ -5299,13 +5299,10 @@ var dodge = func(myNodeName, dodgeAmount_deg = 0, dodgeDelay = 1)
 	or (ats.damage == 1)
 	or ! bombableMenu["bombable-enabled"] )
 	return;
-	# rjw: unsure where to find attack-enabled on bombable menu. However it is set for B-17 scenario
 				
-	if ( ctrls.dodgeInProgress ) 
-	{
-		debprint ("Dodge temporarily locked for ", myNodeName );
-		return;
-	}
+	if ( ctrls.dodgeInProgress ) return;
+	if (ats.type == "static") return;
+	
 	# Don't change rudder/roll again until the delay
 	ctrls.dodgeInProgress = 1;
 				
@@ -5449,6 +5446,7 @@ var dodge = func(myNodeName, dodgeAmount_deg = 0, dodgeDelay = 1)
 }
 
 ################################## stopDodgeAttack ################################
+# only called for aircraft.  Called by hitground_stop_explode and aircraftCrash.  TODO why both?
 
 var stopDodgeAttack = func (myNodeName) {
 	var ctrls = attributes[myNodeName].controls;
@@ -5793,23 +5791,20 @@ var mp_send_damage = func (myNodeName = "", damageRise = 0 ) {
 
 ###################### fireAIWeapon_stop ######################
 # fireAIWeapon_stop: turns off one of the triggers in AI/Aircraft/Fire-Particles/projectile-tracer.xml
-# rjw 
-var fireAIWeapon_stop = func (id, myNodeName, index) {
-	# index of the fire particle tied to the weapon that will stop firing
-	id == attributes[myNodeName].loopids["fireAIWeapon" ~ index ~ "_loopid"] or return;
+#  
+var fireAIWeapon_stop = func (myNodeName, index) {
 	setprop("bombable/fire-particles/projectile-tracer[" ~ index ~ "]/ai-weapon-firing", 0); 
 }
 
 ###################### fireAIWeapon ######################
 # fireAIWeapon: turns on/off one of the triggers in AI/Aircraft/Fire-Particles/projectile-tracer.xml
-# Using the loopids ensures that it stays on for one full second after the last time it was
+# Using the loopids ensures that it stays on for time_sec after the last time it was
 # turned on.
 #
 var fireAIWeapon = func (time_sec, myNodeName, elem, speed) {
 	var index = elem.fireParticle;
 	# index of the fire particle tied to the weapon
-	# rjw speed is the calculated intercept speed in a stationary frame
-	#if (myNodeName == "" or myNodeName == "environment") myNodeName = "/environment";
+	# speed is the calculated intercept speed in a stationary frame
 	var isFiring = getprop("bombable/fire-particles/projectile-tracer[" ~ index ~ "]/ai-weapon-firing");
 	if (isFiring != nil) {
 		if (isFiring == 1) return; #prevents double trigger
@@ -5817,11 +5812,10 @@ var fireAIWeapon = func (time_sec, myNodeName, elem, speed) {
 	
 	setprop("bombable/fire-particles/projectile-tracer[" ~ index ~ "]/speed", speed);
 	setprop("bombable/fire-particles/projectile-tracer[" ~ index ~ "]/ai-weapon-firing", 1); 
-	var loopid = inc_loopid(myNodeName, "fireAIWeapon" ~ index);
 	# debprint (	"myNodeName " ~ myNodeName ~
 	# 			" index " ~ index,
 	# 			" time " ~ time_sec);
-	settimer ( func { fireAIWeapon_stop(loopid, myNodeName, index)}, time_sec);
+	settimer ( func { fireAIWeapon_stop(myNodeName, index)}, time_sec);
 }
 
 ###################### vertAngle_deg #########################
@@ -6023,6 +6017,13 @@ var checkAim = func ( thisWeapon,
 	
 	#calculate angular offset
 	var cosOffset = dotProduct(newDir, weapDir);
+	if (cosOffset > 1.0 or cosOffset < -1.0) { #trap math.acos fpt error
+		print ("cosine out of range");
+		debug.dump(thisWeapon);
+		debug.dump(newDir);
+		debug.dump(weapDir);
+		return(0);
+	}
 
 	#calculate probability of hitting target, pRound
 	if (cosOffset > cos_max_offset)
@@ -6343,12 +6344,12 @@ var weapons_loop = func (id, myNodeName1 = "") {
 			{
 				thisWeapon.aim["rn"] = nil;
 			}
-		} 
+		} # end of rocket section
 
 		if (thisWeapon.aim["rn"] == nil) # the target is not a rocket
 		{
 			# if no target assigned - applies when weapons loop first called and when previous target destroyed
-			if (pos == nil)
+			if (pos == nil) # pos indexes myTargets.  Choose one at random
 			{
 				pos = int(rand() * nTargets);
 				if (myTargets[pos] != 0 or nTargets == 1) thisWeapon.aim.target = myTargets[pos]; # only attack main AC when there are no AI targets
@@ -6423,7 +6424,7 @@ var weapons_loop = func (id, myNodeName1 = "") {
 		{
 			pos += 1;
 			if (pos == nTargets) pos = 0;
-			thisWeapon.aim.target = myTargets[pos];
+			pos = nil;
 			# there is no chance of hitting the target so look for another
 			continue;
 		}
@@ -6434,7 +6435,7 @@ var weapons_loop = func (id, myNodeName1 = "") {
 		# 0.13 lb for a WWII 20mm Oerlikon cannon
 		# 20.7 lb for a High Explosive Anti-Aircraft / Fragmentation (Sprenggranate L/4.5) WWII German anti-aircraft guns (8.8 cm FlaK 18/36/37)
 		# 25 lb for a M830 round from the M256 120mm gun used on the M1 Abram
-		# corresponding maxDamage_percent figures: 3%, 4%, 50%
+		# corresponding maxDamage_percent figures: 3%, 4%, 45, 50%
 
 		# debprint (sprintf("Weapons_loop %s  weapPowerSkill = %4.1f  total ballistic mass =  %5.2f", myNodeName1, weapPowerSkill, ballisticMass_lb * thisWeapon.aim.nHit));
 		
@@ -10887,14 +10888,10 @@ var weapons_init_func = func(myNodeName)
 		# which is defined in the AI model include file and in the co-ordinates of the model
 		# the x-axis points 180 degrees from the direction of travel; the y-axis points right; the z-axis up
 
-		put_tied_weapon
-			(
-				myNodeName, elem,
-				"AI/Aircraft/Fire-Particles/projectile-tracer/projectile-tracer-" ~ count ~ ".xml"
-			);
+		put_tied_weapon ( myNodeName, elem,
+				"AI/Aircraft/Fire-Particles/projectile-tracer/projectile-tracer-" ~ count ~ ".xml");
 		setprop ("/bombable/fire-particles/projectile-tracer[" ~ count ~ "]/projectile-startsize", thisWeapon.weaponSize_m.start);
 		setprop ("/bombable/fire-particles/projectile-tracer[" ~ count ~ "]/projectile-endsize", thisWeapon.weaponSize_m.end);
-		setprop ("/bombable/fire-particles/projectile-tracer[" ~ count ~ "]/ai-weapon-firing", 0); 
 		setprop ("/bombable/fire-particles/projectile-tracer[" ~ count ~ "]/ai-weapon-firing", 0); 
 		setprop ("/bombable/fire-particles/projectile-tracer[" ~ count ~ "]/offset-x", thisWeapon.weaponOffset_m.x); 
 		setprop ("/bombable/fire-particles/projectile-tracer[" ~ count ~ "]/offset-y", thisWeapon.weaponOffset_m.y); 
@@ -13219,6 +13216,9 @@ var resetScenarioMain = func()
 				inc_loopid(myNodeName, loopName);
 				debprint("Ending loop " ~ loopName ~ " for " ~ myNodeName);
 				append(loops, loopName);
+				# fireAIWeapon_stop resets fire-particle animations
+				# it is called with timers that timeout after approximately 1s
+				# we let these timeout rather than terminate early and separately zero the animation triggers
 			}
 		}
 	}

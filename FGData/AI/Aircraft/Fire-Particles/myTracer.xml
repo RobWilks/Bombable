@@ -2,40 +2,36 @@
 
 <PropertyList>
 <!-- This should produce a tracer-like, fast-moving object, like the tracers from a machine gun. -->
+
+			
 	<particlesystem>
 		<name>weapons tracer</name>
 		<!--texture>smoke.png</texture-->
-		<texture>Textures/spark128.png</texture>
-		<!-- <texture>projectile.png</texture> -->
+		<texture>projectile.png</texture>
 		<emissive>true</emissive>
-		<lighting>false</lighting>
+		<lighting>true</lighting>
 		<type>normal</type>
 		<align>billboard</align>
 		<attach>world</attach>
 		
 		
 		<offsets>
-			<x-m>
-				<property>/bombable/fire-particles/projectile-tracer[0]/offset-x</property>
-			</x-m>
-			<y-m>
-				<property>/bombable/fire-particles/projectile-tracer[0]/offset-y</property>
-			</y-m>
-			<z-m>
-				<property>/bombable/fire-particles/projectile-tracer[0]/offset-z</property>
-			</z-m>			
+			<x-m>5.0</x-m>
+			<y-m>0.0</y-m>
+			<z-m>3.0</z-m>			
 			<!-- for some reason pitch=90, heading=180 is straight forwards WRT the main AI aircraft, not sure why-->
-			<pitch-deg>90</pitch-deg>
+			<pitch-deg>20</pitch-deg>
 			<heading-deg>180</heading-deg>
 		</offsets>
 		
-		<condition>
+		<!--local on/off, whether or not firing at the moment-->
+		<!--overall on/off-->
+		<!-- <condition>
 		  <and>
-				<property>/bombable/menusettings/fire-particles/ai-weapon-fire-visual-trigger</property><!--overall on/off-->
+				<property>/bombable/menusettings/fire-particles/ai-weapon-fire-visual-trigger</property>
 				<property>/bombable/fire-particles/projectile-tracer[0]/ai-weapon-firing</property>
-				<!--local on/off, whether or not firing at the moment-->
 			</and>	
-		</condition>
+		</condition> -->
 	
 		<placer>
 			<type>sector</type>
@@ -53,8 +49,7 @@
 			<phi-min-deg>-.00</phi-min-deg>
 			<phi-max-deg>.00</phi-max-deg>
 			<speed-mps>
-				<!-- <value>500</value> -->
-				<property>/bombable/fire-particles/projectile-tracer[0]/speed</property>
+				<value>500</value>
 				<spread>0</spread>
 			</speed-mps>
 		</shooter>		
@@ -69,10 +64,10 @@
 			<start>
 				<color>
 					<red>
-						<value>0.12</value>
+						<value>0.92</value>
 					</red>
 					<green>
-						<value>0.92</value>
+						<value>0.12</value>
 					</green>
 					<blue>
 						<value>0.12</value>
@@ -81,10 +76,7 @@
 						<value>.8</value>
 					</alpha>
 				</color>
-				<size>
-					<!--value>.07 </value-->
-					<property>/bombable/fire-particles/projectile-tracer[0]/projectile-startsize</property>
-				</size>
+				<size>.7</size>
 			</start>
 			<end>
 				<color>
@@ -101,10 +93,7 @@
 						<value>0.45</value>
 					</alpha>
 				</color>
-				<size>
-				  <!--value>.05</value-->
-					<property>/bombable/fire-particles/projectile-tracer[0]/projectile-endsize</property>
-				</size>
+				<size>.5</size>
 			</end>
 			<life-sec>
 				<value>10</value>

@@ -281,11 +281,61 @@ debug.dump(ats);
 
 debug.dump(bombable.nodes);
 
-##################### dump branch of property tree ##########################
+##################### fireAIWeapon (working) ##########################
+
+var myNodeName = "/ai/models/aircraft";
+var ats = bombable.attributes[myNodeName];
+var weaps=ats.weapons;
+var elem=weaps.top_turret_gun;
+var time_sec = 2.0;
+var speed=700;
+bombable.fireAIWeapon (time_sec, myNodeName, elem, speed);
+##################### fireAIWeapon (working) ##########################
 
 var myNodeName = "/ai/models/static";
 var ats = bombable.attributes[myNodeName];
-var key = "type";
+var weaps=ats.weapons;
+var time_sec = 2.0;
+var speed=700;
+var elem=weaps.flak_gun_88mm_left;
+bombable.fireAIWeapon (time_sec, myNodeName, elem, speed);
+print("index = " ~ elem.fireParticle);
+var elem=weaps.flak_gun_88mm_centre;
+bombable.fireAIWeapon (time_sec, myNodeName, elem, speed);
+print("index = " ~ elem.fireParticle);
+var elem=weaps.flak_gun_88mm_right;
+bombable.fireAIWeapon (time_sec, myNodeName, elem, speed);
+print("index = " ~ elem.fireParticle);
+
+##################### add model ##########################
+# var weapon_node = ai_node.getNode("models/model[13]", 1);
+
+# Populate values
+# weapon_node.setDoubleValue("offset-x", 0.0);
+# weapon_node.setDoubleValue("offset-y", 0.0);
+# weapon_node.setDoubleValue("offset-z", 0.0);
+# weapon_node.setDoubleValue("speed", 750.0);
+# weapon_node.setDoubleValue("projectile-startsize", 0.3); # Larger size for high visibility testing
+# weapon_node.setDoubleValue("projectile-endsize", 0.1);
+# weapon_node.setBoolValue("ai-weapon-firing", 1);
+# setprop("/bombable/menusettings/fire-particles/ai-weapon-fire-visual-trigger", 1);
+
+var ai_node = props.globals.getNode("ai/models").getChildren("static")[0];
+
+fgcommand("add-model", props.Node.new({
+    "path": "AI/Aircraft/Fire-Particles/myTracer.xml",
+    "latitude-deg-prop":  ai_node.getPath() ~ "/position/latitude-deg",
+    "longitude-deg-prop": ai_node.getPath() ~ "/position/longitude-deg",
+    "elevation-ft-prop":   ai_node.getPath() ~ "/position/altitude-ft",
+    "heading-deg-prop":    ai_node.getPath() ~ "/orientation/true-heading-deg",
+    "pitch-deg-prop":      ai_node.getPath() ~ "/orientation/pitch-deg",
+    "roll-deg-prop":       ai_node.getPath() ~ "/orientation/roll-deg"
+}));
+##################### dump branch of property tree ##########################
+
+var myNodeName = "/ai/models/aircraft";
+var ats = bombable.attributes[myNodeName];
+var key = "weapons";
 if (contains(ats, key)) {
 debug.dump(ats[key]);
 }
@@ -293,6 +343,8 @@ else
 {
     print(key ~ " is not a key");
 }
+var weaps=ats.weapons;
+debug.dump(weaps.top_turret_gun);
 ##################### test updateWptHeading ##########################
 
 # skill ranges 0-6
@@ -452,5 +504,29 @@ if (models_node != nil) {
     print("All UFO models removed from scene.");
 }
 
-##############################        
+################ print out targetting data ##############      
+var myNodeName = "/ai/models/static";
+var ats = bombable.attributes[myNodeName];
+var myTargets = ats.targetIndex;
+var nTargets = size(myTargets);
+debug.dump(bombable.nodes);
+debug.dump(myTargets);
+foreach (elem; keys (ats.weapons) ) 
+{	
+    var thisWeapon = ats.weapons[elem];
+    if (thisWeapon.destroyed == 1) 
+    {
+        print("" ~ elem ~ " destroyed");
+        continue; #skip this weapon if destroyed
+    }
+    var ind = thisWeapon.aim.target; # index of object to shoot at
+    var pos = vecindex(myTargets, ind);
+    print (elem ~ " is targetting " ~ ind);
+    if ( bombable.stores.checkWeaponsReadiness ( myNodeName, elem ) == 0) 
+    {
+        print("" ~ elem ~ " out of ammo");
+        continue; # can only shoot if ammo left!
+    }
+}
+
 
