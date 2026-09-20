@@ -15,7 +15,7 @@
 	<particlesystem>
 		<name>weapons tracer</name>
 		<!--texture>smoke.png</texture-->
-		<texture>Textures/spark128.png</texture>
+		<texture>spark128.png</texture>
 		<!-- <texture>projectile.png</texture> -->
 		<emissive>true</emissive>
 		<lighting>false</lighting>
@@ -80,16 +80,16 @@
 			<start>
 				<color>
 					<red>
-						<value>0.12</value>
+						<value>1.0</value>
 					</red>
 					<green>
-						<value>0.92</value>
+						<value>1.0</value>
 					</green>
 					<blue>
-						<value>0.12</value>
+						<value>1.0</value>
 					</blue>
 					<alpha>
-						<value>.8</value>
+						<value>0.5</value>
 					</alpha>
 				</color>
 				<size>
@@ -100,16 +100,16 @@
 			<end>
 				<color>
 					<red>
-						<value>0.85</value>
+						<value>1.0</value>
 					</red>
 					<green>
-						<value>0.15</value>
+						<value>1.0</value>
 					</green>
 					<blue>
-						<value>0.15</value>
+						<value>1.0</value>
 					</blue>
 					<alpha>
-						<value>0.45</value>
+						<value>0.0</value>
 					</alpha>
 				</color>
 				<size>

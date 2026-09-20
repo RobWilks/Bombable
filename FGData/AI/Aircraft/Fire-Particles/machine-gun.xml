@@ -1,8 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <PropertyList>
+
     <particlesystem>
         <name>weapons tracer</name>
-        <texture>projectile.png</texture>
+        <texture>spark128.png</texture>
         <emissive>true</emissive>
         <lighting>false</lighting>
         <type>normal</type>
@@ -10,12 +11,21 @@
         <attach>world</attach>
         
         <offsets>
-            <x-m>{OFFSET_X}</x-m>
-            <y-m>{OFFSET_Y}</y-m>
-            <z-m>{OFFSET_Z}</z-m>          
+            <x-m><value>{OFFSET_X}</value></x-m>
+            <y-m><value>{OFFSET_Y}</value></y-m>
+            <z-m><value>{OFFSET_Z}</value></z-m>          
             <pitch-deg>90</pitch-deg>
             <heading-deg>180</heading-deg>
         </offsets>
+
+		<condition>
+		  <and>
+				<property>/bombable/menusettings/fire-particles/ai-weapon-fire-visual-trigger</property><!--overall on/off-->
+				<property>{WEAPON_PROP_ROOT}/ai-weapon-firing</property>
+				<!--local on/off, whether or not firing at the moment-->
+			</and>	
+		</condition>
+
 
         <placer>
             <type>sector</type>
@@ -34,35 +44,50 @@
             <phi-max-deg>0.0</phi-max-deg>
             <speed-mps>
                 <property>{WEAPON_PROP_ROOT}/speed</property>
-                <value>700.0</value>
             </speed-mps>
         </shooter>      
 
         <counter>
             <particles-per-sec>
-                <value>10</value>
+                <value>4</value>
                 <spread>0</spread>
             </particles-per-sec>
         </counter>
         
         <particle>
             <start>
-                <color>
-                    <red><value>0.92</value></red>
-                    <green><value>0.12</value></green>
-                    <blue><value>0.12</value></blue>
-                    <alpha><value>0.8</value></alpha>
-                </color>
-                <size>{START_SIZE}</size>
+				<color>
+					<red>
+						<value>1.0</value>
+					</red>
+					<green>
+						<value>1.0</value>
+					</green>
+					<blue>
+						<value>1.0</value>
+					</blue>
+					<alpha>
+						<value>0.5</value>
+					</alpha>
+				</color>
+                <size><value>{START_SIZE}</value></size>
             </start>
             <end>
-                <color>
-                    <red><value>0.85</value></red>
-                    <green><value>0.15</value></green>
-                    <blue><value>0.15</value></blue>
-                    <alpha><value>0.45</value></alpha>
-                </color>
-                <size>{END_SIZE}</size>
+				<color>
+					<red>
+						<value>1.0</value>
+					</red>
+					<green>
+						<value>1.0</value>
+					</green>
+					<blue>
+						<value>1.0</value>
+					</blue>
+					<alpha>
+						<value>0.0</value>
+					</alpha>
+				</color>
+                <size><value>{END_SIZE}</value></size>
             </end>
             <life-sec><value>10</value></life-sec>
             <mass-kg>0.05</mass-kg>
