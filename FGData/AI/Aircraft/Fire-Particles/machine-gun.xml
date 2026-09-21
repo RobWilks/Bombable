@@ -11,9 +11,12 @@
         <attach>world</attach>
         
         <offsets>
-            <x-m><value>{OFFSET_X}</value></x-m>
-            <y-m><value>{OFFSET_Y}</value></y-m>
-            <z-m><value>{OFFSET_Z}</value></z-m>          
+            <!-- <x-m><value>{OFFSET_X}/offset-x</value></x-m>
+            <y-m><value>{OFFSET_Y}/offset-y</value></y-m>
+            <z-m><value>{OFFSET_Z}/offset-z</value></z-m>           -->
+            <x-m><property>{WEAPON_PROP_ROOT}/offset-x</property></x-m>
+            <y-m><property>{WEAPON_PROP_ROOT}/offset-y</property></y-m>
+            <z-m><property>{WEAPON_PROP_ROOT}/offset-z</property></z-m>          
             <pitch-deg>90</pitch-deg>
             <heading-deg>180</heading-deg>
         </offsets>
@@ -49,7 +52,7 @@
 
         <counter>
             <particles-per-sec>
-                <value>4</value>
+                <value>{PARTICLES_PER_SEC}</value>
                 <spread>0</spread>
             </particles-per-sec>
         </counter>

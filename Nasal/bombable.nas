@@ -10406,7 +10406,7 @@ var bombable_init_func = func(myNodeName)
 		append(listenerids, listenerid);
 	}
 
-	#we increment this each time we are inited or de-inited
+	#we increment loopid each time we are inited or de-inited
 	#when the loopid is changed it kills the timer loops that have that id
 	loopid = inc_loopid(myNodeName, "fire");
 	#start the loop to check for fire damage
@@ -10505,7 +10505,7 @@ var ground_init_func = func( myNodeName ) {
 	alts = attributes[myNodeName].altitudes;
 						
 						
-	#we increment this each time we are inited or de-inited
+	#we increment loopid each time we are inited or de-inited
 	#when the loopid is changed it kills the timer loops that have that id
 	var loopid = inc_loopid(myNodeName, "ground");
 						
@@ -10591,7 +10591,7 @@ var location_init_func = func(myNodeName)
 	setprop(""~myNodeName~"/bombable/initializers/location-initialized", 1);
 
 						
-	#we increment this each time we are inited or de-inited
+	#we increment loopid each time we are inited or de-inited
 	#when the loopid is changed it kills the timer loops that have that id
 	var loopid = inc_loopid(myNodeName, "location");
 						
@@ -10653,7 +10653,7 @@ var attack_init_func = func(myNodeName)
 	# set to 1 if initialized and 0 when de-inited. Nil if never before inited.
 	setprop(""~myNodeName~"/bombable/initializers/attack-initialized", 1);
 						
-	# we increment this each time we are inited or de-inited
+	# we increment loopid each time we are inited or de-inited
 	# when the loopid is changed it kills the timer loops that have that id
 	var loopid = inc_loopid (myNodeName, "attack");
 						
@@ -10796,13 +10796,18 @@ var weapons_init = func (myNodeName = "") {
 }
 
 ############################## weapons_init_func ##############################
-# Call to make your object fire weapons at the main aircraft
-# If the main aircraft gets in the 'fire zone' directly ahead
-# of the weapons you set up, the main aircraft will be damaged
+# Call to make your object fire weapons at the main aircraft or other AI objects
+# If the target gets in the 'fire zone' directly ahead
+# of the weapons you set up, it will be damaged
 #
 # Put this nasal code in your object's load:
 #      bombable.weapons_init (cmdarg().getPath())
-# weapFixed indicates that the weapon can only fire in a fixed direction relative to its platform
+# weapFixed indicates that the weapon can only fire in a fixed direction relative to its platform, e.g. wing-mounted MGs
+# We identify the following weapon types:  MG, cannon, rocket, tank gun, AA gun - TO DO
+# Each type has a characteristic tracer
+# The tracer is animated using the FG particle system and added to the AI model using put_tied_weapon() 
+# Individual weapons can be destroyed before the total deestruction (damage == 1) of their platform 
+# weapons_init_func() starts the main weapons_loop()
 
 var weapons_init_func = func(myNodeName) 
 {
@@ -10856,14 +10861,10 @@ var weapons_init_func = func(myNodeName)
 	setprop(""~myNodeName~"/bombable/initializers/weapons-initialized", 1);
 						
 	var count = getprop ("/bombable/fire-particles/index") ;
-	if (count == nil) {
-		count = 0; #index of first fire particle for AI aircraft
-		}
+	if (count == nil) count = 0; #index of first fire particle for AI aircraft
+
 	var rocketIndex = getprop ("/bombable/rockets/index") ;
-	if (rocketIndex == nil) {
-		rocketIndex = 0; 
-		# index into list of rocket static models
-		}
+	if (rocketIndex == nil) rocketIndex = 0; # index into list of rocket static models
 
 	foreach (elem;keys (weaps) ) 
 	{
@@ -10887,8 +10888,9 @@ var weapons_init_func = func(myNodeName)
 		# the weapon particle system is offset from the AI model origin by vector weaponOffset_m, 
 		# which is defined in the AI model include file and in the co-ordinates of the model
 		# the x-axis points 180 degrees from the direction of travel; the y-axis points right; the z-axis up
-
-		if (elem != "flak_gun_88mm_right") {
+		var weapName = thisWeapon.name;
+		# if (find( "Flak gun 88mm", weapName ) == -1) {
+		if (0 == 1) {
 			put_tied_weapon ( myNodeName, elem, "AI/Aircraft/Fire-Particles/projectile-tracer/projectile-tracer-" ~ count ~ ".xml");
 
 			setprop ("/bombable/fire-particles/projectile-tracer[" ~ count ~ "]/projectile-startsize", thisWeapon.weaponSize_m.start);
@@ -10907,14 +10909,15 @@ var weapons_init_func = func(myNodeName)
 
 			# Target Property Root Path as a string (base path for model allocation)
 			var target_weapon_path = "/bombable/fire-particles/projectile-tracer" ~ "[" ~ count ~ "]";
-			spawn_custom_tracer(myNodeName, elem, target_weapon_path, archetype_path);		
 
-			setprop ("/bombable/fire-particles/projectile-tracer[" ~ count ~ "]/projectile-startsize", thisWeapon.weaponSize_m.start);
-			setprop ("/bombable/fire-particles/projectile-tracer[" ~ count ~ "]/projectile-endsize", thisWeapon.weaponSize_m.end);
-			setprop ("/bombable/fire-particles/projectile-tracer[" ~ count ~ "]/ai-weapon-firing", 0); 
-			setprop ("/bombable/fire-particles/projectile-tracer[" ~ count ~ "]/offset-x", thisWeapon.weaponOffset_m.x); 
-			setprop ("/bombable/fire-particles/projectile-tracer[" ~ count ~ "]/offset-y", thisWeapon.weaponOffset_m.y); 
-			setprop ("/bombable/fire-particles/projectile-tracer[" ~ count ~ "]/offset-z", thisWeapon.weaponOffset_m.z); 
+			spawn_custom_tracer_func(myNodeName, elem, target_weapon_path, archetype_path, count / 10.0);
+
+			setprop (target_weapon_path ~ "/speed", 750.0);
+			setprop (target_weapon_path ~ "/ai-weapon-firing", 0); 
+			setprop (target_weapon_path ~ "/offset-x", thisWeapon.weaponOffset_m.x); 
+			setprop (target_weapon_path ~ "/offset-y", thisWeapon.weaponOffset_m.y); 
+			setprop (target_weapon_path ~ "/offset-z", thisWeapon.weaponOffset_m.z); 
+
 		}
 
 		
@@ -10937,7 +10940,7 @@ var weapons_init_func = func(myNodeName)
 		var weapFixed = (weapAngles.elevationMin == weapAngles.elevationMax) and (weapAngles.headingMin == weapAngles.headingMax) and (thisWeapon["weaponType"] != 1);
 		# do not include rockets since a different target can be assigned to each 'fixed' rocket 
 			
-		thisWeapon["aim"] = {
+		thisWeapon["aim"] = { #avariables to determine where weapon is aimed
 			nHit:0, 
 			weaponDirModelFrame:weapDir, 
 			weaponOffsetRefFrame:[0,0,0], 
@@ -10951,7 +10954,7 @@ var weapons_init_func = func(myNodeName)
 		# in the frame of reference of model and the frame of reference of the scene
 		
 		thisWeapon["fireParticle"] = count;
-		# new key to link the weapon to a fire particle
+		# an index to link the weapon to a tracer particle
 
 		if (thisWeapon["maxMissileSpeed_mps"] == nil) thisWeapon["maxMissileSpeed_mps"] = 300;
 			
@@ -10986,7 +10989,7 @@ var weapons_init_func = func(myNodeName)
 	setprop ("/bombable/fire-particles/index" , count) ; #next unassigned fire particle
 	setprop ("/bombable/rockets/index" , rocketIndex) ; #next unassigned rocket
 
-	if (ats.dimensions["safeDistance_m"] == nil) ats.dimensions["safeDistance_m"] = 200;
+	if (ats.dimensions["safeDistance_m"] == nil) ats.dimensions["safeDistance_m"] = 200; # weapons will not detonate within their safe distance
 
 	props.globals.getNode(""~myNodeName~"/bombable/weapons/listenerids",1);
 	#do the visual weapons effect setup for multiplayer . . .
@@ -11020,13 +11023,11 @@ var weapons_init_func = func(myNodeName)
 			append(listenerids, listenerid);
 		}
 		props.globals.getNode(""~myNodeName~"/bombable/weapons/listenerids",1).setValues({listenerids: listenerids});
-	}
+	} #end of multiplayer
+	
 	#don't do this bit (AI logic for automatic firing of weapons) for multiplayer, only for AI aircraft . . .
-
-	
-	
 	if (type != "multiplayer") {
-		#overall height & width of main aircraft in meters
+		# overall height & width of main aircraft in meters
 		# TODO: Obviously, this needs to be set per aircraft in an XML file, along with aircraft
 		# specific damage vulnerability etc.
 		# the target size depends on its orientation relative to the shooter
@@ -11037,15 +11038,13 @@ var weapons_init_func = func(myNodeName)
 		setWeaponPowerSkill (myNodeName);
 		stores.fillWeapons (myNodeName, 1);						
 							
-		#we increment this each time we are inited or de-inited
-		#when the loopid is changed it kills the timer loops that have that id
+		# we increment loopid each time we are inited or de-inited
+		# when the loopid is changed it kills the timer loops that have that id
 		var loopid = inc_loopid (myNodeName, "weapons");
 		settimer (  func { weapons_loop (loopid, myNodeName)}, 5 + rand());
 	}
 
 	debprint ("Effect * weapons * loaded for ", myNodeName);
-
-						
 }
 
 ############################## clamp ##############################
@@ -11320,7 +11319,7 @@ var initialize_del = func(myNodeName, id = "") {
 
 var bombable_del = func(myNodeName, id = "") {
 						
-	#we increment this each time we are inited or de-inited
+	#we increment loopid each time we are inited or de-inited
 	#when the loopid is changed it kills the timer loops that have that id
 	inc_loopid(myNodeName, "fire");
 	inc_loopid(myNodeName, "attributes");
@@ -11351,7 +11350,7 @@ var bombable_del = func(myNodeName, id = "") {
 # bombable.bombable_del (cmdarg().getPath());
 var ground_del = func(myNodeName) {
 						
-	# we increment this each time we are inited or de-inited
+	# we increment loopid each time we are inited or de-inited
 	# when the loopid is changed it kills the timer loops that have that id
 	var loopid = inc_loopid(myNodeName, "ground");
 	var haloopid = inc_loopid(myNodeName, "height_adjust");
@@ -11372,7 +11371,7 @@ var ground_del = func(myNodeName) {
 var location_del = func(myNodeName) {
 						
 						
-	#we increment this each time we are inited or de-inited
+	#we increment loopid each time we are inited or de-inited
 	#when the loopid is changed it kills the timer loops that have that id
 	var loopid = inc_loopid(myNodeName, "location");
 						
@@ -11390,7 +11389,7 @@ var location_del = func(myNodeName) {
 
 var attack_del = func(myNodeName) 
 {
-	#we increment this each time we are inited or de-inited
+	#we increment loopid each time we are inited or de-inited
 	#when the loopid is changed it kills the timer loops that have the old id
 	var loopid = inc_loopid(myNodeName, "attack");
 	var speedAdjust_loopid = inc_loopid(myNodeName, "speed_adjust");
@@ -11412,7 +11411,7 @@ var weapons_del = func(myNodeName)
 	#set this to 0/false when de-inited
 	setprop(""~myNodeName~"/bombable/initializers/weapons-initialized", 0);
 						
-	#we increment this each time we are inited or de-inited
+	#we increment loopid each time we are inited or de-inited
 	#when the loopid is changed it kills the timer loops that have that id
 	var loopid = inc_loopid(myNodeName, "weapons");
 	var loopid2 = inc_loopid(myNodeName, "weaponsOrientation");
@@ -11723,7 +11722,7 @@ var bombableInit = func {
 	#props.globals.getNode(bomb_menu_pp~, 1).setBoolValue(1);
 	#  setprop (bomb_menu_save_lock, 0); #save_lock prevents this change from being written to the menu save file
 						
-	#we increment this each time we are inited or de-inited
+	#we increment loopid each time we are inited or de-inited
 	#when the loopid is changed it kills the timer loops that have that id
 	var loopid = inc_loopid("", "fire");
 	settimer(func{fire_loop(loopid,"");},5.04 + rand());
@@ -13634,6 +13633,13 @@ var replace_placeholders = func(myString, target, replacement) {
     return newString;
 };
 
+########################## spawn_custom_tracer_func ###########################
+var spawn_custom_tracer_func = func(node, weapon_elem, prop_path, arch_path, delay) {
+    settimer(func {
+        spawn_custom_tracer(node, weapon_elem, prop_path, arch_path);
+    }, delay);
+};
+
 ########################## spawn_custom_tracer ###########################
 # change target weapon path to use ai_path when working
 # change ai_path > myNodeName for consistency
@@ -13655,6 +13661,8 @@ var spawn_custom_tracer = func(ai_path, elem, target_weapon_path, archetype_path
     var offset_x = thisWeapon.weaponOffset_m.x;
     var offset_y = thisWeapon.weaponOffset_m.y;
     var offset_z = thisWeapon.weaponOffset_m.z;
+	var tps = thisWeapon.roundsPerSec;
+	var tracersPerSec = (tps > 1) ? math.sqrt(tps) : tps;
 
 	# 1. Read template file into string atomically using io.readfile
     var xml_content = io.readfile(archetype_path);
@@ -13670,6 +13678,7 @@ var spawn_custom_tracer = func(ai_path, elem, target_weapon_path, archetype_path
     xml_content = replace_placeholders(xml_content, "{START_SIZE}", start_size);
     xml_content = replace_placeholders(xml_content, "{END_SIZE}", end_size);
     xml_content = replace_placeholders(xml_content, "{WEAPON_PROP_ROOT}", target_weapon_path);
+    xml_content = replace_placeholders(xml_content, "{PARTICLES_PER_SEC}", tracersPerSec);
 
     # Note: WEAPON_PROP_ROOT is an absolute path
 
@@ -13702,19 +13711,22 @@ var spawn_custom_tracer = func(ai_path, elem, target_weapon_path, archetype_path
         "roll-deg-prop":       ai_path ~ "/" ~ elem ~ "/orientation/roll-deg",
     });
 
-    settimer(func {
-    	fgcommand("add-model", add_model_args);
-    }, 0.1); # delay to allow file write buffer to flush
+    # settimer(func {
+    # 	fgcommand("add-model", add_model_args);
+    # }, 0.1); # delay to allow file write buffer to flush
+	fgcommand("add-model", add_model_args);
 
     # 5. Delayed sequence: Find newly created index, apply parameters using setprop
-    settimer(func {
+    # settimer(func {
 
-                # Set weapon parameters on the newly allocated index via setprop
-                setprop(target_weapon_path ~ "/speed", 750.0);
-                setprop(target_weapon_path ~ "/ai-weapon-firing", 0);
+    #             # Set weapon parameters on the newly allocated index via setprop
+    #             setprop(target_weapon_path ~ "/speed", 750.0);
+    #             setprop(target_weapon_path ~ "/ai-weapon-firing", 0);
 
-                print("TEST SUCCESS: Initialized weapon parameters for ", target_weapon_path);
-    }, 0.2);
+    #             print("TEST SUCCESS: Initialized weapon parameters for ", target_weapon_path);
+    # }, 0.2);
+
+	print("TEST SUCCESS: Initialized weapon parameters for ", target_weapon_path);
 }
 
 ########################## END ###########################

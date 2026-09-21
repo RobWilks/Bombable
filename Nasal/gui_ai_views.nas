@@ -348,7 +348,7 @@ var show_ai_view_menu_in_memory = func {
         # ideally would be able to set a default in the ufo-bombable.xml file for aircraft config 
         # but there seem to be additional offsets applied when the view is first created
         setprop(x_off_prop, (cur_x != nil) ? cur_x : 0.0);
-        setprop(y_off_prop, (cur_y != nil and cur_y != 0.0) ? cur_y : 15.0);
+        setprop(y_off_prop, (cur_y != nil and cur_y != 0.0) ? cur_y : -15.0);
         setprop(z_off_prop, (cur_z != nil and cur_z != 0.0) ? cur_z : -40.0);
     }
 

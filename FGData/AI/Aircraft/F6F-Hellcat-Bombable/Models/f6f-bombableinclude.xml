@@ -190,7 +190,7 @@
                 weaponAngle_deg  :  { heading: 0, elevation: 0, headingMin: 0, headingMax: 0, elevationMin: 0, elevationMax: 0  }, # direction the aircraft's main weapon is aimed.   
                                                                   # 0,0 = straight ahead, 90,0=directly right, 0,90=directly up, 0,180=directly back, etc.
                 weaponOffset_m : {x:-2.83833, y:-2.53702, z: -0.204998}, # Offset of the weapon from the main aircraft center
-                weaponSize_m : {start:.1, end:.1}, # Visual size of the weapon's projectile, in meters, at start & end of its path
+                weaponSize_m : {start: .95, end: .95 }, # Visual size of the weapon's projectile, in meters, at start & end of its path
 				nRounds : 1200, #3 stations
 				roundsPerSec : 6, #assuming 3 firing
 				accuracy : 3, 
@@ -205,7 +205,7 @@
                 weaponAngle_deg  :  { heading: 0, elevation: 0, headingMin: 0, headingMax: 0, elevationMin: 0, elevationMax: 0  }, # direction the aircraft's main weapon is aimed.   
                                                                   # 0,0 = straight ahead, 90,0=directly right, 0,90=directly up, 0,180=directly back, etc.
                 weaponOffset_m : {x:-2.83833, y: 2.53702, z: -0.204998}, # Offset of the weapon from the main aircraft center
-                weaponSize_m : {start:.1, end:.1}, # Visual size of the weapon's projectile, in meters, at start & end of its path
+                weaponSize_m : {start: .95, end: .95 }, # Visual size of the weapon's projectile, in meters, at start & end of its path
 				nRounds : 1200, #3 stations
 				roundsPerSec : 6, #assuming 3 firing
 				accuracy : 3,

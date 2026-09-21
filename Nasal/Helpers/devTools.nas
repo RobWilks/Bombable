@@ -307,6 +307,39 @@ var elem=weaps.flak_gun_88mm_right;
 bombable.fireAIWeapon (time_sec, myNodeName, elem, speed);
 print("index = " ~ elem.fireParticle);
 
+#b17
+var myNodeName = "/ai/models/aircraft";
+var ats = bombable.attributes[myNodeName];
+var weaps=ats.weapons;
+var time_sec = 2.0;
+var speed=700;
+var elem=weaps.rear_gun;
+bombable.fireAIWeapon (time_sec, myNodeName, elem, speed);
+print("index = " ~ elem.fireParticle);
+var elem=weaps.chin_turret_gun;
+bombable.fireAIWeapon (time_sec, myNodeName, elem, speed);
+print("index = " ~ elem.fireParticle);
+
+#f6f
+var myNodeName = "/ai/models/aircraft[1]";
+var ats = bombable.attributes[myNodeName];
+var weaps=ats.weapons;
+var time_sec = 2.0;
+var speed=700;
+var elem=weaps.front_gun_left;
+bombable.fireAIWeapon (time_sec, myNodeName, elem, speed);
+print("index = " ~ elem.fireParticle);
+
+#zero
+var myNodeName = "/ai/models/aircraft[2]";
+var ats = bombable.attributes[myNodeName];
+var weaps=ats.weapons;
+var time_sec = 3.0;
+var speed=700;
+var elem=weaps.front_gun;
+bombable.fireAIWeapon (time_sec, myNodeName, elem, speed);
+print("index = " ~ elem.fireParticle);
+
 ##################### add model ##########################
 # var weapon_node = ai_node.getNode("models/model[13]", 1);
 
