@@ -329,8 +329,11 @@ var speed=700;
 var elem=weaps.front_gun_left;
 bombable.fireAIWeapon (time_sec, myNodeName, elem, speed);
 print("index = " ~ elem.fireParticle);
+var elem=weaps.front_gun_right;
+bombable.fireAIWeapon (time_sec, myNodeName, elem, speed);
+print("index = " ~ elem.fireParticle);
 
-#zero
+#a62m
 var myNodeName = "/ai/models/aircraft[2]";
 var ats = bombable.attributes[myNodeName];
 var weaps=ats.weapons;
@@ -339,7 +342,9 @@ var speed=700;
 var elem=weaps.front_gun;
 bombable.fireAIWeapon (time_sec, myNodeName, elem, speed);
 print("index = " ~ elem.fireParticle);
-
+var elem=weaps.front_cannon;
+bombable.fireAIWeapon (time_sec, myNodeName, elem, speed);
+print("index = " ~ elem.fireParticle);
 ##################### add model ##########################
 # var weapon_node = ai_node.getNode("models/model[13]", 1);
 
@@ -539,6 +544,78 @@ if (models_node != nil) {
 
 ################ print out targetting data ##############      
 var myNodeName = "/ai/models/static";
+var ats = bombable.attributes[myNodeName];
+var myTargets = ats.targetIndex;
+var nTargets = size(myTargets);
+debug.dump(bombable.nodes);
+debug.dump(myTargets);
+foreach (elem; keys (ats.weapons) ) 
+{	
+    var thisWeapon = ats.weapons[elem];
+    if (thisWeapon.destroyed == 1) 
+    {
+        print("" ~ elem ~ " destroyed");
+        continue; #skip this weapon if destroyed
+    }
+    var ind = thisWeapon.aim.target; # index of object to shoot at
+    var pos = vecindex(myTargets, ind);
+    print (elem ~ " is targetting " ~ ind);
+    if ( bombable.stores.checkWeaponsReadiness ( myNodeName, elem ) == 0) 
+    {
+        print("" ~ elem ~ " out of ammo");
+        continue; # can only shoot if ammo left!
+    }
+}
+
+var myNodeName = "/ai/models/aircraft";
+var ats = bombable.attributes[myNodeName];
+var myTargets = ats.targetIndex;
+var nTargets = size(myTargets);
+debug.dump(bombable.nodes);
+debug.dump(myTargets);
+foreach (elem; keys (ats.weapons) ) 
+{	
+    var thisWeapon = ats.weapons[elem];
+    if (thisWeapon.destroyed == 1) 
+    {
+        print("" ~ elem ~ " destroyed");
+        continue; #skip this weapon if destroyed
+    }
+    var ind = thisWeapon.aim.target; # index of object to shoot at
+    var pos = vecindex(myTargets, ind);
+    print (elem ~ " is targetting " ~ ind);
+    if ( bombable.stores.checkWeaponsReadiness ( myNodeName, elem ) == 0) 
+    {
+        print("" ~ elem ~ " out of ammo");
+        continue; # can only shoot if ammo left!
+    }
+}
+
+var myNodeName = "/ai/models/aircraft[1]";
+var ats = bombable.attributes[myNodeName];
+var myTargets = ats.targetIndex;
+var nTargets = size(myTargets);
+debug.dump(bombable.nodes);
+debug.dump(myTargets);
+foreach (elem; keys (ats.weapons) ) 
+{	
+    var thisWeapon = ats.weapons[elem];
+    if (thisWeapon.destroyed == 1) 
+    {
+        print("" ~ elem ~ " destroyed");
+        continue; #skip this weapon if destroyed
+    }
+    var ind = thisWeapon.aim.target; # index of object to shoot at
+    var pos = vecindex(myTargets, ind);
+    print (elem ~ " is targetting " ~ ind);
+    if ( bombable.stores.checkWeaponsReadiness ( myNodeName, elem ) == 0) 
+    {
+        print("" ~ elem ~ " out of ammo");
+        continue; # can only shoot if ammo left!
+    }
+}
+
+var myNodeName = "/ai/models/aircraft[2]";
 var ats = bombable.attributes[myNodeName];
 var myTargets = ats.targetIndex;
 var nTargets = size(myTargets);

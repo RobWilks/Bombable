@@ -5970,14 +5970,14 @@ var checkAim = func ( thisWeapon,
 		);
 	}
 
-	# calculate the displacement of the target from the weapon using the displacement between the centres of the target and shooter
-	# in effect correct the distance for the offset of the weapon relative to the shooter origin	 
+	# calculate the displacement of the target from the weapon in the ground frame
+	# using the displacement between the centres of the target and shooter
 	var targetDispRefFrame = vectorSubtract(tgtDisp, thisWeapon.aim.weaponOffsetRefFrame);
 	
 	# calculate the distance
 	var distance_m = vectorModulus(targetDispRefFrame); 
 	
-	var intercept = findIntercept(
+	var intercept = findIntercept( #intercept vector calculated in the ground frame
 		myNodeName1, myNodeName2, 
 		targetDispRefFrame,
 		distance_m,
@@ -5994,22 +5994,22 @@ var checkAim = func ( thisWeapon,
 	targetSighted = 1;
 	thisWeapon.aim.interceptSpeed = vectorModulus(intercept.vector);
 
-	var interceptDirRefFrame = vectorDivide(intercept.vector, thisWeapon.aim.interceptSpeed);
+	var interceptDirGndFrame = vectorDivide(intercept.vector, thisWeapon.aim.interceptSpeed);
 	
 	# debprint (
 		# sprintf(
 			# "intercept time =%8.1f Intercept vector =[%8.2f, %8.2f, %8.2f]",
-			# intercept.time, interceptDirRefFrame[0], interceptDirRefFrame[1], interceptDirRefFrame[2] 
+			# intercept.time, interceptDirGndFrame[0], interceptDirGndFrame[1], interceptDirGndFrame[2] 
 		# )
 	# );
 
-	#translate intercept direction to the frame of reference of the model
-	var newDir = rotate_yxz(interceptDirRefFrame, ats.pitch_deg, ats.roll_deg, -ats.myHeading_deg);
+	#rotate intercept direction to the frame of reference of the model
+	var newDirModelFrame = rotate_yxz(interceptDirGndFrame, ats.pitch_deg, ats.roll_deg, -ats.myHeading_deg);
 	
 		
-	#form vector for the current direction of weapon, weapDir, in the reference frame of the model
+	#form vector for the current direction of weapon, weapDirModelFrame, in the reference frame of the model
 	var cosWeapElev = math.cos(thisWeapon.weaponAngle_deg.elevation* D2R);
-	var weapDir = 
+	var weapDirModelFrame = 
 	[
 		cosWeapElev * math.sin(thisWeapon.weaponAngle_deg.heading* D2R),
 		cosWeapElev * math.cos(thisWeapon.weaponAngle_deg.heading* D2R),
@@ -6017,16 +6017,17 @@ var checkAim = func ( thisWeapon,
 	];
 	
 	#calculate angular offset
-	var cosOffset = dotProduct(newDir, weapDir);
+	var cosOffset = dotProduct(newDirModelFrame, weapDirModelFrame);
 	if (cosOffset > 1.0 or cosOffset < -1.0) { #trap math.acos fpt error
 		print ("cosine out of range");
 		debug.dump(thisWeapon);
-		debug.dump(newDir);
-		debug.dump(weapDir);
+		debug.dump(newDirModelFrame);
+		debug.dump(weapDirModelFrame);
 		return(0);
 	}
 
 	#calculate probability of hitting target, pRound
+	# only calculate pRound if target direction within 10 degrees of weapon direction - set by cos_max_offset
 	if (cosOffset > cos_max_offset)
 	{
 		# get targetSize. Can simplify only used here
@@ -6042,7 +6043,6 @@ var checkAim = func ( thisWeapon,
 		}
 		# debprint ("Target size ", targetSize_m.vert, " by ", targetSize_m.horz, " for ", myNodeName );
 
-		# only calculate pRound if target direction within 10 degrees of weapon direction
 		var targetOffset_rad = math.acos(cosOffset); # angular offset from weapon direction
 		var targetSize_rad = math.atan2(math.sqrt(targetSize_m.horz * targetSize_m.vert) / 2 , distance_m);	
 		# geometric mean of key dimensions and half angle
@@ -6051,8 +6051,8 @@ var checkAim = func ( thisWeapon,
 			# myNodeName1,
 			# targetOffset_rad,
 			# targetSize_rad));
-		# debprint (sprintf("newDir[%8.2f,%8.2f,%8.2f] dist=%6.0f", newDir[0], newDir[1], newDir[2], distance_m));
-		# debprint (sprintf("weapDir[%8.2f,%8.2f,%8.2f]", weapDir[0], weapDir[1], weapDir[2]));
+		# debprint (sprintf("newDirModelFrame[%8.2f,%8.2f,%8.2f] dist=%6.0f", newDirModelFrame[0], newDirModelFrame[1], newDirModelFrame[2], distance_m));
+		# debprint (sprintf("weapDirModelFrame[%8.2f,%8.2f,%8.2f]", weapDirModelFrame[0], weapDirModelFrame[1], weapDirModelFrame[2]));
 		
 		# CALCULATION OF AVERAGE NUMBER OF ROUNDS THAT HIT TARGET 
 		# nHit is the average number of rounds that hit during LOOP_TIME
@@ -6086,6 +6086,7 @@ var checkAim = func ( thisWeapon,
 		# 	targetOffset_rad * R2D,
 		# 	weapPowerSkill)
 		# );
+
 	} # end of section to calculate probability of hitting target
 
 	if (thisWeapon.aim.fixed == 1 or thisWeapon.weaponType == 1)
@@ -6094,7 +6095,7 @@ var checkAim = func ( thisWeapon,
 	# usually this will be in direction of travel of AI object 
 	# exceptions: rockets, ACs with vertically firing cannon
 	{
-		thisWeapon.aim.weaponDirRefFrame = rotate_zxy(weapDir, -ats.pitch_deg, -ats.roll_deg, ats.myHeading_deg);
+		thisWeapon.aim.weaponDirGndFrame = rotate_zxy(weapDirModelFrame, -ats.pitch_deg, -ats.roll_deg, ats.myHeading_deg);
 	}
 	else
 	{
@@ -6102,11 +6103,11 @@ var checkAim = func ( thisWeapon,
 		# a skilled gunner changes the direction of their weapon more frequently 
 		# weapons on slaved turrets ('children') must update more frequently since their aim is lost on movement of the parent turret
 		# -1 indicates that the aim has not been set yet
-		if ( rand() < weapPowerSkill * ((thisWeapon.parent != "") ? 1 : .5) or thisWeapon.aim.weaponDirRefFrame[2] == -1)
+		if ( rand() < weapPowerSkill * ((thisWeapon.parent != "") ? 1 : .5) or thisWeapon.aim.weaponDirGndFrame[2] == -1)
 		{ 
-			# ensure that newDir is in range of movement of weapon
-			var newElev = math.asin(newDir[2]) * R2D;
-			var newHeading = math.atan2(newDir[0], newDir[1]) * R2D;
+			# ensure that newDirModelFrame is in range of movement of weapon
+			var newElev = math.asin(newDirModelFrame[2]) * R2D;
+			var newHeading = math.atan2(newDirModelFrame[0], newDirModelFrame[1]) * R2D;
 
 			if (newElev < thisWeapon.weaponAngle_deg.elevationMin)
 				newElev = thisWeapon.weaponAngle_deg.elevationMin;
@@ -6118,19 +6119,19 @@ var checkAim = func ( thisWeapon,
 			
 			
 			var cosNewElev = math.cos(newElev* D2R);
-			newDir = 
+			newDirModelFrame = 
 			[
 				cosNewElev * math.sin(newHeading* D2R),
 				cosNewElev * math.cos(newHeading* D2R),
 				math.sin(newElev* D2R)
 			];
 
-			thisWeapon.aim.weaponDirModelFrame = newDir;
-			thisWeapon.aim.weaponDirRefFrame = rotate_zxy(newDir, -ats.pitch_deg, -ats.roll_deg, ats.myHeading_deg);
+			thisWeapon.aim.weaponDirModelFrame = newDirModelFrame;
+			thisWeapon.aim.weaponDirGndFrame = rotate_zxy(newDirModelFrame, -ats.pitch_deg, -ats.roll_deg, ats.myHeading_deg);
 		}
 	}
 	return (targetSighted); 	
-}
+} # end of checkAim
 
 ############################ weapons_loop #############################
 # weapons_loop - main timer loop to check AI weapon aim & damage
@@ -6146,10 +6147,12 @@ var checkAim = func ( thisWeapon,
 # to calculate target distance. That is far more frugal of CPU time than
 # geoCoord and directdistanceto.
 			
+# myNodeName1 is the AI aircraft and myNodeName2 is its target
+# targetIndex[] is a vector containing indices of myNodeName1 targets; nodes[] is the lookup vector
+
 var weapons_loop = func (id, myNodeName1 = "") {
 	var ats = attributes[myNodeName1];
 	#we increment loopid if we want to kill this timer loop.  So check if we need to kill/exit:
-	#myNodeName1 is the AI aircraft and myNodeName2 is its target
 	id == ats.loopids.weapons_loopid or return;
 				
 	var loopTime = LOOP_TIME ;
@@ -6207,6 +6210,7 @@ var weapons_loop = func (id, myNodeName1 = "") {
 	var detectionRange = 7000;
 	var indexClosest = nil;
 	ats.attacks.allGround = 1;
+
 	# find distance and displacement of all targets and store the closest
 	foreach (target; myTargets)
 	{
@@ -6273,10 +6277,11 @@ var weapons_loop = func (id, myNodeName1 = "") {
 			return;
 		}
 
+		# Check line of sight for ground vehicles by calculating 
+		# the height above ground of the bullet trajectory at the mid point between shooter and target
 		var groundCheck = 1;
 		if (ats.type == "groundvehicle")
 		{
-			# check line of sight by calculating the height above ground of the bullet trajectory at the mid point between shooter and target
 			var mid_lat_deg = (alat_deg + targetLat_deg) / 2;
 			var mid_lon_deg = (alon_deg + targetLon_deg) / 2;
 			var mid_Alt_m = (aAlt_m + targetAlt_m) / 2;
@@ -6290,11 +6295,11 @@ var weapons_loop = func (id, myNodeName1 = "") {
 
 		if (target and ats2.nRockets > 0) append(rocketCarriers, target); # separate check for main AC
 
-	}
+	} # end of targets loop
 	if (noLoS) return; #if no target in line of sight then no need to check aim.  Assumption! Does not hold for self-guided rockets or parabolic flight trajectory
 
 			
-	foreach (elem; keys (ats.weapons) ) 
+	foreach (elem; keys (ats.weapons) ) #iterate through each weapon on platform
 	{	
 		var thisWeapon = ats.weapons[elem];
 		if (thisWeapon.destroyed == 1) continue; #skip this weapon if destroyed
@@ -6307,7 +6312,7 @@ var weapons_loop = func (id, myNodeName1 = "") {
 		# find the node of that rocket
 		# ignore any rocket that is targeting me
 		# if none available select from other targets
-		# 
+		# aim.rn is the name of rocket used as target
 
 		{
 			var rockets = [];
@@ -6380,6 +6385,7 @@ var weapons_loop = func (id, myNodeName1 = "") {
 		var tgtDisp = [targetData[pos][0], targetData[pos][1], targetData[pos][2]];
 		var myNodeName2 = nodes[ind];
 
+		# check weapon aim and update weapon orientation if a target has been sighted
 		if (thisWeapon.weaponType == 0) 
 		{
 			var targetSighted = checkAim
@@ -6392,8 +6398,7 @@ var weapons_loop = func (id, myNodeName1 = "") {
 				);
 			if ( targetSighted ) weaponsOrientationPositionUpdate(myNodeName1, elem);
 		}
-	
-		if (thisWeapon.weaponType == 1) #rocket section
+		elsif (thisWeapon.weaponType == 1) #rocket section
 		{
 			if (thisWeapon.controls.launched == 1) continue;
 
@@ -6417,7 +6422,7 @@ var weapons_loop = func (id, myNodeName1 = "") {
 				if (rand() < 0.02 * weapPowerSkill * threatLevel / (r * r * r + 1)) launchRocket (id, myNodeName1, elem);
 			}
 			continue;
-		} # end of rocket section
+		} # end of rocket section.  No further processing for rockets in weapons_loop()
 	
 		# if (ats.index == 1) debprint("Weapons_loop for ", nodes[ats.index], " target = ", ind, "pos = ", pos, sprintf(" distance = %5.0fm nHit = %5.3f", targetData[pos][3], thisWeapon.aim.nHit));
 		if (thisWeapon.aim.nHit == 0) 
@@ -6532,7 +6537,7 @@ var weapons_loop = func (id, myNodeName1 = "") {
 var launchRocket = func (id, myNodeName1, elem) {
 	var ats = attributes[myNodeName1];
 	var thisWeapon = ats.weapons[elem];
-	if (thisWeapon.aim.weaponDirRefFrame[2] == -1) return; # cannot launch rocket before checkAim called
+	if (thisWeapon.aim.weaponDirGndFrame[2] == -1) return; # cannot launch rocket before checkAim called
 	var delta_t = LOOP_TIME;
 
 	# get speed and orientation of launchpad or guide rail
@@ -6570,7 +6575,7 @@ var launchRocket = func (id, myNodeName1, elem) {
 	# release time = time the rocket is guided by the tube or rail
 
 	
-	thisWeapon.velocities.thrustDir = thisWeapon.aim.weaponDirRefFrame;
+	thisWeapon.velocities.thrustDir = thisWeapon.aim.weaponDirGndFrame;
 	# acceleration in launch tube (length s) is thrust - weight / mass
 	# s = ut + 1/2 at^2
 	# 
@@ -6590,8 +6595,8 @@ var launchRocket = func (id, myNodeName1, elem) {
 
 	# AI model of rocket initiated by moving it from {lat, lon} {0, 0} to location of AC / ship
 	var rp = "ai/models/static[" ~ thisWeapon.modelIndex ~ "]";
-	var pitch = math.asin(thisWeapon.aim.weaponDirRefFrame[2]) * R2D; # orientation of rocket
-	var heading = math.atan2(thisWeapon.aim.weaponDirRefFrame[0], thisWeapon.aim.weaponDirRefFrame[1]) * R2D;
+	var pitch = math.asin(thisWeapon.aim.weaponDirGndFrame[2]) * R2D; # orientation of rocket
+	var heading = math.atan2(thisWeapon.aim.weaponDirGndFrame[0], thisWeapon.aim.weaponDirGndFrame[1]) * R2D;
 
 	thisWeapon.position.latitude_deg = alat_deg;
 	thisWeapon.position.longitude_deg = alon_deg;
@@ -7118,7 +7123,7 @@ var guideRocket = func
 		# }
 		thisWeapon.aim.interceptSpeed = math.sqrt ( intercept.vector[0] * intercept.vector[0] + intercept.vector[1] * intercept.vector[1] + intercept.vector[2] * intercept.vector[2] );
 
-		var interceptDirRefFrame = 
+		var interceptDirGndFrame = 
 		[
 			intercept.vector[0] / nextMissileSpeed,
 			intercept.vector[1] / nextMissileSpeed,
@@ -7129,7 +7134,7 @@ var guideRocket = func
 	# no intercept - at start of flight it is not possible to calculate an intercept because the speed is too low 
 	{
 		# if (!thisWeapon.modelIndex) debprint("No intercept");
-		var interceptDirRefFrame =
+		var interceptDirGndFrame =
 		[
 			targetDispRefFrame[0] / distance_m,
 			targetDispRefFrame[1] / distance_m,
@@ -7165,7 +7170,7 @@ var guideRocket = func
 			if (( aAlt_m - ground_Alt_m < -2.0 * a_delta_dist * missileDir[2] ) and
 			( distance_m > 2.0 * a_delta_dist )) # look ahead distance - factors of 2 arbitrary
 			{
-				interceptDirRefFrame = [0, 0, 1]; # instead might follow gradient of ground in xy direction of travel
+				interceptDirGndFrame = [0, 0, 1]; # instead might follow gradient of ground in xy direction of travel
 				# debprint (
 				# 	sprintf(
 				# 		"ground avoidance: AGL =%8.1f Vertical speed =%8.1f mps",
@@ -7178,7 +7183,7 @@ var guideRocket = func
 			# only turn if space to do so, otherwise waste energy
 			# TODO make this a smooth reduction in size of turn?
 			{
-			var cosOffset = dotProduct(missileDir, interceptDirRefFrame);
+			var cosOffset = dotProduct(missileDir, interceptDirGndFrame);
 			var allowedTurn = distance_m * turnRate / missileSpeed_mps;
 			if (cosOffset < -0.95) # 162 deg
 				{
@@ -7204,19 +7209,19 @@ var guideRocket = func
 
 	if (turnRate != 0) 
 	{
-		var newDir = changeDirection( thisWeapon, missileDir, interceptDirRefFrame, missileSpeed_mps, turnRate ) ; 
+		var newDirModelFrame = changeDirection( thisWeapon, missileDir, interceptDirGndFrame, missileSpeed_mps, turnRate ) ; 
 		var turnRad = thisWeapon.pidData.phi.out;
 	}
 	else
 	{
-		var newDir = missileDir;
+		var newDirModelFrame = missileDir;
 		var turnRad = 0;
 	}
 
 	# creates set of intermediate positions in wayPoint hash
 	# incremental change in position given by vector newMissileDir * time_inc
 	# newMissileDir changes each time increment
-	var newV = newVelocity( thisWeapon, missileSpeed_mps, newDir, turnRad, delta_t, aAlt_m );
+	var newV = newVelocity( thisWeapon, missileSpeed_mps, newDirModelFrame, turnRad, delta_t, aAlt_m );
 
 	var newMissileSpeed_mps = math.sqrt ( newV[0] * newV[0] + newV[1] * newV[1] + newV[2] * newV[2] );
 	var newMissileDir = 
@@ -7317,7 +7322,7 @@ var guideRocket = func
 	# debprint (
 	# 	sprintf(
 	# 		"intercept vector  =[%8.3f, %8.3f, %8.3f] intercept time =%8.1f",
-	# 		interceptDirRefFrame[0], interceptDirRefFrame[1], interceptDirRefFrame[2],
+	# 		interceptDirGndFrame[0], interceptDirGndFrame[1], interceptDirGndFrame[2],
 	# 		intercept.time
 	# 	)
 	# );
@@ -7409,7 +7414,7 @@ var changeDirection = func ( thisWeapon, missileDir, interceptDir, missileSpeed_
 
 	if ( turnRate == 0 ) return (missileDir);
 
-	var newDir =
+	var newDirModelFrame =
 		[ 
 			math.cos(thetaNew) * math.sin(phiNew),
 			math.cos(thetaNew) * math.cos(phiNew),
@@ -7430,11 +7435,11 @@ var changeDirection = func ( thisWeapon, missileDir, interceptDir, missileSpeed_
 	}
 	else
 	{
-		thisWeapon.velocities.thrustDir = newDir;
+		thisWeapon.velocities.thrustDir = newDirModelFrame;
 	}
 
 
-	return ( newDir );
+	return ( newDirModelFrame );
 }
 
 ############################ newVelocity ##############################
@@ -7996,7 +8001,7 @@ stores.fillWeapons = func (myNodeName, amount = 1) {
 		}
 		thisWeapon.destroyed = 0;
 		thisWeapon.aim.target = -1;
-		thisWeapon.aim.weaponDirRefFrame = [0,0,-1];
+		thisWeapon.aim.weaponDirGndFrame = [0,0,-1];
 	}
 	if (nRockets) ats.attacks.rocketsInAir = 0; # used to trigger rocket launch
 	ats.nRockets = nRockets; # rockets available on platform accounting for those already launched 
@@ -10718,8 +10723,8 @@ var weaponsOrientationPositionUpdate = func (myNodeName, elem) {
 	# next, point the projectile
 	# the projectile models follow the aircraft using these orientation and position data from the property tree
 
-	var newElev_ref = math.asin(aim.weaponDirRefFrame[2]) * R2D;
-	var newHeading_ref = math.atan2(aim.weaponDirRefFrame[0], aim.weaponDirRefFrame[1]) * R2D;
+	var newElev_ref = math.asin(aim.weaponDirGndFrame[2]) * R2D;
+	var newHeading_ref = math.atan2(aim.weaponDirGndFrame[0], aim.weaponDirGndFrame[1]) * R2D;
 	setprop("" ~ myNodeName ~ "/" ~ elem ~ "/orientation/pitch-deg", newElev_ref);
 	setprop("" ~ myNodeName ~ "/" ~ elem ~ "/orientation/true-heading-deg", newHeading_ref);
 
@@ -10808,6 +10813,7 @@ var weapons_init = func (myNodeName = "") {
 # The tracer is animated using the FG particle system and added to the AI model using put_tied_weapon() 
 # Individual weapons can be destroyed before the total deestruction (damage == 1) of their platform 
 # weapons_init_func() starts the main weapons_loop()
+# 
 
 var weapons_init_func = func(myNodeName) 
 {
@@ -10921,10 +10927,10 @@ var weapons_init_func = func(myNodeName)
 		}
 
 		
-		# form vector for weapon direction, weapDir
+		# form vector for weapon direction, weapDirModelFrame
 		var weapAngles = thisWeapon.weaponAngle_deg;
 		var cosWeapElev = math.cos(weapAngles.elevation* D2R);
-		var weapDir = [
+		var weapDirModelFrame = [
 			cosWeapElev * math.sin(weapAngles.heading* D2R),
 			cosWeapElev * math.cos(weapAngles.heading* D2R),
 			math.sin(weapAngles.elevation* D2R)
@@ -10942,9 +10948,9 @@ var weapons_init_func = func(myNodeName)
 			
 		thisWeapon["aim"] = { #avariables to determine where weapon is aimed
 			nHit:0, 
-			weaponDirModelFrame:weapDir, 
+			weaponDirModelFrame:weapDirModelFrame, 
 			weaponOffsetRefFrame:[0,0,0], 
-			weaponDirRefFrame:[0,0,-1], #-1 flag to show not initialized 
+			weaponDirGndFrame:[0,0,-1], #-1 flag to show not initialized 
 			lastTargetVelocity:[0,0,0],
 			interceptSpeed:0,
 			fixed:weapFixed, 
@@ -11045,7 +11051,7 @@ var weapons_init_func = func(myNodeName)
 	}
 
 	debprint ("Effect * weapons * loaded for ", myNodeName);
-}
+} # end of weapons_init_func
 
 ############################## clamp ##############################
 # clamps value of a between minA and maxA
@@ -12212,7 +12218,7 @@ var findRoots = func(a, b, c)
 # calculate intercept vector given:
 # speed of interceptor, displacement vector between aircraft1 and aircraft2
 # dist_m is the magnitude of the displacement vector
-# returns hash of time to intercept and velocity vector of interceptor
+# returns hash of time to intercept and velocity vector of interceptor in the ground frame
 var findIntercept = func (myNodeName1, myNodeName2, displacement, dist_m, interceptSpeed) {
 	var speed1 = getprop(""~myNodeName1~"/velocities/true-airspeed-kt") * KT2MPS; # AI
 	var pitch1 = getprop(""~myNodeName1~"/orientation/pitch-deg") * D2R;
