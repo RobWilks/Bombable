@@ -5889,10 +5889,10 @@ var vertAngle_deg = func (geocoord1, geocoord2) {
 
 # pRound is the probability of one round hitting the target calculated as the 
 # overlap of the solid angle subtended by the target and a cone of 'accuracy' radians subtended by the shooter
-# function updates thisWeapon.aim with weapon direction vectors in model and reference frames
+# function updates thisWeapon.aim with weapon direction vectors in model and ground reference frames
 # in 3D model co-ords the x-axis points 180 deg from direction of travel i.e. backwards
 # the y-axis points at 90 deg to the direction of travel i.e. to the right
-# weaponOffset is given in model co-ords; weaponOffsetRefFrame in the ground frame
+# weaponOffset is given in model co-ords; weaponOffsetGndFrame in the ground frame
 # weaponAngle is a hash with components heading and elevation
 # Function called only by weapons_loop
 			
@@ -5912,7 +5912,7 @@ var checkAim = func ( thisWeapon,
 	# debprint ("AI weapons, ", myNodeName1, ", ", myNodeName2);
 	if (rand() < damageValue) return (targetSighted) ;
 
-	# correct targetDispRefFrame for weapon offset
+	# correct targetDispGndFrame for weapon offset
 	# find interceptDir the direction required for a missile travelling at a constant speed to intercept the target 
 	# given the relative velocities of shooter(1) and target(2)
 	# calculate the angle between the direction in which the weapon is aimed and interceptDir
@@ -5921,7 +5921,7 @@ var checkAim = func ( thisWeapon,
 	if (thisWeapon.parent == "")
 	{
 		# calculate the offset of the weapon in the ground reference frame
-		thisWeapon.aim.weaponOffsetRefFrame = rotate_zxy
+		thisWeapon.aim.weaponOffsetGndFrame = rotate_zxy
 		(
 			[
 			thisWeapon.weaponOffset_m.y,
@@ -5959,7 +5959,7 @@ var checkAim = func ( thisWeapon,
 		setprop("bombable/fire-particles/projectile-tracer[" ~ index ~ "]/offset-y", myOffset[1]);
 		setprop("bombable/fire-particles/projectile-tracer[" ~ index ~ "]/offset-z", myOffset[2]);
 
-		thisWeapon.aim.weaponOffsetRefFrame = rotate_zxy
+		thisWeapon.aim.weaponOffsetGndFrame = rotate_zxy
 		(
 			[
 			myOffset[1],
@@ -5972,14 +5972,14 @@ var checkAim = func ( thisWeapon,
 
 	# calculate the displacement of the target from the weapon in the ground frame
 	# using the displacement between the centres of the target and shooter
-	var targetDispRefFrame = vectorSubtract(tgtDisp, thisWeapon.aim.weaponOffsetRefFrame);
+	var targetDispGndFrame = vectorSubtract(tgtDisp, thisWeapon.aim.weaponOffsetGndFrame);
 	
 	# calculate the distance
-	var distance_m = vectorModulus(targetDispRefFrame); 
+	var distance_m = vectorModulus(targetDispGndFrame); 
 	
 	var intercept = findIntercept( #intercept vector calculated in the ground frame
 		myNodeName1, myNodeName2, 
-		targetDispRefFrame,
+		targetDispGndFrame,
 		distance_m,
 		thisWeapon.maxMissileSpeed_mps
 	);
@@ -6091,7 +6091,7 @@ var checkAim = func ( thisWeapon,
 
 	if (thisWeapon.aim.fixed == 1 or thisWeapon.weaponType == 1)
 	# no change to weaponDirModelFrame (set in weapons_init_func)
-	# but need to calculate direction of weapon in reference frame
+	# but need to calculate direction of weapon in ground reference frame
 	# usually this will be in direction of travel of AI object 
 	# exceptions: rockets, ACs with vertically firing cannon
 	{
@@ -6226,10 +6226,10 @@ var weapons_loop = func (id, myNodeName1 = "") {
 		var deltaY_m = (targetLat_deg - alat_deg) * m_per_deg_lat;
 		var deltaAlt_m = targetAlt_m - aAlt_m;
 					
-		# calculate targetDispRefFrame, the displacement vector from node1 (shooter) to node2 (target) in a Cartesian frame of reference
+		# calculate targetDispGndFrame, the displacement vector from node1 (shooter) to node2 (target) in a Cartesian frame of reference
 		# lon-lat-alt <> x-y-z
 		# the shooter is at < 0,0,0 > 
-		var targetDispRefFrame = [deltaX_m, deltaY_m, deltaAlt_m];
+		var targetDispGndFrame = [deltaX_m, deltaY_m, deltaAlt_m];
 		var distance_m = math.sqrt(deltaX_m * deltaX_m + deltaY_m * deltaY_m + deltaAlt_m * deltaAlt_m);
 		if (distClosest < distance_m) 
 		{
@@ -6808,7 +6808,8 @@ var guideRocket = func
 			deltaLat_deg = targetLat_deg - alat_deg;
 			deltaLon_deg = targetLon_deg - alon_deg ;
 
-			# calculate targetDispRefFrame, the displacement vector from node1 (rocket) to node2 (target) in a lon-lat-alt (x-y-z) frame of reference aka 'reference frame'
+			# calculate targetDispGndFrame, the displacement vector from node1 (rocket) to node2 (target) in the ground frame of reference
+			# lon-lat-alt -> Cartesian (x-y-z) 
 			# this rocket is at < 0,0,0 > 
 			# and the target is at < deltaX,deltaY,deltaAlt > in relation to it.
 
@@ -6849,7 +6850,7 @@ var guideRocket = func
 		}
 	}
 
-	var targetDispRefFrame = [deltaX_m, deltaY_m, deltaAlt_m];
+	var targetDispGndFrame = [deltaX_m, deltaY_m, deltaAlt_m];
 	var target_delta_dist = targetSpeed * delta_t;
 	var targetVelocity =
 		[
@@ -6939,7 +6940,7 @@ var guideRocket = func
 			targetVelocity[2] - thisWeapon.velocities.missileV_mps[2]
 		];
 		var dV2 = dV[0] * dV[0] + dV[1] * dV[1] + dV[2] * dV[2];
-		var dVdotR =  dV[0] * targetDispRefFrame[0] + dV[1] * targetDispRefFrame[1] + dV[2] * targetDispRefFrame[2];
+		var dVdotR =  dV[0] * targetDispGndFrame[0] + dV[1] * targetDispGndFrame[1] + dV[2] * targetDispGndFrame[2];
 		var t_intercept  = -dVdotR / dV2;
 		if ((distance_m < damageRadius)
 			and (t_intercept <0)) t_intercept = 0; # already reached closest approach
@@ -7090,21 +7091,21 @@ var guideRocket = func
 	thisWeapon.aim.lastTargetVelocity = targetVelocity;
 	
 
-	targetDispRefFrame = 
+	targetDispGndFrame = 
 	[
-		targetDispRefFrame[0] + (targetVelocity[0] - thisWeapon.velocities.missileV_mps[0]) * delta_t,
-		targetDispRefFrame[1] + (targetVelocity[1] - thisWeapon.velocities.missileV_mps[1]) * delta_t,
-		targetDispRefFrame[2] + (targetVelocity[2] - thisWeapon.velocities.missileV_mps[2]) * delta_t
+		targetDispGndFrame[0] + (targetVelocity[0] - thisWeapon.velocities.missileV_mps[0]) * delta_t,
+		targetDispGndFrame[1] + (targetVelocity[1] - thisWeapon.velocities.missileV_mps[1]) * delta_t,
+		targetDispGndFrame[2] + (targetVelocity[2] - thisWeapon.velocities.missileV_mps[2]) * delta_t
 	];
 
-	distance_m = math.sqrt ( targetDispRefFrame[0] * targetDispRefFrame[0] + targetDispRefFrame[1] * targetDispRefFrame[1] + targetDispRefFrame[2] * targetDispRefFrame[2] );
+	distance_m = math.sqrt ( targetDispGndFrame[0] * targetDispGndFrame[0] + targetDispGndFrame[1] * targetDispGndFrame[1] + targetDispGndFrame[2] * targetDispGndFrame[2] );
 
 
 	# find the velocity vector of a missile travelling at nextMissileSpeed (constant over journey)
 	# to intercept the target
 
 	var intercept = findIntercept2(
-		targetDispRefFrame,
+		targetDispGndFrame,
 		distance_m,
 		nextMissileSpeed,
 		nextTargetVelocity
@@ -7136,9 +7137,9 @@ var guideRocket = func
 		# if (!thisWeapon.modelIndex) debprint("No intercept");
 		var interceptDirGndFrame =
 		[
-			targetDispRefFrame[0] / distance_m,
-			targetDispRefFrame[1] / distance_m,
-			targetDispRefFrame[2] / distance_m
+			targetDispGndFrame[0] / distance_m,
+			targetDispGndFrame[1] / distance_m,
+			targetDispGndFrame[2] / distance_m
 		];
 	}
 
@@ -10709,7 +10710,7 @@ var weaponsOrientationPositionUpdate = func (myNodeName, elem) {
 	if (!aim.fixed)
 	{	
 		# first, point the weapon.  The first frame is relative to the model, 
-		# the second is lon-lat-alt (x-y-z), aka 'reference frame'
+		# the second is lon-lat-alt (x-y-z), aka 'ground reference frame'
 		var newElev = math.asin(aim.weaponDirModelFrame[2]) * R2D;
 		var newHeading = math.atan2(aim.weaponDirModelFrame[0], aim.weaponDirModelFrame[1]) * R2D;
 		thisWeapon.weaponAngle_deg.heading = newHeading;
@@ -10730,13 +10731,13 @@ var weaponsOrientationPositionUpdate = func (myNodeName, elem) {
 
 	# note weapon offset in m; altitude is in feet
 	setprop("" ~ myNodeName ~ "/" ~ elem ~ "/position/altitude-ft",
-	getprop("" ~ myNodeName ~ "/position/altitude-ft") + aim.weaponOffsetRefFrame[2] * M2FT);
+	getprop("" ~ myNodeName ~ "/position/altitude-ft") + aim.weaponOffsetGndFrame[2] * M2FT);
 
 	setprop("" ~ myNodeName ~ "/" ~ elem ~ "/position/latitude-deg",
-	getprop("" ~ myNodeName ~ "/position/latitude-deg") + aim.weaponOffsetRefFrame[1] / m_per_deg_lat); 
+	getprop("" ~ myNodeName ~ "/position/latitude-deg") + aim.weaponOffsetGndFrame[1] / m_per_deg_lat); 
 
 	setprop("" ~ myNodeName ~ "/" ~ elem ~ "/position/longitude-deg",
-	getprop("" ~ myNodeName ~ "/position/longitude-deg") + aim.weaponOffsetRefFrame[0] / m_per_deg_lon);
+	getprop("" ~ myNodeName ~ "/position/longitude-deg") + aim.weaponOffsetGndFrame[0] / m_per_deg_lon);
 
 		
 	# debprint("weaponsOrientationPositionUpdate " ~ elem ~ 
@@ -10949,7 +10950,7 @@ var weapons_init_func = func(myNodeName)
 		thisWeapon["aim"] = { #avariables to determine where weapon is aimed
 			nHit:0, 
 			weaponDirModelFrame:weapDirModelFrame, 
-			weaponOffsetRefFrame:[0,0,0], 
+			weaponOffsetGndFrame:[0,0,0], 
 			weaponDirGndFrame:[0,0,-1], #-1 flag to show not initialized 
 			lastTargetVelocity:[0,0,0],
 			interceptSpeed:0,
@@ -12270,7 +12271,7 @@ var findIntercept = func (myNodeName1, myNodeName2, displacement, dist_m, interc
 				displacement[1] / chooseRoot + velocity2[1],
 				displacement[2] / chooseRoot + velocity2[2]
 				] 
-	}); # in earth reference frame
+	}); # in ground reference frame
 }
 
 ########################## findIntercept2 ###########################
@@ -12307,7 +12308,7 @@ var findIntercept2 = func (r21, modr21, speed1, velocity2) {
 				r21[1] / chooseRoot + velocity2[1],
 				r21[2] / chooseRoot + velocity2[2]
 				] 
-	}); # in earth reference frame
+	}); # in ground reference frame
 }	
 
 ########################## findIntercept3 ###########################
@@ -12359,7 +12360,7 @@ var findIntercept3 = func (myNodeName2, displacement, speed1) {
 				displacement[1] / chooseRoot + velocity2[1],
 				displacement[2] / chooseRoot + velocity2[2]
 				] 
-	}); # in earth reference frame
+	}); # in ground reference frame
 }
 
 ########################## vectorModulus ###########################
