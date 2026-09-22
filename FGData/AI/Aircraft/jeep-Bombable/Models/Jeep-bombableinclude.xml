@@ -55,7 +55,7 @@
         # "c:/Program Files/FlightGear/data/AI/M1-Abrams/m1.xml" - this is not 
         # only long & complex but will change depending on the system
         # FG is running on.          
-        aircraft.jeep_dlg_config = gui.Dialog.new("ai/jeep/config/dialog","AI/Aircraft/jeep-bombable/Dialogs/config.xml");
+        aircraft.jeep_dlg_config = gui.Dialog.new("ai/jeep/config/dialog","AI/Aircraft/jeep-Bombable/Dialogs/config.xml");
 				
 				#aircraft.jeep_dlg_config.toggle();
         
@@ -165,7 +165,7 @@
           # all in meters
           #                     
           altitudes : {	
-            wheelsOnGroundAGL_m : 0 , #altitude correction to add to your aircraft or ship that is needed to put wheels on ground (or, for a ship, make it float in the water at the correct level).  For most objects this is 0 but some models need a small correction to place them exactly at ground level
+            wheelsOnGroundAGL_m : 1.0 , #altitude correction to add to your aircraft or ship that is needed to put wheels on ground (or, for a ship, make it float in the water at the correct level).  For most objects this is 0 but some models need a small correction to place them exactly at ground level
             
             minimumAGL_m : 0, #minimum altitude above ground level this object is allowed to fly
             maximumAGL_m : 0, #maximum altitude AGL this object is allowed to fly	    

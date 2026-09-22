@@ -282,30 +282,18 @@ debug.dump(ats);
 debug.dump(bombable.nodes);
 
 ##################### fireAIWeapon (working) ##########################
-
-var myNodeName = "/ai/models/aircraft";
-var ats = bombable.attributes[myNodeName];
-var weaps=ats.weapons;
-var elem=weaps.top_turret_gun;
-var time_sec = 2.0;
-var speed=700;
-bombable.fireAIWeapon (time_sec, myNodeName, elem, speed);
-##################### fireAIWeapon (working) ##########################
-
+# AA gun
 var myNodeName = "/ai/models/static";
 var ats = bombable.attributes[myNodeName];
 var weaps=ats.weapons;
 var time_sec = 2.0;
 var speed=700;
-var elem=weaps.flak_gun_88mm_left;
+var elem="flak_gun_88mm_left";
 bombable.fireAIWeapon (time_sec, myNodeName, elem, speed);
-print("index = " ~ elem.fireParticle);
-var elem=weaps.flak_gun_88mm_centre;
+var elem="flak_gun_88mm_centre";
 bombable.fireAIWeapon (time_sec, myNodeName, elem, speed);
-print("index = " ~ elem.fireParticle);
-var elem=weaps.flak_gun_88mm_right;
+var elem="flak_gun_88mm_right";
 bombable.fireAIWeapon (time_sec, myNodeName, elem, speed);
-print("index = " ~ elem.fireParticle);
 
 #b17
 var myNodeName = "/ai/models/aircraft";
@@ -313,12 +301,14 @@ var ats = bombable.attributes[myNodeName];
 var weaps=ats.weapons;
 var time_sec = 2.0;
 var speed=700;
-var elem=weaps.rear_gun;
+var elem="rear_gun";
 bombable.fireAIWeapon (time_sec, myNodeName, elem, speed);
-print("index = " ~ elem.fireParticle);
-var elem=weaps.chin_turret_gun;
+var elem="chin_turret_gun";
 bombable.fireAIWeapon (time_sec, myNodeName, elem, speed);
-print("index = " ~ elem.fireParticle);
+var elem="belly_gun";
+bombable.fireAIWeapon (time_sec, myNodeName, elem, speed);
+var elem="top_turret_gun";
+bombable.fireAIWeapon (time_sec, myNodeName, elem, speed);
 
 #f6f
 var myNodeName = "/ai/models/aircraft[1]";
@@ -326,12 +316,10 @@ var ats = bombable.attributes[myNodeName];
 var weaps=ats.weapons;
 var time_sec = 2.0;
 var speed=700;
-var elem=weaps.front_gun_left;
+var elem="front_gun_left";
 bombable.fireAIWeapon (time_sec, myNodeName, elem, speed);
-print("index = " ~ elem.fireParticle);
-var elem=weaps.front_gun_right;
+var elem="front_gun_right";
 bombable.fireAIWeapon (time_sec, myNodeName, elem, speed);
-print("index = " ~ elem.fireParticle);
 
 #a62m
 var myNodeName = "/ai/models/aircraft[2]";
@@ -339,12 +327,20 @@ var ats = bombable.attributes[myNodeName];
 var weaps=ats.weapons;
 var time_sec = 3.0;
 var speed=700;
-var elem=weaps.front_gun;
+var elem="front_gun";
 bombable.fireAIWeapon (time_sec, myNodeName, elem, speed);
-print("index = " ~ elem.fireParticle);
-var elem=weaps.front_cannon;
+var elem="front_cannon";
 bombable.fireAIWeapon (time_sec, myNodeName, elem, speed);
-print("index = " ~ elem.fireParticle);
+
+#WW2jeep
+var myNodeName = "/ai/models/ship";
+var ats = bombable.attributes[myNodeName];
+var weaps=ats.weapons;
+var time_sec = 3.0;
+var speed=700;
+var elem="jeep_MG";
+bombable.fireAIWeapon (time_sec, myNodeName, elem, speed);
+
 ##################### add model ##########################
 # var weapon_node = ai_node.getNode("models/model[13]", 1);
 
@@ -639,4 +635,27 @@ foreach (elem; keys (ats.weapons) )
     }
 }
 
+# ==============================================================================
+# replace_placeholders_2 - NOT TESTED
+# ==============================================================================
 
+var replace_placeholders_2 = func(str_, target, replacement) {
+    if (str_ == nil or target == nil or target == "") return str_;
+    
+    var res = "";
+    var pos = 0;
+    var target_len = size(target);
+    var str_len = size(str_);
+    
+    while (pos < str_len) {
+        var idx = search(substr(str_, pos), target);
+        if (idx == -1) {
+            res ~= substr(str_, pos);
+            break;
+        }
+        res ~= substr(str_, pos, idx) ~ replacement;
+        pos += idx + target_len;
+    }
+    
+    return res;
+};

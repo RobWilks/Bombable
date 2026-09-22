@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
 <PropertyList include="Jeep-bombableinclude.xml">
-	<path>Models/WW2Jeep.ac</path>
+	<path>WW2Jeep.ac</path>
 	<!-- 	<offsets>
 		<z-m>-0.1</z-m>
 	</offsets> -->
@@ -52,7 +52,8 @@
 	<animation>
 		<type>rotate</type>
 		<object-name>gunMount</object-name>
-		<property>jeep_MG/turret-pos-deg</property>
+		<object-name>Gun</object-name>
+		<property>jeep_MG/orientation/true-heading-deg</property>
 		<center>
 			<x-m>0.888</x-m>
 			<y-m>0.0</y-m>
@@ -69,7 +70,7 @@
 	<animation>
 		<type>rotate</type>
 		<object-name>Gun</object-name>
-		<property>jeep_MG/cannon-elev-deg</property>
+		<property>jeep_MG/orientation/pitch-deg</property>
 		<center>
 			<x-m>0.818</x-m>
 			<y-m>0.0</y-m>
@@ -206,7 +207,7 @@
 		</axis>
 	</animation>
 	
-		<animation>
+	<!-- <animation>
 		<name>M1-MGmount</name>
 		<object-name>axle</object-name>
 		<object-name>diagonal</object-name>
@@ -214,7 +215,7 @@
 		<object-name>MG_base</object-name>
 		<object-name>right_support</object-name>
 		<object-name>vertical</object-name>
-	</animation>
+	</animation> -->
 	
 <!-- <animation>
 	<type>spin</type>
@@ -327,7 +328,7 @@
 </animation> -->
 
 	<model>
-		<path>Models/pilot.xml</path>
+		<path>pilot.xml</path>
 		<name>pilot</name>
 		<offsets>
 			<x-m>0.65</x-m>
@@ -370,7 +371,7 @@
  
 	<!-- Origin of model has been displaced to approx position of CoG -->
 	<model>
-		<path>Models/transparent.xml</path>
+		<path>transparent.xml</path>
 		<offsets>
 			<x-m>-1.45</x-m>
 			<y-m>0.0</y-m>

@@ -8,8 +8,8 @@
         <overlay>
             <params>
                 <!-- YOU DEFINE THE PATHS HERE -->
-                <turret-pos-deg>flak_gun_88mm_centre/turret-pos-deg</turret-pos-deg>
-                <cannon-elev-deg>flak_gun_88mm_centre/cannon-elev-deg</cannon-elev-deg>
+                <turret-deg>flak_gun_88mm_centre/orientation/true-heading-deg</turret-deg>
+                <cannon-deg>flak_gun_88mm_centre/orientation/pitch-deg</cannon-deg>
             </params>
         </overlay>
         <offsets>
@@ -26,8 +26,8 @@
         <overlay>
             <params>
                 <!-- YOU DEFINE THE PATHS HERE -->
-                <turret-pos-deg>flak_gun_88mm_left/turret-pos-deg</turret-pos-deg>
-                <cannon-elev-deg>flak_gun_88mm_left/cannon-elev-deg</cannon-elev-deg>
+                <turret-deg>flak_gun_88mm_left/orientation/true-heading-deg</turret-deg>
+                <cannon-deg>flak_gun_88mm_left/orientation/pitch-deg</cannon-deg>
             </params>
         </overlay>
         <offsets>
@@ -44,8 +44,8 @@
         <overlay>
             <params>
                 <!-- YOU DEFINE THE PATHS HERE -->
-                <turret-pos-deg>flak_gun_88mm_right/turret-pos-deg</turret-pos-deg>
-                <cannon-elev-deg>flak_gun_88mm_right/cannon-elev-deg</cannon-elev-deg>
+                <turret-deg>flak_gun_88mm_right/orientation/true-heading-deg</turret-deg>
+                <cannon-deg>flak_gun_88mm_right/orientation/pitch-deg</cannon-deg>
             </params>
         </overlay>
         <offsets>

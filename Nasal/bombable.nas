@@ -395,7 +395,8 @@ var put_tied_model = func(myNodeName = "", path = "AI/Aircraft/Fire-Particles/Fi
 # put_tied_weapon places a new model that is tied to another AI model
 # (given by myNodeName) and will move with it in lon, lat, & alt
 # and have the delta heading, pitch, lat, long, alt, as specified in weapons_init
-#
+# Used to place particle-tracer models
+# DEPRECATED - replaced by spawn_custom_tracer
 
 var put_tied_weapon = func(myNodeName = "", elem = "", path = "AI/Aircraft/Fire-Particles/Fire-Particles.xml ") {
 
@@ -5793,8 +5794,9 @@ var mp_send_damage = func (myNodeName = "", damageRise = 0 ) {
 ###################### fireAIWeapon_stop ######################
 # fireAIWeapon_stop: turns off one of the triggers in AI/Aircraft/Fire-Particles/projectile-tracer.xml
 #  
-var fireAIWeapon_stop = func (myNodeName, index) {
-	setprop("bombable/fire-particles/projectile-tracer[" ~ index ~ "]/ai-weapon-firing", 0); 
+var fireAIWeapon_stop = func (myNodeName, elem) {
+	var weapPath = myNodeName ~ "/" ~ elem;
+	setprop(weapPath ~ "/ai-weapon-firing", 0); 
 }
 
 ###################### fireAIWeapon ######################
@@ -5803,20 +5805,18 @@ var fireAIWeapon_stop = func (myNodeName, index) {
 # turned on.
 #
 var fireAIWeapon = func (time_sec, myNodeName, elem, speed) {
-	var index = elem.fireParticle;
-	# index of the fire particle tied to the weapon
 	# speed is the calculated intercept speed in a stationary frame
-	var isFiring = getprop("bombable/fire-particles/projectile-tracer[" ~ index ~ "]/ai-weapon-firing");
+	var weapPath = myNodeName ~ "/" ~ elem;
+	var isFiring = getprop(weapPath ~ "/ai-weapon-firing");
 	if (isFiring != nil) {
 		if (isFiring == 1) return; #prevents double trigger
 		}
 	
-	setprop("bombable/fire-particles/projectile-tracer[" ~ index ~ "]/speed", speed);
-	setprop("bombable/fire-particles/projectile-tracer[" ~ index ~ "]/ai-weapon-firing", 1); 
+	setprop(weapPath ~ "/ai-weapon-firing", 1); 
 	# debprint (	"myNodeName " ~ myNodeName ~
-	# 			" index " ~ index,
+	# 			" elem " ~ elem,
 	# 			" time " ~ time_sec);
-	settimer ( func { fireAIWeapon_stop(myNodeName, index)}, time_sec);
+	settimer ( func { fireAIWeapon_stop(myNodeName, elem)}, time_sec);
 }
 
 ###################### vertAngle_deg #########################
@@ -6396,7 +6396,7 @@ var weapons_loop = func (id, myNodeName1 = "") {
 					weapPowerSkill,
 					damageValue
 				);
-			if ( targetSighted ) weaponsOrientationPositionUpdate(myNodeName1, elem);
+			if ( targetSighted and !thisWeapon.aim.fixed ) weaponsOrientationUpdate(myNodeName1, elem);
 		}
 		elsif (thisWeapon.weaponType == 1) #rocket section
 		{
@@ -6417,7 +6417,6 @@ var weapons_loop = func (id, myNodeName1 = "") {
 			{
 				# launch rocket when high threat level and few rockets in the air (ship)
 				# when escaping or attacking and target close by (aircraft)				
-				weaponsOrientationPositionUpdate(myNodeName1, elem);
 				r = ats.attacks.rocketsInAir;
 				if (rand() < 0.02 * weapPowerSkill * threatLevel / (r * r * r + 1)) launchRocket (id, myNodeName1, elem);
 			}
@@ -6477,7 +6476,7 @@ var weapons_loop = func (id, myNodeName1 = "") {
 			
 			# fire weapons for visual effect
 			var time2Fire =  3;
-			fireAIWeapon(time2Fire, myNodeName1, thisWeapon, thisWeapon.aim.interceptSpeed);
+			fireAIWeapon(time2Fire, myNodeName1, elem, thisWeapon.aim.interceptSpeed);
 
 			#reduce ammo count
 			if (stores.reduceWeaponsCount (myNodeName1, elem, time2Fire) == 1)
@@ -10687,12 +10686,13 @@ var attack_init_func = func(myNodeName)
 
 
 
-######################## weaponsOrientationPositionUpdate #########################
-# weaponsOrientationPositionUpdate
-# to update the position/angle of weapons attached
-# to AI aircraft.  Use for visual weapons effects
+######################## weaponsOrientationUpdate #########################
+# to update the angle of weapons attached to AI aircraft.
+# point the weapon in the model reference frame 
+# Use for visual weapons effects e.g. tracers and model animations
+# We do not call this func for weapons fixed to the AI model, e.g. rocket launch tubes and wing-mounted MGs
 
-var weaponsOrientationPositionUpdate = func (myNodeName, elem) {
+var weaponsOrientationUpdate = func (myNodeName, elem) {
 	# make weapon and projectile point in the direction of the target
 	# the direction is calculated in the checkAim loop
 	# first point weapon in the direction of the target
@@ -10706,48 +10706,14 @@ var weaponsOrientationPositionUpdate = func (myNodeName, elem) {
 	
 	var thisWeapon = attributes[myNodeName].weapons[elem];
 	var aim = thisWeapon.aim;
+	var newElev = math.asin(aim.weaponDirModelFrame[2]) * R2D;
+	var newHeading = math.atan2(aim.weaponDirModelFrame[0], aim.weaponDirModelFrame[1]) * R2D;
+	thisWeapon.weaponAngle_deg.heading = newHeading;
+	thisWeapon.weaponAngle_deg.elevation = newElev;
 
-	if (!aim.fixed)
-	{	
-		# first, point the weapon.  The first frame is relative to the model, 
-		# the second is lon-lat-alt (x-y-z), aka 'ground reference frame'
-		var newElev = math.asin(aim.weaponDirModelFrame[2]) * R2D;
-		var newHeading = math.atan2(aim.weaponDirModelFrame[0], aim.weaponDirModelFrame[1]) * R2D;
-		thisWeapon.weaponAngle_deg.heading = newHeading;
-		thisWeapon.weaponAngle_deg.elevation = newElev;
-
-		setprop("" ~ myNodeName ~ "/" ~ elem ~ "/cannon-elev-deg" , newElev);
-		setprop("" ~ myNodeName ~ "/" ~ elem ~ "/turret-pos-deg" , -newHeading);
-		# position in model frame of reference
-	}
-	
-	# next, point the projectile
-	# the projectile models follow the aircraft using these orientation and position data from the property tree
-
-	var newElev_ref = math.asin(aim.weaponDirGndFrame[2]) * R2D;
-	var newHeading_ref = math.atan2(aim.weaponDirGndFrame[0], aim.weaponDirGndFrame[1]) * R2D;
-	setprop("" ~ myNodeName ~ "/" ~ elem ~ "/orientation/pitch-deg", newElev_ref);
-	setprop("" ~ myNodeName ~ "/" ~ elem ~ "/orientation/true-heading-deg", newHeading_ref);
-
-	# note weapon offset in m; altitude is in feet
-	setprop("" ~ myNodeName ~ "/" ~ elem ~ "/position/altitude-ft",
-	getprop("" ~ myNodeName ~ "/position/altitude-ft") + aim.weaponOffsetGndFrame[2] * M2FT);
-
-	setprop("" ~ myNodeName ~ "/" ~ elem ~ "/position/latitude-deg",
-	getprop("" ~ myNodeName ~ "/position/latitude-deg") + aim.weaponOffsetGndFrame[1] / m_per_deg_lat); 
-
-	setprop("" ~ myNodeName ~ "/" ~ elem ~ "/position/longitude-deg",
-	getprop("" ~ myNodeName ~ "/position/longitude-deg") + aim.weaponOffsetGndFrame[0] / m_per_deg_lon);
-
-		
-	# debprint("weaponsOrientationPositionUpdate " ~ elem ~ 
-		# sprintf(" newElev =%8.1f pitch-deg =%8.1f newHeading =%8.1f true-heading-deg =%8.1f", 
-			# newElev, 
-			# newElev_ref,
-			# newHeading, 
-			# newHeading_ref
-		# )			
-	# );
+	# position in model frame of reference
+	setprop("" ~ myNodeName ~ "/" ~ elem ~ "/orientation/true-heading-deg", -newHeading);
+	setprop("" ~ myNodeName ~ "/" ~ elem ~ "/orientation/pitch-deg", newElev);
 }
 
 
@@ -10896,36 +10862,23 @@ var weapons_init_func = func(myNodeName)
 		# which is defined in the AI model include file and in the co-ordinates of the model
 		# the x-axis points 180 degrees from the direction of travel; the y-axis points right; the z-axis up
 		var weapName = thisWeapon.name;
-		# if (find( "Flak gun 88mm", weapName ) == -1) {
-		if (0 == 1) {
-			put_tied_weapon ( myNodeName, elem, "AI/Aircraft/Fire-Particles/projectile-tracer/projectile-tracer-" ~ count ~ ".xml");
 
-			setprop ("/bombable/fire-particles/projectile-tracer[" ~ count ~ "]/projectile-startsize", thisWeapon.weaponSize_m.start);
-			setprop ("/bombable/fire-particles/projectile-tracer[" ~ count ~ "]/projectile-endsize", thisWeapon.weaponSize_m.end);
-			setprop ("/bombable/fire-particles/projectile-tracer[" ~ count ~ "]/ai-weapon-firing", 0); 
-			setprop ("/bombable/fire-particles/projectile-tracer[" ~ count ~ "]/offset-x", thisWeapon.weaponOffset_m.x); 
-			setprop ("/bombable/fire-particles/projectile-tracer[" ~ count ~ "]/offset-y", thisWeapon.weaponOffset_m.y); 
-			setprop ("/bombable/fire-particles/projectile-tracer[" ~ count ~ "]/offset-z", thisWeapon.weaponOffset_m.z); 
-		}
-		else {
-			# Retrieve the top fg-aircraft path property
-			var fg_aircraft_dir = getprop("/sim/fg-aircraft");
+		# Retrieve the top fg-aircraft path property
+		var fg_aircraft_dir = getprop("/sim/fg-aircraft");
 
-			# Navigate from Aircraft directory to AI/Aircraft/Fire-Particles
-			var archetype_path = fg_aircraft_dir ~ "/../AI/Aircraft/Fire-Particles/machine-gun.xml";
+		# Navigate from Aircraft directory to AI/Aircraft/Fire-Particles
+		var archetype_path = fg_aircraft_dir ~ "/../AI/Aircraft/Fire-Particles/machine-gun-rotate.xml";
 
-			# Target Property Root Path as a string (base path for model allocation)
-			var target_weapon_path = "/bombable/fire-particles/projectile-tracer" ~ "[" ~ count ~ "]";
+		# Target Property Root Path as a string (base path for model allocation)
+		var target_weapon_path = myNodeName ~ "/" ~ elem;
 
-			spawn_custom_tracer_func(myNodeName, elem, target_weapon_path, archetype_path, count / 10.0);
+		spawn_custom_tracer_func(myNodeName, elem, target_weapon_path, archetype_path, count / 10.0);
 
-			setprop (target_weapon_path ~ "/speed", 750.0);
-			setprop (target_weapon_path ~ "/ai-weapon-firing", 0); 
-			setprop (target_weapon_path ~ "/offset-x", thisWeapon.weaponOffset_m.x); 
-			setprop (target_weapon_path ~ "/offset-y", thisWeapon.weaponOffset_m.y); 
-			setprop (target_weapon_path ~ "/offset-z", thisWeapon.weaponOffset_m.z); 
+		setprop (target_weapon_path ~ "/ai-weapon-firing", 0); 
+		setprop (target_weapon_path ~ "/offset-x", thisWeapon.weaponOffset_m.x); # TODO only used with sub-turrets
+		setprop (target_weapon_path ~ "/offset-y", thisWeapon.weaponOffset_m.y); 
+		setprop (target_weapon_path ~ "/offset-z", thisWeapon.weaponOffset_m.z); 
 
-		}
 
 		
 		# form vector for weapon direction, weapDirModelFrame
@@ -10936,9 +10889,13 @@ var weapons_init_func = func(myNodeName)
 			cosWeapElev * math.cos(weapAngles.heading* D2R),
 			math.sin(weapAngles.elevation* D2R)
 		];		
-		# set turret and gun to their default positions
-		setprop ("" ~ myNodeName ~ "/" ~ elem ~ "/turret-pos-deg", weapAngles.heading);
-		setprop ("" ~ myNodeName ~ "/" ~ elem ~ "/cannon-elev-deg", weapAngles.elevation);
+		# set turret and gun to their default positions - DEPRECATED
+		# setprop ("" ~ myNodeName ~ "/" ~ elem ~ "/turret-pos-deg", -weapAngles.heading);
+		# setprop ("" ~ myNodeName ~ "/" ~ elem ~ "/cannon-elev-deg", weapAngles.elevation);
+
+		# NEW CODE initialise orientation of weapon / tracer used by model animation.  Check -sign on heading
+		setprop ("" ~ myNodeName ~ "/" ~ elem ~ "/orientation/true-heading-deg", -weapAngles.heading);
+		setprop ("" ~ myNodeName ~ "/" ~ elem ~ "/orientation/pitch-deg", weapAngles.elevation);
 
 		# store initial values
 		weapAngles["initialHeading"] = weapAngles.heading;
@@ -10947,7 +10904,7 @@ var weapons_init_func = func(myNodeName)
 		var weapFixed = (weapAngles.elevationMin == weapAngles.elevationMax) and (weapAngles.headingMin == weapAngles.headingMax) and (thisWeapon["weaponType"] != 1);
 		# do not include rockets since a different target can be assigned to each 'fixed' rocket 
 			
-		thisWeapon["aim"] = { #avariables to determine where weapon is aimed
+		thisWeapon["aim"] = { #variables to determine where weapon is aimed
 			nHit:0, 
 			weaponDirModelFrame:weapDirModelFrame, 
 			weaponOffsetGndFrame:[0,0,0], 
@@ -10963,7 +10920,7 @@ var weapons_init_func = func(myNodeName)
 		thisWeapon["fireParticle"] = count;
 		# an index to link the weapon to a tracer particle
 
-		if (thisWeapon["maxMissileSpeed_mps"] == nil) thisWeapon["maxMissileSpeed_mps"] = 300;
+		if (thisWeapon["maxMissileSpeed_mps"] == nil) thisWeapon["maxMissileSpeed_mps"] = 700;
 			
 		if (thisWeapon["roundsPerSec"] == nil) thisWeapon["roundsPerSec"] = 3; # firing rate 
 		if (thisWeapon["nRounds"] == nil) thisWeapon["nRounds"] = 180; # number of rounds 
@@ -11482,7 +11439,7 @@ var waitForAIModels = func(lastCount = -1, stableCountFrames = 0) {
         return;
     }
 
-    print(sprintf("AI model loading complete: %d total models registered.", currentCount));
+    print(sprintf("AI model loading complete: %d models registered in total.", currentCount));
 	buildRocketIndexLookup();
 	settimer (func { waitForAttributes() }, 5); #wait till bombable attributes loaded
 
@@ -13648,19 +13605,17 @@ var spawn_custom_tracer_func = func(node, weapon_elem, prop_path, arch_path, del
 };
 
 ########################## spawn_custom_tracer ###########################
-# change target weapon path to use ai_path when working
-# change ai_path > myNodeName for consistency
+# 
+# 
 
-var spawn_custom_tracer = func(ai_path, elem, target_weapon_path, archetype_path) {
+var spawn_custom_tracer = func(myNodeName, elem, target_weapon_path, archetype_path) {
 
-	var thisWeapon = attributes[ai_path].weapons[elem];
+	var thisWeapon = attributes[myNodeName].weapons[elem];
 
-	print("ai_path:            ", ai_path);
+	print("myNodeName:         ", myNodeName);
 	print("elem:               ", elem);
 	print("target_weapon_path: ", target_weapon_path);
 	print("archetype_path:     ", archetype_path);
-
-
 
     # Static weapon parameters (inserted directly into XML text)
     var start_size = thisWeapon.weaponSize_m.start;
@@ -13669,7 +13624,9 @@ var spawn_custom_tracer = func(ai_path, elem, target_weapon_path, archetype_path
     var offset_y = thisWeapon.weaponOffset_m.y;
     var offset_z = thisWeapon.weaponOffset_m.z;
 	var tps = thisWeapon.roundsPerSec;
+	var tps = thisWeapon.roundsPerSec;
 	var tracersPerSec = (tps > 1) ? math.sqrt(tps) : tps;
+	var spd = thisWeapon.maxMissileSpeed_mps;
 
 	# 1. Read template file into string atomically using io.readfile
     var xml_content = io.readfile(archetype_path);
@@ -13686,16 +13643,12 @@ var spawn_custom_tracer = func(ai_path, elem, target_weapon_path, archetype_path
     xml_content = replace_placeholders(xml_content, "{END_SIZE}", end_size);
     xml_content = replace_placeholders(xml_content, "{WEAPON_PROP_ROOT}", target_weapon_path);
     xml_content = replace_placeholders(xml_content, "{PARTICLES_PER_SEC}", tracersPerSec);
+    xml_content = replace_placeholders(xml_content, "{SPEED_MPS}", spd);
 
     # Note: WEAPON_PROP_ROOT is an absolute path
 
     # 3. Write temporary XML
     var temp_xml_path = getprop("/sim/fg-home") ~ "/Export/temp_tracer.xml";
-    # var temp_xml_path2 = getprop("/sim/fg-home") ~ "/Export/temp_tracer2.xml";
-    # var temp_xml_path3 = "AI/Aircraft/Fire-Particles/projectile-tracer/temp_tracer2.xml";
-    # var temp_xml_path4 = getprop("/sim/fg-home") ~ "/Export/bomb.xml";
-    # var temp_xml_path5 = "AI/Aircraft/Fire-Particles/projectile-tracer/projectile-tracer-" ~ count ~ ".xml";
-
     var temp_file = io.open(temp_xml_path, "w");
     if (temp_file == nil) {
         print("TEST ERROR: Could not create temp XML at: ", temp_xml_path);
@@ -13704,34 +13657,18 @@ var spawn_custom_tracer = func(ai_path, elem, target_weapon_path, archetype_path
     io.write(temp_file, xml_content);
     io.close(temp_file);
 
-
     # 4. Load model via fgcommand (allocates next model index under target_weapon_path)
-
-
     var add_model_args = props.Node.new({
         "path": temp_xml_path,
-        "latitude-deg-prop":   ai_path ~ "/" ~ elem ~ "/position/latitude-deg",
-        "longitude-deg-prop":  ai_path ~ "/" ~ elem ~ "/position/longitude-deg",
-        "elevation-ft-prop":   ai_path ~ "/" ~ elem ~ "/position/altitude-ft",
-        "heading-deg-prop":    ai_path ~ "/" ~ elem ~ "/orientation/true-heading-deg",
-        "pitch-deg-prop":      ai_path ~ "/" ~ elem ~ "/orientation/pitch-deg",
-        "roll-deg-prop":       ai_path ~ "/" ~ elem ~ "/orientation/roll-deg",
+        "latitude-deg-prop":   myNodeName ~ "/position/latitude-deg",
+        "longitude-deg-prop":  myNodeName ~ "/position/longitude-deg",
+        "elevation-ft-prop":   myNodeName ~ "/position/altitude-ft",
+        "heading-deg-prop":    myNodeName ~ "/orientation/true-heading-deg",
+        "pitch-deg-prop":      myNodeName ~ "/orientation/pitch-deg",
+        "roll-deg-prop":       myNodeName ~ "/orientation/roll-deg",
     });
 
-    # settimer(func {
-    # 	fgcommand("add-model", add_model_args);
-    # }, 0.1); # delay to allow file write buffer to flush
 	fgcommand("add-model", add_model_args);
-
-    # 5. Delayed sequence: Find newly created index, apply parameters using setprop
-    # settimer(func {
-
-    #             # Set weapon parameters on the newly allocated index via setprop
-    #             setprop(target_weapon_path ~ "/speed", 750.0);
-    #             setprop(target_weapon_path ~ "/ai-weapon-firing", 0);
-
-    #             print("TEST SUCCESS: Initialized weapon parameters for ", target_weapon_path);
-    # }, 0.2);
 
 	print("TEST SUCCESS: Initialized weapon parameters for ", target_weapon_path);
 }
