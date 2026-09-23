@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!-- <PropertyList include="f6f-jsbsim-cnf.xml"> -->
+<PropertyList include="<PropertyList include="WW2Jeep.xml">">
+
+  <sim>
+    <description>WW2 Jeep, Willy's Jeep</description>
+    <author>Detlef Faber, Brent HUGH (Ammo re-load, Bombable compatibility)</author>
+  </sim>
+
+</PropertyList>
+

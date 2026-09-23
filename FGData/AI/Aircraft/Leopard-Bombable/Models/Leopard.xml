@@ -9,7 +9,7 @@
 
 	<status>beta</status>
 
-	<path>Models/Leopard2A6_v23.ac</path>
+	<path>Leopard2A6_v23.ac</path>
 
 	<!-- Modified to allow the pitch and roll of the model to be controlled by a scenario -->
 	
@@ -27,25 +27,6 @@
 		<name>Leopard-tank</name>
 		<path>Leopard2A6_v23.ac</path>
 	</animation>
-	
-	<animation>
-		<name>Leopard-body</name>
-		<object-name>Drive_L</object-name>
-		<object-name>Drive_R</object-name>
-		<object-name>Hull</object-name>
-		<object-name>Turret</object-name>
-		<object-name>Gun</object-name>
-	</animation>
-	
-<!-- 	<animation>
-		<type>material</type>
-		<object-name>Cuppola_L</object-name>
-		<object-name>Cuppola_R</object-name>
-		<texture-prop>bombable/texture-corps-path</texture-prop>
-		<transparency>
-			<alpha>1.0</alpha>
-		</transparency>
-	</animation> -->
 	
 	<animation>
 		<type>rotate</type>
@@ -73,7 +54,7 @@
 		<type>rotate</type>
 		<object-name>Turret</object-name>
 		<object-name>Gun</object-name>
-		<property>main_gun/turret-pos-deg</property>
+		<property>main_gun/orientation/true-heading-deg</property>
 		<center>
 			<x-m>-0.132562</x-m>
 			<y-m>0.0</y-m>
@@ -89,7 +70,7 @@
 	<animation>
 		<type>rotate</type>
 		<object-name>Gun</object-name>
-		<property>main_gun/cannon-elev-deg</property>	
+		<property>main_gun/orientation/pitch-deg</property>	
 		<center>
 			<x-m>-1.5</x-m>
 			<y-m>0.0</y-m>
@@ -107,8 +88,8 @@
 		<object-name>MG</object-name>
 		<expression>
 			<difference>
-				<property>turret_MG/turret-pos-deg</property>
-				<property>main_gun/turret-pos-deg</property>
+				<property>turret_MG/orientation/true-heading-deg</property>
+				<property>main_gun/orientation/true-heading-deg</property>
 			</difference>
 		</expression>
 		<center>
@@ -126,13 +107,7 @@
 	<animation>
 		<type>rotate</type>
 		<object-name>MG</object-name>
-		<property>turret_MG/cannon-elev-deg</property>
-		<!-- 		<interpolation>
-			<entry><ind>-90</ind><dep>-10</dep></entry>
-			<entry><ind>-10</ind><dep>-10</dep></entry>
-			<entry><ind>45</ind><dep>45</dep></entry>
-			<entry><ind>90</ind><dep>45</dep></entry>
-		</interpolation> -->
+		<property>turret_MG/orientation/pitch-deg</property>
 		<center>
 			<x-m>0.832447</x-m>
 			<y-m>-1.11098</y-m>

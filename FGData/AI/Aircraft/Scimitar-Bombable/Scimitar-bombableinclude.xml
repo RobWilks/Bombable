@@ -7,7 +7,7 @@
 
 		<load>
 			<![CDATA[
-			print("Loading tank ", cmdarg().getPath());
+			print("Loading Scimitar tank ", cmdarg().getPath());
 
       var nodeName=cmdarg().getPath();
 
@@ -17,14 +17,14 @@
 
 			
 			#listener function to change livery color if value is change (via dialogue for instance)
-			var m1_change_color = func(myTankNodeName) {
+			var Scimitar_change_color = func(myTankNodeName) {
           
 #          return;
           
           var damageValue = getprop(""~myTankNodeName~"/bombable/attributes/damage");
           if (damageValue==nil ) damageValue=0;
           
-          var use_red = getprop("/ai/m1-abrams/usered");
+          var use_red = getprop("/ai/Scimitar/usered");
           
           if (use_red) var base_color = "Models/red"
           else var base_color = "Models/camo";
@@ -46,41 +46,41 @@
 			
 
 			
-			# Set up M1 Menu with livery change option
+			# Set up Scimitar Menu with livery change option
 			
-			var init_m1_dialogs = func () {
+			var init_Scimitar_dialogs = func () {
         
-        #only do this once even if we have multiple m1s loaded in this scenario
-        if (getprop ("ai/m1-abrams/init_m1_dialogs")) return;  #it's been done already, so exit
-        props.globals.getNode ("ai/m1-abrams/init_m1_dialogs", 1).setBoolValue(1); #so we know it's been done
+        #only do this once even if we have multiple Scimitars loaded in this scenario
+        if (getprop ("ai/Scimitar/init_Scimitar_dialogs")) return;  #it's been done already, so exit
+        props.globals.getNode ("ai/Scimitar/init_Scimitar_dialogs", 1).setBoolValue(1); #so we know it's been done
         
         #we use aircraft. here just as a convenient referable object to add
         # this object to.  This object ("me") has some wacky name like
-        # "c:/Program Files/FlightGear/data/AI/M1-Abrams-Bombable/m1.xml" - this is not 
+        # "c:/Program Files/FlightGear/data/AI/Scimitar-Bombable/Scimitar.xml" - this is not 
         # only long & complex but will change depending on the system
         # FG is running on.                                  
-        aircraft.m1abrams_dlg_config = gui.Dialog.new("ai/m1-abrams/config/dialog","AI/Aircraft/M1-Abrams-Bombable/Dialogs/config.xml");
+        aircraft.Scimitar_dlg_config = gui.Dialog.new("ai/Scimitar/config/dialog","AI/Aircraft/Scimitar-Bombable/Dialogs/config.xml");
 				
 				#aircraft.m1abrams_dlg_config.toggle();
         
         #Doing this via a hot key would work too but the menu option seems better
         #making the keyboard option unnecessary
-        setprop ("/input/keyboard/key[15]", "desc", "change M1 Abrams Tank livery color");
-        setprop ("/input/keyboard/key[15]", "name", "Ctrl-O");      
-        setprop ("/input/keyboard/key[15]/binding", "command", "nasal");
-        setprop ("/input/keyboard/key[15]/binding", "module", "__kbd");
-        setprop ("/input/keyboard/key[15]/binding", "script", "aircraft.m1abrams_dlg_config.toggle()");
+        # setprop ("/input/keyboard/key[15]", "desc", "change Scimitar Tank livery color");
+        # setprop ("/input/keyboard/key[15]", "name", "Ctrl-O");      
+        # setprop ("/input/keyboard/key[15]/binding", "command", "nasal");
+        # setprop ("/input/keyboard/key[15]/binding", "module", "__kbd");
+        # setprop ("/input/keyboard/key[15]/binding", "script", "aircraft.Scimitar_dlg_config.toggle()");
    
         #make the GUI menu
-        props.globals.getNode ("/sim/menubar/default/menu[99]/enabled", 1).setBoolValue(1);
-        props.globals.getNode ("/sim/menubar/default/menu[99]/label", 1).setValue("M1 Abrams");
-        props.globals.getNode ("/sim/menubar/default/menu[99]/item/enabled", 1).setBoolValue(1);
+        props.globals.getNode ("/sim/menubar/default/menu[97]/enabled", 1).setBoolValue(1);
+        props.globals.getNode ("/sim/menubar/default/menu[97]/label", 1).setValue("Scimitar");
+        props.globals.getNode ("/sim/menubar/default/menu[97]/item/enabled", 1).setBoolValue(1);
         #Note: the label must be distinct from all other labels in the menubar
         #or you will get duplicate functionality with the other menu item
         #sharing the same label
-        props.globals.getNode ("/sim/menubar/default/menu[99]/item/label", 1).setValue("Change M1 livery color");
-        props.globals.getNode ("/sim/menubar/default/menu[99]/item/binding/command", 1).setValue("nasal");
-        props.globals.getNode ("/sim/menubar/default/menu[99]/item/binding/script", 1).setValue("aircraft.m1abrams_dlg_config.open()");
+        props.globals.getNode ("/sim/menubar/default/menu[97]/item/label", 1).setValue("Change Scimitar livery color");
+        props.globals.getNode ("/sim/menubar/default/menu[97]/item/binding/command", 1).setValue("nasal");
+        props.globals.getNode ("/sim/menubar/default/menu[97]/item/binding/script", 1).setValue("aircraft.Scimitar_dlg_config.open()");
         
        #reinit makes the property changes to both the GUI & input become active 
        #fgcommand("reinit");
@@ -95,20 +95,20 @@
 			
 
 ############################################
-#M1 INITIALIZER
-			var m1_init = func() {
+#Scimitar INITIALIZER
+			var Scimitar_init = func() {
 				# Data for this tank are under: cmdarg().getPath()
 				var nodeName = cmdarg().getPath();
 				var node = props.globals.getNode(nodeName);
 				# Add some useful nodes
 
-				#set to use red color (high visibility) by default
-				props.globals.getNode ("ai/m1-abrams/usered", 1).setBoolValue(0);
+				# set to use normal camouflage (low visibility) by default
+				props.globals.getNode ("ai/Scimitar/usered", 1).setBoolValue(0);
 				# function to change color of tank if it is changed in the master dialog box
-				setlistener("ai/m1-abrams/usered", func { m1_change_color ( nodeName); });
+				setlistener("ai/Scimitar/usered", func { Scimitar_change_color ( nodeName); });
 				
 
-			  var use_red = getprop("/ai/m1-abrams/usered");
+			  var use_red = getprop("/ai/Scimitar/usered");
           
         if (use_red) var base_color = "Models/red"
         else var base_color = "Models/camo";
@@ -146,26 +146,19 @@
         thisNodeName = cmdarg().getPath(); 
 
         var bombableObject = {  
-          
-          
           objectNodeName : thisNodeName,
           objectNode : props.globals.getNode(thisNodeName),
-		  type : "groundvehicle",
-          updateTime_s : 2/3, #time, in seconds, between the updates that 
-          #keep the object at its AGL. Tradeoff is high-speed updates look more
-          #realistic but slow down the framerate/cause jerkiness.  Faster-moving
-          #objects will need more frequent updates to look realistic.
-          #Update Time faster than about 1/3 seems to noticeably 
-          #slow the frame rate          
-
+          type : "groundvehicle",
+          updateTime_s : 1/3, #time, in seconds, between the groundloop updates
 		                        
+	    	  #source of data:  https://tank-afv.com/coldwar/UK/FV107-Scimitar.php
           #########################################                              
           # ALTITUDE DEFINITIONS
           #         
           # all in meters
           #                     
           altitudes : {	
-            wheelsOnGroundAGL_m : 0 , #altitude correction to add to your aircraft or ship that is needed to put wheels on ground (or, for a ship, make it float in the water at the correct level).  For most objects this is 0 but some models need a small correction to place them exactly at ground level
+            wheelsOnGroundAGL_m : 0.0 , #altitude correction to add to your aircraft or ship that is needed to put wheels on ground (or, for a ship, make it float in the water at the correct level).  For most objects this is 0 but some models need a small correction to place them exactly at ground level
             
             minimumAGL_m : 0, #minimum altitude above ground level this object is allowed to fly
             maximumAGL_m : 0, #maximum altitude AGL this object is allowed to fly	    
@@ -188,7 +181,7 @@
     
             damagedAltitudeChangeMaxRate_meterspersecond : 0.02, #max rate to sink or fly downwards when damaged, in meters/second
 			
-			maxClimbRate_fps : 3, #needed for ground vehicles calculated from shaftPower / weight * roughnessIndex (see https://www.sciencedirect.com/science/article/pii/S1474667015368622)
+      			maxClimbRate_fps : 3, #needed for ground vehicles calculated from shaftPower / weight * roughnessIndex (see https://www.sciencedirect.com/science/article/pii/S1474667015368622)
           },
           #  
           #########################################
@@ -230,7 +223,6 @@
             divePower : 0, # How powerful the aircraft is when diving during and attack; 6000 typical of a Zero--could be much more than climbPower if the aircraft is a weak climber but a strong diver             
             attackCheckTime_sec : 10, # check for need to attack/correct course this often  
             attackCheckTimeEngaged_sec : 1, # once engaged with enemy, check/update course this frequently                
-    
           },
           #  
           #########################################
@@ -239,38 +231,37 @@
           # The weapons system makes the AI aircraft fire on the main aircraft 
           # You can define any number of weapons--just enclose each in curly brackets
           # and separate with commas (,).      
-          # M1 only has one cannon but since we can't swivel it yet with Bombable
-          # let's fake it with front & rear-facing weapons.     
+          # Scimitar MG is coaxial with the main gun
+
           weapons : {
+
               main_gun :  #internal name - this can be any name you want; must be a valid nasal variable name
               {               
-                name : "M256A1 120 mm gun, M830A1 round", # name presented to users, ie in on-screen messages
-                maxDamage_percent : 50, # maximum percentage damage one hit from the aircraft's main weapon/machine guns will do to an opponent
-                maxDamageDistance_m : 1500, # maximum distance at which the aircrafts main weapon/maching guns will be able to damage an opponent
-                weaponAngle_deg  :  { heading: 0, elevation: 10.0, headingMin: -180, headingMax: 180, elevationMin: -3.0, elevationMax: 20  }, # direction the aircraft's main weapon is aimed.   
+                name : "L21 RARDEN 30mm cannon", # name presented to users, ie in on-screen messages
+                maxDamage_percent : 20, # maximum percentage damage one hit from the aircraft's main weapon/machine guns will do to an opponent
+                maxDamageDistance_m : 1000, # maximum distance at which the aircrafts main weapon/machine guns will be able to damage an opponent
+                weaponAngle_deg  :  { heading: 0, elevation: 15.0, headingMin: -180, headingMax: 180, elevationMin: -10.0, elevationMax: 35  }, # direction the aircraft's main weapon is aimed.   
                                                                   # 0,0 = straight ahead, 90,0=directly right, 0,90=directly up, 0,180=directly back, etc.
-                weaponOffset_m : {x:0, y:0, z:1.86667}, # Offset of the weapon from the main aircraft center
+                weaponOffset_m : {x:0, y:0, z:1.59626}, # Offset of the weapon from the main aircraft center
                 weaponSize_m : {start: .25, end: .35 }, # Visual size of the weapon's projectile, in meters, at start & end of its path
-				nRounds : 40,
-				roundsPerSec : 0.16666,  
-				accuracy : 0.04, # how accurately the weapon can be aimed (sniper's rifle 0.006 deg; 120 mm howitzer 0.02 deg; machine gun 0.5 deg - lower from moving platform )				
-              },    
+                nRounds : 165,
+                roundsPerSec : 1.5,
+                accuracy : 0.1, # how accurately the weapon can be aimed (sniper's rifle 0.006 deg; 120 mm howitzer 0.02 deg; machine gun 0.5 deg - lower from moving platform )
+              }, 
 
               turret_MG :  #internal name - this can be any name you want; must be a valid nasal variable name
               {               
-                name : ".50 caliber Browning M2 HB machine gun", # name presented to users, ie in on-screen messages
+                name : "7.62mm L37A1 machine gun", # name presented to users, ie in on-screen messages
                 maxDamage_percent : 7, # maximum percentage damage one hit from the aircraft's main weapon/machine guns will do to an opponent
-                maxDamageDistance_m : 500, # maximum distance at which the aircrafts main weapon/maching guns will be able to damage an opponent
-                weaponAngle_deg  :  { heading: 0, elevation: 15.0, headingMin: -180, headingMax: 180, elevationMin: -10.0, elevationMax: 70  }, # direction the aircraft's main weapon is aimed.   
+                maxDamageDistance_m : 300, # maximum distance at which the aircrafts main weapon/machine guns will be able to damage an opponent
+                weaponAngle_deg  :  { heading: 0, elevation: 15.0, headingMin: -180, headingMax: 180, elevationMin: -10.0, elevationMax: 35  }, # direction the aircraft's main weapon is aimed.   
                                                                   # 0,0 = straight ahead, 90,0=directly right, 0,90=directly up, 0,180=directly back, etc.
-                weaponOffset_m : {x:0.661842, y:0, z:2.67232}, # Offset of the weapon from the main aircraft center
+                weaponOffset_m : {x:0, y:-0.265, z:1.59626}, # Offset of the weapon from the main aircraft center
                 weaponSize_m : {start: .15, end: .25 }, # Visual size of the weapon's projectile, in meters, at start & end of its path
-				nRounds : 900,
-				roundsPerSec : 9,
-				accuracy : 3,				
-				parent : "main_gun",
-  
-              },   
+                nRounds : 3000,
+                roundsPerSec : 2,
+                accuracy : 3,				
+              },			  
           },  
                              
           #  
@@ -280,12 +271,12 @@
           # all in meters          
           #           
           dimensions : {                  
-            width_m : 3.66,  #width of your object, ie, for aircraft, wingspan
-            length_m : 9.77, #length of your object, ie, for aircraft, distance nose to tail
-            height_m : 2.44, #height of your object, ie, for aircraft ground to highest point when sitting on runway
-            damageRadius_m : 6, #typically 1/2 the longest dimension of the object. Hits within this distance of the 
+            width_m : 2.18,  #width of your object, ie, for aircraft, wingspan
+            length_m : 4.8, #length of your object, ie, for aircraft, distance nose to tail
+            height_m : 2.1, #height of your object, ie, for aircraft ground to highest point when sitting on runway
+            damageRadius_m : 3, #typically 1/2 the longest dimension of the object. Hits within this distance of the 
                                 #center of object have some possibility of damage
-            vitalDamageRadius_m : 6, #typically the radius of the fuselage or cockpit or other most 
+            vitalDamageRadius_m : 1.5, #typically the radius of the fuselage or cockpit or other most 
                                      # vital area at the center of the object.  Always smaller than damageRadius_m 
           },
           #
@@ -293,7 +284,7 @@
           # VULNERABILITIES DEFINITIONS        
           #
           vulnerabilities : {                   
-            damageVulnerability : 1, #Vulnerability to damage from armament, 1=normal M1 tank; higher to make objects easier to kill and lower to make them more difficult.  This is a multiplier, so 5 means 5X easier to kill than an M1, 1/5 means 5X harder to kill. 
+            damageVulnerability : 1.5, #Vulnerability to damage from armament, 1=normal M1 tank; higher to make objects easier to kill and lower to make them more difficult.  This is a multiplier, so 5 means 5X easier to kill than an M1, 1/5 means 5X harder to kill. 
             
             engineDamageVulnerability_percent : 1, #Chance that a small-caliber machine-gun round will damage the engine.       
             
@@ -305,7 +296,7 @@
             
             fireExtinguishSuccess_percentage : 23, #Chance of the crew putting out the fire within the MaxTime above.
             
-            explosiveMass_kg : 58967 , #mass of the object in KG, but give at least a 2-10X bonus to anything carrying flammables or high explosives.
+            explosiveMass_kg : 30000 , #mass of the object in KG, but give at least a 2-10X bonus to anything carrying flammables or high explosives.
           },
           #
           #########################################
@@ -327,7 +318,6 @@
                               base_color~"3.png",
                            ]                        
           },
-                            
         };
 
         #########################################
@@ -352,19 +342,14 @@
         # trail for the object.
         # Smoke types available: flare, jetcontrail, pistonexhaust, smoketrail,
         # damagedengine                        
-		bombable.startSmoke("pistonexhaust", thisNodeName, "AI/Aircraft/M1-Abrams-Bombable/Fire-Particles/engine-exhaust-particles.xml");
+		bombable.startSmoke("pistonexhaust", thisNodeName, "AI/Aircraft/Scimitar-Bombable/Fire-Particles/engine-exhaust-particles.xml");
         #
         # END INITIALIZE BOMBABLE
         ########################################################################
         ########################################################################                
-	      
-
-
-			
-				
 			};
-      init_m1_dialogs ();
-			m1_init();
+      init_Scimitar_dialogs ();
+			Scimitar_init();
 			]]>
 		</load>
 		<unload>
@@ -385,10 +370,6 @@
       #
 	    ########################################################################
       ########################################################################                
-      
-      
-#  </unload>
-
 			]]>
 		</unload>
  </nasal>  

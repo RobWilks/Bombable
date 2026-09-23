@@ -32,7 +32,7 @@
   -->
 	<status>beta</status>
 
-	<path>Models/M1AbramsV2.ac</path>
+	<path>M1AbramsV2.ac</path>
 
 	<offsets>
 		<x-m>0.0</x-m>
@@ -104,7 +104,7 @@
 		<object-name>canon</object-name>
 		<object-name>M1-MGmount</object-name>
 		<object-name>M2Browning</object-name>
-		<property>main_gun/turret-pos-deg</property>
+		<property>main_gun/orientation/true-heading-deg</property>
 		<!-- 		<interpolation>
 			<entry><ind>-180</ind><dep>-150</dep></entry>
 			<entry><ind>-150</ind><dep>-150</dep></entry>
@@ -126,7 +126,7 @@
 	<animation>
 		<type>rotate</type>
 		<object-name>canon</object-name>
-		<property>main_gun/cannon-elev-deg</property>
+		<property>main_gun/orientation/pitch-deg</property>
 		<!-- 		<interpolation>
 			<entry><ind>-90</ind><dep>-10</dep></entry>
 			<entry><ind>-10</ind><dep>-10</dep></entry>
@@ -151,8 +151,8 @@
 		<object-name>M2Browning</object-name>
 		<expression>
 			<difference>
-				<property>turret_MG/turret-pos-deg</property>
-				<property>main_gun/turret-pos-deg</property>
+				<property>turret_MG/orientation/true-heading-deg</property>
+				<property>main_gun/orientation/true-heading-deg</property>
 			</difference>
 		</expression>
 		<center>
@@ -170,7 +170,7 @@
 	<animation>
 		<type>rotate</type>
 		<object-name>M2Browning</object-name>
-		<property>turret_MG/cannon-elev-deg</property>
+		<property>turret_MG/orientation/pitch-deg</property>
 		<!-- 		<interpolation>
 			<entry><ind>-90</ind><dep>-10</dep></entry>
 			<entry><ind>-10</ind><dep>-10</dep></entry>

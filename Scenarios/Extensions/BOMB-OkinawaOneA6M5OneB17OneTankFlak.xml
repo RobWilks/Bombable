@@ -18,14 +18,14 @@
         </offsets>
     </group>
     <group>
-        <!-- WW2 jeep -->
+        <!-- Tank -->
         <team>Y</team>
         <target>B</target>
         <arrivalTime>-30</arrivalTime>
         <airSpeed>1</airSpeed>
         <airportName>ROAH</airportName>
-        <heading>0.5</heading>
-        <alt>20</alt>
+        <heading>179.1</heading>
+        <alt>16</alt>
         <offsets>
             <offset>
                 <behind>0</behind>

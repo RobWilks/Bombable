@@ -5897,14 +5897,15 @@ var vertAngle_deg = func (geocoord1, geocoord2) {
 # Function called only by weapons_loop
 			
 
-var checkAim = func ( thisWeapon, 
+var checkAim = func ( elem, #string from weapon key
 					tgtDisp,
 					myNodeName1 = "", myNodeName2 = "",
 					weapPowerSkill = 1, 
-					damageValue = 0) 
+					damageValue = 0 ) 
 {
 	var targetSighted = 0; #flag true if target sighted which must happen before the weapon can be aimed
 	var ats = attributes[myNodeName1];
+	var thisWeapon = ats.weapons[elem];
 	
 	thisWeapon.aim.nHit = 0;
 				
@@ -5921,7 +5922,7 @@ var checkAim = func ( thisWeapon,
 	if (thisWeapon.parent == "")
 	{
 		# calculate the offset of the weapon in the ground reference frame
-		thisWeapon.aim.weaponOffsetGndFrame = rotate_zxy
+		thisWeapon.aim.weaponOffsetGndFrame = rotate_zxy_new
 		(
 			[
 			thisWeapon.weaponOffset_m.y,
@@ -5936,7 +5937,7 @@ var checkAim = func ( thisWeapon,
 		# code could be optimized; no change in z
 		# assume parent weapon located on axis of its turret
 		var parentWeap = ats.weapons[thisWeapon.parent];
-		var phi = getprop( "" ~ myNodeName1 ~ "/" ~ thisWeapon.parent ~ "/turret-pos-deg" );
+		var phi = getprop( "" ~ myNodeName1 ~ "/" ~ thisWeapon.parent ~ "/orientation/true_heading_deg" );
 		var myOffset = rotate_round_z_axis # in the model frame
 		(
 			[
@@ -5955,11 +5956,11 @@ var checkAim = func ( thisWeapon,
 		myOffset[1] += parentWeap.weaponOffset_m.y;
 		myOffset[2] += parentWeap.weaponOffset_m.z;
 
-		setprop("bombable/fire-particles/projectile-tracer[" ~ index ~ "]/offset-x", myOffset[0]);
-		setprop("bombable/fire-particles/projectile-tracer[" ~ index ~ "]/offset-y", myOffset[1]);
-		setprop("bombable/fire-particles/projectile-tracer[" ~ index ~ "]/offset-z", myOffset[2]);
+		setprop(myNodeName1 ~ "/" ~ elem ~ "/offset-x", myOffset[0]);
+		setprop(myNodeName1 ~ "/" ~ elem ~ "/offset-y", myOffset[1]);
+		setprop(myNodeName1 ~ "/" ~ elem ~ "/offset-z", myOffset[2]);
 
-		thisWeapon.aim.weaponOffsetGndFrame = rotate_zxy
+		thisWeapon.aim.weaponOffsetGndFrame = rotate_zxy_new
 		(
 			[
 			myOffset[1],
@@ -6004,7 +6005,7 @@ var checkAim = func ( thisWeapon,
 	# );
 
 	#rotate intercept direction to the frame of reference of the model
-	var newDirModelFrame = rotate_yxz(interceptDirGndFrame, ats.pitch_deg, ats.roll_deg, -ats.myHeading_deg);
+	var newDirModelFrame = rotate_yxz_new(interceptDirGndFrame, ats.pitch_deg, ats.roll_deg, -ats.myHeading_deg);
 	
 		
 	#form vector for the current direction of weapon, weapDirModelFrame, in the reference frame of the model
@@ -6095,7 +6096,7 @@ var checkAim = func ( thisWeapon,
 	# usually this will be in direction of travel of AI object 
 	# exceptions: rockets, ACs with vertically firing cannon
 	{
-		thisWeapon.aim.weaponDirGndFrame = rotate_zxy(weapDirModelFrame, -ats.pitch_deg, -ats.roll_deg, ats.myHeading_deg);
+		thisWeapon.aim.weaponDirGndFrame = rotate_zxy_new(weapDirModelFrame, -ats.pitch_deg, -ats.roll_deg, ats.myHeading_deg);
 	}
 	else
 	{
@@ -6127,7 +6128,7 @@ var checkAim = func ( thisWeapon,
 			];
 
 			thisWeapon.aim.weaponDirModelFrame = newDirModelFrame;
-			thisWeapon.aim.weaponDirGndFrame = rotate_zxy(newDirModelFrame, -ats.pitch_deg, -ats.roll_deg, ats.myHeading_deg);
+			thisWeapon.aim.weaponDirGndFrame = rotate_zxy_new(newDirModelFrame, -ats.pitch_deg, -ats.roll_deg, ats.myHeading_deg);
 		}
 	}
 	return (targetSighted); 	
@@ -6390,7 +6391,7 @@ var weapons_loop = func (id, myNodeName1 = "") {
 		{
 			var targetSighted = checkAim
 				(
-					thisWeapon, # pass pointer to weapon parameters
+					elem, # string from weapon key
 					tgtDisp,
 					myNodeName1, myNodeName2, 
 					weapPowerSkill,
@@ -6406,7 +6407,7 @@ var weapons_loop = func (id, myNodeName1 = "") {
 
 			var targetSighted = checkAim
 				(
-					thisWeapon,
+					elem,
 					tgtDisp,
 					myNodeName1, myNodeName2, 
 					weapPowerSkill,
@@ -11590,6 +11591,10 @@ settimer (func
 
 bombableMenu = {}; # used for menu items accessed frequently
 
+# Pre-allocated vectors for rotation function calls
+var _scratch_vec1 = [0.0, 0.0, 0.0];
+var _scratch_vec2 = [0.0, 0.0, 0.0];
+
 setprop("/sim/ai/scenario-initialized", 0);
 debprint ("Delaying start scenario . . . ", getprop("/sim/ai/scenario"));
 
@@ -11982,6 +11987,26 @@ var rotate_round_z_axis = func (vector, gamma) {
 
 # debug.dump(gunDir, raiseGun, turnTurret, rollTank, pitchTank, setDir);
 
+########################## rotate_zxy_new ###########################
+# Direct Inlined Math
+
+var rotate_zxy_new = func (vector, alpha, beta, gamma) {
+    var a_rad = alpha * D2R;
+    var b_rad = beta * D2R;
+    var g_rad = gamma * D2R;
+ 
+    var ca = math.cos(a_rad); var sa = math.sin(a_rad);
+    var cb = math.cos(b_rad); var sb = math.sin(b_rad);
+    var cg = math.cos(g_rad); var sg = math.sin(g_rad);
+
+    var vx = vector[0]; var vy = vector[1]; var vz = vector[2];
+
+    return [
+        vx * (cg * cb + sg * sa * sb) + vy * (sg * ca) + vz * (-cg * sb + sg * sa * cb),
+        vx * (-sg * cb + cg * sa * sb) + vy * (cg * ca) + vz * (sg * sb + cg * sa * cb),
+        vx * (ca * sb) - vy * sa + vz * (ca * cb)
+    ];
+};
 ########################## rotate_zxy ###########################
 # from http://www.songho.ca/opengl/gl_anglestoaxes.html
 # rotations of the x-, y-, and z-axes in a counterclockwise direction when looking towards the origin
@@ -12025,6 +12050,33 @@ var rotate_zxy = func (vector, alpha, beta, gamma) {
     # debug.dump(vector, gamma, x2, y2, z2);
     return [x2, y2, z2];
 }
+
+########################## rotate_yxz_new ###########################
+
+var rotate_yxz_new = func (vector, alpha, beta, gamma) {
+    var a_rad = alpha * D2R;
+    var b_rad = beta * D2R;
+    var g_rad = gamma * D2R;
+ 
+    var ca = math.cos(a_rad); var sa = math.sin(a_rad);
+    var cb = math.cos(b_rad); var sb = math.sin(b_rad);
+    var cg = math.cos(g_rad); var sg = math.sin(g_rad);
+
+    var vx = vector[0]; var vy = vector[1]; var vz = vector[2];
+
+    return [
+        vx * (cb * cg - sb * sa * sg) + vy * (cb * sg + sb * sa * cg) - vz * (sb * ca),
+        vx * (-ca * sg)               + vy * (ca * cg)               + vz * sa,
+        vx * (sb * cg + cb * sa * sg) + vy * (sb * sg - cb * sa * cg) + vz * (cb * ca)
+    ];
+};
+
+# 3. Helper to test numerical equality within tolerance
+var approx_equal = func(v1, v2, tol = 1e-6) {
+    return (math.abs(v1[0] - v2[0]) < tol) and 
+           (math.abs(v1[1] - v2[1]) < tol) and 
+           (math.abs(v1[2] - v2[2]) < tol);
+};
 
 ########################## rotate_yxz ###########################
 # from http://www.songho.ca/opengl/gl_anglestoaxes.html
@@ -12534,13 +12586,28 @@ var initTargets = func () {
 	debprint("initializing targets");
 
 	var foundTarget = -1;
+
+	# shuffle players
 	foreach (var side; [0, 1]) allPlayers[side] = shuffle(allPlayers[side]);
+
 	foreach (teamName; keys(teams))
 	{
 		if (teamName == "A") continue; #main AC has no assigned targets
-		teams[teamName].indices = shuffle(teams[teamName].indices);
 		var targetTeam = teams[teamName].target;
 		var side = (find(targetTeam, "ABCDEFGHIJKLM") == -1);
+		var mySide = (find(teamName, "ABCDEFGHIJKLM") == -1);
+
+		# check whether targeting my own side
+		if (side == mySide)
+		{
+			debprint(sprintf("Team %s is targeting its own side, Team %s, no targets assigned",
+			teamName,
+			targetTeam
+			));
+			continue;
+		}
+
+		teams[teamName].indices = shuffle(teams[teamName].indices);
 		var count = 0;
 		forindex (var i; teams[teamName].indices)
 		{
@@ -12557,10 +12624,11 @@ var initTargets = func () {
 				}
 				if (foundTarget == -1) break;
 			}
-			debprint("initTargets: ", j, " targets assigned for ", getCallSign(nodes[myIndex]), " team ", teamName);
+			debprint(sprintf("initTargets: %d targets assigned for %s team %s", j, getCallSign(nodes[myIndex]), teamName));
 			count += j;
 		}
-		debprint( "initTargets: Total of ", count, " targets in", (targetTeam != nil ) ? " team " ~ targetTeam : "", " side (", side, ") assigned for team ", teamName );
+		debprint(sprintf("initTargets: Total of %d targets in team %s side (%d) assigned for team %s", 
+					count, (targetTeam != nil ) ? targetTeam : "N/A", side, teamName ));
 	}
 
 	# apply handicap to side (1) by reducing pilot skills by a fixed percentage

@@ -9,8 +9,9 @@ debug.dump(teams);
 
 debug.dump(bombable.targetData);
 
-var myNodeName1 = "/ai/models/aircraft[7]";
+var myNodeName1 = "/ai/models/aircraft[1]";
 var ats = bombable.attributes[myNodeName1];
+debug.dump(ats.weapons);
 debug.dump(ats.evasions);
 debug.dump(ats.attacks);
 
@@ -341,6 +342,16 @@ var speed=700;
 var elem="jeep_MG";
 bombable.fireAIWeapon (time_sec, myNodeName, elem, speed);
 
+#Leopard
+var myNodeName = "/ai/models/ship";
+var ats = bombable.attributes[myNodeName];
+var weaps=ats.weapons;
+var time_sec = 3.0;
+var speed=700;
+var elem="main_gun";
+bombable.fireAIWeapon (time_sec, myNodeName, elem, speed);
+var elem="turret_MG";
+bombable.fireAIWeapon (time_sec, myNodeName, elem, speed);
 ##################### add model ##########################
 # var weapon_node = ai_node.getNode("models/model[13]", 1);
 
@@ -659,3 +670,153 @@ var replace_placeholders_2 = func(str_, target, replacement) {
     
     return res;
 };
+###############################################################################
+# rotate_zxy Test & Benchmark Script
+###############################################################################
+
+# 1. Original Implementation
+var rotate_zxy_old = func (vector, alpha, beta, gamma) {
+    var alpha_rad = alpha * D2R;
+    var beta_rad = beta * D2R;
+    var gamma_rad = gamma * D2R;
+ 
+    var c_alpha = math.cos(alpha_rad);
+    var s_alpha = math.sin(alpha_rad);
+    var c_beta = math.cos(beta_rad);
+    var s_beta = math.sin(beta_rad);
+    var c_gamma = math.cos(gamma_rad);
+    var s_gamma = math.sin(gamma_rad);
+
+    var matrix = [
+        [
+           c_gamma * c_beta + s_gamma * s_alpha * s_beta,
+           -s_gamma * c_beta + c_gamma * s_alpha * s_beta,
+           c_alpha * s_beta
+        ],
+
+        [
+            s_gamma * c_alpha,
+            c_gamma * c_alpha,
+            -s_alpha
+        ],
+
+        [
+          -c_gamma * s_beta + s_gamma * s_alpha * c_beta,
+          s_gamma * s_beta + c_gamma * s_alpha * c_beta,
+          c_alpha * c_beta
+        ]
+    ];
+
+    var x2 = vector[0] * matrix[0][0] + vector[1] * matrix[1][0] + vector[2] * matrix[2][0];
+    var y2 = vector[0] * matrix[0][1] + vector[1] * matrix[1][1] + vector[2] * matrix[2][1];
+    var z2 = vector[0] * matrix[0][2] + vector[1] * matrix[1][2] + vector[2] * matrix[2][2];
+
+    return [x2, y2, z2];
+};
+
+# 2. Optimized Implementation (Method 1: Direct Inlined Math)
+var rotate_zxy_new = func (vector, alpha, beta, gamma) {
+    var a_rad = alpha * D2R;
+    var b_rad = beta * D2R;
+    var g_rad = gamma * D2R;
+ 
+    var ca = math.cos(a_rad); var sa = math.sin(a_rad);
+    var cb = math.cos(b_rad); var sb = math.sin(b_rad);
+    var cg = math.cos(g_rad); var sg = math.sin(g_rad);
+
+    var vx = vector[0]; var vy = vector[1]; var vz = vector[2];
+
+    return [
+        vx * (cg * cb + sg * sa * sb) + vy * (sg * ca) + vz * (-cg * sb + sg * sa * cb),
+        vx * (-sg * cb + cg * sa * sb) + vy * (cg * ca) + vz * (sg * sb + cg * sa * cb),
+        vx * (ca * sb) - vy * sa + vz * (ca * cb)
+    ];
+};
+
+# 3. Helper to test numerical equality within tolerance
+var approx_equal = func(v1, v2, tol = 1e-6) {
+    return (math.abs(v1[0] - v2[0]) < tol) and 
+           (math.abs(v1[1] - v2[1]) < tol) and 
+           (math.abs(v1[2] - v2[2]) < tol);
+};
+
+###############################################################################
+# Test Suite Execution
+###############################################################################
+
+print("\n=======================================================");
+print("       RUNNING ROTATE_ZXY ACCURACY & SPEED TEST        ");
+print("=======================================================\n");
+
+# Define diverse test cases: [vector, alpha, beta, gamma, description]
+var test_cases = [
+    [[1.0, 0.0, 0.0],    0.0,   0.0,   0.0, "Identity (Zero rotation)"],
+    [[1.0, 0.0, 0.0],    0.0,   0.0,  90.0, "Pure Z rotation (90 deg)"],
+    [[0.0, 1.0, 0.0],   45.0,   0.0,   0.0, "Pure X rotation (45 deg)"],
+    [[0.0, 0.0, 1.0],    0.0,  30.0,   0.0, "Pure Y rotation (30 deg)"],
+    [[1.0, 2.0, 3.0],   15.0,  30.0,  45.0, "Arbitrary positive angles"],
+    [[-0.83, 1.11, 2.83], -20.0, 35.0, -110.0, "MG Pivot offset vector with negative angles"],
+    [[12.5, -3.4, 0.2],  180.0, -90.0,  270.0, "Extreme/Gimbal angles"]
+];
+
+var all_passed = 1;
+
+foreach (var tc; test_cases) {
+    var vec   = tc[0];
+    var a     = tc[1];
+    var b     = tc[2];
+    var g     = tc[3];
+    var desc  = tc[4];
+
+    var res_old = rotate_zxy_old(vec, a, b, g);
+    var res_new = rotate_zxy_new(vec, a, b, g);
+    var passed  = approx_equal(res_old, res_new);
+
+    if (!passed) { all_passed = 0; }
+
+    print("Test Case: " ~ desc);
+    print("  Input Vector : [" ~ vec[0] ~ ", " ~ vec[1] ~ ", " ~ vec[2] ~ "]");
+    print("  Angles (a,b,g): " ~ a ~ ", " ~ b ~ ", " ~ g);
+    print("  OLD Output   : [" ~ sprintf("%.6f", res_old[0]) ~ ", " ~ sprintf("%.6f", res_old[1]) ~ ", " ~ sprintf("%.6f", res_old[2]) ~ "]");
+    print("  NEW Output   : [" ~ sprintf("%.6f", res_new[0]) ~ ", " ~ sprintf("%.6f", res_new[1]) ~ ", " ~ sprintf("%.6f", res_new[2]) ~ "]");
+    print("  Status       : " ~ (passed ? "PASS" : "FAIL *** MISMATCH ***"));
+    print("-------------------------------------------------------");
+}
+
+print("\nAccuracy Verification Result: " ~ (all_passed ? "ALL TESTS PASSED!" : "SOME TESTS FAILED!"));
+
+###############################################################################
+# Performance / Compute Time Benchmark
+###############################################################################
+
+print("\n=======================================================");
+print("               BENCHMARKING EXECUTION TIME             ");
+print("=======================================================");
+
+var iterations = 100000;
+print("Running " ~ iterations ~ " iterations per method...\n");
+
+# Benchmark Old Method
+var t_start_old = systime();
+for (var i = 0; i < iterations; i += 1) {
+    var dummy1 = rotate_zxy_old([-0.83, 1.11, 2.83], 15.4, -8.2, 42.1);
+}
+var t_end_old = systime();
+var time_old = t_end_old - t_start_old;
+
+# Benchmark New Method
+var t_start_new = systime();
+for (var i = 0; i < iterations; i += 1) {
+    var dummy2 = rotate_zxy_new([-0.83, 1.11, 2.83], 15.4, -8.2, 42.1);
+}
+var t_end_new = systime();
+var time_new = t_end_new - t_start_new;
+
+# Performance Summary
+var speedup = (time_old > 0 and time_new > 0) ? (time_old / time_new) : 0.0;
+
+print("RESULTS:");
+print("  OLD Method Total Time: " ~ sprintf("%.4f", time_old) ~ " seconds");
+print("  NEW Method Total Time: " ~ sprintf("%.4f", time_new) ~ " seconds");
+print("  Performance Improvement: " ~ sprintf("%.2f", speedup) ~ "x faster");
+print("=======================================================\n");

@@ -52,7 +52,6 @@
 	<animation>
 		<type>rotate</type>
 		<object-name>gunMount</object-name>
-		<object-name>Gun</object-name>
 		<property>jeep_MG/orientation/true-heading-deg</property>
 		<center>
 			<x-m>0.888</x-m>

@@ -15,9 +15,9 @@
 
 			
 			#listener function to change livery color if value is change (via dialogue for instance)
-			var jeep_change_color = func(myTankNodeName) {
+			var jeep_change_color = func(myNodeName) {
           
-          var damageValue = getprop(""~myTankNodeName~"/bombable/attributes/damage");
+          var damageValue = getprop(""~myNodeName~"/bombable/attributes/damage");
           if (damageValue==nil) damageValue=0;
           
           var use_red = getprop("/ai/jeep/usered");
@@ -32,11 +32,11 @@
           
           
       		if((damageValue >= 0.15) and (damageValue < 1.0))
-				  	setprop(""~myTankNodeName~"/bombable/texture-corps-path", base_color~"2.png");
+				  	setprop(""~myNodeName~"/bombable/texture-corps-path", base_color~"2.png");
 					elsif(damageValue == 1.0)
-						setprop(""~myTankNodeName~"/bombable/texture-corps-path" , base_color~"3.png");
+						setprop(""~myNodeName~"/bombable/texture-corps-path" , base_color~"3.png");
 					else 
-						setprop(""~myTankNodeName~"/bombable/texture-corps-path" , base_color~".png");
+						setprop(""~myNodeName~"/bombable/texture-corps-path" , base_color~".png");
           
       }
 			
@@ -55,8 +55,22 @@
         # "c:/Program Files/FlightGear/data/AI/M1-Abrams/m1.xml" - this is not 
         # only long & complex but will change depending on the system
         # FG is running on.          
-        aircraft.jeep_dlg_config = gui.Dialog.new("ai/jeep/config/dialog","AI/Aircraft/jeep-Bombable/Dialogs/config.xml");
-				
+
+        # 1. Get the directory containing the executing Nasal file
+        var script_dir = io.dirname(caller()[2]);
+
+        # 2. Build the path using standard string operations
+        var dialog_path = script_dir ~ "/../Dialogs/config.xml";
+
+        # 3. Print to terminal to verify
+        print("Resolved jeep dialog path: ", dialog_path);
+
+        # 4. Pass the resolved absolute path string to gui.Dialog
+        aircraft.jeep_dlg_config = gui.Dialog.new("ai/jeep/config/dialog", dialog_path);
+
+
+
+
 				#aircraft.jeep_dlg_config.toggle();
         
         #Doing this via a hot key wouldwork too but the menu option seems better
@@ -151,7 +165,8 @@
           
           objectNodeName : thisNodeName,
           objectNode : props.globals.getNode(thisNodeName),
-          updateTime_s : 2/3, #time, in seconds, between the updates that 
+		      type : "groundvehicle",
+          updateTime_s : 1/3, #time, in seconds, between the updates that 
           #keep the object at its AGL. Tradeoff is high-speed updates look more
           #realistic but slow down the framerate/cause jerkiness.  Faster-moving
           #objects will need more frequent updates to look realistic.
@@ -165,7 +180,7 @@
           # all in meters
           #                     
           altitudes : {	
-            wheelsOnGroundAGL_m : 1.0 , #altitude correction to add to your aircraft or ship that is needed to put wheels on ground (or, for a ship, make it float in the water at the correct level).  For most objects this is 0 but some models need a small correction to place them exactly at ground level
+            wheelsOnGroundAGL_m : 0.986 , #altitude correction to add to your aircraft or ship that is needed to put wheels on ground (or, for a ship, make it float in the water at the correct level).  For most objects this is 0 but some models need a small correction to place them exactly at ground level
             
             minimumAGL_m : 0, #minimum altitude above ground level this object is allowed to fly
             maximumAGL_m : 0, #maximum altitude AGL this object is allowed to fly	    
@@ -187,6 +202,7 @@
             
     
             damagedAltitudeChangeMaxRate_meterspersecond : 0.02, #max rate to sink or fly downwards when damaged, in meters/second
+			maxClimbRate_fps : 11, #needed for ground vehicles
           },
           #  
           #########################################
@@ -195,10 +211,10 @@
           # The evasion system makes the AI objectdodge when they come under
           # fire. 
           evasions : {               
-            dodgeDelayMax_sec : 15, #max time to delay/wait between dodges
-            dodgeDelayMin_sec : 5, #minimum time to delay/wait between dodges
-            dodgeMax_deg : 120, #Max amount to turn when dodging
-            dodgeMin_deg : 30, #minimum amount to turn when dodging 
+            dodgeDelayMax_sec : 7, #max time to delay/wait between dodges
+            dodgeDelayMin_sec : 2, #minimum time to delay/wait between dodges
+            dodgeMax_deg : 30, #Max amount to turn when dodging
+            dodgeMin_deg : 15, #minimum amount to turn when dodging 
             dodgeROverLPreference_percent : 50, # Preference for right turns vs. left when dodging.  90% means 90% right turns, 50% means 50% right turns.
             dodgeAltMin_m : 0, #Aircraft will begin to move up or down 
             dodgeAltMax_m : 0, #Max & Min are relative to current alt  
@@ -238,15 +254,18 @@
           # You can define any number of weapons--just enclose each in curly brackets
           # and separate with commas (,).           
           weapons : {
-             front_gun :  #internal name - this can be any name you want; must be a valid nasal variable name
+             jeep_MG :  #internal name - this can be any name you want; must be a valid nasal variable name
               {               
-                name : "Machine Gun", # name presented to users, ie in on-screen messages
-                maxDamage_percent : 3, # maximum percentage damage one hit from the aircraft's main weapon/machine guns will do to an opponent
-                maxDamageDistance_m : 700, # maximum distance at which the aircrafts main weapon/maching guns will be able to damage an opponent
-                weaponAngle_deg  :  { heading: 0, elevation: 45 }, # direction the aircraft's main weapon is aimed.   
+                name : "Browning MG", # name presented to users, ie in on-screen messages
+                maxDamage_percent : 10, # maximum percentage damage one hit from the aircraft's main weapon/machine guns will do to an opponent
+                maxDamageDistance_m : 300, # maximum distance at which the aircrafts main weapon/maching guns will be able to damage an opponent
+                weaponAngle_deg  :  { heading: 0, elevation: 15.0, headingMin: -180, headingMax: 180, elevationMin: -10.0, elevationMax: 70  }, # direction the aircraft's main weapon is aimed.   
                                                                   # 0,0 = straight ahead, 90,0=directly right, 0,90=directly up, 0,180=directly back, etc.
-                weaponOffset_m : {x:2, y:0, z:0}, # Offset of the weapon from the main aircraft center
-              },    
+                weaponOffset_m : {x:0.818, y:0, z:0.830}, # Offset of the weapon from the main aircraft center
+                weaponSize_m : {start: .35, end: .35 }, # Visual size of the weapon's projectile, in meters, at start & end of its path
+                nRounds : 1000, #1 station
+                roundsPerSec : 8, #assuming 3 firing
+                accuracy : 3,              },  
           },  
           
 
@@ -258,12 +277,12 @@
           # all in meters          
           #           
           dimensions : {                  
-            width_m : 4,  #width of your object, ie, for aircraft, wingspan
-            length_m : 7, #length of your object, ie, for aircraft, distance nose to tail
-            height_m : 3, #height of your object, ie, for aircraft ground to highest point when sitting on runway
-            damageRadius_m : 3.5, #typically 1/2 the longest dimension of the object. Hits within this distance of the 
+            width_m : 3,  #width of your object, ie, for aircraft, wingspan
+            length_m : 3.55, #length of your object, ie, for aircraft, distance nose to tail
+            height_m : 2, #height of your object, ie, for aircraft ground to highest point when sitting on runway
+            damageRadius_m : 2, #typically 1/2 the longest dimension of the object. Hits within this distance of the 
                                 #center of object have some possibility of damage
-            vitalDamageRadius_m : 2.3, #typically the radius of the fuselage or cockpit or other most 
+            vitalDamageRadius_m : 1, #typically the radius of the fuselage or cockpit or other most 
                                      # vital area at the center of the object.  Always smaller than damageRadius_m 
           },
           #

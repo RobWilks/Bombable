@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<PropertyList include="Scimitar-bombableinclude.xml">
+	<description>Tank Scimitar. This light tank is designed to be a static or moving (set as a ship or aircraft with heading, speed, rudder settings) air-to-ground target. You can damage it with heavy gun or bombs.
+	If the tank is really damaged you will see fire and smoke.
+	TODO: _ add MultiPlayer mode, in order to share scenario with multiple tanks and aircrafts.	</description>
+	<author>Rob Wilkinson - Brent HUGH</author>
+
+	<status>beta</status>
+
+	<path>Models/ScimitarV15.ac</path>
+
+	<!-- Modified to allow the pitch and roll of the model to be controlled by a scenario -->
+	
+	<offsets>
+		<x-m>0.0</x-m>
+		<y-m>0.0</y-m>
+		<z-m>0.0</z-m>
+		<pitch-deg>0</pitch-deg>
+		<roll-deg>0</roll-deg>
+	</offsets>
+
+	<!-- animations -->
+
+	<animation>
+		<name>Scimitar-tank</name>
+		<path>ScimitarV15.ac</path>
+	</animation>
+	
+	<animation>
+		<name>M1-corps</name>
+		<object-name>Left_Drive</object-name>
+		<object-name>Right_Drive</object-name>
+		<object-name>Hull_empty</object-name>
+		<object-name>Turret</object-name>
+		<object-name>Gun_Empty</object-name>
+	</animation>
+	
+	<animation>
+		<type>material</type>
+		<object-name>Turret_Hatch_Left</object-name>
+		<texture-prop>bombable/texture-corps-path</texture-prop>
+		<transparency>
+			<alpha>1.0</alpha>
+		</transparency>
+	</animation>
+	
+	<animation>
+		<type>rotate</type>
+		<object-name>Scimitar-tank</object-name>
+		<property>orientation/pitch-animation</property>
+		<axis>
+			<x>0</x>
+			<y>1</y>
+			<z>0</z>
+		</axis>
+	</animation>
+
+	<animation>
+		<type>rotate</type>
+		<object-name>Scimitar-tank</object-name>
+		<property>orientation/roll-animation</property>
+		<axis>
+			<x>-1</x>
+			<y>0</y>
+			<z>0</z>
+		</axis>
+	</animation>
+
+	<animation>
+		<type>rotate</type>
+		<object-name>Turret</object-name>
+		<object-name>Gun_Empty</object-name>
+		<property>turret_MG/orientation/true-heading-deg</property>
+		<center>
+			<x-m>0</x-m>
+			<y-m>0.0</y-m>
+			<z-m>1.59626</z-m>
+		</center>
+		<axis>
+			<x>0</x>
+			<y>0</y>
+			<z>1</z>
+		</axis>
+	</animation>
+	
+	<animation>
+		<type>rotate</type>
+		<object-name>Gun_Empty</object-name>
+		<property>turret_MG/orientation/pitch-deg</property>	
+		<center>
+			<x-m>-0.593456</x-m>
+			<y-m>0.0</y-m>
+			<z-m>1.59626</z-m>
+		</center>
+		<axis>
+			<x>0</x>
+			<y>1</y>
+			<z>0</z>
+		</axis>
+	</animation>
+
+</PropertyList>
