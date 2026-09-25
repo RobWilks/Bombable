@@ -56,7 +56,7 @@ dumpLoopId(myNodeName1);
 dumpLoopId("/ai/models/aircraft[4]");
 dumpLoopId("");
 
-debug.dump(bombable.nodes);
+debug.dump(bombable.nodeNames);
 
 print(bombable.bombable_epoch);
 bombable.resetTerrainFires();
@@ -280,7 +280,7 @@ var myNodeName = "/ai/models/static";
 var ats = bombable.attributes[myNodeName];
 debug.dump(ats);
 
-debug.dump(bombable.nodes);
+debug.dump(bombable.nodeNames);
 
 ##################### fireAIWeapon (working) ##########################
 # AA gun
@@ -554,7 +554,7 @@ var myNodeName = "/ai/models/static";
 var ats = bombable.attributes[myNodeName];
 var myTargets = ats.targetIndex;
 var nTargets = size(myTargets);
-debug.dump(bombable.nodes);
+debug.dump(bombable.nodeNames);
 debug.dump(myTargets);
 foreach (elem; keys (ats.weapons) ) 
 {	
@@ -578,7 +578,7 @@ var myNodeName = "/ai/models/aircraft";
 var ats = bombable.attributes[myNodeName];
 var myTargets = ats.targetIndex;
 var nTargets = size(myTargets);
-debug.dump(bombable.nodes);
+debug.dump(bombable.nodeNames);
 debug.dump(myTargets);
 foreach (elem; keys (ats.weapons) ) 
 {	
@@ -602,7 +602,7 @@ var myNodeName = "/ai/models/aircraft[1]";
 var ats = bombable.attributes[myNodeName];
 var myTargets = ats.targetIndex;
 var nTargets = size(myTargets);
-debug.dump(bombable.nodes);
+debug.dump(bombable.nodeNames);
 debug.dump(myTargets);
 foreach (elem; keys (ats.weapons) ) 
 {	
@@ -626,7 +626,7 @@ var myNodeName = "/ai/models/aircraft[2]";
 var ats = bombable.attributes[myNodeName];
 var myTargets = ats.targetIndex;
 var nTargets = size(myTargets);
-debug.dump(bombable.nodes);
+debug.dump(bombable.nodeNames);
 debug.dump(myTargets);
 foreach (elem; keys (ats.weapons) ) 
 {	

@@ -5922,7 +5922,7 @@ var checkAim = func ( elem, #string from weapon key
 	if (thisWeapon.parent == "")
 	{
 		# calculate the offset of the weapon in the ground reference frame
-		thisWeapon.aim.weaponOffsetGndFrame = rotate_zxy_new
+		thisWeapon.aim.weaponOffsetGndFrame = rotate_zxy
 		(
 			[
 			thisWeapon.weaponOffset_m.y,
@@ -5960,7 +5960,7 @@ var checkAim = func ( elem, #string from weapon key
 		setprop(myNodeName1 ~ "/" ~ elem ~ "/offset-y", myOffset[1]);
 		setprop(myNodeName1 ~ "/" ~ elem ~ "/offset-z", myOffset[2]);
 
-		thisWeapon.aim.weaponOffsetGndFrame = rotate_zxy_new
+		thisWeapon.aim.weaponOffsetGndFrame = rotate_zxy
 		(
 			[
 			myOffset[1],
@@ -6005,7 +6005,7 @@ var checkAim = func ( elem, #string from weapon key
 	# );
 
 	#rotate intercept direction to the frame of reference of the model
-	var newDirModelFrame = rotate_yxz_new(interceptDirGndFrame, ats.pitch_deg, ats.roll_deg, -ats.myHeading_deg);
+	var newDirModelFrame = rotate_yxz(interceptDirGndFrame, ats.pitch_deg, ats.roll_deg, -ats.myHeading_deg);
 	
 		
 	#form vector for the current direction of weapon, weapDirModelFrame, in the reference frame of the model
@@ -6096,7 +6096,7 @@ var checkAim = func ( elem, #string from weapon key
 	# usually this will be in direction of travel of AI object 
 	# exceptions: rockets, ACs with vertically firing cannon
 	{
-		thisWeapon.aim.weaponDirGndFrame = rotate_zxy_new(weapDirModelFrame, -ats.pitch_deg, -ats.roll_deg, ats.myHeading_deg);
+		thisWeapon.aim.weaponDirGndFrame = rotate_zxy(weapDirModelFrame, -ats.pitch_deg, -ats.roll_deg, ats.myHeading_deg);
 	}
 	else
 	{
@@ -6128,7 +6128,7 @@ var checkAim = func ( elem, #string from weapon key
 			];
 
 			thisWeapon.aim.weaponDirModelFrame = newDirModelFrame;
-			thisWeapon.aim.weaponDirGndFrame = rotate_zxy_new(newDirModelFrame, -ats.pitch_deg, -ats.roll_deg, ats.myHeading_deg);
+			thisWeapon.aim.weaponDirGndFrame = rotate_zxy(newDirModelFrame, -ats.pitch_deg, -ats.roll_deg, ats.myHeading_deg);
 		}
 	}
 	return (targetSighted); 	
@@ -6149,7 +6149,7 @@ var checkAim = func ( elem, #string from weapon key
 # geoCoord and directdistanceto.
 			
 # myNodeName1 is the AI aircraft and myNodeName2 is its target
-# targetIndex[] is a vector containing indices of myNodeName1 targets; nodes[] is the lookup vector
+# targetIndex[] is a vector containing indices of myNodeName1 targets; nodeNames[] is the lookup vector
 
 var weapons_loop = func (id, myNodeName1 = "") {
 	var ats = attributes[myNodeName1];
@@ -6215,7 +6215,7 @@ var weapons_loop = func (id, myNodeName1 = "") {
 	# find distance and displacement of all targets and store the closest
 	foreach (target; myTargets)
 	{
-		var myNodeName2 = nodes[target];
+		var myNodeName2 = nodeNames[target];
 		var ats2 = attributes[myNodeName2];
 		# info about target used by checkAim
 		var targetLat_deg = getprop(""~myNodeName2~"/position/latitude-deg"); # target
@@ -6321,7 +6321,7 @@ var weapons_loop = func (id, myNodeName1 = "") {
 			debprint("Number of rocket carriers ", size(rocketCarriers));
 			foreach (i; rocketCarriers)
 			{
-				var wps = attributes[nodes[i]].weapons; 
+				var wps = attributes[nodeNames[i]].weapons; 
 				foreach (targetWeap; keys(wps))
 				{
 					if (wps[targetWeap].destroyed) continue;
@@ -6342,7 +6342,7 @@ var weapons_loop = func (id, myNodeName1 = "") {
 					"Selected rocket target for %s : %s >> %s : %s",
 					getCallSign(myNodeName1),
 					wps[rockets[r + 1]].name,
-					getCallSign(nodes[rockets[r]]),
+					getCallSign(nodeNames[rockets[r]]),
 					elem
 					)) ;
 				continue;
@@ -6384,11 +6384,16 @@ var weapons_loop = func (id, myNodeName1 = "") {
 			}
 		}
 		var tgtDisp = [targetData[pos][0], targetData[pos][1], targetData[pos][2]];
-		var myNodeName2 = nodes[ind];
+		var myNodeName2 = nodeNames[ind];
 
 		# check weapon aim and update weapon orientation if a target has been sighted
 		if (thisWeapon.weaponType == 0) 
 		{
+			if (thisWeapon.best_match != nil and !ats.weapons[thisWeapon.coaxial_partner].destroyed and ( stores.checkWeaponsReadiness ( myNodeName1, thisWeapon.coaxial_partner ) ))
+			{
+				if ( !isTargetBestMatch (thisWeapon, ind) ) continue;
+			}
+
 			var targetSighted = checkAim
 				(
 					elem, # string from weapon key
@@ -6424,7 +6429,7 @@ var weapons_loop = func (id, myNodeName1 = "") {
 			continue;
 		} # end of rocket section.  No further processing for rockets in weapons_loop()
 	
-		# if (ats.index == 1) debprint("Weapons_loop for ", nodes[ats.index], " target = ", ind, "pos = ", pos, sprintf(" distance = %5.0fm nHit = %5.3f", targetData[pos][3], thisWeapon.aim.nHit));
+		# if (ats.index == 1) debprint("Weapons_loop for ", nodeNames[ats.index], " target = ", ind, "pos = ", pos, sprintf(" distance = %5.0fm nHit = %5.3f", targetData[pos][3], thisWeapon.aim.nHit));
 		if (thisWeapon.aim.nHit == 0) 
 		{
 			pos += 1;
@@ -6731,7 +6736,7 @@ var guideRocket = func
 		return ();
 	}
 
-	var myNodeName2 = nodes[thisWeapon.aim.target];
+	var myNodeName2 = nodeNames[thisWeapon.aim.target];
 	var dim = attributes[myNodeName1].dimensions;  
 	var rp = "ai/models/static[" ~ thisWeapon.modelIndex ~ "]"; # static model for rocket
 	var delta_t = LOOP_TIME;
@@ -8288,14 +8293,14 @@ var attack_loop = func ( id, myNodeName ) {
 	if (ctrls.dodgeInProgress) return;
 
 	# if (ats.targetIndex == -1) return; # no target assigned
-	# var targetNode = nodes[ats.targetIndex];	
+	# var targetNode = nodeNames[ats.targetIndex];	
 
 	# set the node to attack
 	var targetNode = "";
 	var addTrue = "";
 	if (size(ats.targetIndex))
 	{
-		targetNode = nodes[ats.targetIndex[0]];
+		targetNode = nodeNames[ats.targetIndex[0]];
 		addTrue = "true-";
 	}
 
@@ -9625,7 +9630,7 @@ var add_damage = func
 			{
 				thisWeapon.destroyed = 1;
 				ats.nRockets -= 1;
-				debprint(callsign," "~weaps[index]~" destroyed");
+				debprint(callsign,weaps[index],"destroyed");
 				if (ats.maxTargets) 
 				{
 					if (!thisWeapon.aim.fixed or ats.nFixed < 2)
@@ -9659,11 +9664,15 @@ var add_damage = func
 			reduceRPM(myNodeName);
 			aircraftCrash (myNodeName);
 		}
-		else
+		elsif (type == "ship" or type == "groundvehicle") 
 		{
 			# for ships and ground vehicles decelerate at the maxSpeedReduce
 			var loopid = ats.loopids.ground_loopid;
 			settimer( func{reduceSpeed(loopid, myNodeName, maxSpeedReduceFactor, type)},1);
+		}
+		else #static
+		{
+			return;
 		}
 		# exit here or skip next block but need to start ship listing?
 	}
@@ -10844,6 +10853,30 @@ var weapons_init_func = func(myNodeName)
 	{
 		var thisWeapon = weaps[elem]; # a pointer into the attributes hash
 
+		# alias nodes for weapons with coaxial partners
+		if (contains(thisWeapon, "coaxial_partner") and thisWeapon.coaxial_partner != "") {
+			var partnerKey = thisWeapon.coaxial_partner;
+			
+			# Ensure partner exists in weapon list
+			if (contains(weaps, partnerKey)) {
+				# To prevent double-aliasing both ways, only process alphabetically smaller key
+				if (cmp(elem, partnerKey) < 0) {
+					var platformNode = props.globals.getNode(myNodeName, 1);
+					var primaryHeading = platformNode.getNode(elem ~ "/orientation/true-heading-deg", 1);
+					var primaryPitch   = platformNode.getNode(elem ~ "/orientation/pitch-deg", 1);
+					
+					var secHeading     = platformNode.getNode(partnerKey ~ "/orientation/true-heading-deg", 1);
+					var secPitch       = platformNode.getNode(partnerKey ~ "/orientation/pitch-deg", 1);
+
+					# Alias secondary weapon nodes to primary weapon nodes
+					secHeading.alias(primaryHeading);
+					secPitch.alias(primaryPitch);
+
+					debprint("Weaps: Aliased coaxial pair '", partnerKey, "' -> '", elem, "' on ", myNodeName);
+				}
+			}
+		}
+
 		if (thisWeapon["weaponType"] == 1) 
 		{
 			if (rocket_init_func (thisWeapon, rocketIndexLookup[rocketIndex]))
@@ -10946,6 +10979,7 @@ var weapons_init_func = func(myNodeName)
 			delete(weaps, elem);
 			continue;
 		}	
+
 		thisWeapon.destroyed = 0;
 		debprint ("Weaps: ", myNodeName, " initialized ", thisWeapon.name);
 		count += 1;
@@ -11580,7 +11614,7 @@ var allPlayers =
 	[0],
 	[]
 ];
-var nodes = [""]; #1st element is main AC
+var nodeNames = [""]; #1st element is main AC
 
 settimer (func 
 {
@@ -11987,10 +12021,10 @@ var rotate_round_z_axis = func (vector, gamma) {
 
 # debug.dump(gunDir, raiseGun, turnTurret, rollTank, pitchTank, setDir);
 
-########################## rotate_zxy_new ###########################
+########################## rotate_zxy ###########################
 # Direct Inlined Math
 
-var rotate_zxy_new = func (vector, alpha, beta, gamma) {
+var rotate_zxy = func (vector, alpha, beta, gamma) {
     var a_rad = alpha * D2R;
     var b_rad = beta * D2R;
     var g_rad = gamma * D2R;
@@ -12007,53 +12041,10 @@ var rotate_zxy_new = func (vector, alpha, beta, gamma) {
         vx * (ca * sb) - vy * sa + vz * (ca * cb)
     ];
 };
-########################## rotate_zxy ###########################
-# from http://www.songho.ca/opengl/gl_anglestoaxes.html
-# rotations of the x-, y-, and z-axes in a counterclockwise direction when looking towards the origin
 
-var rotate_zxy = func (vector, alpha, beta, gamma) {
-	var alpha_rad = alpha * D2R;
-	var beta_rad = beta * D2R;
-	var gamma_rad = gamma * D2R;
- 
-    var c_alpha = math.cos(alpha_rad);
-    var s_alpha = math.sin(alpha_rad);
-    var c_beta = math.cos(beta_rad);
-    var s_beta = math.sin(beta_rad);
-    var c_gamma = math.cos(gamma_rad);
-    var s_gamma = math.sin(gamma_rad);
+########################## rotate_yxz ###########################
 
-    var matrix = [
-        [
-           c_gamma * c_beta + s_gamma * s_alpha * s_beta,
-           -s_gamma * c_beta + c_gamma * s_alpha * s_beta,
-           c_alpha * s_beta
-        ],
-
-        [
-            s_gamma * c_alpha,
-            c_gamma * c_alpha,
-            -s_alpha
-        ],
-
-        [
-          -c_gamma * s_beta + s_gamma * s_alpha * c_beta,
-          s_gamma * s_beta + c_gamma * s_alpha * c_beta,
-          c_alpha * c_beta
-        ]
-    ];
-
-    var x2 = vector[0] * matrix[0][0] + vector[1] * matrix[1][0] + vector[2] * matrix[2][0]; # [row_no] [col_no]
-    var y2 = vector[0] * matrix[0][1] + vector[1] * matrix[1][1] + vector[2] * matrix[2][1];
-    var z2 = vector[0] * matrix[0][2] + vector[1] * matrix[1][2] + vector[2] * matrix[2][2];
-
-    # debug.dump(vector, gamma, x2, y2, z2);
-    return [x2, y2, z2];
-}
-
-########################## rotate_yxz_new ###########################
-
-var rotate_yxz_new = func (vector, alpha, beta, gamma) {
+var rotate_yxz = func (vector, alpha, beta, gamma) {
     var a_rad = alpha * D2R;
     var b_rad = beta * D2R;
     var g_rad = gamma * D2R;
@@ -12078,49 +12069,6 @@ var approx_equal = func(v1, v2, tol = 1e-6) {
            (math.abs(v1[2] - v2[2]) < tol);
 };
 
-########################## rotate_yxz ###########################
-# from http://www.songho.ca/opengl/gl_anglestoaxes.html
-# rotations of the x-, y-, and z-axes in a counterclockwise direction when looking towards the origin
-
-var rotate_yxz = func (vector, alpha, beta, gamma) {
-	var alpha_rad = alpha * D2R;
-	var beta_rad = beta * D2R;
-	var gamma_rad = gamma * D2R;
- 
-    var c_alpha = math.cos(alpha_rad);
-    var s_alpha = math.sin(alpha_rad);
-    var c_beta = math.cos(beta_rad);
-    var s_beta = math.sin(beta_rad);
-    var c_gamma = math.cos(gamma_rad);
-    var s_gamma = math.sin(gamma_rad);
-
-    var matrix = [
-        [
-           c_beta * c_gamma - s_beta * s_alpha * s_gamma,
-           -c_alpha * s_gamma,
-           s_beta * c_gamma + c_beta * s_alpha * s_gamma
-        ],
-
-        [
-           c_beta * s_gamma + s_beta * s_alpha * c_gamma,
-           c_alpha * c_gamma,
-           s_beta * s_gamma - c_beta * s_alpha * c_gamma
-        ],
-
-        [
-            -s_beta * c_alpha,
-            s_alpha,
-            c_beta * c_alpha
-        ]
-    ];
-
-    var x2 = vector[0] * matrix[0][0] + vector[1] * matrix[1][0] + vector[2] * matrix[2][0]; # [row_no] [col_no]
-    var y2 = vector[0] * matrix[0][1] + vector[1] * matrix[1][1] + vector[2] * matrix[2][1];
-    var z2 = vector[0] * matrix[0][2] + vector[1] * matrix[1][2] + vector[2] * matrix[2][2];
-
-    # debug.dump(vector, gamma, x2, y2, z2);
-    return [x2, y2, z2];
-}
 ########################## erf ###########################
 var erf = func (xVal) {
 	# calculates for halfspace, 0 to xVal
@@ -12541,7 +12489,7 @@ var addToTargets = func(myNodeName)
 	if (myIndex == nil) myIndex = 1; # 0 is for main AC
 	var ats = attributes[myNodeName];
 	ats.index = myIndex;
-	append(nodes, myNodeName);
+	append(nodeNames, myNodeName);
 	setprop("/bombable/targets/index", myIndex + 1);
 	var callsign = getCallSign(myNodeName); 
 	var teamName = right(callsign, 1);
@@ -12572,7 +12520,7 @@ var addToTargets = func(myNodeName)
 var initTargets = func () {
 	# wait til all weapons initialized
 	var ready = 1;
-	foreach (var myNodeName; nodes)
+	foreach (var myNodeName; nodeNames)
 	{
 		if (myNodeName == "") continue;
 		ready = getprop(""~myNodeName~"/bombable/initializers/weapons-initialized");
@@ -12612,7 +12560,7 @@ var initTargets = func () {
 		forindex (var i; teams[teamName].indices)
 		{
 			var myIndex = teams[teamName].indices[i];
-			for (var j = 0; j < attributes[nodes[myIndex]].maxTargets; j = j + 1 )
+			for (var j = 0; j < attributes[nodeNames[myIndex]].maxTargets; j = j + 1 )
 			{		
 				if (targetTeam != nil)
 				{
@@ -12624,7 +12572,7 @@ var initTargets = func () {
 				}
 				if (foundTarget == -1) break;
 			}
-			debprint(sprintf("initTargets: %d targets assigned for %s team %s", j, getCallSign(nodes[myIndex]), teamName));
+			debprint(sprintf("initTargets: %d targets assigned for %s team %s", j, getCallSign(nodeNames[myIndex]), teamName));
 			count += j;
 		}
 		debprint(sprintf("initTargets: Total of %d targets in team %s side (%d) assigned for team %s", 
@@ -12634,9 +12582,11 @@ var initTargets = func () {
 	# apply handicap to side (1) by reducing pilot skills by a fixed percentage
 	forindex (var i; allPlayers[1])
 	{
-		attributes[nodes[allPlayers[1][i]]].controls.pilotAbility *= ( 1 - handicap / 100 );
+		attributes[nodeNames[allPlayers[1][i]]].controls.pilotAbility *= ( 1 - handicap / 100 );
 	}
 	debprint("Handicap of ", handicap, "% applied to side (1)");
+
+	initWeaponTargetMatches();
 }
 
 
@@ -12653,16 +12603,16 @@ var initTargets = func () {
 
 var assignOneTarget = func (myIndex, targets) {
 	if (size(targets) == 0) return(-1);
-	var myNodeName = nodes[myIndex];
+	var myNodeName = nodeNames[myIndex];
 	var j = 999;
 	var k = -1;
 	var s = 0;
 	var maxNo = 3;
 	foreach (var i; targets) 
 	{
-		if (attributes[nodes[i]].damage == 1) continue; # if object destroyed cannot be a target
+		if (attributes[nodeNames[i]].damage == 1) continue; # if object destroyed cannot be a target
 		if (vecindex(attributes[myNodeName].targetIndex, i) != nil) continue; # already a target
-		s = size(attributes[nodes[i]].shooterIndex);
+		s = size(attributes[nodeNames[i]].shooterIndex);
 		if (s < j) 
 		{
 			j = s;
@@ -12670,7 +12620,7 @@ var assignOneTarget = func (myIndex, targets) {
 		}
 	}
 	if ((k == -1) or (j > maxNo)) return (-1); # no targets available
-	append(attributes[nodes[k]].shooterIndex, myIndex);
+	append(attributes[nodeNames[k]].shooterIndex, myIndex);
 	append(attributes[myNodeName].targetIndex, k);
 	return (k);
 }
@@ -12685,16 +12635,16 @@ var assignOneTarget = func (myIndex, targets) {
 
 var assignOneShooter = func (myIndex, shooters) {
 	if (size(shooters) == 0) return(-1);
-	var myNodeName = nodes[myIndex];
+	var myNodeName = nodeNames[myIndex];
 	var k = -1;
 	var maxNo = 3;
 	foreach (var i; shooters)
 	{
-		if (attributes[nodes[i]].damage == 1 or !i) continue; # if object destroyed, or main aircraft, cannot be a shooter
-		if (size(attributes[nodes[i]].targetIndex) <= attributes[nodes[i]].maxTargets) k = i; # no of targets limited by no of weapons
+		if (attributes[nodeNames[i]].damage == 1 or !i) continue; # if object destroyed, or main aircraft, cannot be a shooter
+		if (size(attributes[nodeNames[i]].targetIndex) <= attributes[nodeNames[i]].maxTargets) k = i; # no of targets limited by no of weapons
 	}
 	if (k == -1) return (-1); # no shooters available
-	append(attributes[nodes[k]].targetIndex, myIndex);
+	append(attributes[nodeNames[k]].targetIndex, myIndex);
 	append(attributes[myNodeName].shooterIndex, k);
 	return (k);
 }
@@ -12703,9 +12653,9 @@ var assignOneShooter = func (myIndex, shooters) {
 # I am the shooter
 # return index of new target or -1
 var findNewTarget = func (myIndex) {
-	var myTeam = attributes[nodes[myIndex]].team;
+	var myTeam = attributes[nodeNames[myIndex]].team;
 	var targetTeam = teams[myTeam].target;
-	var otherSide = !attributes[nodes[myIndex]].side;
+	var otherSide = !attributes[nodeNames[myIndex]].side;
 	var foundTarget = -1;
 	if (targetTeam != nil)
 	{
@@ -12715,16 +12665,16 @@ var findNewTarget = func (myIndex) {
 	{
 		foundTarget = assignOneTarget (myIndex, allPlayers[otherSide]);
 	}
-	debprint("foundTarget ", (foundTarget != -1) ? nodes[foundTarget] : "fail", " for ", nodes[myIndex]);
+	debprint("foundTarget ", (foundTarget != -1) ? nodeNames[foundTarget] : "fail", " for ", nodeNames[myIndex]);
 	return(foundTarget);
 }
 
 ########################## findNewShooter ###########################
 var findNewShooter = func (myIndex) {
 # I am the target
-	var myTeam = attributes[nodes[myIndex]].team;
+	var myTeam = attributes[nodeNames[myIndex]].team;
 	var shooterTeam = teams[myTeam].target;
-	var otherSide = !attributes[nodes[myIndex]].side;
+	var otherSide = !attributes[nodeNames[myIndex]].side;
 	var foundShooter = -1;
 	if (shooterTeam != nil)
 	{
@@ -12734,18 +12684,18 @@ var findNewShooter = func (myIndex) {
 	{
 		foundShooter = assignOneShooter (myIndex, allPlayers[otherSide]);
 	}
-	debprint("foundShooter ", (foundShooter !=-1) ? nodes[foundShooter] : "fail", " for ", nodes[myIndex]);
+	debprint("foundShooter ", (foundShooter !=-1) ? nodeNames[foundShooter] : "fail", " for ", nodeNames[myIndex]);
 	return(foundShooter);
 }
 
 ########################## removeTarget ###########################
 # called when I am attacked and need to swap out a target
 var removeTarget = func (myIndex) {
-	var ats = attributes[nodes[myIndex]];
+	var ats = attributes[nodeNames[myIndex]];
 	var nTargets = size(ats.targetIndex);
 	if (!nTargets) return;
 	var oldTarget = ats.targetIndex[int(rand() * nTargets)];
-	var ats2 = attributes[nodes[oldTarget]];
+	var ats2 = attributes[nodeNames[oldTarget]];
 	ats.targetIndex = removeElem(ats.targetIndex, oldTarget);
 	ats2.shooterIndex = removeElem(ats2.shooterIndex, myIndex);
 	if (size(ats2.shooterIndex) == 0) findNewShooter(oldTarget);
@@ -12758,14 +12708,14 @@ var removeTarget = func (myIndex) {
 # index 0 is main AC
 
 var resetTargetShooter = func (myIndex) {
-	var ats = attributes[nodes[myIndex]];
+	var ats = attributes[nodeNames[myIndex]];
 
 	# remove me from my targets' list of shooters
 	# if any of my targets no longer has a shooter, find one
 
 	foreach (myTarget; ats.targetIndex)
 	{
-		var ats2 = attributes[nodes[myTarget]];
+		var ats2 = attributes[nodeNames[myTarget]];
 		ats2.shooterIndex = removeElem(ats2.shooterIndex, myIndex);
 		if (size(ats2.shooterIndex) == 0) findNewShooter(myTarget);
 	}
@@ -12774,14 +12724,14 @@ var resetTargetShooter = func (myIndex) {
 		# find new target for my shooters
 		foreach (var myShooter; ats.shooterIndex) 
 		{
-			var ats2 = attributes[nodes[myShooter]];
+			var ats2 = attributes[nodeNames[myShooter]];
 			ats2.targetIndex = removeElem(ats2.targetIndex, myIndex);
 			if (size(ats2.targetIndex) == 0) findNewTarget(myShooter);
 		}
 		allPlayers[ats.side] = removeElem(allPlayers[ats.side], myIndex);
 		ats.targetIndex = [];
 		ats.shooterIndex = []; # remove shooters from dead object
-		debprint("", nodes[myIndex], " no longer a target");
+		debprint("", nodeNames[myIndex], " no longer a target");
 }
 
 ########################## waitForAttributes ###########################
@@ -12804,7 +12754,7 @@ var waitForAttributes = func()
 
 	# next steps
 	
-	foreach (var myNodeName; nodes)
+	foreach (var myNodeName; nodeNames)
 	{
 		if (myNodeName != "") # omit main AC
 		{
@@ -12957,7 +12907,7 @@ var startScenario = func(startTime)
 			{
 				#get lon, lat of group
 				GeoCoord2.set_latlon ( GeoCoord.lat(), GeoCoord.lon());
-				myNodeName = nodes[teams[teamName].indices[count]];
+				myNodeName = nodeNames[teams[teamName].indices[count]];
 				var ats = attributes[myNodeName];
 				var type = ats.type;
 				count += 1;
@@ -13250,7 +13200,7 @@ var resetScenarioMain = func()
 	# end all loops for all targets except the main AC
 	var loops = [];
 
-	foreach (var myNodeName; nodes)
+	foreach (var myNodeName; nodeNames)
 	{
 		if (myNodeName == nil or myNodeName == "") continue;
 
@@ -13286,7 +13236,7 @@ var resetScenarioMain = func()
 		[]
 	];
 
-	foreach (var myNodeName; nodes)
+	foreach (var myNodeName; nodeNames)
 	{
 		var ats = attributes[myNodeName];
 		if (myNodeName != "") # omit main AC
@@ -13303,9 +13253,9 @@ var resetScenarioMain = func()
 	}
 
 	# move all AI objects out of scene and repair them
-	foreach (var myNodeName; nodes)	resetBombableDamageFuelWeapons (myNodeName);
+	foreach (var myNodeName; nodeNames)	resetBombableDamageFuelWeapons (myNodeName);
 	
-	foreach (var myNodeName; nodes)
+	foreach (var myNodeName; nodeNames)
 	{
 		if (myNodeName != "") # omit main AC
 		{
@@ -13350,7 +13300,7 @@ var restartAllLoops = func(loops)
 		settimer (func {restartAllLoops(loops);}, 5);
 		return;
 	}
-	foreach (var myNodeName; nodes)
+	foreach (var myNodeName; nodeNames)
 	{
 		if (myNodeName != "") # omit main AC
 		{
@@ -13741,4 +13691,130 @@ var spawn_custom_tracer = func(myNodeName, elem, target_weapon_path, archetype_p
 	print("TEST SUCCESS: Initialized weapon parameters for ", target_weapon_path);
 }
 
+########################## initWeaponTargetMatches ###########################
+# for coaxial weapons 
+
+# Pre-computes best_match target lists across opposing teams.
+# Includes automatic deduplication via contains(weap, "best_match")
+# and strict reciprocity validation for paired weapons.
+# 
+var initWeaponTargetMatches = func() {
+    foreach (var mySide; [0, 1]) {
+        var opSide = 1 - mySide;
+        var myTeam = allPlayers[mySide];
+        var opTeam = allPlayers[opSide];
+
+        foreach (var myIndex; myTeam) {
+            var myNodeName = nodeNames[myIndex];
+            var myAts = attributes[myNodeName];
+            if (myAts == nil or !contains(myAts, "weapons") or myAts.weapons == nil) continue;
+            foreach (var elem; keys(myAts.weapons)) {
+                var weap1 = myAts.weapons[elem];
+
+                # 1. Skip if best_match has already been assigned during partner iteration
+                if (contains(weap1, "best_match") and weap1.best_match != nil) continue;
+
+                var partnerKey = contains(weap1, "coaxial_partner") ? weap1.coaxial_partner : nil;
+
+                if (partnerKey != nil) {
+                    # Validate partner existence
+                    if (!contains(myAts.weapons, partnerKey)) {
+                        print("BOMBABLE ERROR: Weapon '", elem, "' on node '", myNodeName, 
+                              "' specifies partner '", partnerKey, "' which does not exist.");
+                        weap1.best_match = nil;
+                        continue;
+                    }
+
+                    var weap2 = myAts.weapons[partnerKey];
+
+                    # 2. Strict Reciprocity Check: Verify A -> B and B -> A
+                    var partnerBackRef = contains(weap2, "coaxial_partner") ? weap2.coaxial_partner : nil;
+                    if (partnerBackRef != elem) {
+                        print("BOMBABLE ERROR: Broken coaxial pair on '", myNodeName, "'! '", 
+                              elem, "' points to '", partnerKey, "', but '", partnerKey, 
+                              "' points to '", (partnerBackRef != nil ? partnerBackRef : "nil"), "'.");
+                        weap1.best_match = nil;
+                        continue;
+                    }
+
+                    # Allocate vector targets for the validated pair
+                    weap1.best_match = [];
+                    weap2.best_match = [];
+
+                    # Populate vectors based on static target evaluation
+                    foreach (var opIndex; opTeam) {
+                        var opNodeName = nodeNames[opIndex];
+                        var choice = bestMatch(myNodeName, elem, partnerKey, opNodeName);
+
+                        if (choice == 1) {
+                            append(weap1.best_match, opIndex);
+                        } else {
+                            append(weap2.best_match, opIndex);
+                        }
+                    }
+                } else {
+                    # Standard non-partnered weapon
+                    weap1.best_match = nil;
+                }
+            }
+        }
+    }
+};
+
+########################## bestMatch ###########################
+# for coaxial weapons 
+# called to determine which weapon best matches the target
+# returns 1 if weap1 is the best match given the vulnerability of target myNodeName2
+# use for computation of matches before the scenario starts to play
+# overkill: set to 1 for heavier weapon
+# 
+var bestMatch = func(myNodeName1, weap1, weap2, myNodeName2) {
+    var targetAts = attributes[myNodeName2];
+    var damage_vuln = 1.0; # Default fallback
+	var overkill = 0;
+
+    if (targetAts != nil and contains(targetAts, "vulnerabilities") and contains(targetAts.vulnerabilities, "damageVulnerability")) {
+        damage_vuln = targetAts.vulnerabilities.damageVulnerability;
+    }
+
+    var weaps = attributes[myNodeName1].weapons;
+    var maxDamage1 = weaps[weap1].maxDamage_percent;
+    var maxDamage2 = weaps[weap2].maxDamage_percent;
+
+    var ideal = 50.0;
+    if (damage_vuln >= 10.0)      ideal = 1.0;
+    elsif (damage_vuln >= 2.0)    ideal = 4.0;
+    elsif (damage_vuln >= 0.5)    ideal = 10.0;
+    elsif (damage_vuln >= 0.1)    ideal = 20.0;
+
+    var w1_meets = (maxDamage1 >= ideal);
+    var w2_meets = (maxDamage2 >= ideal);
+
+    if (w1_meets and !w2_meets) return 1;
+    if (w2_meets and !w1_meets) return 0;
+
+# 2. Both meet threshold:
+    if (w1_meets and w2_meets) {
+        if (overkill) {
+            return (maxDamage1 >= maxDamage2) ? 1 : 0;
+        } else {
+            # UNDERKILL: Pick lighter weapon to conserve heavy ammunition
+            return (maxDamage1 <= maxDamage2) ? 1 : 0;
+        }
+    }
+
+# 3. Neither meets threshold: Always select heavier weapon to inflict max damage
+    return (maxDamage1 >= maxDamage2) ? 1 : 0;
+    
+    };
+
+########################## isTargetBestMatch ###########################
+# Helper to verify if targetIndex is in weapon's precomputed best_match vector
+# 
+var isTargetBestMatch = func(weapHash, targetIndex) {
+    foreach (var idx; weapHash.best_match) {
+        if (idx == targetIndex) return 1;
+    }
+    return 0;
+};
 ########################## END ###########################
