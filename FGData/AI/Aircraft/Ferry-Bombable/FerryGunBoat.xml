@@ -7,7 +7,141 @@
 	<status>early-production</status>
 	<path>FerryBoat1.ac</path>
 
+	<model>
+		<path>navalGunWithParameters.xml</path>
+		<name>Gun_Turret1_FC</name>
+		<overlay>
+			<params>
+				<n1>Gun_Turret1_FC/turret-pos-deg</n1>
+				<n2>Gun_Turret1_FC/cannon-elev-deg</n2>
+			</params>
+		</overlay>
+		<offsets>
+			<x-m>-77.0</x-m>
+			<y-m>0</y-m>
+			<z-m>7.3</z-m>
+			<heading-deg>0</heading-deg>
+		</offsets>
+	</model>
+
+		<model>
+		<path>navalGunWithParameters.xml</path>
+		<name>Gun_Turret2_FR</name>
+		<overlay>
+			<params>
+				<n1>Gun_Turret2_FR/turret-pos-deg</n1>
+				<n2>Gun_Turret2_FR/cannon-elev-deg</n2>
+			</params>
+		</overlay>
+		<offsets>
+			<x-m>-24.0</x-m>
+			<y-m>12.0</y-m>
+			<z-m>19.0</z-m>
+			<heading-deg>0</heading-deg>
+		</offsets>
+	</model>
+
+	<model>
+		<path>navalGunWithParameters.xml</path>
+		<name>Gun_Turret3_AR</name>
+		<overlay>
+			<params>
+				<n1>Gun_Turret3_AR/turret-pos-deg</n1>
+				<n2>Gun_Turret3_AR/cannon-elev-deg</n2>
+			</params>
+		</overlay>		
+		<offsets>
+			<x-m>16.0</x-m>
+			<y-m>9.0</y-m>
+			<z-m>18.8</z-m>
+			<heading-deg>0</heading-deg>
+		</offsets>
+	</model>
+
+	<model>
+		<path>navalGunWithParameters.xml</path>
+		<name>Gun_Turret4_AC</name>
+		
+		<overlay>
+			<params>
+				<n1>Gun_Turret4_AC/turret-pos-deg</n1>
+				<n2>Gun_Turret4_AC/cannon-elev-deg</n2>
+			</params>
+		</overlay>
+
+		<offsets>
+			<x-m>66.0</x-m>
+			<y-m>0</y-m>
+			<z-m>18.8</z-m>
+			<heading-deg>0</heading-deg>
+		</offsets>
+	</model>
+
+		<model>
+		<path>navalGunWithParameters.xml</path>
+		<name>Gun_Turret5_AL</name>
+		<overlay>
+			<params>
+				<n1>Gun_Turret5_AL/turret-pos-deg</n1>
+				<n2>Gun_Turret5_AL/cannon-elev-deg</n2>
+			</params>
+		</overlay>
+		<offsets>
+			<x-m>16.0</x-m>
+			<y-m>-9.0</y-m>
+			<z-m>18.8</z-m>
+			<heading-deg>0</heading-deg>
+		</offsets>
+	</model>
+  
+	<model>
+		<path>navalGunWithParameters.xml</path>
+		<name>Gun_Turret6_FL</name>
+		<overlay>
+			<params>
+				<n1>Gun_Turret6_FL/turret-pos-deg</n1>
+				<n2>Gun_Turret6_FL/cannon-elev-deg</n2>
+			</params>
+		</overlay>
+		<offsets>
+			<x-m>-24.0</x-m>
+			<y-m>-12.0</y-m>
+			<z-m>19.0</z-m>
+			<heading-deg>0</heading-deg>
+		</offsets>
+	</model>
+
 	<animation>
+		<type>rotate</type>
+		<property>orientation/roll-animation</property>
+		<center>
+			<x-m>-5.0</x-m>
+			<y-m>0.0</y-m>
+			<z-m>0.0</z-m>
+		</center>
+		<axis>
+			<x>-1</x>
+			<y>0</y>
+			<z>0</z>
+		</axis>
+	</animation>
+ 
+	<animation>
+		<type>rotate</type>
+		<property>orientation/pitch-animation</property>
+		<center>
+			<x-m>-5.0</x-m>
+			<y-m>0.0</y-m>
+			<z-m>0.0</z-m>
+		</center>
+		<axis>
+			<x>0</x>
+			<y>1</y>
+			<z>0</z>
+		</axis>
+	</animation>
+ 
+ <animation>
 		<type>rotate</type>
 		<object-name>radar-antenna</object-name>
 		<property>/sim/time/elapsed-sec</property>
@@ -23,7 +157,7 @@
 			<z>1</z>
 		</axis>
 	</animation>
-  <!-- Unfortunately the wake causes many of the dreaded triangleintersect
+	<!-- Unfortunately the wake causes many of the dreaded triangleintersect
   errors AND when the ship sinks the wake sticks up in the air and looks
   funny.  For now, until those problems can be fixed, we will just remove
   the wake. -->
@@ -76,13 +210,13 @@
 		<object-name>Wake</object-name>
 		<property>velocities/true-airspeed-kt</property>
 		<x-factor>0.075</x-factor>
-		<x-offset>0.5</x-offset>
+		<x-m>0.5</x-m>
 		<x-min>0.5</x-min>
 		<x-max>2.0</x-max>
 		<y-factor>0.1</y-factor>
-		<y-offset>1.0</y-offset>
+		<y-m>1.0</y-m>
 		<z-factor>0.05</z-factor>
-		<z-offset>0.5</z-offset>
+		<z-m>0.5</z-m>
 		<z-min>0</z-min>
 		<z-max>1.20</z-max>
 		<center>
@@ -142,13 +276,13 @@
 		<object-name>Wake-Stern</object-name>
 		<property>velocities/true-airspeed-kt</property>
 		<x-factor>-0.075</x-factor>
-		<x-offset>0.5</x-offset>
+		<x-m>0.5</x-m>
 		<x-min>0.5</x-min>
 		<x-max>2.0</x-max>
 		<y-factor>0.1</y-factor>
-		<y-offset>1.0</y-offset>
+		<y-m>1.0</y-m>
 		<z-factor>-0.05</z-factor>
-		<z-offset>0.5</z-offset>
+		<z-m>0.5</z-m>
 		<z-min>0</z-min>
 		<z-max>1.20</z-max>
 		<center>
@@ -164,4 +298,3 @@
 		<max-m>40000</max-m>
 	</animation>
 </PropertyList>
- 

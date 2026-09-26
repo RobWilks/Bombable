@@ -1,0 +1,125 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<PropertyList>
+
+    <!-- 1. PITCH / ELEVATION ROTATION (THETA) -->
+    <animation>
+        <type>rotate</type>
+        <object-name>weapons tracer</object-name>
+        <property>{WEAPON_PROP_ROOT}/orientation/pitch-deg</property>
+        <!-- Alternative static fallback if property is omitted:
+        <factor>1.0</factor>
+        -->
+        <axis>
+            <x>0</x>
+            <y>1</y>
+            <z>0</z>
+        </axis>
+        <center>
+            <x-m>{OFFSET_X}</x-m>
+            <y-m>{OFFSET_Y}</y-m>
+            <z-m>{OFFSET_Z}</z-m>
+        </center>
+    </animation>
+
+    <!-- 2. HEADING / AZIMUTH ROTATION (PHI) -->
+    <animation>
+        <type>rotate</type>
+        <object-name>weapons tracer</object-name>
+        <property>{WEAPON_PROP_ROOT}/orientation/true-heading-deg</property>
+        <axis>
+            <x>0</x>
+            <y>0</y>
+            <z>1</z>
+        </axis>
+        <center>
+            <x-m>{OFFSET_X}</x-m>
+            <y-m>{OFFSET_Y}</y-m>
+            <z-m>{OFFSET_Z}</z-m>
+        </center>
+    </animation>
+
+    <!-- 3. PARTICLE SYSTEM EMITTER -->
+    <particlesystem>
+        <name>weapons tracer</name>
+        <texture>spark128.png</texture>
+        <emissive>true</emissive>
+        <lighting>false</lighting>
+        <type>normal</type>
+        <align>billboard</align>
+        <attach>world</attach>
+        
+        <offsets>
+            <x-m>{OFFSET_X}</x-m>
+            <y-m>{OFFSET_Y}</y-m>
+            <z-m>{OFFSET_Z}</z-m>          
+            <!-- Base alignment: Pitch 90, Heading 180 aligns +X forward in body frame -->
+            <pitch-deg>90</pitch-deg>
+            <heading-deg>180</heading-deg>
+        </offsets>
+
+        <condition>
+            <and>
+                <property>/bombable/menusettings/fire-particles/ai-weapon-fire-visual-trigger</property>
+                <property>{WEAPON_PROP_ROOT}/ai-weapon-firing</property>
+            </and>	
+        </condition>
+
+        <placer>
+            <type>sector</type>
+            <radius-min-m>0.0</radius-min-m>
+            <radius-max-m>0.01</radius-max-m>
+            <theta-min-deg>0</theta-min-deg>
+            <theta-max-deg>0</theta-max-deg>
+            <phi-min-deg>0</phi-min-deg>
+            <phi-max-deg>0</phi-max-deg>
+        </placer>
+
+        <shooter>
+            <theta-min-deg>0.0</theta-min-deg>
+            <theta-max-deg>0.0</theta-max-deg>
+            <phi-min-deg>0.0</phi-min-deg>
+            <phi-max-deg>0.0</phi-max-deg>
+            <speed-mps>
+                <value>{SPEED_MPS}</value>
+            </speed-mps>
+        </shooter>      
+
+        <counter>
+            <particles-per-sec>
+                <value>{PARTICLES_PER_SEC}</value>
+                <spread>0</spread>
+            </particles-per-sec>
+        </counter>
+        
+        <particle>
+            <start>
+                <color>
+                    <red><value>1.0</value></red>
+                    <green><value>1.0</value></green>
+                    <blue><value>1.0</value></blue>
+                    <alpha><value>0.5</value></alpha>
+                </color>
+                <size><value>{START_SIZE}</value></size>
+            </start>
+            <end>
+                <color>
+                    <red><value>1.0</value></red>
+                    <green><value>1.0</value></green>
+                    <blue><value>1.0</value></blue>
+                    <alpha><value>0.0</value></alpha>
+                </color>
+                <size><value>{END_SIZE}</value></size>
+            </end>
+            <life-sec><value>{LIFETIME_SEC}</value></life-sec>
+            <mass-kg>0.05</mass-kg>
+            <radius-m>0.001</radius-m>
+        </particle>
+        
+        <program>
+            <fluid>air</fluid>
+            <gravity type="bool">false</gravity>
+            <wind type="bool">true</wind>
+        </program>
+    </particlesystem>
+
+</PropertyList>

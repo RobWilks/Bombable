@@ -245,6 +245,7 @@
               main_gun :  #internal name - this can be any name you want; must be a valid nasal variable name
               {               
                 name : "M256A1 120 mm gun, M830A1 round", # name presented to users, ie in on-screen messages
+                weaponType : "large_cannon",
                 maxDamage_percent : 50, # maximum percentage damage one hit from the aircraft's main weapon/machine guns will do to an opponent
                 maxDamageDistance_m : 1500, # maximum distance at which the aircrafts main weapon/maching guns will be able to damage an opponent
                 weaponAngle_deg  :  { heading: 0, elevation: 10.0, headingMin: -180, headingMax: 180, elevationMin: -3.0, elevationMax: 20  }, # direction the aircraft's main weapon is aimed.   
@@ -259,6 +260,8 @@
               turret_MG :  #internal name - this can be any name you want; must be a valid nasal variable name
               {               
                 name : ".50 caliber Browning M2 HB machine gun", # name presented to users, ie in on-screen messages
+                weaponType : "MG",
+                parent : "main_gun",
                 maxDamage_percent : 7, # maximum percentage damage one hit from the aircraft's main weapon/machine guns will do to an opponent
                 maxDamageDistance_m : 500, # maximum distance at which the aircrafts main weapon/maching guns will be able to damage an opponent
                 weaponAngle_deg  :  { heading: 0, elevation: 15.0, headingMin: -180, headingMax: 180, elevationMin: -10.0, elevationMax: 70  }, # direction the aircraft's main weapon is aimed.   
@@ -268,7 +271,6 @@
                 nRounds : 900,
                 roundsPerSec : 9,
                 accuracy : 3,				
-                parent : "main_gun",
   
               },   
           },  

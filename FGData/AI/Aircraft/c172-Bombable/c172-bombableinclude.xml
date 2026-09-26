@@ -171,6 +171,7 @@
              front_gun :  #internal name - this can be any name you want; must be a valid nasal variable name
               {               
                 name : ".22 pistol fired out of passenger window", # name presented to users, ie in on-screen messages
+                weaponType : "small_arm",
                 maxDamage_percent : .2, # maximum percentage damage one hit from the aircraft's main weapon/machine guns will do to an opponent
                 maxDamageDistance_m : 400, # maximum distance at which the aircrafts main weapon/maching guns will be able to damage an opponent
                 weaponAngle_deg  :  { heading: 0, elevation: 0 }, # direction the aircraft's main weapon is aimed.   
@@ -180,6 +181,7 @@
              rear_gun :  #internal name - this can be any name you want; must be a valid nasal variable name
               {               
                 name : ".22 pistol fired out of rear window", # name presented to users, ie in on-screen messages
+                weaponType : "small_arm",
                 maxDamage_percent : .2, # maximum percentage damage one hit from the aircraft's main weapon/machine guns will do to an opponent
                 maxDamageDistance_m : 400, # maximum distance at which the aircrafts main weapon/maching guns will be able to damage an opponent
                 weaponAngle_deg  :  { heading: 180, elevation: 0 }, # direction the aircraft's main weapon is aimed.   

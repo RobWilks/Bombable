@@ -2,10 +2,84 @@
 
 <PropertyList include="FerryBoat-bombableinclude.xml">
 
-	<description>Ferry</description>
+	<description>FerryGunBoat</description>
 	<author>Dene Maxwell, animations Vivian Meazza</author>
 	<status>early-production</status>
 	<path>FerryBoat1.ac</path>
+	
+<!-- 	modified by adding 6 gun turrets to the top deck
+	separate model for each gun turret
+	gun turrets are enumerated starting from the front (fore)
+	clockwise around the ship
+	rotation and elevation animation of the guns are in the separate model files -->
+
+	<model>
+		<path>navalGun-01.xml</path>
+		<name>Gun_Turret1_FC</name>
+		<offsets>
+			<x-m>-77.0</x-m>
+			<y-m>0</y-m>
+			<z-m>7.3</z-m>
+			<heading-deg>0</heading-deg>
+		</offsets>
+	</model>
+
+	<model>
+		<path>navalGun-02.xml</path>
+		<name>Gun_Turret2_FR</name>
+		<offsets>
+			<x-m>-24.0</x-m>
+			<y-m>-12.0</y-m>
+			<z-m>19.0</z-m>
+			<heading-deg>90</heading-deg>
+		</offsets>
+	</model>
+
+	<model>
+		<path>navalGun-03.xml</path>
+		<name>GunTurret3_AR</name>
+		<offsets>
+			<x-m>16.0</x-m>
+			<y-m>-9.0</y-m>
+			<z-m>18.8</z-m>
+			<heading-deg>90</heading-deg>
+		</offsets>
+	</model>
+
+	<model>
+		<path>navalGun-04.xml</path>
+		<name>Gun_Turret4_AC</name>
+		<offsets>
+			<x-m>66.0</x-m>
+			<y-m>0</y-m>
+			<z-m>18.8</z-m>
+			<heading-deg>180</heading-deg>
+		</offsets>
+
+	</model>
+
+	<model>
+		<path>navalGun-05.xml</path>
+		<name>Gun_Turret5_AL</name>
+		<offsets>
+			<x-m>16.0</x-m>
+			<y-m>9.0</y-m>
+			<z-m>18.8</z-m>
+			<heading-deg>-90</heading-deg>
+		</offsets>
+	</model>
+  
+	<model>
+		<path>navalGun-01.xml</path>
+		<name>Gun_Turret6_FL</name>
+		<offsets>
+			<x-m>-24.0</x-m>
+			<y-m>12.0</y-m>
+			<z-m>19.0</z-m>
+			<heading-deg>-90</heading-deg>
+		</offsets>
+	</model>
+
 
 	<animation>
 		<type>rotate</type>
@@ -23,7 +97,7 @@
 			<z>1</z>
 		</axis>
 	</animation>
-  <!-- Unfortunately the wake causes many of the dreaded triangleintersect
+	<!-- Unfortunately the wake causes many of the dreaded triangleintersect
   errors AND when the ship sinks the wake sticks up in the air and looks
   funny.  For now, until those problems can be fixed, we will just remove
   the wake. -->
@@ -76,13 +150,13 @@
 		<object-name>Wake</object-name>
 		<property>velocities/true-airspeed-kt</property>
 		<x-factor>0.075</x-factor>
-		<x-offset>0.5</x-offset>
+		<x-m>0.5</x-m>
 		<x-min>0.5</x-min>
 		<x-max>2.0</x-max>
 		<y-factor>0.1</y-factor>
-		<y-offset>1.0</y-offset>
+		<y-m>1.0</y-m>
 		<z-factor>0.05</z-factor>
-		<z-offset>0.5</z-offset>
+		<z-m>0.5</z-m>
 		<z-min>0</z-min>
 		<z-max>1.20</z-max>
 		<center>
@@ -142,13 +216,13 @@
 		<object-name>Wake-Stern</object-name>
 		<property>velocities/true-airspeed-kt</property>
 		<x-factor>-0.075</x-factor>
-		<x-offset>0.5</x-offset>
+		<x-m>0.5</x-m>
 		<x-min>0.5</x-min>
 		<x-max>2.0</x-max>
 		<y-factor>0.1</y-factor>
-		<y-offset>1.0</y-offset>
+		<y-m>1.0</y-m>
 		<z-factor>-0.05</z-factor>
-		<z-offset>0.5</z-offset>
+		<z-m>0.5</z-m>
 		<z-min>0</z-min>
 		<z-max>1.20</z-max>
 		<center>
@@ -164,4 +238,3 @@
 		<max-m>40000</max-m>
 	</animation>
 </PropertyList>
- 

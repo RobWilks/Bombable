@@ -247,31 +247,33 @@
               main_gun :  #internal name - this can be any name you want; must be a valid nasal variable name
               {               
                 name : "RH120 L55 120mm gun", # name presented to users, ie in on-screen messages
+                weaponType : "large_cannon",
                 maxDamage_percent : 50, # maximum percentage damage one hit from the aircraft's main weapon/machine guns will do to an opponent
                 maxDamageDistance_m : 1500, # maximum distance at which the aircrafts main weapon/machine guns will be able to damage an opponent
                 weaponAngle_deg  :  { heading: 0, elevation: 15.0, headingMin: -180, headingMax: 180, elevationMin: -9.0, elevationMax: 20  }, # direction the aircraft's main weapon is aimed.   
                                                                   # 0,0 = straight ahead, 90,0=directly right, 0,90=directly up, 0,180=directly back, etc.
                 weaponOffset_m : {x:-0.132, y:0, z:2.08134}, # Offset of the weapon turret from the main aircraft center; code assumes that axes for elevation and rotation are coincident
                 weaponSize_m : {start: .25, end: .35 }, # Visual size of the weapon's projectile, in meters, at start & end of its path
-				nRounds : 42,
-				roundsPerSec : 0.1666,
-				accuracy : 0.04, # how accurately the weapon can be aimed (sniper's rifle 0.006 deg; 120 mm howitzer 0.02 deg; machine gun 0.5 deg - lower from moving platform )				
+				        nRounds : 42,
+				        roundsPerSec : 0.1666,
+				        accuracy : 0.04, # how accurately the weapon can be aimed (sniper's rifle 0.006 deg; 120 mm howitzer 0.02 deg; machine gun 0.5 deg - lower from moving platform )				
   
               }, 
 
               turret_MG :  #internal name - this can be any name you want; must be a valid nasal variable name
               {               
                 name : "7.62mm MG3A1", # name presented to users, ie in on-screen messages
+                weaponType : "MG",
+				        parent : "main_gun",
                 maxDamage_percent : 7, # maximum percentage damage one hit from the aircraft's main weapon/machine guns will do to an opponent
                 maxDamageDistance_m : 500, # maximum distance at which the aircrafts main weapon/machine guns will be able to damage an opponent
                 weaponAngle_deg  :  { heading: 0, elevation: 15.0, headingMin: -180, headingMax: 180, elevationMin: -20.0, elevationMax: 35  }, # direction the aircraft's main weapon is aimed.   
                                                                   # 0,0 = straight ahead, 90,0=directly right, 0,90=directly up, 0,180=directly back, etc.
                 weaponOffset_m : {x:0.8324, y:-1.11098, z:2.83373}, # Offset of the weapon turret from the main aircraft center
                 weaponSize_m : {start: .15, end: .25 }, # Visual size of the weapon's projectile, in meters, at start & end of its path
-				nRounds : 4750,
-				roundsPerSec : 15,
-				accuracy : 3,			
-				parent : "main_gun",
+				        nRounds : 4750,
+				        roundsPerSec : 15,
+				        accuracy : 3,			
               },			  
           },  
                              

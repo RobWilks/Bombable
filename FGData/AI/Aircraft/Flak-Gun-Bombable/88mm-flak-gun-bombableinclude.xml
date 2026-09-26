@@ -140,6 +140,7 @@
              flak_gun_88mm :  #internal name - this can be any name you want; must be a valid nasal variable name
               {               
                 name : "Flak gun 88mm", # name presented to users, ie in on-screen messages
+                weaponType: "large_cannon",
                 maxDamage_percent : 100, # maximum percentage damage one hit from the aircraft's main weapon/machine guns will do to an opponent
                 maxDamageDistance_m : 5000, # maximum distance at which the aircrafts main weapon/maching guns will be able to damage an opponent
                 weaponAngle_deg  :  { heading: 0, elevation: 70.0, headingMin: -180, headingMax: 180, elevationMin: 0.0, elevationMax: 85.0  }, # direction the aircraft's main weapon is aimed.   

@@ -299,10 +299,10 @@ var put_remove_model = func(lat_deg = nil, lon_deg = nil, elev_m = nil, time_sec
 		# debprint ("Placed flack, ", flackModelNodeName);
 		
 		settimer ( func { 
-			# if (local_epoch != bombable_epoch) return;
-
-			props.globals.getNode(flackModelNodeName).remove();
-			}, time_sec);
+				# if (local_epoch != bombable_epoch) return;
+    			var node = props.globals.getNode(flackModelNodeName);
+				if (node != nil) node.remove();
+				}, time_sec);
 
 	}, 
 	delay_sec);
@@ -6090,7 +6090,7 @@ var checkAim = func ( elem, #string from weapon key
 
 	} # end of section to calculate probability of hitting target
 
-	if (thisWeapon.aim.fixed == 1 or thisWeapon.weaponType == 1)
+	if (thisWeapon.aim.fixed == 1 or thisWeapon.weaponType == "rocket")
 	# no change to weaponDirModelFrame (set in weapons_init_func)
 	# but need to calculate direction of weapon in ground reference frame
 	# usually this will be in direction of travel of AI object 
@@ -6308,7 +6308,7 @@ var weapons_loop = func (id, myNodeName1 = "") {
 		var ind = thisWeapon.aim.target; # index of object to shoot at
 		var pos = vecindex(myTargets, ind); # pos is the index in targetData and groundData; nil means target no longer exists
 
-		if (thisWeapon.weaponType == 1 and pos == nil)
+		if (thisWeapon.weaponType == "rocket" and pos == nil)
 		# for a rocket with no target assigned, check first those targets still carrying functioning rockets
 		# find the node of that rocket
 		# ignore any rocket that is targeting me
@@ -6325,7 +6325,7 @@ var weapons_loop = func (id, myNodeName1 = "") {
 				foreach (targetWeap; keys(wps))
 				{
 					if (wps[targetWeap].destroyed) continue;
-					if (wps[targetWeap].weaponType == 1 and wps[targetWeap].aim["rn"] != elem) # do not include rockets that are targeting me
+					if (wps[targetWeap].weaponType == "rocket" and wps[targetWeap].aim["rn"] != elem) # do not include rockets that are targeting me
 					{
 						append(rockets, i, targetWeap);
 						count += 1;
@@ -6387,7 +6387,7 @@ var weapons_loop = func (id, myNodeName1 = "") {
 		var myNodeName2 = nodeNames[ind];
 
 		# check weapon aim and update weapon orientation if a target has been sighted
-		if (thisWeapon.weaponType == 0) 
+		if (thisWeapon.weaponType != "rocket") 
 		{
 			if (thisWeapon.best_match != nil and !ats.weapons[thisWeapon.coaxial_partner].destroyed and ( stores.checkWeaponsReadiness ( myNodeName1, thisWeapon.coaxial_partner ) ))
 			{
@@ -6404,7 +6404,7 @@ var weapons_loop = func (id, myNodeName1 = "") {
 				);
 			if ( targetSighted and !thisWeapon.aim.fixed ) weaponsOrientationUpdate(myNodeName1, elem);
 		}
-		elsif (thisWeapon.weaponType == 1) #rocket section
+		elsif (thisWeapon.weaponType == "rocket") #rocket section
 		{
 			if (thisWeapon.controls.launched == 1) continue;
 
@@ -7990,7 +7990,7 @@ stores.fillWeapons = func (myNodeName, amount = 1) {
 		stos["weapons"][weap] +=  amount;
 		if (stos["weapons"][weap] > 1 ) stos["weapons"][weap] = 1;
 		var thisWeapon = weaps[weap];
-		if (thisWeapon.weaponType == 1) 
+		if (thisWeapon.weaponType == "rocket") 
 		{
 			if (thisWeapon.controls.launched and !thisWeapon.destroyed) 
 			{
@@ -9232,10 +9232,10 @@ impactNodeName = nil, ballisticMass_lb = nil, lat_deg = nil, lon_deg = nil, alt_
 					
 	me.impactTotals.Overall.Total_Damage_Added  +=  100 * damageRise;
 					
-	var weaponType = nil;
+	var impactType = nil;
 	if (impactNodeName != nil) {
-		weaponType = getprop (""~impactNodeName~"/name");
-		if (weaponType == nil or weaponType == "") weaponType = impactNodeName; # if collsion with aircraft
+		impactType = getprop (""~impactNodeName~"/name");
+		if (impactType == nil or impactType == "") impactType = impactNodeName; # if collsion with aircraft
 	}
 	var ballCategory = nil;
 	if ( ballisticMass_lb < 1) ballCategory = "Small arms";
@@ -9249,14 +9249,14 @@ impactNodeName = nil, ballisticMass_lb = nil, lat_deg = nil, lon_deg = nil, alt_
 	var callsign = getCallSign (myNodeName);
 	if (myNodeName == "") callsign = nil;
 					
-	var items = [callsign, weaponType, ballCategory];
+	var items = [callsign, impactType, ballCategory];
 	for (var count = 0; count < size (items); count += 1  ) {
 		var item = items[count];
 		if (item == nil or item == "") continue;
 						
 		var i = variable_safe (item);
 		var category = "Objects";
-		if (item == weaponType)  category = "Ammo_Type";
+		if (item == impactType)  category = "Ammo_Type";
 		if (item == ballCategory) category = "Ammo_Categories";
 						
 						
@@ -9624,7 +9624,7 @@ var add_damage = func
 			var nWeapons = size(weaps) ;
 			var index = int (rand() * nWeapons) ;
 			var thisWeapon = ats.weapons[weaps[index]];
-			var destroyNow = (thisWeapon.weaponType == 1) ? !(thisWeapon.controls["launched"] == 1 or thisWeapon.destroyed) : !thisWeapon.destroyed;
+			var destroyNow = (thisWeapon.weaponType == "rocket") ? !(thisWeapon.controls["launched"] == 1 or thisWeapon.destroyed) : !thisWeapon.destroyed;
 			# if rocket it cannot be destroyed if already launched
 			if (destroyNow) 
 			{
@@ -10247,11 +10247,31 @@ var initialize_func = func ( b ){
 			if (b.weapons[elem].weaponSize_m.end == nil
 			or b.weapons[elem].weaponSize_m.end <= 0 ) b.weapons[elem].weaponSize_m.end = 0.05;
 
-			if (!contains(b.weapons[elem], "weaponType"))
-			b.weapons[elem].weaponType = 0;
-			# key to allow inclusion of new types of weapons such as rockets
+			# Define supported types lookup map (can be static/file-scope to avoid re-instantiation)
+			var validWeaponTypes = {
+				"MG": ,
+				"rocket": ,
+				"small_arm": ,
+				"cannon": ,
+				"large_cannon": ,
+				"laser": ,
+			};
 
-			if (b.weapons[elem].weaponType == 1) rocketCount += 1; 
+			# --- Validation Logic ---
+			var wType = b.weapons[elem]["weaponType"];
+
+			if (wType == nil or wType == "") {
+				b.weapons[elem].weaponType = "MG";
+				debprint("/ai/models/" ~ b.objectNodeName ~ " weapon " ~ elem ~ " has no weaponType; defaulting to MG");
+			} 
+			elsif (!contains(validWeaponTypes, wType)) {
+				debprint("/ai/models/" ~ b.objectNodeName ~ " weapon " ~ elem ~ " has unknown weaponType '" ~ wType ~ "'; defaulting to MG");
+				b.weapons[elem].weaponType = "MG";
+			}
+
+			debprint("/ai/models/" ~ b.objectNodeName ~ " allocated weaponType " ~ b.weapons[elem].weaponType);
+
+			if (b.weapons[elem].weaponType == "rocket") rocketCount += 1; 
 			# each rocket is a static model in the scenario xml 
 			# we keep track of the number as a check of correct initialisation
 		}
@@ -10877,7 +10897,7 @@ var weapons_init_func = func(myNodeName)
 			}
 		}
 
-		if (thisWeapon["weaponType"] == 1) 
+		if (thisWeapon["weaponType"] == "rocket") 
 		{
 			if (rocket_init_func (thisWeapon, rocketIndexLookup[rocketIndex]))
 			#rocketIndexLookup converts the index for the rocket into the index for the static model
@@ -10901,7 +10921,7 @@ var weapons_init_func = func(myNodeName)
 		var fg_aircraft_dir = getprop("/sim/fg-aircraft");
 
 		# Navigate from Aircraft directory to AI/Aircraft/Fire-Particles
-		var archetype_path = fg_aircraft_dir ~ "/../AI/Aircraft/Fire-Particles/machine-gun-rotate.xml";
+		var archetype_path = fg_aircraft_dir ~ "/../AI/Aircraft/Fire-Particles/" ~ thisWeapon.weaponType ~ "_tracer.xml";
 
 		# Target Property Root Path as a string (base path for model allocation)
 		var target_weapon_path = myNodeName ~ "/" ~ elem;
@@ -10935,7 +10955,7 @@ var weapons_init_func = func(myNodeName)
 		weapAngles["initialHeading"] = weapAngles.heading;
 		weapAngles["initialElevation"] = weapAngles.elevation;
 
-		var weapFixed = (weapAngles.elevationMin == weapAngles.elevationMax) and (weapAngles.headingMin == weapAngles.headingMax) and (thisWeapon["weaponType"] != 1);
+		var weapFixed = (weapAngles.elevationMin == weapAngles.elevationMax) and (weapAngles.headingMin == weapAngles.headingMax) and (thisWeapon["weaponType"] != "rocket");
 		# do not include rockets since a different target can be assigned to each 'fixed' rocket 
 			
 		thisWeapon["aim"] = { #variables to determine where weapon is aimed
@@ -12731,7 +12751,7 @@ var resetTargetShooter = func (myIndex) {
 		allPlayers[ats.side] = removeElem(allPlayers[ats.side], myIndex);
 		ats.targetIndex = [];
 		ats.shooterIndex = []; # remove shooters from dead object
-		debprint("", nodeNames[myIndex], " no longer a target");
+		debprint("", nodeNames[myIndex], "no longer a target");
 }
 
 ########################## waitForAttributes ###########################
@@ -13645,6 +13665,7 @@ var spawn_custom_tracer = func(myNodeName, elem, target_weapon_path, archetype_p
 	var tps = thisWeapon.roundsPerSec;
 	var tracersPerSec = (tps > 1) ? math.sqrt(tps) : tps;
 	var spd = thisWeapon.maxMissileSpeed_mps;
+	var lifetime = thisWeapon.maxDamageDistance_m / thisWeapon.maxMissileSpeed_mps;
 
 	# 1. Read template file into string atomically using io.readfile
     var xml_content = io.readfile(archetype_path);
@@ -13662,6 +13683,7 @@ var spawn_custom_tracer = func(myNodeName, elem, target_weapon_path, archetype_p
     xml_content = replace_placeholders(xml_content, "{WEAPON_PROP_ROOT}", target_weapon_path);
     xml_content = replace_placeholders(xml_content, "{PARTICLES_PER_SEC}", tracersPerSec);
     xml_content = replace_placeholders(xml_content, "{SPEED_MPS}", spd);
+    xml_content = replace_placeholders(xml_content, "{LIFETIME_SEC}", lifetime);
 
     # Note: WEAPON_PROP_ROOT is an absolute path
 

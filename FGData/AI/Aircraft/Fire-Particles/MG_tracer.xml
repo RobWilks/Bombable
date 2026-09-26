@@ -44,15 +44,15 @@
         <texture>spark128.png</texture>
         <emissive>true</emissive>
         <lighting>false</lighting>
+        <!-- Use axial-noise or direction alignment for high-speed elongation -->
         <type>normal</type>
-        <align>billboard</align>
+        <align>direction</align>
         <attach>world</attach>
         
         <offsets>
             <x-m>{OFFSET_X}</x-m>
             <y-m>{OFFSET_Y}</y-m>
             <z-m>{OFFSET_Z}</z-m>          
-            <!-- Base alignment: Pitch 90, Heading 180 aligns +X forward in body frame -->
             <pitch-deg>90</pitch-deg>
             <heading-deg>180</heading-deg>
         </offsets>
@@ -92,25 +92,28 @@
         </counter>
         
         <particle>
+            <!-- 1. INCANDESCENT WHITE-YELLOW AT LAUNCH -->
             <start>
                 <color>
                     <red><value>1.0</value></red>
-                    <green><value>1.0</value></green>
-                    <blue><value>1.0</value></blue>
-                    <alpha><value>0.5</value></alpha>
+                    <green><value>0.98</value></green> <!-- Near-equal red/green creates bright white-yellow -->
+                    <blue><value>0.75</value></blue>  <!-- High blue creates intense white core -->
+                    <alpha><value>0.9</value></alpha>
                 </color>
                 <size><value>{START_SIZE}</value></size>
             </start>
+
+            <!-- 2. WARM YELLOW STREAK BEFORE BURNOUT -->
             <end>
                 <color>
                     <red><value>1.0</value></red>
-                    <green><value>1.0</value></green>
-                    <blue><value>1.0</value></blue>
-                    <alpha><value>0.0</value></alpha>
+                    <green><value>0.80</value></green> <!-- Shifts toward warm golden-yellow -->
+                    <blue><value>0.10</value></blue>  <!-- Blue drops to eliminate white core -->
+                    <alpha><value>0.0</value></alpha>  <!-- Smooth burnout fade -->
                 </color>
                 <size><value>{END_SIZE}</value></size>
             </end>
-            <life-sec><value>10</value></life-sec>
+            <life-sec><value>{LIFETIME_SEC}</value></life-sec>
             <mass-kg>0.05</mass-kg>
             <radius-m>0.001</radius-m>
         </particle>
@@ -121,5 +124,4 @@
             <wind type="bool">true</wind>
         </program>
     </particlesystem>
-
 </PropertyList>

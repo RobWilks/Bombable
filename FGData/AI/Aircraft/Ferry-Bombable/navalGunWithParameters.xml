@@ -1,0 +1,61 @@
+<?xml version="1.0"?>
+
+<PropertyList>
+
+	<description>navalGun</description>
+	<author>Rob Wilkinson</author>
+	<status>early-production</status>
+	<path>navalGun.ac</path>
+	
+<!-- 	<params>
+		<turret-pos-deg>weaponName/turret-pos-deg</turret-pos-deg>
+		<cannon-elev-deg>weaponName/cannon-elev-deg</cannon-elev-deg>
+	</params> -->
+	
+	<params>
+		<n1>XXX/turret-pos-deg</n1>
+		<n2>XXX/cannon-elev-deg</n2>
+	</params>
+	
+	<animation>
+		<type>scale</type>
+		<x-offset>1.5</x-offset>
+		<y-offset>1.5</y-offset>
+		<z-offset>1.5</z-offset>
+	</animation>
+	
+	<animation>
+		<type>rotate</type>
+		<object-name>tourelle</object-name>
+		<object-name>canon</object-name>
+		<!-- <property alias="../params/turret-pos-deg"/> -->
+		<property alias="../../params/n1"/>
+		<center>
+			<x-m>0.696</x-m>
+			<y-m>0.0</y-m>
+			<z-m>-0.799</z-m>
+		</center>
+		<axis>
+			<x>0</x>
+			<y>0</y>
+			<z>1</z>
+		</axis>
+	</animation>
+
+	<animation>
+		<type>rotate</type>
+		<object-name>canon</object-name>
+		<property alias="../../params/n2"/>
+		<center>
+			<x-m>-0.967</x-m>
+			<y-m>0.0</y-m>
+			<z-m>0.656</z-m>
+		</center>
+		<axis>
+			<x>0</x>
+			<y>1</y>
+			<z>0</z>
+		</axis>
+	</animation>
+		
+</PropertyList>

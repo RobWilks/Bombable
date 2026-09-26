@@ -6,6 +6,10 @@
 	<author>Dene Maxwell, animations Vivian Meazza</author>
 	<status>early-production</status>
 	<path>FerryBoat1.ac</path>
+	<submodels>
+		<serviceable type="bool">true</serviceable>
+		<path>Ferry-Bombable/submodel.xml</path>
+	</submodels>
 
 	<animation>
 		<type>rotate</type>
@@ -23,7 +27,7 @@
 			<z>1</z>
 		</axis>
 	</animation>
-  <!-- Unfortunately the wake causes many of the dreaded triangleintersect
+	<!-- Unfortunately the wake causes many of the dreaded triangleintersect
   errors AND when the ship sinks the wake sticks up in the air and looks
   funny.  For now, until those problems can be fixed, we will just remove
   the wake. -->
@@ -164,4 +168,3 @@
 		<max-m>40000</max-m>
 	</animation>
 </PropertyList>
- 

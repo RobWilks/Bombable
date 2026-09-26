@@ -153,6 +153,7 @@
              mk8_front :  #internal name - this can be any name you want; must be a valid nasal variable name
               {               
                 name : "4.5inch MK8 Naval Gun - Front", # name presented to users, ie in on-screen messages
+                weaponType : "cannon",
                 maxDamage_percent : 4, # maximum percentage damage one hit from the aircraft's main weapon/machine guns will do to an opponent
                 maxDamageDistance_m : 3000, # maximum distance at which the aircrafts main weapon/machine guns will be able to damage an opponent
                 weaponAngle_deg  :  { heading: 0, elevation: 15.0, headingMin: -100, headingMax: 100, elevationMin: -3.0, elevationMax: 45  }, # direction the aircraft's main weapon is aimed.   
@@ -165,6 +166,7 @@
             phalanx_stbd :  #internal name - this can be any name you want; must be a valid nasal variable name
               {               
                 name : "Phalanx Stbd 20mm cannon", # name presented to users, ie in on-screen messages
+                weaponType : "cannon",
                 maxDamage_percent : 4, # maximum percentage damage one hit from the aircraft's main weapon/machine guns will do to an opponent
                 maxDamageDistance_m : 1500, # maximum distance at which the aircrafts main weapon/maching guns will be able to damage an opponent
                 weaponAngle_deg  :  { heading: 90, elevation: 15.0, headingMin: 30, headingMax: 150, elevationMin: -3.0, elevationMax: 55  }, # direction the aircraft's main weapon is aimed.   
@@ -177,6 +179,7 @@
             phalanx_port :  #internal name - this can be any name you want; must be a valid nasal variable name
               {               
                 name : "Phalanx Port 20mm cannon", # name presented to users, ie in on-screen messages
+                weaponType : "cannon",
                 maxDamage_percent : 4, # maximum percentage damage one hit from the aircraft's main weapon/machine guns will do to an opponent
                 maxDamageDistance_m : 1500, # maximum distance at which the aircrafts main weapon/maching guns will be able to damage an opponent
                 weaponAngle_deg  :  { heading: -90, elevation: 15.0, headingMin: -150, headingMax: -30, elevationMin: -3.0, elevationMax: 45  }, # direction the aircraft's main weapon is aimed.   
@@ -189,6 +192,7 @@
 			  rocket_v1 :  #internal name - this can be any name you want; must be a valid nasal variable name
         {               
           name : "Sea Viper #1", # modelled loosely on aster30 aka. Sea Viper
+          weaponType : "rocket",
           maxDamage_percent : 100, # maximum percentage damage one hit from the aircraft's main weapon/machine guns will do to an opponent
           maxDamageDistance_m : 40000, # maximum distance at which the aircrafts main weapon/maching guns will be able to damage an opponent
           weaponAngle_deg  :  { heading: 0, elevation: 90, headingMin: 0, headingMax: 0, elevationMin: 90, elevationMax: 90  }, # initial launch direction from AC.   
@@ -218,6 +222,7 @@
 			  rocket_v2 :
         {               
         name : "Sea Viper #2", # modelled loosely on aster30 aka. Sea Viper
+        weaponType : "rocket",
         maxDamage_percent : 100, # maximum percentage damage one hit from the aircraft's main weapon/machine guns will do to an opponent
         maxDamageDistance_m : 40000, # maximum distance at which the aircrafts main weapon/maching guns will be able to damage an opponent
         weaponAngle_deg  :  { heading: 0, elevation: 90, headingMin: 0, headingMax: 0, elevationMin: 90, elevationMax: 90  }, # initial launch direction from AC.   
@@ -248,6 +253,7 @@
 			  rocket_v3 :
         {               
         name : "Sea Viper #3", # modelled loosely on aster30 aka. Sea Viper
+        weaponType : "rocket",
         maxDamage_percent : 100, # maximum percentage damage one hit from the aircraft's main weapon/machine guns will do to an opponent
         maxDamageDistance_m : 40000, # maximum distance at which the aircrafts main weapon/maching guns will be able to damage an opponent
         weaponAngle_deg  :  { heading: 0, elevation: 90, headingMin: 0, headingMax: 0, elevationMin: 90, elevationMax: 90  }, # initial launch direction from AC.   
@@ -277,6 +283,7 @@
 			  rocket_v4 :
         {               
         name : "Sea Viper #4", # modelled loosely on aster30 aka. Sea Viper
+        weaponType : "rocket",
         maxDamage_percent : 100, # maximum percentage damage one hit from the aircraft's main weapon/machine guns will do to an opponent
         maxDamageDistance_m : 40000, # maximum distance at which the aircrafts main weapon/maching guns will be able to damage an opponent
         weaponAngle_deg  :  { heading: 0, elevation: 90, headingMin: 0, headingMax: 0, elevationMin: 90, elevationMax: 90  }, # initial launch direction from AC.   

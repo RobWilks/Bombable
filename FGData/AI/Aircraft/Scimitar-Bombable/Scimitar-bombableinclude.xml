@@ -238,6 +238,7 @@
               main_gun :  #internal name - this can be any name you want; must be a valid nasal variable name
               {               
                 name : "L21 RARDEN 30mm cannon", # name presented to users, ie in on-screen messages
+                weaponType : "cannon",
                 coaxial_partner : "turret_MG",
                 maxDamage_percent : 20, # maximum percentage damage one hit from the aircraft's main weapon/machine guns will do to an opponent
                 maxDamageDistance_m : 10000, # maximum distance at which the aircrafts main weapon/machine guns will be able to damage an opponent
@@ -253,6 +254,7 @@
               turret_MG :  #internal name - this can be any name you want; must be a valid nasal variable name
               {               
                 name : "7.62mm L37A1 machine gun", # name presented to users, ie in on-screen messages
+                weaponType : "MG",
                 coaxial_partner : "main_gun",
                 maxDamage_percent : 7, # maximum percentage damage one hit from the aircraft's main weapon/machine guns will do to an opponent
                 maxDamageDistance_m : 3000, # maximum distance at which the aircrafts main weapon/machine guns will be able to damage an opponent

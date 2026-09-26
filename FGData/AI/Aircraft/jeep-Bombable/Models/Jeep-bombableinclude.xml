@@ -257,6 +257,7 @@
              jeep_MG :  #internal name - this can be any name you want; must be a valid nasal variable name
               {               
                 name : "Browning MG", # name presented to users, ie in on-screen messages
+                weaponType : "MG",
                 maxDamage_percent : 10, # maximum percentage damage one hit from the aircraft's main weapon/machine guns will do to an opponent
                 maxDamageDistance_m : 300, # maximum distance at which the aircrafts main weapon/maching guns will be able to damage an opponent
                 weaponAngle_deg  :  { heading: 0, elevation: 15.0, headingMin: -180, headingMax: 180, elevationMin: -10.0, elevationMax: 70  }, # direction the aircraft's main weapon is aimed.   

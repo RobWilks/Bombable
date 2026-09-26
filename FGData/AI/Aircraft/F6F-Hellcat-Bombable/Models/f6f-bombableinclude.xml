@@ -184,6 +184,7 @@
              front_gun_left :  #internal name - this can be any name you want; must be a valid nasal variable name
               {               
                 name : ".50 inch M2/AN Browning Machine Gun", # name presented to users, ie in on-screen messages
+                weaponType : "MG",
                 maxDamage_percent : 8, # maximum percentage damage one hit from the aircraft's main weapon/machine guns will do to an opponent
                 #Based on observation from within FG, a good F6F pass can easily do 18% damage to most aircraft
                 maxDamageDistance_m : 15000, # maximum distance at which the aircrafts main weapon/maching guns will be able to damage an opponent. Making this large is very expensive for FG's framerate and the chance of a hit at great than 100 meters, vanishingly small.  So set it carefully.
@@ -199,6 +200,7 @@
             front_gun_right :  #internal name - this can be any name you want; must be a valid nasal variable name
               {               
                 name : ".50 inch M2/AN Browning Machine Gun", # name presented to users, ie in on-screen messages
+                weaponType : "MG",
                 maxDamage_percent : 8, # maximum percentage damage one hit from the aircraft's main weapon/machine guns will do to an opponent
                 #Based on observation from within FG, a good F6F pass can easily do 18% damage to most aircraft
                 maxDamageDistance_m : 15000, # maximum distance at which the aircrafts main weapon/maching guns will be able to damage an opponent. Making this large is very expensive for FG's framerate and the chance of a hit at great than 100 meters, vanishingly small.  So set it carefully.

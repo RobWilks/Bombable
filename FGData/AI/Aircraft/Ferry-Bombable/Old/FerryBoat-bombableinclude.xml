@@ -72,7 +72,7 @@
           # VELOCITIES DEFINITIONS
           # 
           velocities : {               
-            maxSpeedReduce_percent : 1, #max % to reduce speed, per step, when damaged
+            maxSpeedReduce_percent : 3, #max % to reduce speed, per step, when damaged
             minSpeed_kt : 0, #minimum speed to reduce to when damaged.  Ground vehicles and ships might stop completely when damaged but aircraft will need a minimum speed so they keep moving until they hit the ground.
 
             cruiseSpeed_kt : 18, #cruising speed, typical/optimal cruising speed, V C for aircraft
@@ -137,95 +137,74 @@
           # 
           # The weapons system makes the AI aircraft fire on the main aircraft 
           # You can define any number of weapons--just enclose each in curly brackets
-          # and separate with commas (,).  
-		  # headingMax is clockwise of headingMin.  Heading values increase clockwise from forwards direction of craft	
-		  
+          # and separate with commas (,).           
           weapons : {
-
-             Gun_Turret1_FC :  #internal name - this can be any name you want; must be a valid nasal variable name
+             front_gun :  #internal name - this can be any name you want; must be a valid nasal variable name
               {               
                 name : "Anti-Aircraft Gun - Front", # name presented to users, ie in on-screen messages
-                weaponType : "large_cannon",
                 maxDamage_percent : 4, # maximum percentage damage one hit from the aircraft's main weapon/machine guns will do to an opponent
-                maxDamageDistance_m : 700, # maximum distance at which the aircrafts main weapon/maching guns will be able to damage an opponent
-                weaponAngle_deg  :  { heading: 0, elevation: 15.0, headingMin: -45, headingMax: 45, elevationMin: -3.0, elevationMax: 70  }, # direction the aircraft's main weapon is aimed.   
+                maxDamageDistance_m : 300, # maximum distance at which the aircrafts main weapon/maching guns will be able to damage an opponent
+                weaponAngle_deg  :  { heading: 0, elevation: 45, headingMin: -45, headingMax: 45, elevationMin: 0, elevationMax: 70  }, # direction the aircraft's main weapon is aimed.   
                                                                   # 0,0 = straight ahead, 90,0=directly right, 0,90=directly up, 0,180=directly back, etc.
-                weaponOffset_m : {x:-77, y:0, z:7.3}, # Offset of the weapon from the main aircraft center
+                weaponOffset_m : {x:-85, y:0, z:3.5}, # Offset of the weapon from the main aircraft center
                 weaponSize_m : {start:1.0, end:3.0}, # Visual size of the weapon's projectile, in meters, at start & end of its path
-				ammo_seconds : 300, 
-				
               },
              
-			  Gun_Turret2_FR :  #internal name - this can be any name you want; must be a valid nasal variable name
-              {               
-                name : "Anti-Aircraft Gun - Right/Front", # name presented to users, ie in on-screen messages
-                weaponType : "large_cannon",
-                maxDamage_percent : 4, # maximum percentage damage one hit from the aircraft's main weapon/machine guns will do to an opponent
-                maxDamageDistance_m : 700, # maximum distance at which the aircrafts main weapon/maching guns will be able to damage an opponent
-                weaponAngle_deg  :  { heading: 90, elevation: 15.0, headingMin: 60, headingMax: 120, elevationMin: -3.0, elevationMax: 70  }, # direction the aircraft's main weapon is aimed.   
-                                                                  # 0,0 = straight ahead, 90,0=directly right, 0,90=directly up, 0,180=directly back, etc.
-                weaponOffset_m : {x:-24.0, y:12.0, z:19.0}, # Offset of the weapon from the main aircraft center
-                weaponSize_m : {start:1.0, end:3.0}, # Visual size of the weapon's projectile, in meters, at start & end of its path
-				ammo_seconds : 300, 
-
-              },
-			  			  
-              Gun_Turret3_AR :  #internal name - this can be any name you want; must be a valid nasal variable name
-              {               
-                name : "Anti-Aircraft Gun - Right/Rear", # name presented to users, ie in on-screen messages
-                weaponType : "large_cannon",
-                maxDamage_percent : 4, # maximum percentage damage one hit from the aircraft's main weapon/machine guns will do to an opponent
-                maxDamageDistance_m : 700, # maximum distance at which the aircrafts main weapon/maching guns will be able to damage an opponent
-                weaponAngle_deg  :  { heading: 90, elevation: 15.0, headingMin: 60, headingMax: 120, elevationMin: -3.0, elevationMax: 70  }, # direction the aircraft's main weapon is aimed.   
-                                                                  # 0,0 = straight ahead, 90,0=directly right, 0,90=directly up, 0,180=directly back, etc.
-                weaponOffset_m : {x:16.0, y:9.0, z:18.8}, # Offset of the weapon from the main aircraft center
-                weaponSize_m : {start:1.0, end:3.0}, # Visual size of the weapon's projectile, in meters, at start & end of its path
-				ammo_seconds : 300, 
-
-              }, 
-
-              Gun_Turret4_AC :  #internal name - this can be any name you want; must be a valid nasal variable name
+             rear_gun :  #internal name - this can be any name you want; must be a valid nasal variable name
               {               
                 name : "Anti-Aircraft Gun - Rear", # name presented to users, ie in on-screen messages
-                weaponType : "large_cannon",
                 maxDamage_percent : 4, # maximum percentage damage one hit from the aircraft's main weapon/machine guns will do to an opponent
-                maxDamageDistance_m : 700, # maximum distance at which the aircrafts main weapon/maching guns will be able to damage an opponent
-                weaponAngle_deg  :  { heading: 180, elevation: 15.0, headingMin: 150, headingMax: -150, elevationMin: -3.0, elevationMax: 70  }, # direction the aircraft's main weapon is aimed.   
+                maxDamageDistance_m : 300, # maximum distance at which the aircrafts main weapon/maching guns will be able to damage an opponent
+                weaponAngle_deg  :  { heading: 180, elevation: 45, headingMin: 150, headingMax: -150, elevationMin: 0, elevationMax: 70  }, # direction the aircraft's main weapon is aimed.   
                                                                   # 0,0 = straight ahead, 90,0=directly right, 0,90=directly up, 0,180=directly back, etc.
-                weaponOffset_m : {x:66, y:0, z:18.8}, # Offset of the weapon from the main aircraft center
+                weaponOffset_m : {x:85, y:0, z:9}, # Offset of the weapon from the main aircraft center
                 weaponSize_m : {start:1.0, end:3.0}, # Visual size of the weapon's projectile, in meters, at start & end of its path
-				ammo_seconds : 300, 
 
               }, 
-			  
-             Gun_Turret5_AL :  #internal name - this can be any name you want; must be a valid nasal variable name
+              right_side_forward_gun :  #internal name - this can be any name you want; must be a valid nasal variable name
               {               
-                name : "Anti-Aircraft Gun - Left/Rear", # name presented to users, ie in on-screen messages
-                weaponType : "large_cannon",
+                name : "Anti-Aircraft Gun - Right/Front", # name presented to users, ie in on-screen messages
                 maxDamage_percent : 4, # maximum percentage damage one hit from the aircraft's main weapon/machine guns will do to an opponent
-                maxDamageDistance_m : 700, # maximum distance at which the aircrafts main weapon/maching guns will be able to damage an opponent
-                weaponAngle_deg  :  { heading: -90, elevation: 15.0, headingMin: -120, headingMax: -60, elevationMin: -3.0, elevationMax: 70  }, # direction the aircraft's main weapon is aimed.   
+                maxDamageDistance_m : 300, # maximum distance at which the aircrafts main weapon/maching guns will be able to damage an opponent
+                weaponAngle_deg  :  { heading: 60, elevation: 45, headingMin: 30, headingMax: 80, elevationMin: 0, elevationMax: 70  }, # direction the aircraft's main weapon is aimed.   
                                                                   # 0,0 = straight ahead, 90,0=directly right, 0,90=directly up, 0,180=directly back, etc.
-                weaponOffset_m : {x:16.0, y:-9.0, z:18.8}, # Offset of the weapon from the main aircraft center
+                weaponOffset_m : {x:-55, y:-8.5, z:9}, # Offset of the weapon from the main aircraft center
                 weaponSize_m : {start:1.0, end:3.0}, # Visual size of the weapon's projectile, in meters, at start & end of its path
-				ammo_seconds : 300, 
-
-              },                                  
-
-              Gun_Turret6_FL :  #internal name - this can be any name you want; must be a valid nasal variable name
-              {               
-                name : "Anti-Aircraft Gun - Left/Front", # name presented to users, ie in on-screen messages
-                weaponType : "large_cannon",
-                maxDamage_percent : 4, # maximum percentage damage one hit from the aircraft's main weapon/machine guns will do to an opponent
-                maxDamageDistance_m : 700, # maximum distance at which the aircrafts main weapon/maching guns will be able to damage an opponent
-                weaponAngle_deg  :  { heading: -90, elevation: 15.0, headingMin: -120, headingMax: -60, elevationMin: -3.0, elevationMax: 70  }, # direction the aircraft's main weapon is aimed.   
-                                                                  # 0,0 = straight ahead, 90,0=directly right, 0,90=directly up, 0,180=directly back, etc.
-                weaponOffset_m : {x:-24, y:-12.0, z:19.0}, # Offset of the weapon from the main aircraft center
-                weaponSize_m : {start:1.0, end:3.0}, # Visual size of the weapon's projectile, in meters, at start & end of its path
-				ammo_seconds : 300, 
 
               },
+              right_side_rearward_gun :  #internal name - this can be any name you want; must be a valid nasal variable name
+              {               
+                name : "Anti-Aircraft Gun - Right/Rear", # name presented to users, ie in on-screen messages
+                maxDamage_percent : 4, # maximum percentage damage one hit from the aircraft's main weapon/machine guns will do to an opponent
+                maxDamageDistance_m : 300, # maximum distance at which the aircrafts main weapon/maching guns will be able to damage an opponent
+                weaponAngle_deg  :  { heading: 120, elevation: 45, headingMin: 100, headingMax: 140, elevationMin: 0, elevationMax: 70  }, # direction the aircraft's main weapon is aimed.   
+                                                                  # 0,0 = straight ahead, 90,0=directly right, 0,90=directly up, 0,180=directly back, etc.
+                weaponOffset_m : {x:55, y:-8.5, z:9}, # Offset of the weapon from the main aircraft center
+                weaponSize_m : {start:1.0, end:3.0}, # Visual size of the weapon's projectile, in meters, at start & end of its path
 
+              }, 
+              left_front_gun :  #internal name - this can be any name you want; must be a valid nasal variable name
+              {               
+                name : "Anti-Aircraft Gun - Left", # name presented to users, ie in on-screen messages
+                maxDamage_percent : 4, # maximum percentage damage one hit from the aircraft's main weapon/machine guns will do to an opponent
+                maxDamageDistance_m : 300, # maximum distance at which the aircrafts main weapon/maching guns will be able to damage an opponent
+                weaponAngle_deg  :  { heading: -60, elevation: 45, headingMin: -80, headingMax: -40, elevationMin: 0, elevationMax: 70  }, # direction the aircraft's main weapon is aimed.   
+                                                                  # 0,0 = straight ahead, 90,0=directly right, 0,90=directly up, 0,180=directly back, etc.
+                weaponOffset_m : {x:-55, y:8.5, z:9}, # Offset of the weapon from the main aircraft center
+                weaponSize_m : {start:1.0, end:3.0}, # Visual size of the weapon's projectile, in meters, at start & end of its path
+
+              },
+              left_rear_gun :  #internal name - this can be any name you want; must be a valid nasal variable name
+              {               
+                name : "Anti-Aircraft Gun - Left", # name presented to users, ie in on-screen messages
+                maxDamage_percent : 4, # maximum percentage damage one hit from the aircraft's main weapon/machine guns will do to an opponent
+                maxDamageDistance_m : 300, # maximum distance at which the aircrafts main weapon/maching guns will be able to damage an opponent
+                weaponAngle_deg  :  { heading: -120, elevation: 45, headingMin: -100, headingMax: -140, elevationMin: 0, elevationMax: 70  }, # direction the aircraft's main weapon is aimed.   
+                                                                  # 0,0 = straight ahead, 90,0=directly right, 0,90=directly up, 0,180=directly back, etc.
+                weaponOffset_m : {x:55, y:8.5, z:9}, # Offset of the weapon from the main aircraft center
+                weaponSize_m : {start:1.0, end:3.0}, # Visual size of the weapon's projectile, in meters, at start & end of its path
+
+              },                                  
           },  
           
 

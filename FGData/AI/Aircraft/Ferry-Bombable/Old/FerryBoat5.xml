@@ -7,6 +7,20 @@
 	<status>early-production</status>
 	<path>FerryBoat1.ac</path>
 
+  <model> 
+   <path>navalGun.xml</path>
+   <name>GunTurret</name>
+    <offsets> 
+     <x-m>100</x-m>
+     <y-m>-100</y-m>
+     <z-m>50</z-m>
+	 <heading-deg>180</heading-deg>
+    </offsets>
+  </model>
+
+
+
+
 	<animation>
 		<type>rotate</type>
 		<object-name>radar-antenna</object-name>
@@ -23,7 +37,7 @@
 			<z>1</z>
 		</axis>
 	</animation>
-  <!-- Unfortunately the wake causes many of the dreaded triangleintersect
+	<!-- Unfortunately the wake causes many of the dreaded triangleintersect
   errors AND when the ship sinks the wake sticks up in the air and looks
   funny.  For now, until those problems can be fixed, we will just remove
   the wake. -->
@@ -164,4 +178,3 @@
 		<max-m>40000</max-m>
 	</animation>
 </PropertyList>
- 

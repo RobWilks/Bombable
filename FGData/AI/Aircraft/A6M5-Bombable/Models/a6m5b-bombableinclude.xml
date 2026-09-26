@@ -176,6 +176,7 @@
              front_gun :  #internal name - this can be any name you want; must be a valid nasal variable name
               {               
                 name : "13.2 mm Type 3 Browning Machine Gun", # 1x mounted in engine cowling
+                weaponType : "MG",
                 maxDamage_percent : 3.5, # maximum percentage damage one hit from the aircraft's main weapon/machine guns will do to an opponent
                 #based on observation, a good A5M2 pass can easily do 10-12% damage 
                 maxDamageDistance_m : 900, # maximum distance at which the aircrafts main weapon/maching guns will be able to damage an opponent. Making this large is very expensive for FG's framerate and the chance of a hit at great than 100 meters, vanishingly small.  So set it carefully.
@@ -189,6 +190,7 @@
              front_cannons :
               {               
                 name : "20mm Type 99-2 Mark 4 cannons", #2x wing-mounted; figures for pair
+                weaponType : "cannon",
                 maxDamage_percent : 4,
                 maxDamageDistance_m : 1000,
                 weaponAngle_deg  :  { heading: 0, elevation: 0, headingMin: 0, headingMax: 0, elevationMin: 0, elevationMax: 0  }, 	 

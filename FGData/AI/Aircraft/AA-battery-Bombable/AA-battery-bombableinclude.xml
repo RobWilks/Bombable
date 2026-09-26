@@ -140,6 +140,7 @@
              flak_gun_88mm_centre :  #internal name - this can be any name you want; must be a valid nasal variable name
               {               
                 name : "Flak gun 88mm centre", # name presented to users, ie in on-screen messages
+                weaponType : "large_cannon",
                 maxDamage_percent : 45.5, # maximum percentage damage one hit from the aircraft's main weapon/machine guns will do to an opponent
                 maxDamageDistance_m : 50, # maximum distance at which the aircrafts main weapon/maching guns will be able to damage an opponent
                 weaponAngle_deg  :  { heading: 0, elevation: 70.0, headingMin: -180, headingMax: 180, elevationMin: 0.0, elevationMax: 80.0  }, # direction the aircraft's main weapon is aimed.   
@@ -154,6 +155,7 @@
              flak_gun_88mm_left :  #internal name - this can be any name you want; must be a valid nasal variable name
               {               
                 name : "Flak gun 88mm left", # name presented to users, ie in on-screen messages
+                weaponType : "large_cannon",
                 maxDamage_percent : 45.5, # maximum percentage damage one hit from the aircraft's main weapon/machine guns will do to an opponent
                 maxDamageDistance_m : 50, # maximum distance at which the aircrafts main weapon/maching guns will be able to damage an opponent
                 weaponAngle_deg  :  { heading: -20, elevation: 40.0, headingMin: -180, headingMax: 180, elevationMin: 0.0, elevationMax: 80.0  }, # direction the aircraft's main weapon is aimed.   
@@ -168,6 +170,7 @@
              flak_gun_88mm_right :  #internal name - this can be any name you want; must be a valid nasal variable name
               {               
                 name : "Flak gun 88mm right", # name presented to users, ie in on-screen messages
+                weaponType : "large_cannon",
                 maxDamage_percent : 45.5, # maximum percentage damage one hit from the aircraft's main weapon/machine guns will do to an opponent
                 maxDamageDistance_m : 50, # maximum distance at which the aircrafts main weapon/maching guns will be able to damage an opponent
                 weaponAngle_deg  :  { heading: 30, elevation: 60.0, headingMin: -180, headingMax: 180, elevationMin: 0.0, elevationMax: 80.0  }, # direction the aircraft's main weapon is aimed.   

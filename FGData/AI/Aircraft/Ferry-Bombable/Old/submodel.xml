@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<PropertyList>
+
+	<submodel>
+		<name>navalGun</name>
+		<model>Ferry-Bombable/navalGun.xml</model>
+		<trigger type="bool">true</trigger>
+		<repeat>false</repeat>
+        <count>1</count>
+        <delay>0</delay>
+		<animation>
+			<type>scale</type>
+			<x-offset>15.5</x-offset>
+			<y-offset>15.5</y-offset>
+			<z-offset>15.5</z-offset>
+		</animation>
+		
+		<offsets>
+			<x-m>200</x-m>
+			<y-m>-100</y-m>
+			<z-m>50</z-m>
+			<heading-deg>-20</heading-deg>
+			<pitch-deg>45</pitch-deg>
+		</offsets>
+		
+	</submodel>
+
+</PropertyList>
