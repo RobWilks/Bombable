@@ -241,7 +241,7 @@
                 weaponType : "cannon",
                 coaxial_partner : "turret_MG",
                 maxDamage_percent : 20, # maximum percentage damage one hit from the aircraft's main weapon/machine guns will do to an opponent
-                maxDamageDistance_m : 10000, # maximum distance at which the aircrafts main weapon/machine guns will be able to damage an opponent
+                maxDamageDistance_m : 2000, # maximum distance at which the aircrafts main weapon/machine guns will be able to damage an opponent
                 weaponAngle_deg  :  { heading: 0, elevation: 15.0, headingMin: -180, headingMax: 180, elevationMin: -10.0, elevationMax: 35  }, # direction the aircraft's main weapon is aimed.   
                                                                   # 0,0 = straight ahead, 90,0=directly right, 0,90=directly up, 0,180=directly back, etc.
                 weaponOffset_m : {x:0, y:0, z:1.59626}, # Offset of the weapon from the main aircraft center
@@ -257,7 +257,7 @@
                 weaponType : "MG",
                 coaxial_partner : "main_gun",
                 maxDamage_percent : 7, # maximum percentage damage one hit from the aircraft's main weapon/machine guns will do to an opponent
-                maxDamageDistance_m : 3000, # maximum distance at which the aircrafts main weapon/machine guns will be able to damage an opponent
+                maxDamageDistance_m : 500, # maximum distance at which the aircrafts main weapon/machine guns will be able to damage an opponent
                 weaponAngle_deg  :  { heading: 0, elevation: 15.0, headingMin: -180, headingMax: 180, elevationMin: -10.0, elevationMax: 35  }, # direction the aircraft's main weapon is aimed.   
                                                                   # 0,0 = straight ahead, 90,0=directly right, 0,90=directly up, 0,180=directly back, etc.
                 weaponOffset_m : {x:0, y:-0.265, z:1.59626}, # Offset of the weapon from the main aircraft center

@@ -38,8 +38,8 @@
         <!-- Two Tanks -->
         <team>E</team>
         <target>Y</target>
-        <arrivalTime>180</arrivalTime>
-        <airSpeed>3</airSpeed>
+        <arrivalTime>420</arrivalTime>
+        <airSpeed>10</airSpeed>
         <airportName>ROAH</airportName>
         <heading>270</heading>
         <alt>16</alt>
@@ -50,7 +50,7 @@
                 <up>0</up>
             </offset>
             <offset>
-                <behind>50</behind>
+                <behind>100</behind>
                 <right>30</right>
                 <up>0</up>
             </offset>
@@ -67,8 +67,8 @@
         <alt>13</alt>
         <offsets>
             <offset>
-                <behind>30</behind>
-                <right>110</right>
+                <behind>-1500</behind>
+                <right>300</right>
                 <up>0</up>
             </offset>
         </offsets>

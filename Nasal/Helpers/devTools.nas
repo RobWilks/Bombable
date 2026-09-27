@@ -549,31 +549,89 @@ if (models_node != nil) {
     print("All UFO models removed from scene.");
 }
 
-################ print out targetting data ##############      
-var myNodeName = "/ai/models/static";
-var ats = bombable.attributes[myNodeName];
-var myTargets = ats.targetIndex;
-var nTargets = size(myTargets);
-debug.dump(bombable.nodeNames);
-debug.dump(myTargets);
-foreach (elem; keys (ats.weapons) ) 
-{	
-    var thisWeapon = ats.weapons[elem];
-    if (thisWeapon.destroyed == 1) 
-    {
-        print("" ~ elem ~ " destroyed");
-        continue; #skip this weapon if destroyed
+################ print out targetting data for all nodes ##############      
+var stripAiModelsPrefix = func(nodeName) {
+    if (nodeName == nil or nodeName == "") {
+        return "";
     }
-    var ind = thisWeapon.aim.target; # index of object to shoot at
-    var pos = vecindex(myTargets, ind);
-    print (elem ~ " is targetting " ~ ind);
-    if ( bombable.stores.checkWeaponsReadiness ( myNodeName, elem ) == 0) 
-    {
-        print("" ~ elem ~ " out of ammo");
-        continue; # can only shoot if ammo left!
+    
+    var prefix = "/ai/models/";
+    var prefixLen = size(prefix);
+    
+    # Check if nodeName starts with "/ai/models/"
+    if (size(nodeName) >= prefixLen and substr(nodeName, 0, prefixLen) == prefix) {
+        return substr(nodeName, prefixLen);
+    }
+    
+    return nodeName;
+};
+
+foreach (var myNodeName; bombable.nodeNames)
+{
+    bombable.debprint("==========================");
+    bombable.debprint("myNodeName :", stripAiModelsPrefix(myNodeName));
+    var ats = bombable.attributes[myNodeName];
+    var myTargets = ats.targetIndex;
+    var nTargets = size(myTargets);
+    if (size(myTargets) < 0) {
+        bombable.debprint(stripAiModelsPrefix(myNodeName) ~ " has no targets") ;
+    }
+    var msg = "";
+    foreach (var targetIndex; myTargets) {
+        msg = msg ~ stripAiModelsPrefix(bombable.nodeNames[targetIndex]) ~ ", ";
+    }
+    bombable.debprint("Target list [" ~ msg ~ "]");
+    if (!contains(ats, "weapons"))  {
+        bombable.debprint ("No weapons");
+        continue;
+    }
+    
+    foreach (elem; keys (ats.weapons) ) 
+    {	
+        var thisWeapon = ats.weapons[elem];
+        if (thisWeapon.destroyed == 1) 
+        {
+            bombable.debprint("" ~ elem ~ " destroyed");
+            continue; #skip this weapon if destroyed
+        }
+        var ind = thisWeapon.aim.target; # index of object to shoot at
+        bombable.debprint (elem ~ " is targetting " ~ stripAiModelsPrefix(bombable.nodeNames[ind]));
+
+        if ( bombable.stores.checkWeaponsReadiness ( myNodeName, elem ) == 0) 
+        {
+            bombable.debprint("" ~ elem ~ " out of ammo");
+            continue; # can only shoot if ammo left!
+        }
     }
 }
 
+################ print out damage on all nodes ##############      
+var stripAiModelsPrefix = func(nodeName) {
+    if (nodeName == nil or nodeName == "") {
+        return "";
+    }
+    
+    var prefix = "/ai/models/";
+    var prefixLen = size(prefix);
+    
+    # Check if nodeName starts with "/ai/models/"
+    if (size(nodeName) >= prefixLen and substr(nodeName, 0, prefixLen) == prefix) {
+        return substr(nodeName, prefixLen);
+    }
+    
+    return nodeName;
+};
+
+foreach (var myNodeName; bombable.nodeNames)
+{
+    if (myNodeName == "") continue;
+    var ats = bombable.attributes[myNodeName];
+    bombable.debprint(sprintf("myNodeName :%s damage: %.2f", stripAiModelsPrefix(myNodeName), ats.damage));
+
+}
+
+
+################ print out targetting data for one node ##############      
 var myNodeName = "/ai/models/aircraft";
 var ats = bombable.attributes[myNodeName];
 var myTargets = ats.targetIndex;
@@ -598,53 +656,6 @@ foreach (elem; keys (ats.weapons) )
     }
 }
 
-var myNodeName = "/ai/models/aircraft[1]";
-var ats = bombable.attributes[myNodeName];
-var myTargets = ats.targetIndex;
-var nTargets = size(myTargets);
-debug.dump(bombable.nodeNames);
-debug.dump(myTargets);
-foreach (elem; keys (ats.weapons) ) 
-{	
-    var thisWeapon = ats.weapons[elem];
-    if (thisWeapon.destroyed == 1) 
-    {
-        print("" ~ elem ~ " destroyed");
-        continue; #skip this weapon if destroyed
-    }
-    var ind = thisWeapon.aim.target; # index of object to shoot at
-    var pos = vecindex(myTargets, ind);
-    print (elem ~ " is targetting " ~ ind);
-    if ( bombable.stores.checkWeaponsReadiness ( myNodeName, elem ) == 0) 
-    {
-        print("" ~ elem ~ " out of ammo");
-        continue; # can only shoot if ammo left!
-    }
-}
-
-var myNodeName = "/ai/models/aircraft[2]";
-var ats = bombable.attributes[myNodeName];
-var myTargets = ats.targetIndex;
-var nTargets = size(myTargets);
-debug.dump(bombable.nodeNames);
-debug.dump(myTargets);
-foreach (elem; keys (ats.weapons) ) 
-{	
-    var thisWeapon = ats.weapons[elem];
-    if (thisWeapon.destroyed == 1) 
-    {
-        print("" ~ elem ~ " destroyed");
-        continue; #skip this weapon if destroyed
-    }
-    var ind = thisWeapon.aim.target; # index of object to shoot at
-    var pos = vecindex(myTargets, ind);
-    print (elem ~ " is targetting " ~ ind);
-    if ( bombable.stores.checkWeaponsReadiness ( myNodeName, elem ) == 0) 
-    {
-        print("" ~ elem ~ " out of ammo");
-        continue; # can only shoot if ammo left!
-    }
-}
 
 # ==============================================================================
 # replace_placeholders_2 - NOT TESTED

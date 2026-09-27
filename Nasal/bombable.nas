@@ -6479,9 +6479,17 @@ var weapons_loop = func (id, myNodeName1 = "") {
 		# if (thisWeapon.aim.nHit * ballisticMass_lb > (0.277777 * weapPowerSkill + 0.022222)) # 0.3;0.05
 		if (thisWeapon.aim.nHit * ballisticMass_lb > (0.0166666 * weapPowerSkill + 0.003333)) # 0.02;0.005
 		{
+			# nHit (0-10); weaponPower (0-1); ballisticMass_lb (0-25); damageVulnerability (0-100)
+			# Treat nHit as the probability of delivering a full-burst impact during LOOP_TIME.
+			# Eliminates minor hit chatter. Weapon bursts either land solidly or miss entirely.
+
+			# Gate impact on a roll against expected hits
+			if (rand() > thisWeapon.aim.nHit) continue; # failed gate go to next weap
+			var singleRoundDamage = weaponPower * ballisticMass_lb * ats2.vulnerabilities.damageVulnerability / 1000;
+			var damageAdd = singleRoundDamage * (1.0 + rand()); 
 			
 			# fire weapons for visual effect
-			var time2Fire =  3;
+			var time2Fire =  1.5 + rand();
 			fireAIWeapon(time2Fire, myNodeName1, elem, thisWeapon.aim.interceptSpeed);
 
 			#reduce ammo count
@@ -6504,9 +6512,6 @@ var weapons_loop = func (id, myNodeName1 = "") {
 			# e.g. damage non-linear function of pRound;
 
 			var ai_callsign = getCallSign (myNodeName1);
-
-			# nHit (0-10); weaponPower (0-1); ballisticMass_lb (0-25); damageVulnerability (0-100)
-			var damageAdd = thisWeapon.aim.nHit * weaponPower * ballisticMass_lb * ats2.vulnerabilities.damageVulnerability / 100;
 						
 			weaponName = thisWeapon.name;
 			if (weaponName == nil) weaponName = "Main Weapon";
