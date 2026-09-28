@@ -1,29 +1,8 @@
 <?xml version="1.0"?>
 <PropertyList>
   <scenario>
-    <name>Bombable: (ROAH) 3 B-17s meet 9 Zeroes on mission to Okinawa</name>
-    <description>This scenario puts a squadron of B-17 bombers, with two squadrons of A6M2 Zeros flying cover, over the Marin Ranch Airport, CA35.
-		
-Your mission is to down the bombers and the fighters - which will swarm and attack you.
-
-Take off from **runway 4** of the Marin Ranch Airport (CA35) immediately when FlightGear starts up.  Fly straight off the end of the runway, heading 40 degrees, climb at full power maintaining 110 knots.  As you pass through about 3500 feet you will see the bomber squadron off your starboard wing.  As you pass through 5000 it will be close to straight ahead.
-
-The bombers are headed in a northerly direction at about 5000 feet and near the B-17's optimal crusing speed of 182 knots.  The fighters will be lurking somewhere above them--you don't need to worry about finding them, because if you find the bombers, the fighter escort will find *you*.  
-
-The B-17s and Zeros are air-to-air targets. You can damage them with heavy guns, machine guns, or other armament.
-  
-To damage the aircraft takes one or more direct hits from a machine gun or heavy gun, or a close strike by a heavy bomb.   
-
-Zeros are fairly light targets and easier to damage; B-17s heavier and more difficult to damage.
-
-Install this scenario in the FlightGear/data/AI directory.
-
-Suggestion: Turn multiplayer mode off.  Marin Ranch is close to KSFO and you'll pick up all the multiplayer action there, greatly slowing your framerate.
-
-Any aircraft that shoots guns or drops bombs can damage the Zeros and B-17.  A great choice is to use the A6M2 aircraft included in this distribution. 
-
-(And OK - Zeros covering B-17s isn't exactly historically accurate - but this scenario illustrates what the Bombable package can do now.)
-		</description>
+    <name>Bombable: Ground and air battle for Okinawa</name>
+    <description>1 B-17 and 2 light tanks on mission to Okinawa guarded by AA battery, one Zero and two light tanks.</description>
     <!-- B-17s -->
     <entry>
       <search-order>PREFER_AI</search-order>
@@ -104,4 +83,100 @@ Any aircraft that shoots guns or drops bombs can damage the Zeros and B-17.  A g
       <heading type="double">0</heading>
     </entry>
   </scenario>
+  <extension>
+    <group>
+        <!-- B17s -->
+        <team>B</team>
+        <target>X</target>
+        <arrivalTime>240</arrivalTime>
+        <airSpeed>182</airSpeed>
+        <airportName>ROAH</airportName>
+        <heading>225</heading>
+        <alt>5000</alt>
+        <offsets>
+            <offset>
+                <behind>0</behind>
+                <right>0</right>
+                <up>0</up>
+            </offset>
+        </offsets>
+        <flightpath>
+            <name type="string">target_runway</name>
+            <segmentLength type="double">3.0</segmentLength>
+        </flightpath>
+    </group>
+    <group>
+        <!-- Tank -->
+        <team>Y</team>
+        <target>E</target>
+        <arrivalTime>-30</arrivalTime>
+        <airSpeed>1</airSpeed>
+        <airportName>ROAH</airportName>
+        <heading>0</heading>
+        <alt>16</alt>
+        <offsets>
+            <offset>
+                <behind>0</behind>
+                <right>0</right>
+                <up>0</up>
+            </offset>
+        </offsets>
+    </group>
+    <group>
+        <!-- Two Tanks -->
+        <team>E</team>
+        <target>Y</target>
+        <arrivalTime>420</arrivalTime>
+        <airSpeed>10</airSpeed>
+        <airportName>ROAH</airportName>
+        <heading>270</heading>
+        <alt>16</alt>
+        <offsets>
+            <offset>
+                <behind>0</behind>
+                <right>0</right>
+                <up>0</up>
+            </offset>
+            <offset>
+                <behind>100</behind>
+                <right>30</right>
+                <up>0</up>
+            </offset>
+        </offsets>
+    </group>
+    <!-- Flak -->
+    <group>
+        <team>W</team>
+        <target>B</target>
+        <arrivalTime>0</arrivalTime>
+        <airSpeed>0</airSpeed>
+        <airportName>ROAH</airportName>
+        <heading>0</heading>
+        <alt>100</alt>
+        <offsets>
+            <offset>
+                <behind>-1500</behind>
+                <right>300</right>
+                <up>0</up>
+            </offset>
+        </offsets>
+    </group>
+    <!-- Zero -->
+    <group>
+        <team>X</team>
+        <target>B</target>
+        <arrivalTime>90</arrivalTime>
+        <airSpeed>250</airSpeed>
+        <airportName>ROAH</airportName>
+        <heading>160</heading>
+        <alt>6000</alt>
+        <offsets>
+            <offset>
+                <behind>0</behind>
+                <right>0</right>
+                <up>0</up>
+            </offset>
+        </offsets>
+    </group>
+  </extension>
 </PropertyList>

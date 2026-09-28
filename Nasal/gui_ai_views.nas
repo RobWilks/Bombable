@@ -355,7 +355,7 @@ var show_ai_view_menu_in_memory = func {
     # Format entries cleanly
     var target_list = [];
     forindex (var i; ai_paths) {
-        append(target_list, ai_callSign[i] ~ ai_status[i] ~ " - " ~ substr(ai_paths[i], 11));
+        append(target_list, ai_callSign[i] ~ " " ~ ai_status[i] ~ " - " ~ substr(ai_paths[i], 11));
     }
 
     # Retain selection if valid, otherwise fallback to first entry

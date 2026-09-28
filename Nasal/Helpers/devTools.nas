@@ -378,9 +378,9 @@ fgcommand("add-model", props.Node.new({
 }));
 ##################### dump branch of property tree ##########################
 
-var myNodeName = "/ai/models/aircraft";
+var myNodeName = "/ai/models/ship";
 var ats = bombable.attributes[myNodeName];
-var key = "weapons";
+var key = "velocities";
 if (contains(ats, key)) {
 debug.dump(ats[key]);
 }
@@ -388,6 +388,9 @@ else
 {
     print(key ~ " is not a key");
 }
+foreach (var key; keys(ats)) print (key);
+print(ats.exploded);
+
 var weaps=ats.weapons;
 debug.dump(weaps.top_turret_gun);
 ##################### test updateWptHeading ##########################
@@ -426,22 +429,63 @@ if (rand() < skill / 6 * (1.0 - ats.damage)) {
 ###################### get scenario info ####################
 
 	var scenarioName = getprop("/sim/ai/scenario");
-	if (scenarioName == nil) scenarioName = "BOMB-Llandbehr_Type45_F15_rocket";
-	bombable.debprint("Bombable: starting scenario "~scenarioName);
-
+	if (scenarioName == nil) 
+	{
+		scenarioName = "BOMB-Llandbehr_Type45_F15_rocket";
+		bombable.debprint("error: no scenario found, using default scenario "~scenarioName);
+	} 
+	else
+	{
+		bombable.debprint("starting scenario "~scenarioName);
+	}
 	# Construct file path relative to addon path
-	var scenarioFilePath = getprop("/sim/fg-aircraft") ~ "/../../Scenarios/Extensions/" ~ scenarioName ~ ".xml";
+	var scenarioFilePath = getprop("/sim/fg-aircraft") ~ "/../../Scenarios/" ~ scenarioName ~ ".xml";
 	
 	# Load XML into a temporary property branch
 	var targetTree = props.globals.getNode("/sim/ai/bombable-temp", 1);
 	if (!io.read_properties(scenarioFilePath, targetTree)) {
-		debprint("Bombable: startScenario: Error loading file " ~ scenarioFilePath);
+		bombable.debprint("startScenario: Error loading file " ~ scenarioFilePath);
 		return;
 	}
 
+	# Parse static model entries from the sister <scenario> block
+    var staticEntries = [];
+	var scenarioNode = targetTree.getNode("scenario");
+    
+    if (scenarioNode != nil) {
+        foreach (var eNode; scenarioNode.getChildren("entry")) {
+            var typeNode = eNode.getNode("type");
+            if (typeNode != nil and typeNode.getValue() == "static") {
+                var nameVal = eNode.getNode("name", 1).getValue();
+                var latVal  = eNode.getNode("latitude", 1).getValue();
+                var lonVal  = eNode.getNode("longitude", 1).getValue();
+
+                if (nameVal != nil and latVal != nil and lonVal != nil) {
+                    append(staticEntries, {
+                        name : nameVal,
+                        lat  : latVal,
+                        lon  : lonVal
+                    });
+                }
+            }
+        }
+    }
+    
+	# # Execute immediate lat-lon matching and name injection
+    # if (size(staticEntries) > 0) {
+    #     assignStaticNames(staticEntries);
+    # }
+
+	# Locate the extension root node
+    var extensionRoot = targetTree.getNode("extension");
+    if (extensionRoot == nil) {
+        bombable.debprint("startScenario: Error - No <extension> block found in scenario " ~ scenarioName);
+        return;
+    }
+
 	# Dynamically construct the scenario hash from loaded properties
 	var scenario = [];
-	var groupNodes = targetTree.getChildren("group");
+	var groupNodes = extensionRoot.getChildren("group");
 	
 	foreach (var gNode; groupNodes) {
 		var offsetList = [];
@@ -457,20 +501,34 @@ if (rand() < skill / 6 * (1.0 - ats.damage)) {
 			}
 		}
 
-		append(scenario, {
-			team        : gNode.getNode("team", 1).getValue(),
-			target      : gNode.getNode("target", 1).getValue(),
-			arrivalTime : gNode.getNode("arrivalTime", 1).getValue(),
-			airSpeed    : gNode.getNode("airSpeed", 1).getValue() * KT2MPS,
-			airportName : gNode.getNode("airportName", 1).getValue(),
-			heading     : gNode.getNode("heading", 1).getValue(),
-			alt         : gNode.getNode("alt", 1).getValue(),
-			offsets     : offsetList
-		});
+		# Build base group hash
+        var groupData = {
+            team        : gNode.getNode("team", 1).getValue(),
+            target      : gNode.getNode("target", 1).getValue(),
+            arrivalTime : gNode.getNode("arrivalTime", 1).getValue(),
+            airSpeed    : gNode.getNode("airSpeed", 1).getValue() * KT2MPS,
+            airportName : gNode.getNode("airportName", 1).getValue(),
+            heading     : gNode.getNode("heading", 1).getValue(),
+            alt         : gNode.getNode("alt", 1).getValue(), #ft
+            offsets     : offsetList
+        };
+
+        # Only assign the key if <flightpath> tag exists
+        var fpNode = gNode.getNode("flightpath");
+        if (fpNode != nil) {
+            groupData["flightpath"] = {
+                name          : fpNode.getNode("name", 1).getValue(),
+                segmentLength : fpNode.getNode("segmentLength", 1).getValue()
+            };
+        }
+
+        append(scenario, groupData);
 	}
 
 	# Clear the temporary property tree
 	targetTree.remove();
+
+    debug.dump(scenario);
 
 ###################### test geocord navigation ####################    
 

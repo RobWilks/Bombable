@@ -1560,6 +1560,7 @@ var resetBombableDamageFuelWeapons = func (myNodeName) {
 		ats.damage = 0;
 		ats.exploded = 0;
 		ats.jobDone = 0; # flag set when mission accomplished
+		ats.altitudes.initialized = 0; # flag for ground_loop to reset altitudes 
 		ctrls.damageAltAddCurrent_ft = 0;
 		ctrls.damageAltAddCumulative_ft = 0;
 		ctrls.onGround = 0;
@@ -2872,17 +2873,18 @@ var ground_loop = func( id, myNodeName ) {
 	var updateTime_s = attributes[myNodeName].updateTime_s * (0.9 + 0.2 * rand());
 	var ats = attributes[myNodeName];
 	var ctrls = ats.controls;	
+	var type = ats.type;
 	if (ats.exploded == 1) return();
 			
-	# reset the timer loop first so we don't lose it entirely in case of a runtime
-	# error or such
+	# reset the timer loop first so we don't lose it entirely in case of a runtime error or such
 	# add rand() so that all objects don't do this function simultaneously
-	settimer(func { ground_loop(id, myNodeName)}, updateTime_s );
+	# on the first call objects are given the correct altitude and orientation
+	# for staticObjects there is no need to call the loop again 
+	if (type != "staticObject") settimer(func { ground_loop(id, myNodeName)}, updateTime_s );
 
 	# Allow this function to be disabled via menu since it can kill framerate at times
 	if (! bombableMenu["ai-ground-loop-enabled"] or ! bombableMenu["bombable-enabled"] ) return;
 
-	var type = ats.type;
 
 	var alts = ats.altitudes;
 	var dims = ats.dimensions;
@@ -2903,9 +2905,9 @@ var ground_loop = func( id, myNodeName ) {
 	var FGAltObjectPerimeterBuffer_m = 0.5 * dims.length_m;
 	var FGAltObjectPerimeterBuffer_ft = FGAltObjectPerimeterBuffer_m * M2FT;
 			
-			
 	# Update altitude to keep moving objects at the local ground level
-	var currAlt_ft = getprop(""~myNodeName~"/position/altitude-ft"); #where the object is, in feet
+	var currAlt_ft = getprop(""~myNodeName~"/position/altitude-ft");
+	# altitude in feet above mean sea level (MSL)			
 	var lat = getprop(""~myNodeName~"/position/latitude-deg");
 	var lon = getprop(""~myNodeName~"/position/longitude-deg");
 	var heading = getprop(""~myNodeName~"/orientation/true-heading-deg");
@@ -2958,7 +2960,7 @@ var ground_loop = func( id, myNodeName ) {
 	# but if it's on the ground, we don't care and all these geo.Coords & elevs really kill FR.
 	# if (thorough or damageValue > 0.8 ) {	
 
-	if (type == "groundvehicle" or ctrls.onGround) 
+	if (type == "vehicle" or type == "staticObject" or ctrls.onGround) 
 	{	#only get roll for ground vehicle or AC that has just crashed
 
 	# find the slope of the ground in the direction we are heading
@@ -3003,7 +3005,7 @@ var ground_loop = func( id, myNodeName ) {
 	}
 
 	
-	#The first time this is called just initializes all the altitudes and exit
+	# The first time ground_loop is called initialize altitudes and speedOnFlat for vehicles then exit
 
 	if ( alts.initialized != 1 ) 
 	{
@@ -3062,7 +3064,7 @@ var ground_loop = func( id, myNodeName ) {
 	# test to exit ground loop
 	# speed is adjusted by add_damage
 	# ships and groundvehicles might be stationary at the start of a scenario
-	if ((type == "groundvehicle") or (type == "ship")) 
+	if ((type == "vehicle") or (type == "ship")) 
 	{
 		if (speed_kt <= 1 and ats.damage > 0.9) 
 		{
@@ -3079,15 +3081,14 @@ var ground_loop = func( id, myNodeName ) {
 			setprop(""~myNodeName~"/controls/tgt-speed-kts", 0);
 			setprop(""~myNodeName~"/velocities/true-airspeed-kt", 0);
 			setprop(""~myNodeName~"/velocities/vertical-speed-fps", 0);
-			if (type == "groundvehicle") deleteSmoke("pistonexhaust", myNodeName); # could set a timer here; smoke from ship?
+			if (type == "vehicle") deleteSmoke("pistonexhaust", myNodeName); # could set a timer here; smoke from ship?
 			return;
 		}
 	}
 
 	# use the lowest allowed altitude and current altitude to check for aircraft crash
 	# onGround check to avoid multiple calls to hitground_stop_explode
-	if (
-		type == "aircraft" and !ctrls.onGround and 
+	if (type == "aircraft" and !ctrls.onGround and 
 		(
 			(damageValue > 0.8 and ( currAlt_ft <= objectsLowestAllowedAlt_ft and speed_kt > 20 ) or ( currAlt_ft <= objectsLowestAllowedAlt_ft - 5))
 			or 
@@ -3169,7 +3170,7 @@ var ground_loop = func( id, myNodeName ) {
 			
 	# set speed, pitch and roll of ground vehicle according to terrain
 	# rjw might use thorough if the number of calls to measure terrain altitude use too many clock cycles
-	if (type == "groundvehicle") 
+	if (type == "vehicle") 
 	{
 		var gradient = (toFrontAlt_ft - alt_ft ) / frontBack_ft;
 		# here can change speed according to gradient ahead
@@ -3180,7 +3181,7 @@ var ground_loop = func( id, myNodeName ) {
 		# set vert-speed not pitch for ground craft
 		var vert_speed = gradient * speed_kt * KT2FPS;
 		vert_speed += (alts.wheelsOnGroundAGL_ft / math.cos(slope_rad) / math.cos(rollangle_rad) + alt_ft - currAlt_ft) / updateTime_s; # correction if above or below ground
-		var speedFactor = vert_speed / vels.maxClimbRate_fps;  # this parm is only set for a groundvehicle
+		var speedFactor = vert_speed / vels.maxClimbRate_fps;  # this parm is only set for a vehicle
 		if (speedFactor > 1) 
 		{
 			vert_speed = vels.maxClimbRate_fps;
@@ -4843,7 +4844,7 @@ var speed_adjust_loop = func ( id, myNodeName, looptime_sec) {
 }
 
 ############################# altitude_adjust ############################
-# adjusts altitude of a groundvehicle
+# adjusts altitude of a vehicle
 #
 var altitude_adjust = func (myNodeName, alt_ft, count, delta_alt, delta_t, N_STEPS) {
 	var new_alt = alt_ft + delta_alt;
@@ -5251,7 +5252,7 @@ var rudder_roll_climb = func (myNodeName, degrees = 15, alt_ft = -20, time = 10,
 			aircraftSetVertSpeed (myNodeName, newAlt_ft, "atts" );
 		}
 	}
-	else # ship or groundvehicle
+	else # ship or vehicle
 	# spd < 5 uses fixed turn radius, see AIship parms
 	# spd > 5 achieves max turn rate at 15 kts
 	# unfortunate: the turn radius is a strong function of speed ( v - 15 )^2
@@ -5302,7 +5303,7 @@ var dodge = func(myNodeName, dodgeAmount_deg = 0, dodgeDelay = 1)
 	return;
 				
 	if ( ctrls.dodgeInProgress ) return;
-	if (ats.type == "static") return;
+	if (ats.type == "staticObject") return;
 	
 	# Don't change rudder/roll again until the delay
 	ctrls.dodgeInProgress = 1;
@@ -6281,7 +6282,7 @@ var weapons_loop = func (id, myNodeName1 = "") {
 		# Check line of sight for ground vehicles by calculating 
 		# the height above ground of the bullet trajectory at the mid point between shooter and target
 		var groundCheck = 1;
-		if (ats.type == "groundvehicle")
+		if (ats.type == "vehicle")
 		{
 			var mid_lat_deg = (alat_deg + targetLat_deg) / 2;
 			var mid_lon_deg = (alon_deg + targetLon_deg) / 2;
@@ -6455,7 +6456,7 @@ var weapons_loop = func (id, myNodeName1 = "") {
 		# 	" elevation = ", thisWeapon.weaponAngle_deg.elevation
 		# );
 
-		if (myNodeName1 == "/ai/models/static")
+		if (ats.type == "staticObject")
 		{
 			debprint (sprintf("%s weapon %s aimed at %s with nHit = %.4f ballisticMass_lb = %.1f", 
 			myNodeName1, 
@@ -9475,7 +9476,7 @@ records.export_totals_csv = func (scenario_name = "default") {
 };
 
 ################################ add_damage ################################
-# function adds damage to an AI aircraft, ship or groundvehicle
+# function adds damage to an AI aircraft, ship or vehicle
 # (called by the fire loop and ballistic impact listener function, typically)
 # damageRise allowed values (0 - 1)
 # returns the amount of damage added (which may be smaller than the damageRise requested, for various reasons)
@@ -9658,7 +9659,7 @@ var add_damage = func
 	# rjw: tgt-speed-kts is used for ships and flight_tgt_spd for aircraft and groundvehicles
 
 	# max speed reduction due to damage, in %
-	var maxSpeedReduceFactor = 1 - spds.maxSpeedReduce_percent / 100; 
+	var minSpeedReduceFactor = 1 - spds.maxSpeedReduce_percent / 100; 
 
 	if ( damageValue == 1 and damageIncrease > 0) 
 	{
@@ -9669,13 +9670,13 @@ var add_damage = func
 			reduceRPM(myNodeName);
 			aircraftCrash (myNodeName);
 		}
-		elsif (type == "ship" or type == "groundvehicle") 
+		elsif (type == "ship" or type == "vehicle") 
 		{
-			# for ships and ground vehicles decelerate at the maxSpeedReduce
+			# for ships and ground vehicles decelerate at the minSpeedReduceFactor
 			var loopid = ats.loopids.ground_loopid;
-			settimer( func{reduceSpeed(loopid, myNodeName, maxSpeedReduceFactor, type)},1);
+			settimer( func{reduceSpeed(loopid, myNodeName, minSpeedReduceFactor, type)}, 1);
 		}
-		else #static
+		else #staticObject
 		{
 			return;
 		}
@@ -9683,7 +9684,7 @@ var add_damage = func
 	}
 
 	var speedReduce = 1 - damageValue;
-	if (speedReduce < maxSpeedReduceFactor) speedReduce = maxSpeedReduceFactor;
+	if (speedReduce < minSpeedReduceFactor) speedReduce = minSpeedReduceFactor;
 					
 	minSpeed = spds.minSpeed_kt;
 	# debprint("spds.speedOnFlat = ",spds.speedOnFlat);				
@@ -9737,12 +9738,12 @@ var add_damage = func
 			if (flight_tgt_spd > minSpeed) 
 			{
 				setprop(""~myNodeName~"/controls/flight/target-spd", flight_tgt_spd * speedReduce);
-				if (type == "groundvehicle") spds.speedOnFlat *= speedReduce;
+				if (type == "vehicle") spds.speedOnFlat *= speedReduce;
 			}
 			else 
 			{
 				setprop(""~myNodeName~"/controls/flight/target-spd", minSpeed);
-				if (type == "groundvehicle") spds.speedOnFlat = minSpeed;
+				if (type == "vehicle") spds.speedOnFlat = minSpeed;
 			}
 		}
 	}  
@@ -10021,8 +10022,20 @@ var initialize_func = func ( b ){
 	b.nRockets = 0; 
 	b.maxTargets = 0;
 
-	if (! contains (b, "type")) b["type"] = props.globals.getNode(""~b.objectNodeName).getName(); 
-	# key allows AI ship models to be used as ground vehicles by adding type:"groundvehicle" to Bombable attributes hash
+	if (! contains (b, "type")) {
+		b["type"] = props.globals.getNode(""~b.objectNodeName).getName(); 
+	}
+	else
+	{
+		if (! contains ({ staticObject: , vehicle: , rocket: ,}, b.type)) {
+			debprint("error " ~ b.type ~ " is not an allowed type, setting to staticObject");
+			b.type = "staticObject";
+		}
+	}
+	# key enables types that are unique to Bombable and distinct from those already used by Flightgear
+	# allowed bombable types:  vehicle, staticObject
+	# Flightgear has a separate class called "groundvehicle" which is not used in Bombable
+	# instead AI ship models are used as vehicles since the ship C++ algorithm permits greater control
 						
 	# altitudes sanity checking
 	if (contains (b, "altitudes") and typeof (b.altitudes) == "hash") {
@@ -11461,7 +11474,7 @@ var buildRocketIndexLookup = func {
         print("[ERROR] /ai/models node not found.");
         return;
     }
-	# var aiTypes = ["aircraft", "ship", "carrier", "static", "ground"];
+	# var aiTypes = ["aircraft", "ship", "carrier", "static", "groundvehicle"];
 	var aiTypes = ["static"];
     foreach (var typeName; aiTypes) {
         var nodes = aiModelsNode.getChildren(typeName);
@@ -11636,7 +11649,7 @@ var teams =
 # the main AC is assigned team A, side 0 and index 0
 var allPlayers = 
 [
-	[0],
+	[], # [0] to make main AC a player
 	[]
 ];
 var nodeNames = [""]; #1st element is main AC
@@ -11919,7 +11932,7 @@ var killEngines = func(myNodeName)
 	}
 }
 ########################## reduceSpeed ###########################
-# reduceSpeed is called when a groundvehicle or ship is destroyed
+# reduceSpeed is called when a vehicle or ship is destroyed
 # Uses same id as groundloop and so continues until the groundloop is terminated using inc_loopid
 # Bombable ships and groundvehicles both use the AIship model
 # The object AI code is used to provide a smooth deceleration
@@ -11933,7 +11946,7 @@ var reduceSpeed = func(id, myNodeName, factorSlowDown, type)
 
 	setprop(""~myNodeName~"/controls/tgt-speed-kts", tgt_spd_kts * factorSlowDown);
 		
-	settimer( func{reduceSpeed(id, myNodeName, factorSlowDown,type)},1);
+	settimer( func{reduceSpeed(id, myNodeName, factorSlowDown, type)}, 1);
 }
 
 ########################## rotate_round ###########################
@@ -12516,21 +12529,33 @@ var addToTargets = func(myNodeName)
 	ats.index = myIndex;
 	append(nodeNames, myNodeName);
 	setprop("/bombable/targets/index", myIndex + 1);
-	var callsign = getCallSign(myNodeName); 
-	var teamName = right(callsign, 1);
-	if (ats.type == "static") teamName = "W";
-	#check valid team
-	if (find(teamName, "BCDEFGHIJKLMNOPQRSTUVWXYZ") == -1)
+}
+
+########################## setTeamsAndSides ###########################
+# 
+var setTeamsAndSides = func()
+ {
+	foreach (var myNodeName; nodeNames)
 	{
-		debprint("error: ", callsign, " not a valid team - require (B-Z) - A is the main aircraft");
-		return;
+		if (myNodeName == "") continue; # skip main AC
+		var ats = attributes[myNodeName];
+		var myIndex = ats.index;
+		var callsign = getCallSign(myNodeName); 
+		var teamName = right(callsign, 1);
+		#check valid team
+		if (find(teamName, "BCDEFGHIJKLMNOPQRSTUVWXYZ") == -1)
+		{
+			debprint("error: ", callsign, " not a valid team - require (B-Z) - A is the main aircraft");
+			return(0);
+		}
+		if (teams[teamName] == nil) teams[teamName] = {indices: [], target: nil, count: 0};
+		append(teams[teamName].indices, myIndex);
+		var side = (find(teamName, "ABCDEFGHIJKLM") == -1);
+		append(allPlayers[side], myIndex);
+		ats.team = teamName;
+		ats.side = side;
 	}
-	if (teams[teamName] == nil) teams[teamName] = {indices: [], target: nil, count: 0};
-	append(teams[teamName].indices, myIndex);
-	var side = (find(teamName, "ABCDEFGHIJKLM") == -1);
-	append(allPlayers[side], myIndex);
-	ats.team = teamName;
-	ats.side = side;
+	return(1);
 }
 ########################## initTargets ###########################
 # assigns a target for each object in each team, except for the main AC, team A
@@ -12779,14 +12804,14 @@ var waitForAttributes = func()
 
 	# next steps
 	
-	foreach (var myNodeName; nodeNames)
-	{
-		if (myNodeName != "") # omit main AC
-		{
-			setprop(""~myNodeName~"/position/latitude-deg", 0);
-			setprop(""~myNodeName~"/position/longitude-deg", 0);
-		}
-	}
+	# foreach (var myNodeName; nodeNames)
+	# {
+	# 	if (myNodeName != "") # omit main AC
+	# 	{
+	# 		setprop(""~myNodeName~"/position/latitude-deg", 0);
+	# 		setprop(""~myNodeName~"/position/longitude-deg", 0);
+	# 	}
+	# }
 
 	# ensure not paused
 	props.globals.getNode("sim/freeze/master", 1).setBoolValue(0);
@@ -12801,22 +12826,21 @@ var waitForAttributes = func()
 }
 
 ########################## startScenario ###########################
-# a scenario consists of:
-# a set of groups of objects 
-# each group is assigned to a team (can be the same team)
-# team A is the main aircraft (one member)
-# the teams belong to opposing forces, blue (B - M) and red (N - Z)
-# teams B and C have the specific role of attacking the airport and direct their courses to it
+# The scenario is selected in the flightgear launcher 
+# An AI-AI combat scenario is an extension to existing Flightgear scenarios
+# The extension consists of a set of groups of objects defined in an extension block appended to the scenario.xml file
+# Each group is a team denoted by a letter
+# Team A is the main aircraft (one member)
+# The teams belong to opposing forces, blue (B - M) and red (N - Z)
 # Each group has an airport and is provided with co-ordinates relative to it, by assuming that
-# the group is on course to the airport at a distance set by its arrival time and speed
+# The group is on course to the airport at a distance set by its arrival time and speed
 # Each object in the group is given an offset in metres relative to the group centre
-# these can be in 1000s (kilometres) for a dispersed formation, e.g. a marine convoy
-# the y-offset is the closest distance of approach to the airport assuming the path is not diverted  
-# the number of offsets defines the number of objects in the group
-# the scenario xml file positions all AI objects on the airport runway close to the main AC to ensure they are loaded quickly
-# the call to startScenario is delayed until FG has loaded all aircraft and ship objects into the airport scene
-# a scenario-initialized flag is set which will then enable initialization of weapons, ground and attack loops
-# the initial scenario is selected in addon-config.xml in /bombable 
+# Offsets can be in 1000s for a dispersed formation, e.g. a marine convoy
+# The y-offset is the closest distance of approach to the airport assuming the path is not diverted  
+# The number of offsets must equal the number of objects in the group
+# The scenario xml file positions all AI objects on the airport runway close to the main AC to ensure they are loaded quickly
+# The call to startScenario is delayed until FG has loaded all aircraft and ship objects into the airport scene
+# A scenario-initialized flag is set which will then enable initialization of weapons, ground and attack loops
 
 var startScenario = func(startTime)
 {
@@ -12828,11 +12852,17 @@ var startScenario = func(startTime)
 	}
 	setprop("/sim/speed-up", 1);
 	var scenarioName = getprop("/sim/ai/scenario");
-	if (scenarioName == nil) scenarioName = "BOMB-Llandbehr_Type45_F15_rocket";
-	debprint("starting scenario "~scenarioName);
-
+	if (scenarioName == nil) 
+	{
+		scenarioName = "BOMB-Llandbehr_Type45_F15_rocket";
+		debprint("error: no scenario found, using default scenario "~scenarioName);
+	} 
+	else
+	{
+		debprint("starting scenario "~scenarioName);
+	}
 	# Construct file path relative to addon path
-	var scenarioFilePath = getprop("/sim/fg-aircraft") ~ "/../../Scenarios/Extensions/" ~ scenarioName ~ ".xml";
+	var scenarioFilePath = getprop("/sim/fg-aircraft") ~ "/../../Scenarios/" ~ scenarioName ~ ".xml";
 	
 	# Load XML into a temporary property branch
 	var targetTree = props.globals.getNode("/sim/ai/bombable-temp", 1);
@@ -12841,9 +12871,44 @@ var startScenario = func(startTime)
 		return;
 	}
 
+	# Parse static model entries from the sister <scenario> block
+    var staticEntries = [];
+	var scenarioNode = targetTree.getNode("scenario");
+    
+    if (scenarioNode != nil) {
+        foreach (var eNode; scenarioNode.getChildren("entry")) {
+            var typeNode = eNode.getNode("type");
+            if (typeNode != nil and typeNode.getValue() == "static") {
+                var nameVal = eNode.getNode("name", 1).getValue();
+                var latVal  = eNode.getNode("latitude", 1).getValue();
+                var lonVal  = eNode.getNode("longitude", 1).getValue();
+
+                if (nameVal != nil and latVal != nil and lonVal != nil) {
+                    append(staticEntries, {
+                        name : nameVal,
+                        lat  : latVal,
+                        lon  : lonVal
+                    });
+                }
+            }
+        }
+    }
+    
+	# Execute immediate lat-lon matching and name injection
+    if (size(staticEntries) > 0) {
+        assignStaticNames(staticEntries);
+    }
+
+	# Locate the extension root node
+    var extensionRoot = targetTree.getNode("extension");
+    if (extensionRoot == nil) {
+        debprint("startScenario: Error - No <extension> block found in scenario " ~ scenarioName);
+        return;
+    }
+
 	# Dynamically construct the scenario hash from loaded properties
 	var scenario = [];
-	var groupNodes = targetTree.getChildren("group");
+	var groupNodes = extensionRoot.getChildren("group");
 	
 	foreach (var gNode; groupNodes) {
 		var offsetList = [];
@@ -12859,16 +12924,28 @@ var startScenario = func(startTime)
 			}
 		}
 
-		append(scenario, {
-			team        : gNode.getNode("team", 1).getValue(),
-			target      : gNode.getNode("target", 1).getValue(),
-			arrivalTime : gNode.getNode("arrivalTime", 1).getValue(),
-			airSpeed    : gNode.getNode("airSpeed", 1).getValue() * KT2MPS,
-			airportName : gNode.getNode("airportName", 1).getValue(),
-			heading     : gNode.getNode("heading", 1).getValue(),
-			alt         : gNode.getNode("alt", 1).getValue(), #ft
-			offsets     : offsetList
-		});
+		# Build base group hash
+        var groupData = {
+            team        : gNode.getNode("team", 1).getValue(),
+            target      : gNode.getNode("target", 1).getValue(),
+            arrivalTime : gNode.getNode("arrivalTime", 1).getValue(),
+            airSpeed    : gNode.getNode("airSpeed", 1).getValue() * KT2MPS,
+            airportName : gNode.getNode("airportName", 1).getValue(),
+            heading     : gNode.getNode("heading", 1).getValue(),
+            alt         : gNode.getNode("alt", 1).getValue(), #ft
+            offsets     : offsetList
+        };
+
+        # Only assign the key if <flightpath> tag exists
+        var fpNode = gNode.getNode("flightpath");
+        if (fpNode != nil) {
+            groupData["flightpath"] = {
+                name          : fpNode.getNode("name", 1).getValue(),
+                segmentLength : fpNode.getNode("segmentLength", 1).getValue()
+            };
+        }
+
+        append(scenario, groupData);
 	}
 
 	# Clear the temporary property tree
@@ -12878,6 +12955,7 @@ var startScenario = func(startTime)
 	var myNodeName = "";
     var GeoCoord = geo.Coord.new();
     var GeoCoord2 = geo.Coord.new();
+	if (setTeamsAndSides()) debprint("Players assigned teams and sides using names and callsigns");
 	foreach (var group; scenario)
 	{
 		var from = airportinfo(group.airportName); # provides lat, lon, alt of airport
@@ -12938,11 +13016,14 @@ var startScenario = func(startTime)
 				count += 1;
 				teams[teamName].count = count;
 
-				if ((teamName == "B" or teamName == "C") and getprop(""~myNodeName~"/bombable/initializers/attack-initialized") == nil) {
+				if (contains(group, "flightpath") and getprop(""~myNodeName~"/bombable/initializers/attack-initialized") == nil) {
 					# construct flightpath of waypoints
 					# if successful start the loop to update the heading to the current waypoint
-					var segmentLength = 3.0; # nm between waypoints
-					init_ai_flightpath(ats, group, segmentLength);
+					var name = group.flightpath["name"];
+					if (name == nil) name = "target_runway"; # nm between waypoints
+					var segmentLength = group.flightpath["segmentLength"];
+					if (segmentLength == nil) segmentLength = 3.0; # nm between waypoints
+					init_ai_flightpath(ats, group, segmentLength, name);
 					# Navigating active waypoint via ats.flightpath:
 					if (contains(ats, "flightpath")) {
 						var idx = ats.flightpath.wpt_index;
@@ -12960,7 +13041,7 @@ var startScenario = func(startTime)
 
 				# team W is a special case where an AI model is used as a stationary ground target
 				# in the middle of a runway
-				# by disabling dodge() we stop the target moving away; it just gets damaged
+				# by early termination of ground_loop we stop the target moving away; it just gets damaged
 				elsif (teamName == "W") {
 					var icao = group.airportName;
 
@@ -13006,7 +13087,7 @@ var startScenario = func(startTime)
 					setprop(""~myNodeName~"/controls/flight/target-alt", alt_ft);
 					setprop(""~myNodeName~"/controls/flight/target-hdg", group.heading);
 				}
-				elsif (type == "ship" or type == "groundvehicle")
+				elsif (type == "ship" or type == "vehicle")
 				{
 					setprop(""~myNodeName~"/controls/tgt-heading-degs", group.heading);
 					setprop(""~myNodeName~"/velocities/speed-kts", group.airSpeed);
@@ -13019,7 +13100,8 @@ var startScenario = func(startTime)
 	}
 	foreach (var t; keys(teams))
 	{
-		if (teams[t].count != size(teams[t].indices)) debprint("startScenario: Count for "~teams[t]~" in scenario: "~count~" is not equal to objects loaded: "~teams[t].indices);
+		if (teams[t].count != size(teams[t].indices)) 
+		debprint("startScenario: Count for "~t~" in scenario: "~teams[t].count~" is not equal to number of objects loaded: "~size(teams[t].indices));
 	}
 
 	mainStatusPopupTip ("Scenario "~scenarioName~" loaded . . .", 15 );
@@ -13030,6 +13112,7 @@ var startScenario = func(startTime)
 
 	var local_epoch = bombable_epoch;
 
+
 	# Dump bombable stats 600 seconds from simulator startup and reset scenario
 	settimer(func {
 		if (local_epoch != bombable_epoch) return;
@@ -13037,6 +13120,41 @@ var startScenario = func(startTime)
 		resetScenario();
 	}, 600);
 	
+}
+
+########################## assignStaticNames ###########################
+var assignStaticNames = func(staticEntries) {
+	var aiModelsNode = props.globals.getNode("/ai/models", 1);
+	var staticChildren = aiModelsNode.getChildren("static");
+
+	# Coordinate tolerance (~1 meter / ~0.00005 deg)
+	var eps = 0.00005;
+
+	foreach (var entry; staticEntries) {
+		var entryLat = entry.lat;
+		var entryLon = entry.lon;
+		var entryName = entry.name;
+		
+		foreach (var sNode; staticChildren) {
+			var posNode = sNode.getNode("position");
+			if (posNode != nil) {
+				var sLatNode = posNode.getNode("latitude-deg");
+				var sLonNode = posNode.getNode("longitude-deg");
+				
+				if (sLatNode != nil and sLonNode != nil) {
+					var sLat = sLatNode.getValue();
+					var sLon = sLonNode.getValue();
+
+					
+					if (math.abs(sLat - entryLat) < eps and math.abs(sLon - entryLon) < eps) {
+						sNode.getNode("name", 1).setValue(entryName);
+						debprint("Bound static name '" ~ entryName ~ "' to /ai/models/static[" ~ sNode.getIndex() ~ "]");
+						break;
+					}
+				}
+			}
+		}
+	}
 }
 
 ########################## update waypoint heading func ###########################
@@ -13257,7 +13375,7 @@ var resetScenarioMain = func()
 	}; 
 	allPlayers = 
 	[
-		[0],
+		[], # [0] to make main AC a player
 		[]
 	];
 
@@ -13508,7 +13626,7 @@ var flight_path = func(best_rwy, dist, approach_height_ft = nil, abort_delta_ft 
 # Creates sub-hash ats.flightpath with keys: wpt_index (initial 1), waypoints vector, airport code, and runway_id.
 # Expects group reference with keys 'airportName' and 'heading'. Returns reference to ats.flightpath.
 
-var init_ai_flightpath = func (ats, group, approach_dist_nm = 5.0) {
+var init_ai_flightpath = func (ats, group, approach_dist_nm = 5.0, name = "target_runway") {
     # 1. Validation checks
     if (ats == nil or group == nil) {
         print("Error: Invalid ats or group context passed to init_ai_flightpath.");
