@@ -2393,19 +2393,19 @@ var mirrorMenu = func()
 var calcPilotSkill = func ( myNodeName ) {
 	var ats = attributes[myNodeName];
 	var ctrls = ats.controls;	
-	#skill ranges 0-5; 0 = disabled, so 1-5;
 	var skill = bombableMenu["ai-aircraft-skill-level"];
 	if (skill == nil) skill = 1;
+	# menu skill ranges 0-5; 0 = disabled, so 1-5;
 
-	# pilotAbility is a rand +/-1 in skill level per individual pilot
-	# so skill ranges 0-6
 	skill += ctrls.pilotAbility;
+	# pilotAbility is a rand +/-1 in skill level per individual pilot
+	# so the returned skill value ranges 0-6
 			
-	#ability to manoeuvre goes down as attack fuel reserves are depleted
+	# ability to manoeuvre goes down as attack fuel reserves are depleted
 	var fuelLevel = stores.fuelLevel (myNodeName);
 	if (fuelLevel < .2) skill  *=  fuelLevel / 0.2;
 			
-	#skill goes down to 0 as damage goes from 80% to 100%
+	# skill goes down to 0 as damage goes from 80% to 100%
 	if (ats.damage > 0.8) skill  *=  (1 - ats.damage)/ 0.2;
 
 	# give team B, the defending team, higher skills than team R and team W
@@ -12946,20 +12946,20 @@ var startScenario = func(startTime)
 
 	foreach (var group; scenario)
 	{
-		var from = airportinfo(group.airportName); 
+		var apt = airportinfo(group.airportName); 
 		# Provides lat, lon, alt of airport ARP
 		# ARP is the officially published geographical center (lat/lon) and elevation.
 		# Usually near the geometric center: 
-		# The ARP is typically designated by civil aviation authorities near the geometric center of the airport's main runway complex or terminal area
+		# The ARP is typically designated by civil aviation authorities near the geometric center of the apt's main runway complex or terminal area
 
-		if (from == nil)
+		if (apt == nil)
 		{
 			debprint("startScenario: Error in scenario definition - airport not found: "~group.airportName);
 			break;
 		}
 		else
 		{
-			setprop("sim/presets/elevation-ft", from.elevation * M2FT);
+			setprop("sim/presets/elevation-ft", apt.elevation * M2FT);
 		}
 		var teamName = group.team;
 		if (teamName == "A")
@@ -12994,7 +12994,7 @@ var startScenario = func(startTime)
 		# group.alt (ft) is interpreted as height above the airport main runway.  ASL is calculated from it   
 
 
-		GeoCoord.set_latlon(from.lat, from.lon);
+		GeoCoord.set_latlon(apt.lat, apt.lon);
 		var dist = group.airSpeed * KT2MPS * group.arrivalTime;
 		var heading = group.heading;
 		GeoCoord.apply_course_distance(heading + 180, dist);
@@ -13030,8 +13030,8 @@ var startScenario = func(startTime)
 						print(sprintf("AI Model: %s -> Nav to WPT%d: Heading %05.1f deg, Dist %.2f NM", 
 									myNodeName, idx, nav.heading, nav.distance[0] / 1852.0));
 						var loopid = inc_loopid(myNodeName, "updateWptHeading");
-						updateWptHeading_func(loopid, myNodeName);
-						debprint ("Initialised updateWptHeading for " ~ myNodeName);
+						updateWptHeading_func(loopid, myNodeName, name);
+						debprint ("Initialised updateWptHeading for " ~ myNodeName ~ " on mission " ~ name);
 					}
 				}
 
@@ -13042,7 +13042,7 @@ var startScenario = func(startTime)
 				GeoCoord2.apply_course_distance(deltaHeading, dist2me);    #frontreardist in meters
 
 
-				var alt_ft = group.alt + (from.elevation + o[2]) * M2FT;
+				var alt_ft = group.alt + (apt.elevation + o[2]) * M2FT;
 				# scenario altutude is in ft and relative to ground level at airport
 
 
@@ -13134,8 +13134,8 @@ var assignStaticNames = func(staticEntries) {
 ########################## update waypoint heading func ###########################
 # routine to explicitly bind the current values of loopid and myNodeName into the closure's local scope at the exact moment the timer is created
 # 
-var updateWptHeading_func = func(loopid, myNodeName) {
-	settimer(func {updateWptHeading(loopid, myNodeName)}, 1 + rand());
+var updateWptHeading_func = func(loopid, myNodeName, name) {
+	settimer(func {updateWptHeading(loopid, myNodeName, name)}, 1 + rand());
 }
 
 
@@ -13150,14 +13150,20 @@ var updateWptHeading_func = func(loopid, myNodeName) {
 # so if within 1 degree the lateral-mode is set to "roll"
 #
 
-var updateWptHeading = func(id, myNodeName) {
+var updateWptHeading = func(id, myNodeName, name) {
     var ats = attributes[myNodeName];
 	id == ats.loopids.updateWptHeading_loopid or return;
 	ats.damage >= 1 and return; # destroyed aircraft do not navigate
 	# skill ranges 0-6
 	var skill = calcPilotSkill (myNodeName);
 	if (rand() < skill / 6 * (1.0 - ats.damage)) {
-		var thresholdWpt = 500; # closest approach to waypoint before moving to the next
+		if (name == "sas_raid") {
+			var thresholdWpt = 100; # closest approach to waypoint before moving to the next
+		}
+		elsif (name == "target_runway") {
+			var thresholdWpt = 500; 
+		}
+
         var currentWptIndex = ats.flightpath.wpt_index;
         var numWaypoints = size(ats.flightpath.waypoints);
 
@@ -13172,7 +13178,7 @@ var updateWptHeading = func(id, myNodeName) {
         var msg = "";
 
 		# 3. Check if current waypoint is reached or passed
-		if (dist_m < (thresholdWpt + 600.0 - skill * 10.0)) { # Adjust threshold based on skill level
+		if (dist_m < (thresholdWpt * (1.2 - skill / 15.0) ) ) { # Adjust threshold plus-minus 20% based on skill level (0-6)
 			var callsign = getCallSign(myNodeName) or myNodeName;
 			var baseMsg = callsign ~ " reached waypoint " ~ currentWptIndex;
 
@@ -13182,27 +13188,47 @@ var updateWptHeading = func(id, myNodeName) {
 				debprint("" ~ txt);
 			};
 
-			# Event triggers based on reached waypoint index
-			if (currentWptIndex == 1) {
-				ats.controls.stayInFormation = 0;
-				logAndDisplay(baseMsg ~ ". Preparing for bombing run.");
-			} 
-			elsif (currentWptIndex == 2) {
-				# Execute bomb release synchronously
-				var success = drop_ai_bomb_via_teleport(myNodeName, 0.05, 0.2);
-
-				if (!success) {
-					logAndDisplay(baseMsg ~ ". Bomb release failed. Retrying.");
-					return; # Abort waypoint advancement; stay on existing heading/job status
+			if (name == "sas_raid")
+			{
+				# Event triggers based on reached waypoint index
+				if (currentWptIndex == 1) {
+					logAndDisplay(baseMsg ~ ". Reached runway.");
+				} 
+				elsif (currentWptIndex == 2) {
+					logAndDisplay(baseMsg ~ ". One third down.");
 				}
-
-				logAndDisplay(baseMsg ~ ". Bomb released successfully. Returning to base.");
+				elsif (currentWptIndex == 3) {
+					logAndDisplay(baseMsg ~ ". Reached tower.");
+				}
+				elsif (currentWptIndex == 4) {
+					if (!ats.jobDone) logAndDisplay(baseMsg ~ ". Reached base.");
+					ats.jobDone = 1; # mission complete
+				}
 			}
-			elsif (currentWptIndex == 3) {
-				if (!ats.jobDone) logAndDisplay(baseMsg ~ ". Reached base.");
-				ats.jobDone = 1; # mission complete
-			}
 
+			elsif (name == "target_runway")
+			{
+				# Event triggers based on reached waypoint index
+				if (currentWptIndex == 1) {
+					ats.controls.stayInFormation = 0;
+					logAndDisplay(baseMsg ~ ". Preparing for bombing run.");
+				} 
+				elsif (currentWptIndex == 2) {
+					# Execute bomb release synchronously
+					var success = drop_ai_bomb_via_teleport(myNodeName, 0.05, 0.2);
+
+					if (!success) {
+						logAndDisplay(baseMsg ~ ". Bomb release failed. Retrying.");
+						return; # Abort waypoint advancement; stay on existing heading/job status
+					}
+
+					logAndDisplay(baseMsg ~ ". Bomb released successfully. Returning to base.");
+				}
+				elsif (currentWptIndex == 3) {
+					if (!ats.jobDone) logAndDisplay(baseMsg ~ ". Reached base.");
+					ats.jobDone = 1; # mission complete
+				}
+			}
 
             # Advance index if more waypoints remain in flightpath
             if (currentWptIndex < numWaypoints) {
@@ -13215,38 +13241,60 @@ var updateWptHeading = func(id, myNodeName) {
             }
         }
 
-        # 4. Update Target Heading in Property Tree
-        var oldHdg = getprop(myNodeName ~ "/orientation/true-heading-deg");
+		if (name == "sas_raid")
+		{
+			# 4. Update Target Heading in Property Tree
+			var oldHdg = getprop(myNodeName ~ "/controls/tgt-heading-degs");
 
-        # Calculate shortest heading change arc
-        var diff = math.abs(oldHdg - targetHdg);
-        if (diff > 180.0) diff = 360.0 - diff;
+			# Calculate shortest heading change arc
+			var diff = math.abs(oldHdg - targetHdg);
+			if (diff > 180.0) diff = 360.0 - diff;
 
-		if (diff > 1.0)  # Only update if significant change
-		{
-			setprop(myNodeName ~ "/controls/flight/target-hdg", targetHdg);
-			setprop(myNodeName ~ "/controls/flight/lateral-mode", "hdg");
-			debprint(sprintf("Updated target heading for %s to WPT%d from %.1f deg to %.1f deg (delta %.1f deg)", 
-						myNodeName, ats.flightpath.wpt_index, oldHdg, targetHdg, diff));
+			if (diff > 1.0)  # Only update if significant change
+			{
+				setprop(myNodeName ~ "/controls/tgt-heading-degs", targetHdg);
+				debprint(sprintf("Updated target heading for %s to WPT%d from %.1f deg to %.1f deg (delta %.1f deg)", 
+							myNodeName, ats.flightpath.wpt_index, oldHdg, targetHdg, diff));
+			}
+			# We wait until the ground_loop responds to the delta.  Note could set rudder position here
 		}
-		else
+
+		elsif (name == "target_runway")
 		{
-			setprop(myNodeName ~ "/controls/flight/lateral-mode", "roll");
+			# 4. Update Target Heading in Property Tree
+			var oldHdg = getprop(myNodeName ~ "/orientation/true-heading-deg");
+
+			# Calculate shortest heading change arc
+			var diff = math.abs(oldHdg - targetHdg);
+			if (diff > 180.0) diff = 360.0 - diff;
+
+			if (diff > 1.0)  # Only update if significant change
+			{
+				setprop(myNodeName ~ "/controls/flight/target-hdg", targetHdg);
+				setprop(myNodeName ~ "/controls/flight/lateral-mode", "hdg");
+				debprint(sprintf("Updated target heading for %s to WPT%d from %.1f deg to %.1f deg (delta %.1f deg)", 
+							myNodeName, ats.flightpath.wpt_index, oldHdg, targetHdg, diff));
+			}
+			else
+			{
+				setprop(myNodeName ~ "/controls/flight/lateral-mode", "roll");
+			}
+			# 5. Update Target Alt in Property Tree
+			var oldTgtAlt = getprop(myNodeName ~ "/controls/flight/target-alt"); 
+			var targetAlt = ats.flightpath.waypoints[currentWptIndex - 1][2];
+			if (math.abs(oldTgtAlt - targetAlt) > 300) # Only update if significant change
+			{
+				# Set target altitude to the altitude of the next waypoint
+				setprop(myNodeName ~ "/controls/flight/target-alt", targetAlt);
+				debprint(sprintf("Updated target altitude for %s to WPT%d from %.1f deg to %.1f", 
+							myNodeName, ats.flightpath.wpt_index, oldTgtAlt, targetAlt));
+			}
 		}
-        # 5. Update Target Alt in Property Tree
-		var oldTgtAlt = getprop(myNodeName ~ "/controls/flight/target-alt"); 
-		var targetAlt = ats.flightpath.waypoints[currentWptIndex - 1][2];
-		if (math.abs(oldTgtAlt - targetAlt) > 300) # Only update if significant change
-		{
-			# Set target altitude to the altitude of the next waypoint
-			setprop(myNodeName ~ "/controls/flight/target-alt", targetAlt);
-			debprint(sprintf("Updated target altitude for %s to WPT%d from %.1f deg to %.1f", 
-						myNodeName, ats.flightpath.wpt_index, oldTgtAlt, targetAlt));
-		}
+
 	}
 
     # 6. Re-schedule loop timer (2 to 3 seconds)
-    settimer(func { updateWptHeading(id, myNodeName); }, 2.0 + rand());
+    settimer(func { updateWptHeading(id, myNodeName, name); }, 2.0 + rand());
 }
 
 ########################## removeAll ###########################
@@ -13463,7 +13511,7 @@ var restartLoop = func(myNodeName, loopName)
 		if ((ats.team == "B" or ats.team == "C") and getprop(""~myNodeName~"/bombable/initializers/attack-initialized") == nil)
 		{
 			setprop (""~myNodeName~"/controls/flight/lateral-mode", "hdg");
-			settimer(func { updateWptHeading(loopid, myNodeName); }, 2.0 + rand());
+			settimer(func { updateWptHeading(loopid, myNodeName, ats.flightpath.name); }, 2.0 + rand());
 		} else {
 			setprop (""~myNodeName~"/controls/flight/lateral-mode", "roll");
 		}
@@ -13529,21 +13577,92 @@ var find_closest_runway_details = func(icao, mainAC_heading) {
 }
 
 
-###################### flight_path ##########################
+###################### sas_raid ##########################
+# Generates a 4-element vector of 3D waypoint coordinates [[lat, lon, alt_ft], ...] based on runway geometry.
+
+var sas_raid = func(best_rwy, dist = 3.0, icao = "ROAH", initial_heading = 0.0) {
+
+    # Input validation
+    if (best_rwy == nil or dist == nil or dist <= 0) {
+        print("Error: Invalid inputs provided to sas_raid().");
+        return nil;
+    }
+    
+    if (!contains(best_rwy, "lat") or !contains(best_rwy, "lon") or 
+        !contains(best_rwy, "heading") or !contains(best_rwy, "length_m")) {
+        print("Error: Missing required keys in best_rwy hash.");
+        return nil;
+    }
+
+	var apt = airportinfo(icao);
+    if (apt == nil) {
+        print("Error: Airport '" ~ icao ~ "' not found in apt.dat database.");
+        return nil;
+    }
+
+        # WPT 1: Touch point of nearest runway
+        var wpt1_pos = geo.Coord.new();
+        wpt1_pos.set_latlon(best_rwy.lat, best_rwy.lon);
+        var wpt1_alt = elev(wpt1_pos.lat(), wpt1_pos.lon()) * M2FT;
+        
+		# WPT 2: Third of way along runway
+        var wpt2_pos = geo.Coord.new(); 
+        wpt2_pos.set_latlon(best_rwy.lat, best_rwy.lon);
+        wpt2_pos.apply_course_distance(best_rwy.heading, best_rwy.length_m / 3.0);
+        var wpt2_alt = elev(wpt2_pos.lat(), wpt2_pos.lon()) * M2FT;
+
+        # WPT 3: Airport control tower position
+        # Fallback to ARP (Aerodrome Reference Point) if tower coordinates are undefined
+		var tower_ghost = apt.tower();
+
+		if (tower_ghost != nil) {
+			var tower_lat = tower_ghost.lat;
+			var tower_lon = tower_ghost.lon;
+			print(sprintf("Tower found at Lat: %f, Lon: %f", tower_lat, tower_lon));
+		} else {
+			var tower_lat = apt.lat;
+			var tower_lon = apt.lon;
+			print("No tower object found; falling back to Aerodrome Reference Point.");
+		}
+
+        var wpt3_pos = geo.Coord.new();
+        wpt3_pos.set_latlon(tower_lat, tower_lon);
+        var wpt3_alt = elev(wpt3_pos.lat(), wpt3_pos.lon()) * M2FT;
+
+        # WPT 4: Segment length distance from control tower reversing initial direction
+        var segment_m = dist * NM2M; 
+        var wpt4_pos = geo.Coord.new();
+        wpt4_pos.set_latlon(tower_lat, tower_lon);
+        wpt4_pos.apply_course_distance(math.fmod(initial_heading + 180, 360), segment_m);
+        var wpt4_alt = elev(wpt4_pos.lat(), wpt4_pos.lon()) * M2FT;
+
+        # Assemble waypoints triplet vector [[lat, lon, alt_ft], ...]
+        var waypoints = [
+            [wpt1_pos.lat(), wpt1_pos.lon(), wpt1_alt],
+            [wpt2_pos.lat(), wpt2_pos.lon(), wpt2_alt],
+            [wpt3_pos.lat(), wpt3_pos.lon(), wpt3_alt],
+            [wpt4_pos.lat(), wpt4_pos.lon(), wpt4_alt]
+        ];
+
+    # Return 3D waypoint vector
+    return waypoints;
+}
+
+###################### target_runway ##########################
 # Generates a 3-element vector of 3D waypoint coordinates [[lat, lon, alt_ft], ...] based on runway geometry.
 # WPT1: Approach FAF (dist NM behind runway midpoint along approach heading)
 # WPT2: Runway physical midpoint
 # WPT3: Aborted approach path (dist NM past midpoint on a random +/- 45 deg heading offset)
 # Altitudes are in feet AGL (WPT1/WPT2 = approach_height_ft, WPT3 = approach_height_ft + abort_delta_ft).
 
-var flight_path = func(best_rwy, dist, approach_height_ft = nil, abort_delta_ft = nil) {
+var target_runway = func(best_rwy, dist, approach_height_ft = nil, abort_delta_ft = nil) {
     # 1. Apply default values if arguments are omitted or passed as nil
     if (approach_height_ft == nil) approach_height_ft = 5000.0;
     if (abort_delta_ft == nil) abort_delta_ft = 1000.0;
 
     # 2. Input validation
     if (best_rwy == nil or dist == nil or dist <= 0) {
-        print("Error: Invalid inputs provided to flight_path().");
+        print("Error: Invalid inputs provided to target_runway().");
         return nil;
     }
     
@@ -13600,7 +13719,7 @@ var flight_path = func(best_rwy, dist, approach_height_ft = nil, abort_delta_ft 
 # Creates sub-hash ats.flightpath with keys: wpt_index (initial 1), waypoints vector, airport code, and runway_id.
 # Expects group reference with keys 'airportName' and 'heading'. Returns reference to ats.flightpath.
 
-var init_ai_flightpath = func (ats, group, approach_dist_nm = 5.0, name = "target_runway") {
+var init_ai_flightpath = func (ats, group, segment_nm = 5.0, name = "target_runway") {
     # 1. Validation checks
     if (ats == nil or group == nil) {
         print("Error: Invalid ats or group context passed to init_ai_flightpath.");
@@ -13613,7 +13732,7 @@ var init_ai_flightpath = func (ats, group, approach_dist_nm = 5.0, name = "targe
     }
 
     var icao = group.airportName;
-    var hdg  = group.heading;
+    var hdg  = num(group.heading);
 
     # 2. Get closest runway details
     var best_rwy = find_closest_runway_details(icao, hdg);
@@ -13623,16 +13742,22 @@ var init_ai_flightpath = func (ats, group, approach_dist_nm = 5.0, name = "targe
     }
 
     # 3. Generate 3D waypoints vector [[lat, lon, alt], ...]
-    var waypoints = flight_path(best_rwy, approach_dist_nm, 5000.0, 5000.0);
-    if (waypoints == nil or size(waypoints) < 3) {
-        print("Error: Failed to generate 3D waypoints.");
-        return nil;
-    }
+	if (name == "target_runway") {
+		var waypoints = target_runway(best_rwy, segment_nm, 5000.0, 5000.0);
+	}
+	elsif (name == "sas_raid") {
+		var waypoints = sas_raid(best_rwy, segment_nm, icao, hdg);
+	}
+	if (waypoints == nil) {
+		debprint("Error: Failed to generate 3D waypoints for " ~ name);
+		return nil;
+	}
 
     # 4. Attach flightpath sub-hash directly to ats
     ats.flightpath = {
         wpt_index : 1,          # Initialized to 1 (1-based index)
-        waypoints : waypoints  # 3D Waypoint triplet vector
+        waypoints : waypoints,
+		name: name
     };
 
     debprint(sprintf("Initialized ats.flightpath for AI target (%s RWY %s) - wpt_index = 1", 

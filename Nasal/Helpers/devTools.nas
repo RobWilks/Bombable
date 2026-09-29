@@ -389,7 +389,9 @@ else
     print(key ~ " is not a key");
 }
 foreach (var key; keys(ats)) print (key);
-print(ats.exploded);
+print("exploded = ",ats.exploded);
+print("damage = ",ats.damage);
+print("onGround = ",ats.controls.onGround);
 
 var weaps=ats.weapons;
 debug.dump(weaps.top_turret_gun);

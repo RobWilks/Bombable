@@ -110,7 +110,7 @@
         <team>Y</team>
         <target>E</target>
         <arrivalTime>-30</arrivalTime>
-        <airSpeed>1</airSpeed>
+        <airSpeed>10</airSpeed>
         <airportName>ROAH</airportName>
         <heading>0</heading>
         <alt>16</alt>
@@ -143,6 +143,10 @@
                 <up>0</up>
             </offset>
         </offsets>
+        <flightpath>
+            <name type="string">sas_raid</name>
+            <segmentLength type="double">3.0</segmentLength>
+        </flightpath>        
     </group>
     <!-- Flak -->
     <group>
@@ -155,8 +159,8 @@
         <alt>100</alt>
         <offsets>
             <offset>
-                <behind>-1000</behind>
-                <right>1000</right>
+                <behind>100</behind>
+                <right>-500</right>
                 <up>0</up>
             </offset>
         </offsets>
