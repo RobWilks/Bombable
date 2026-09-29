@@ -324,7 +324,7 @@ var start_terrain_fire = func ( lat_deg, lon_deg, alt_m = 0, ballisticMass_lb = 
 	if (info != nil) {
 		#debprint ("Starting terrain fire at ", lat_deg, " ", lon_deg, " ", info[0]," ", info[1].solid );
 		
-		#if it's water we don't set a fire . . . TODO make a different explosion or fire effect for water
+		#if it's water we don't set a fire . . . TO DO make a different explosion or fire effect for water
 		if (typeof(info[1]) == "hash" and contains(info[1], "solid") and info[1].solid == 0) return;
 		else debprint (info);
 		
@@ -601,7 +601,7 @@ var setAttributes = func (attsObject = nil) {
 	if (attsObject == nil) {
 		attsObject = {
 			
-			# TODO: Update all below to be actual dimensions of that aircraft
+			# TO DO: Update all below to be actual dimensions of that aircraft
 			#########################################
 			# DIMENSION DEFINITIONS
 			#
@@ -1270,7 +1270,7 @@ var reset_damage_fires = func  {
 ########################## resetAllAIDamage ##########################
 # 
 # reset the damage, smoke & fires from all AI object with bombable operative
-# TODO if an aircraft is crashing, it stays crashing despite this.
+# TO DO if an aircraft is crashing, it stays crashing despite this.
 #
 
 var revitalizeAllAIObjects = func (revitType = "aircraft", preservePosSpeed = 0) {
@@ -2425,7 +2425,7 @@ var calcPilotSkill = func ( myNodeName ) {
 # since we don't have the temperature or pressure of the AI aircraft
 # current altitude easily available.
 #
-# TODO: We should really use IAS for more of the AI aircraft speed limits
+# TO DO: We should really use IAS for more of the AI aircraft speed limits
 # & calculations, but stall speed is likely most crucial.  For instance,
 # VNE (max allowed speed) seems more related to TAS for most AC.
 
@@ -2668,7 +2668,7 @@ var parse_msg = func (source, msg) {
 
 ######################### fire_loop ###########################
 # timer function, every 1.5 to 2.5 seconds, adds damage if on fire
-# TODO: This seems to be causing stutters.  We can separate out a separate
+# TO DO: This seems to be causing stutters.  We can separate out a separate
 # loop to update the fire sizes and probably do some simplification of the
 # add_damage routines.
 #
@@ -2747,10 +2747,10 @@ var fire_loop = func(id, myNodeName = "") {
 }
 
 ############################### hitground_stop_explode ###########################
-# Puts myNodeName right at ground level, explodes, sets up
-# for full damage & onGround trigger to make it stop real fast now
-# this function only called for aircraft. var onGround is only set for aircraft 
-# function will be called several times until exploded flag set
+# Put aircraft at ground level, explode it, and set its damage to 100%
+# The flag onGround is set here to make the AC grind to a halt quickly
+# This function is only called for aircraft from the ground_loop
+# It is only called when onGround is false
 
 var hitground_stop_explode = func (myNodeName, alt) {
 	var ats = attributes[myNodeName];
@@ -2849,19 +2849,13 @@ var setVerticalSpeed = func (myNodeName, targetVertSpeed_fps = 70, maxChange_fps
 }
 
 ######################### ground_loop ##########################
-# ground_loop
 # timer function, every (0.5 to 1.5 * updateTime_s) seconds, to keep object at
-# ground level
-# or other specified altitude above/below ground level, and at a
+# ground level or other specified altitude above/below ground level, and at a
 # reasonable-looking pitch. length_m & width_m are distances (in meters)
 # needed to clear the object and find open earth on either side and front/back.
 # damagealtadd is the total amount to add to the altitude above ground level (in meters) as
-# the object becomes damaged, usually it is negative -- say a sinking ship or tires flattening on a
-# vehicle.
-# damageAltMaxRate is the max rate to allow the object to rise or sink
-# as it becomes disabled
-# TODO: This is one of the biggest framerate sucks in Bombable.  It can probably
-# be optimized in many ways.
+# the object becomes damaged, usually it is negative - say a sinking ship or tires flattening on a vehicle.
+# damageAltMaxRate is the max rate to allow the object to rise or sink as it becomes disabled
 
 # rjw: the ground_loop affects the descent of aircraft. It initialises slowly, 
 # e.g. possible for aircraft to enter a crash sequence before ground_loop is first called
@@ -2874,12 +2868,16 @@ var ground_loop = func( id, myNodeName ) {
 	var ats = attributes[myNodeName];
 	var ctrls = ats.controls;	
 	var type = ats.type;
-	if (ats.exploded == 1) return();
-			
+	if (ats.exploded == 1) 
+	{
+		setprop(""~myNodeName~"/velocities/true-airspeed-kt", 0);
+		return();
+	}	
 	# reset the timer loop first so we don't lose it entirely in case of a runtime error or such
 	# add rand() so that all objects don't do this function simultaneously
 	# on the first call objects are given the correct altitude and orientation
-	# for staticObjects there is no need to call the loop again 
+
+	# for staticObjects only call ground_loop once to set their altitude 
 	if (type != "staticObject") settimer(func { ground_loop(id, myNodeName)}, updateTime_s );
 
 	# Allow this function to be disabled via menu since it can kill framerate at times
@@ -2899,9 +2897,10 @@ var ground_loop = func( id, myNodeName ) {
 			
 	# If you get too close in to the object, FG detects the elevation of the top of the object itself
 	# rather than the underlying ground elevation. So we go an extra FGAltObjectPerimeterBuffer_m
-	# meters out from the object
-	# just to be safe.  Otherwise objects climb indefinitely, always trying to get on top of themselves
+	# meters out from the object just to be safe.
+	# Otherwise objects climb indefinitely, always trying to get on top of themselves
 	# Sometimes needed in _m, sometimes _ft, so we need both . . .
+
 	var FGAltObjectPerimeterBuffer_m = 0.5 * dims.length_m;
 	var FGAltObjectPerimeterBuffer_ft = FGAltObjectPerimeterBuffer_m * M2FT;
 			
@@ -2933,13 +2932,6 @@ var ground_loop = func( id, myNodeName ) {
 	var frontBack_ft = frontBack_m * M2FT;
 	var leftRight_ft = leftRight_m * M2FT;	
 			
-	# calculate the altitude behind & ahead of the object, this determines the pitch angle and helps determine the overall ground level at this spot
-	# Go that extra amount, FGAltObjectPerimeterBuffer_m, out from the actual length to keep FG from detecting the top of the
-	# object as the altitude.  We need ground altitude here.
-	# You can't just ask for elev at the object's current position or you'll get
-	# the elev at the top of the object itself, not the ground . . .
-	# rjw true for scenery objects - check for AI
-
 	var GeoCoord = geo.Coord.new();
 	GeoCoord.set_latlon(lat, lon);
 	var alt_ft = elev (GeoCoord.lat(), GeoCoord.lon()  ); #in feet
@@ -2955,30 +2947,31 @@ var ground_loop = func( id, myNodeName ) {
 			
 
 	
-	
-	# if it's damaged we always get the pitch angle etc as that is how we force it down.
-	# but if it's on the ground, we don't care and all these geo.Coords & elevs really kill FR.
+	# DELETE since approach no longer used, or reinstate because it should be?
+	# Highly damaged ACs can take a long time to reach the ground!
+	# If an AC damaged we always get the pitch angle etc as that is how we force it down.
+	# If AC is on the ground, we don't care and all these geo.Coords & elevs really kill FR.
 	# if (thorough or damageValue > 0.8 ) {	
 
+	# Only get roll for ground vehicle or AC that has just crashed
 	if (type == "vehicle" or type == "staticObject" or ctrls.onGround) 
-	{	#only get roll for ground vehicle or AC that has just crashed
-
-	# find the slope of the ground in the direction we are heading
+	{	
+		# Find the slope of the ground in the direction we are heading
 
 		GeoCoord.apply_course_distance(heading + 180, 2 * frontBack_m );
 		var toRearAlt_ft = elev (GeoCoord.lat(), GeoCoord.lon()  );
 		pitchangle1_deg = math.atan2( toFrontAlt_ft - toRearAlt_ft, 2 * frontBack_ft ) * R2D;
 		pitchangle_deg = pitchangle1_deg; 
-		# rjw: the slope of ground.  The buffer is to ensure that we don't measure altitude at the top of the object		
 
 		var distAhead_m = speed_kt * KT2MPS * 5;
 		GeoCoord.apply_course_distance( heading, distAhead_m + 2 * frontBack_m);
 		var gradientAhead = (elev ( GeoCoord.lat(), GeoCoord.lon() ) - toFrontAlt_ft) * FT2M / distAhead_m;
 
-		# find altitude of ground to left & right of object to determine roll &
-		# to help in determining altitude
-		# go that extra amount out from the actual width to keep FG from detecting the top of the
-		# object as the altitude.  We need ground altitude here. FGAltObjectPerimeterBuffer_m
+		# In Canvas, an elevation query at an object's position returns the top of that particular object.  
+		# So to find the elevation of the actual landscape we query ahead, behind, to left, to right of object & take the average.
+		# From these values we calculate the pitch of the slope, which we need to set pitch & roll
+
+		# Go an extra amount out from the actual width FGAltObjectPerimeterBuffer_m.
 
 		var GeoCoord2 = geo.Coord.new();
 		GeoCoord2.set_latlon(lat, lon);
@@ -2988,15 +2981,7 @@ var ground_loop = func( id, myNodeName ) {
 		var toRightAlt_ft = elev (GeoCoord2.lat(), GeoCoord2.lon()  ); #in feet
 		var rollangle_rad = math.atan2( toLeftAlt_ft - toRightAlt_ft, 2 * leftRight_ft ); 
 		rollangle_deg = R2D * rollangle_rad; 
-
-		# in CVS, taking the alt of an object's position actually finds the top
-		# of that particular object.  So to find the alt of the actual landscape
-		# we do ahead, behind, to left, to right of object & take the average.
-		# luckily this also helps us calculate the pitch of the slope,
-		# which we need to set pitch & roll,  so little is lost
-
 		alt_ft = (toFrontAlt_ft + toRearAlt_ft + toLeftAlt_ft + toRightAlt_ft) / 4; #in feet
-		
 	}
 	else
 	{
@@ -3025,7 +3010,6 @@ var ground_loop = func( id, myNodeName ) {
 		if (type != "aircraft") 
 		{
 			setprop (""~myNodeName~"/position/altitude-ft", alt_ft ); # ships and groundvehicles are set to altitude of ground in their initial location
-			# setprop (""~myNodeName~"/controls/flight/target-alt",  alt_ft); # sets the target height of groundvehicles which are AI model type aircraft - confusing!
 			alts.targetAGL_ft = 0; 
 			alts.initialAlt_ft = alt_ft;  # rjw mod to check for grounded ships
 		}
@@ -3045,25 +3029,24 @@ var ground_loop = func( id, myNodeName ) {
 	var objectsLowestAllowedAlt_ft = alt_ft + alts.wheelsOnGroundAGL_ft + alts.crashedAGL_ft;
 	# if (thorough) debprint (" objectsLowestAllowedAlt_ft = ", objectsLowestAllowedAlt_ft);
 			
-	# If the object is as low as allowed by crashedAGL_m
-	# we consider it "on the ground" (for an airplane) or
+	# If the object is as low as allowed by crashedAGL_m we consider it "on the ground" (for an airplane) or 
 	# completely sunk (for a ship) etc.
-	# If it is going there at any speed we consider it crashed
-	# into the ground. When this
-	# property is set to true then the speed will slow quite dramatically.
-	# This allows for example airplanes to continue forward movement
+	# If the object is plummeting at speed we consider it crashed into the ground. 
+	# When controls.onGround is set to true then the speed will slow quite dramatically.
+	# Setting this flag allows for example airplanes to continue forward movement
 	# in the air but skid to a sudden halt when hitting the ground.
 	#
 	# alts.wheelsOnGroundAGL_ft + damageAltAdd = the altitude (AGL) the object should be at when
 	# finished crashing, sinking, etc.
-	# It's not that easy to determine if an object crashes--if an airplane
-	# hits the ground it crashes but tanks etc are always on the ground
+	# It's not that easy to determine if an object crashes: 
+	# if an airplane hits the ground it crashes but tanks etc are always on the ground
 	
 
 	# end of life:  damaged ships and ground vehicles grind to a halt; aircraft explode and flag onGround
 	# test to exit ground loop
 	# speed is adjusted by add_damage
 	# ships and groundvehicles might be stationary at the start of a scenario
+
 	if ((type == "vehicle") or (type == "ship")) 
 	{
 		if (speed_kt <= 1 and ats.damage > 0.9) 
@@ -3076,11 +3059,11 @@ var ground_loop = func( id, myNodeName ) {
 				getprop(""~myNodeName~"/controls/tgt-speed-kts")
 				)
 			);
-			ats.exploded = 1;
-			ats.damage = 1; # could continue fighting even though immobilised
-			setprop(""~myNodeName~"/controls/tgt-speed-kts", 0);
+			ats.exploded = 1; # this acts as a flag to terminate the ground loop when its is next called 
+			ats.damage = 1; # could continue fighting even though immobilised?
+			setprop(""~myNodeName~"/controls/tgt-speed-kts", 0); # no effect on FG C++ ships 
 			setprop(""~myNodeName~"/velocities/true-airspeed-kt", 0);
-			setprop(""~myNodeName~"/velocities/vertical-speed-fps", 0);
+			setprop(""~myNodeName~"/velocities/vertical-speed-fps", 0); # no effect on FG C++ ships
 			if (type == "vehicle") deleteSmoke("pistonexhaust", myNodeName); # could set a timer here; smoke from ship?
 			return;
 		}
@@ -3116,21 +3099,22 @@ var ground_loop = func( id, myNodeName ) {
 		#bring all to a complete stop
 		setprop(""~myNodeName~"/controls/tgt-speed-kt", 0);
 		setprop(""~myNodeName~"/controls/flight/target-spd", 0);
-		setprop(""~myNodeName~"/velocities/true-airspeed-kt", 0);
+		setprop(""~myNodeName~"/velocities/true-airspeed-kt", speed_kt * 0.3); # slow down quickly
 		setprop(""~myNodeName~"/velocities/vertical-speed-fps", 0);
 				
 		#we don't even really need the timer any more, since this object
 		#is now exploded and stopped.		
 		#the ground_loop is terminated if exploded == 1
 		return;		
-	}
+	} # end of section for grounded aircraft
 
-	# rjw mod: the descent of a destroyed (damage == 1) aircraft is managed by aircraftCrashControl 
+	# rjw mod: the descent of a destroyed (damage == 1) aircraft is managed by aircraftCrashControl
 	if (type == "aircraft" and damageValue == 1) return;
 	# the flight of a partially damaged aircraft is managed by the following code which includes ground avoidance
+	# TO DO confirm that aircraftCrashControl is only called when damage = 1
 			
 
-	#poor man's look-ahead radar
+	# poor man's look-ahead radar
 	var lookingAheadAlt_ft = toFrontAlt_ft;
 	if (type == "aircraft" and !ctrls.onGround ) 
 	{
@@ -3174,7 +3158,7 @@ var ground_loop = func( id, myNodeName ) {
 	{
 		var gradient = (toFrontAlt_ft - alt_ft ) / frontBack_ft;
 		# here can change speed according to gradient ahead
-		# true-airspeed-kt for a ship is the horizontal speed
+		# /velocities/true-airspeed-kt for a ship or vehicle is its horizontal speed
 		# horizontal speed maintained up to the gradient at which the max climb rate is exceeded 
 		var slope_rad = math.atan(gradient);
 
@@ -3194,14 +3178,16 @@ var ground_loop = func( id, myNodeName ) {
 		}
 
 
+		# change vehicle altitude by applying a set of small deltas 
 		var delta_t = updateTime_s / N_STEPS;
 		var delta_alt = vert_speed * delta_t;
-		altitude_adjust(myNodeName, currAlt_ft, 0, delta_alt, delta_t, N_STEPS);
+		altitude_adjust(myNodeName, currAlt_ft, 0, delta_alt, delta_t, N_STEPS); 
 
+		# section for steering ground vehicle
 		if (!ctrls.dodgeInProgress)
 		{
 			# avoid steep terrain
-			var targetHeading = getprop (""~myNodeName~"/controls/tgt-heading-degs");
+			var targetHeading = getprop (""~myNodeName~"/controls/tgt-heading-degs"); # FG C++ does not use this node; it is internal to Bombable 
 
 			if (math.abs(gradientAhead) > 0.9) # turn if at top or bottom of cliff
 			{
@@ -3275,12 +3261,11 @@ var ground_loop = func( id, myNodeName ) {
 		# );
 
 		return;
-	}	
+	} # end of vehicle section
 
-	# our target altitude for normal/undamaged forward movement
-	# this isn't based on our current altitude but the results of our
-	# "lookahead radar" to provide the base altitude
-	# However as the craft is more damaged it loses its ability to do this
+	# Our target altitude for normal/undamaged forward movement
+	# based on the "lookahead radar", not the current altitude.
+	# As the craft becomes more damaged it loses the ability to look ahead
 	# (see above: lookingAheadAlt just becomes the same as toFrontAlt)
 
 	var targetAlt_ft = lookingAheadAlt_ft + alts.targetAGL_ft + alts.wheelsOnGroundAGL_ft;  # allows aircraft to fly at constant height AGL
@@ -3293,40 +3278,43 @@ var ground_loop = func( id, myNodeName ) {
 	# This is to get the object to "full crashed position", i.e. on the ground for an aircraft, fully sunk for a ship, etc.
 			
 			
-	# now calculate how far to force the thing down if it is crashing/damaged
-	# rjw ships and aircraft will sink/fall when damaged
+	# Now calculate how far to force the model down if it is crashing/damaged
+	# rjw ships also sink/fall when damaged
+	# check how the change in altitude forced by the ground_loop affects aircraftCrashControl - how is the handover managed? 
 
-	var damageAltAddCurrent = 0; #local value of variable in attributes hash
+	var damageAltAddCurrent = 0; # local value of variable in attributes hash
 	var damageAltMaxPerCycle_ft = 0;
 	if ( damageValue > 0.8)  
 	{
 		var damageAltAddMax_ft = damageValue * fullDamageAltAdd_ft; 
-		#max amount to add to the altitude of this object based on its current damage.
-		#Like fullDamageAltAdd & damageAltAddPrev this should always be zero
-		#or negative as everything on earth falls or sinks when it loses
-		#power. And assuming that simplifies calculations immensely.
+		# max amount to add to the altitude of this object based on its current damage.
+
+		# Like fullDamageAltAdd & damageAltAddPrev this should always be zero
+		# or negative as everything on earth falls or sinks when it loses
+		# power. And assuming that simplifies calculations immensely.
 				
-		#The altitude the object should be at, based on damagealtAddMax & the ground level:
-		#currAlt_ft + damageAltAddMax_ft
+		# The altitude the object should be at, based on damagealtAddMax & the ground level:
+		# currAlt_ft + damageAltAddMax_ft
 
 		
-		#limit amount of sinkage to damageAltMaxRate in one hit/loop--otherwise it just goes down too fast, not realistic.  
-		#Analogous to the terminal velocity
+		# Limit height reduction to damageAltMaxRate in one hit/loop--otherwise it just goes down too fast, not realistic.  
+		# Analogous to the terminal velocity
 		damageAltMaxPerCycle_ft = -abs(vels.damagedAltitudeChangeMaxRate_meterspersecond * updateTime_s * M2FT);
-		#rjw might change this amount if crashing at the terminal velocity; probably no need for abs unless error in input data		
+		# rjw: might change this amount if crashing at the terminal velocity; probably no need for abs unless error in input data		
 				
 				
-		#rjw: descent rate increases at 10% per second; initialised at 1% the max rate
-		#rjw: 48sec to reach max descent rate
-		#making sure to move in the right direction! (using sgn of damageAltAdd)
+		# rjw: descent rate increases at 10% per second; initialised at 1% the max rate
+		# rjw: 48sec to reach max descent rate
+		# making sure to move in the right direction! (using sgn of damageAltAdd)
+
 		if (damageAltAddPrev_ft != 0) damageAltAddCurrent = -abs((1 + 0.1 * updateTime_s) * damageAltAddPrev_ft);
 		else damageAltAddCurrent = - abs(0.01 * damageAltMaxPerCycle_ft);
 				
-		#Ensure this is not bigger than the max rate, if so only change
-		#it by the max amount allowed per cycle
+		# Ensure this is not bigger than the max rate, if so only change
+		# it by the max amount allowed per cycle
 		if (abs( damageAltAddCurrent ) > abs(damageAltMaxPerCycle_ft )) damageAltAddCurrent = damageAltMaxPerCycle_ft;
 				
-		#Make sure we're not above the max allowed altitude change for this damage level; if so, cut it off
+		# Make sure we're not above the max allowed altitude change for this damage level; if so, cut it off
 		if (abs(damageAltAddCurrent) > abs(damageAltAddMax_ft)) {
 			damageAltAddCurrent = damageAltAddMax_ft;
 		}
@@ -3335,7 +3323,7 @@ var ground_loop = func( id, myNodeName ) {
 
 
 			
-	# if we are dropping faster than the current slope (typically because
+	# If we are dropping faster than the current slope (typically because
 	# we are an aircraft diving to the ground because of damage) we
 	# make the pitch match that angle, even if it more acute than the
 	# regular slope of the underlying ground
@@ -3345,7 +3333,7 @@ var ground_loop = func( id, myNodeName ) {
 	
 	if (type == "aircraft" and damageValue > 0.8 and 0) 
 	# rjw removed since not realistic:  Badly damaged diving aircraft do not match their pitch to the gradient of ground.  
-	# Causes errors since pitchangle1_deg only calculated when reach ground
+	# Causes errors since pitchangle1_deg only calculated when on ground.  See ctrls.onGround == 1 code block
 	{ 
 		var pitchangle2_deg = R2D * math.asin(damageAltAddCurrent, distance_til_update_ft );
 		if (damageAltAddCurrent == 0 and distance_til_update_ft > 0) pitchangle2_deg = 0; #forward
@@ -3400,33 +3388,32 @@ var ground_loop = func( id, myNodeName ) {
 			
 	if ( (damageValue <= 0.8 ) or targetAlt_ft < currTgtAlt_ft ) 
 	{
-		setprop (""~myNodeName~"/controls/flight/target-alt", targetAlt_ft);   #target altitude--this is 10 feet or so in front of us for a ship or up to 1 minute in front for an aircraft
-		# rjw a damaged land-, air- or sea-craft loses the ability to climb
+		setprop (""~myNodeName~"/controls/flight/target-alt", targetAlt_ft);   
+		# target altitude is 10 feet or so in front of us for a ship or up to 1 minute in front for an aircraft
 	}
 			
-	#if going uphill base the altitude on the front of the vehicle (targetAlt).
-	#This keeps the vehicle from sinking into the
-	#hillside when climbing.  This is a bit of a kludge that is simple/fast
-	#because we have already calculated targetAlt in calculating the pitch.
-	#To make this precise, calculate the correct position forward
-	#based on the current speed of the current object and updateTime_s
-	#and find the altitude of that spot.
-	#For aircraft the targetAlt is the altitude 1 minute out IF that is higher
-	#than the ground level.
-	#rjw_mod based on above
+	# If going uphill base the target altitude on the front of the vehicle (targetAlt) so as to stop the vehicle from sinking into the
+	# hillside when climbing.  
+	# Given that we have already calculated targetAlt in calculating the pitch, this is a quick kludge.
+	# To make the calculation precise, calculate the correct position forward
+	# based on the current speed of the current object and updateTime_s
+	# and find the altitude of that spot.
+	# For aircraft the targetAlt is the altitude 1 minute out IF that is higher
+	# than the ground level.
+	# rjw_mod based on above
 	var calcAlt_ft = targetAlt_ft +  ctrls.damageAltAddCumulative_ft + damageAltAddCurrent;
 	if (calcAlt_ft < objectsLowestAllowedAlt_ft) calcAlt_ft = objectsLowestAllowedAlt_ft;
 			
 			
-	#calcAlt_ft = where the object should be, in feet
-	#if it is an aircraft we try to control strictly via setting the target
-	# altitude etc. (above).  If a ship etc. we just have to force it to that altitude (below).  However if an aircraft gets too close to the ground
-	#the AI aircraft controls just won't react quickly enough so we "rescue"
-	#it by simply moving it up a bit (see below).
-	#debprint ("type = ", type);
-	#rjw:  changing target altitude does not bring the aircraft down to the ground quickly. The AI system does not respond in the way intended
-	#rjw:  with pitch-target at -70 continue gliding with pitch at -4
-	#rjw:  potentially might improve the response by reducing the airspeed
+	# calcAlt_ft = where the object should be, in feet
+	# For aircraft we try to control targetAlt strictly (above).
+	# For a ship etc. we just have to force it to calcAlt_ft (below).  
+	# However if an aircraft gets too close to the ground the AI aircraft controls don't react quickly enough so we "rescue"
+	# it by simply moving it up a bit (see below).
+
+	# rjw:  changing target altitude does not bring the aircraft down to the ground quickly. The AI system does not respond in the way intended
+	# rjw:  with pitch-target at -70 continue gliding with pitch at -4
+	# rjw:  potentially might improve the response by reducing the airspeed
 
 	
 	
@@ -3437,20 +3424,21 @@ var ground_loop = func( id, myNodeName ) {
 
 	if ((type == "aircraft") and ( currAlt_ft < toFrontAlt_ft + 75) and (damageValue <= 0.8 ))   
 	{
-		#debprint ("correcting!", myNodeName, " ", toFrontAlt_ft, " ", currAlt_ft, " ", currAlt_ft-toFrontAlt_ft, " ", toFrontAlt_ft+40, " ", currAlt_ft+20 );
-		#set the pitch to try to make it look like we're climbing real
-		#fast here, not just making an emergency correction . . .
-		#for some reason the pitch is always aiming down when we
-		#need to make a correction up, using pitchangle1.
-		#Kludge, we just always put pitch @30 degrees
+		# debprint ("correcting!", myNodeName, " ", toFrontAlt_ft, " ", currAlt_ft, " ", currAlt_ft-toFrontAlt_ft, " ", toFrontAlt_ft+40, " ", currAlt_ft+20 );
+		# set the pitch to try to make it look like we're climbing real
+		# fast here, not just making an emergency correction . . .
+		# for some reason the pitch is always aiming down when we
+		# need to make a correction up, using pitchangle1.
+		# Kludge, we just always put pitch @30 degrees
 				
 		#vert-speed prob
 		setprop (""~myNodeName~"/orientation/pitch-deg", 30 );
 		setprop (""~myNodeName~"/controls/flight/target-pitch", 30);
 				
 		if (currAlt_ft < toFrontAlt_ft + 25 ) 
-			{ #dramatic correction
-			debprint ("Avoiding ground collision, "~ myNodeName);
+		# major correction
+		{ 
+			debprint ("Avoiding ground collision, "~ myNodeName); 
 					
 			setprop (""~myNodeName~"/position/altitude-ft", toFrontAlt_ft + 40 );
 			setprop (""~myNodeName~"/controls/flight/target-alt",  toFrontAlt_ft + 40);
@@ -3463,20 +3451,18 @@ var ground_loop = func( id, myNodeName ) {
 			# increments of 70 fps at most to try to maintain realism
 
 			setVerticalSpeed (myNodeName, 300, 75, 4, .1, 80, 35);
-					
-			} 
-			else 
-			{   #more minor correction
-					
+		} 
+		else 
+		# minor correction
+		{   
 			setprop (""~myNodeName~"/controls/flight/target-alt",  currAlt_ft + 20);
-					
-			#vert-speed prob
+				
+			# vert-speed prob
 			# 250 fps is achieved by a Zero in a normal barrel roll, so 70 fps is
 			# a very hard pull back on the stick in most aircraft, but not impossible
 
 			setVerticalSpeed (myNodeName, 100, 45, 4, .2, 70, 35);
-					
-			}
+		}
 	}
 			
 
@@ -3484,15 +3470,15 @@ var ground_loop = func( id, myNodeName ) {
 	{
 		if ( type == "aircraft") 
 		{
-			#If crashing we just force it to the right altitude, even if an aircraft
-			#but we move it a maximum of damageAltMaxRate
-			#if it's an airplane & it's crashing, we take it down as far as
-			#needed OR by the maximum allowed rate.
+			# If crashing we just force it to the right altitude, even if an aircraft
+			# but we move it a maximum of damageAltMaxRate
+			# if it's an airplane & it's crashing, we take it down as far as
+			# needed OR by the maximum allowed rate.
 					
-			#when it hits this altitude it is (or most very soon become)
-			#completely kaput
-			#For many objects, depending on how the model is set up, this
-			#may be somewhat higher or lower than actual ground level
+			# when it hits this altitude it is (or most very soon become)
+			# completely kaput
+			# For many objects, depending on how the model is set up, this
+			# may be somewhat higher or lower than actual ground level
 					
 					
 			if ( damageAltMaxPerCycle_ft < damageAltAddCurrent )  
@@ -3500,7 +3486,7 @@ var ground_loop = func( id, myNodeName ) {
 				setprop (""~myNodeName~"/controls/flight/target-alt",  currAlt_ft - 500);
 				setprop (""~myNodeName~"/controls/flight/target-pitch", -45);
 						
-				#vert-speed prob
+				# vert-speed prob
 				var orientPitch_deg = getprop (""~myNodeName~"/orientation/pitch-deg");
 				if ( orientPitch_deg > -10)
 				{
@@ -3511,11 +3497,11 @@ var ground_loop = func( id, myNodeName ) {
 			}
 			elsif (currAlt_ft + damageAltMaxPerCycle_ft > objectsLowestAllowedAlt_ft ) 
 			{
-				#put it down by the max allowed rate
+				# put it down by the max allowed rate
 				setprop (""~myNodeName~"/controls/flight/target-alt",  currAlt_ft - 10000);
 				setprop (""~myNodeName~"/controls/flight/target-pitch", -70);
 									
-				#vert-speed prob
+				# vert-speed prob
 				var orientPitch_deg = getprop (""~myNodeName~"/orientation/pitch-deg");
 				if (orientPitch_deg > -20) 
 				{
@@ -3525,17 +3511,17 @@ var ground_loop = func( id, myNodeName ) {
 			} 
 			else
 			{ 
-				#closer to the ground than MaxPerCycle so terminate and explode
+				# closer to the ground than MaxPerCycle so terminate and explode
 				debprint ("Aircraft hit ground");
 				hitground_stop_explode(myNodeName, objectsLowestAllowedAlt_ft);
 			}
 
 			
-			#somehow the aircraft are getting below ground sometimes
-			#sometimes it's just because they hit into a mountain or something
-			#else in the way.
-			#kludgy fix, just check for it & put them back on the surface
-			#if necessary.  And explode & stuff.
+			# Somehow the aircraft are getting below ground sometimes.
+			# Sometimes it's just because they hit into a mountain or something
+			# else in the way.
+			# Kludgy fix, just check for it & put them back on the surface
+			# if necessary.  And explode & stuff.
 						
 			if ( currAlt_ft < alt_ft - 5 )  
 			{
@@ -3546,34 +3532,35 @@ var ground_loop = func( id, myNodeName ) {
 		}
 		elsif (type == "ship") 
 		{
-			setprop(""~myNodeName~"/position/altitude-ft", calcAlt_ft );
-			# if ( damageAltAddCurrent > damageAltMaxPerCycle_ft )  
-			# {
-			# 	setprop(""~myNodeName~"/position/altitude-ft", currAlt_ft + damageAltMaxPerCycle_ft );
-			# }
-			# else
-			# {
-			# 	setprop(""~myNodeName~"/position/altitude-ft", currAlt_ft + damageAltAddCurrent);
-			# }
+			setprop(""~myNodeName~"/position/altitude-ft", calcAlt_ft ); 
+			# Uncommented next block
+			if ( damageAltAddCurrent > damageAltMaxPerCycle_ft )  
+			{
+				setprop(""~myNodeName~"/position/altitude-ft", currAlt_ft + damageAltMaxPerCycle_ft );
+			}
+			else
+			{
+				setprop(""~myNodeName~"/position/altitude-ft", currAlt_ft + damageAltAddCurrent);
+			}
 		}
 	}		
-	#Whatever else, we don't let aircraft go below their lowest allowed altitude
-	#Maybe they are skidding along on the ground, but they are not allowed
-	#to skid along UNDER the ground . . .
+	# Whatever else, we don't let aircraft go below their lowest allowed altitude
+	# Maybe they are skidding along on the ground, but they are not allowed
+	# to skid along UNDER the ground . . .
 
 	if (currAlt_ft < objectsLowestAllowedAlt_ft)
 	{
 		setprop(""~myNodeName~"/position/altitude-ft", objectsLowestAllowedAlt_ft); #where the object is, in feet
 	}
-	ctrls.damageAltAddCurrent_ft = damageAltAddCurrent; # store local value in global hash
+	ctrls.damageAltAddCurrent_ft = damageAltAddCurrent; # store local values in global hash
 	ctrls.damageAltAddCumulative_ft += damageAltAddCurrent;
 			
-	#debprint ("alt = ", alt, " currAlt_ft = ", currAlt_ft, " deltaAlt = ", deltaAlt, " altAdjust = ", alts.wheelsOnGroundAGL_ft, " calcAlt_ft = ", calcAlt_ft, "damageAltAddCurrent = ", damageAltAddCurrent, " ", myNodeName);
-}
+	# debprint ("alt = ", alt, " currAlt_ft = ", currAlt_ft, " deltaAlt = ", deltaAlt, " altAdjust = ", alts.wheelsOnGroundAGL_ft, " calcAlt_ft = ", calcAlt_ft, "damageAltAddCurrent = ", damageAltAddCurrent, " ", myNodeName);
+} # end of ground_loop
 
 
 
-#######################################################
+########################### location_loop ############################
 # location-check loop, a timer function, every 15-16 seconds to check if the object has been relocated
 # (this will happen if the object is set up as an AI ship or aircraft and FG is reset).  
 # If so it restores the object to its position before the reset.
@@ -3585,7 +3572,7 @@ var ground_loop = func( id, myNodeName ) {
 # rudders, and/or flight plans) the objects are often just getting to
 # interesting/difficult positions, so we want to preserve those positions
 # rather than letting them reset back to where they started.
-# TODO: Some of this could be done better using a listener on /sim/signals/reinit
+# TO DO: Some of this could be done better using a listener on /sim/signals/reinit
 #
 # rjw: the logic to detect a reset current delta_dist > 4x previous delta_dist is flawed
 # some objects such as tanks will go round in circles or make slow progress over steep terrain
@@ -4604,7 +4591,7 @@ var test_impact = func(changedNode, myNodeName) {
 # adjusts airspeed of an AI object depending on whether it is climbing, diving,
 # or ~level flight
 #
-# TODO: We could also adjust speed based on the roll angle or turn rate (turning
+# TO DO: We could also adjust speed based on the roll angle or turn rate (turning
 # too sharp reduces speed and this is one of the primary constraints on sharp
 # turns in fighter aircraft)
 #
@@ -5126,7 +5113,7 @@ var choose_attack_acrobatic = func
 	if (time > 45) time = 45;
 				
 	# at 125 kts we can do a 20 second loop; at 250 a 60 second loop, maximum.
-	# TODO: Should be airplane specific or dependent on the AC's characteristics
+	# TO DO: Should be airplane specific or dependent on the AC's characteristics
 	# Formula below based on minSpeed_kt is the first try.
 	var vels = attributes[myNodeName].velocities;
 	var maxTime = (currSpeed_kt - vels.minSpeed_kt * 2.2) / vels.minSpeed_kt / 2.2 * 25 + 12;
@@ -5159,7 +5146,7 @@ var choose_attack_acrobatic = func
 		currSpeed_kt > .75 * vels.cruiseSpeed_kt ) var direction = "up";
 		else var direction = "down";
 					
-		# TODO: there is undoubtedly a best direction to choose for these,
+		# TO DO: there is undoubtedly a best direction to choose for these,
 		# which would leave the AI AC aimed more directly at the Main AC,
 		# depending on the relative positions of Main & AI ACs
 
@@ -5370,13 +5357,13 @@ var dodge = func(myNodeName, dodgeAmount_deg = 0, dodgeDelay = 1)
 					
 		# more skilled pilots do acrobatics more often
 		# in the Zero 130 kt is about the minimum speed needed to
-		# complete a loop without stalling.  TODO: This may vary by AC.
+		# complete a loop without stalling.  TO DO: This may vary by AC.
 		# This could be linked to stall speed and maybe some other things.
 		# As a first try we're going with 2X minSpeed_kt as the lowest
 		# loop speed, and also 75% of cruise speed as a minimum.
 		# We're putting a max width & length for acrobatics as large
 		# bomber type a/c don't usually do acrobatics & loops.
-		# TODO: This really all needs to be specified per a/c on the bombableinclude file.
+		# TO DO: This really all needs to be specified per a/c on the bombableinclude file.
 		
 		# rjw: check whether to start acrobatics
 		if (currSpeed_kt > 2 * vels.minSpeed_kt and
@@ -5448,7 +5435,7 @@ var dodge = func(myNodeName, dodgeAmount_deg = 0, dodgeDelay = 1)
 }
 
 ################################## stopDodgeAttack ################################
-# only called for aircraft.  Called by hitground_stop_explode and aircraftCrash.  TODO why both?
+# only called for aircraft.  Called by hitground_stop_explode and aircraftCrash.  TO DO why both?
 
 var stopDodgeAttack = func (myNodeName) {
 	var ctrls = attributes[myNodeName].controls;
@@ -6507,7 +6494,7 @@ var weapons_loop = func (id, myNodeName1 = "") {
 				setprop("" ~ myNodeName1 ~ "/" ~ elem ~ "/turret-pos-deg" , thisWeapon.weaponAngle_deg.initialHeading + (10 * rand() - 5));
 			}
 						
-			# TODO: a smaller chance of doing a fairly high level of damage (up to 3X the regular max),
+			# TO DO: a smaller chance of doing a fairly high level of damage (up to 3X the regular max),
 			# and the better/closer the hit, the greater chance of doing that significant damage.
 			# Some chance of doing more damage (and a higher chance the closer the hit)
 			# e.g. damage non-linear function of pRound;
@@ -7193,7 +7180,7 @@ var guideRocket = func
 			}
 			else
 			# only turn if space to do so, otherwise waste energy
-			# TODO make this a smooth reduction in size of turn?
+			# TO DO make this a smooth reduction in size of turn?
 			{
 			var cosOffset = dotProduct(missileDir, interceptDirGndFrame);
 			var allowedTurn = distance_m * turnRate / missileSpeed_mps;
@@ -7922,7 +7909,7 @@ stores.reduceWeaponsCount = func (myNodeName, elem, time_sec) {
 	var lastRound = 0;
 	var stos = attributes[myNodeName].stores;
 	var ammo_sec = attributes[myNodeName].weapons[elem].ammo_seconds;  #Number of seconds worth of ammo firing the weapon has
-	#TODO: This should be set per aircraft per weapon
+	#TO DO: This should be set per aircraft per weapon
 	if (stos["weapons"][elem] == nil) stos["weapons"][elem] = 0;
 	if (stos.weapons[elem] > 0 ) stos.weapons[elem]  -=  time_sec / ammo_sec;
 	if (stos.weapons[elem] < 0 ) 
@@ -7939,14 +7926,14 @@ stores.reduceWeaponsCount = func (myNodeName, elem, time_sec) {
 # As the AC attacks, reduce the amount of fuel in the stores
 # For now we are just going for amount of time allowed for combat
 # since typically fuel use in much higher in that situation.
-# TODO: Also account for fuel use while patrolling etc.
+# TO DO: Also account for fuel use while patrolling etc.
 #
 stores.reduceFuel = func (myNodeName, time_sec) {
 
 	var stos = attributes[myNodeName].stores;
 	var fuel_seconds = 600;  #Number of seconds worth of combat time the AC has in
 	#fuel reserves.
-	#TODO: This should be set per aircraft
+	#TO DO: This should be set per aircraft
 	if (stos["fuel"] == nil) stos["fuel"] = 0;
 	stos.fuel  -=  time_sec / fuel_seconds;
 	if (stos.fuel < 0 ) stos.fuel = 0;
@@ -8406,7 +8393,7 @@ var attack_loop = func ( id, myNodeName ) {
 			if (rand() < dist[1]/atts.altitudeHigherCutoff_m)  distanceFactor = 0;
 		}
 	}
-	#TODO: Other factors could be added here, like less likely to attack if
+	#TO DO: Other factors could be added here, like less likely to attack if
 	#    behind a cloud, more likely if rest of squadron is, etc.
 				
 	var attack_inprogress = ctrls.attackInProgress;
@@ -8444,7 +8431,7 @@ var attack_loop = func ( id, myNodeName ) {
 		#If not attacking, every once in a while we turn the AI AC in the general
 		#direction of the target
 		#This is to keep the AI AC from getting too dispersed.
-		#TODO: We could do lots of things here, like have the AC join up in squadrons,
+		#TO DO: We could do lots of things here, like have the AC join up in squadrons,
 		#return to a certain staging area, patrol a certain area, or whatever.
 
 		if (rand() < ((ctrls.kamikase == -1) ? 0.5 : 0.2)) 
@@ -8570,7 +8557,7 @@ var attack_loop = func ( id, myNodeName ) {
 			# more skilled pilots do acrobatics more often
 			# in the Zero 130 kt is about the minimum speed needed to
 			# complete a loop without stalling.
-			# TODO: This varies by AC.  As a first try we're going with 2X
+			# TO DO: This varies by AC.  As a first try we're going with 2X
 			# minSpeed_kt to complete the loop.
 			#
 			# debprint ("Starting attack for " ~ getCallSign (myNodeName) );
@@ -10777,16 +10764,16 @@ var weaponsTrigger_listener = func (changedNode,listenedNode){
 
 	#for now there is only one trigger for ALL AI visual weapons
 	# so we just turn it on/off depending on the trigger value
-	# TODO: Since there are possibly multiple triggers there is the possibility
+	# TO DO: Since there are possibly multiple triggers there is the possibility
 	# of the MP aircraft holding both trigger1 and trigger2 and then
 	# releasing only trigger2, which will turn off the visual effect
 	# for all weapons here.  It would take some logic to fix that little flaw.
-	# TODO: there is only one visual effect & one trigger for EVERYTHING for now, so setting the
+	# TO DO: there is only one visual effect & one trigger for EVERYTHING for now, so setting the
 	# trigger = 1 turns on all weapons for all AI/Multiplayer aircraft.
 	# Making it turn on/off individually per weapon per aircraft is going to be a
 	# fair-sized job.
 	
-	# rjw TODO include MP ACs in the stack of projectile tracer models 
+	# rjw TO DO include MP ACs in the stack of projectile tracer models 
 	if (!bombableMenu["bombable-enabled"] ) return 0;
 	# debprint ("WeaponsTrigger_listener: ",changedNode.getValue(), " ", changedNode.getPath());
 	if ( changedNode.getValue()) {
@@ -10947,7 +10934,7 @@ var weapons_init_func = func(myNodeName)
 		spawn_custom_tracer_func(myNodeName, elem, target_weapon_path, archetype_path, count / 10.0);
 
 		setprop (target_weapon_path ~ "/ai-weapon-firing", 0); 
-		setprop (target_weapon_path ~ "/offset-x", thisWeapon.weaponOffset_m.x); # TODO only used with sub-turrets
+		setprop (target_weapon_path ~ "/offset-x", thisWeapon.weaponOffset_m.x); # TO DO only used with sub-turrets
 		setprop (target_weapon_path ~ "/offset-y", thisWeapon.weaponOffset_m.y); 
 		setprop (target_weapon_path ~ "/offset-z", thisWeapon.weaponOffset_m.z); 
 
@@ -11065,7 +11052,7 @@ var weapons_init_func = func(myNodeName)
 	#don't do this bit (AI logic for automatic firing of weapons) for multiplayer, only for AI aircraft . . .
 	if (type != "multiplayer") {
 		# overall height & width of main aircraft in meters
-		# TODO: Obviously, this needs to be set per aircraft in an XML file, along with aircraft
+		# TO DO: Obviously, this needs to be set per aircraft in an XML file, along with aircraft
 		# specific damage vulnerability etc.
 		# the target size depends on its orientation relative to the shooter
 		# assume the target is flying horizontally but on any heading relative to the shooter 
@@ -12826,7 +12813,7 @@ var waitForAttributes = func()
 }
 
 ########################## startScenario ###########################
-# The scenario is selected in the flightgear launcher 
+# The scenario is selected in the flightgear launcher using --prop=string:/sim/ai/scenario[0]={Name}
 # An AI-AI combat scenario is an extension to existing Flightgear scenarios
 # The extension consists of a set of groups of objects defined in an extension block appended to the scenario.xml file
 # Each group is a team denoted by a letter
@@ -12956,9 +12943,15 @@ var startScenario = func(startTime)
     var GeoCoord = geo.Coord.new();
     var GeoCoord2 = geo.Coord.new();
 	if (setTeamsAndSides()) debprint("Players assigned teams and sides using names and callsigns");
+
 	foreach (var group; scenario)
 	{
-		var from = airportinfo(group.airportName); # provides lat, lon, alt of airport
+		var from = airportinfo(group.airportName); 
+		# Provides lat, lon, alt of airport ARP
+		# ARP is the officially published geographical center (lat/lon) and elevation.
+		# Usually near the geometric center: 
+		# The ARP is typically designated by civil aviation authorities near the geometric center of the airport's main runway complex or terminal area
+
 		if (from == nil)
 		{
 			debprint("startScenario: Error in scenario definition - airport not found: "~group.airportName);
@@ -12996,8 +12989,11 @@ var startScenario = func(startTime)
 			var msg = (targetTeam == "A") ? "main AC" : "team " ~ targetTeam;
 			debprint("startScenario: Team "~teamName~" targets " ~ msg);
 		}
+
 		# location lead aircraft calculated from airport lat, lon, alt, heading, speed and arrival time
 		# group.alt (ft) is interpreted as height above the airport main runway.  ASL is calculated from it   
+
+
 		GeoCoord.set_latlon(from.lat, from.lon);
 		var dist = group.airSpeed * KT2MPS * group.arrivalTime;
 		var heading = group.heading;
@@ -13039,28 +13035,6 @@ var startScenario = func(startTime)
 					}
 				}
 
-				# team W is a special case where an AI model is used as a stationary ground target
-				# in the middle of a runway
-				# by early termination of ground_loop we stop the target moving away; it just gets damaged
-				elsif (teamName == "W") {
-					var icao = group.airportName;
-
-					# get runway with orientation closest to the group heading
-					var best_rwy = find_closest_runway_details(icao, heading);
-					if (best_rwy == nil) 
-					{
-						debprint("Error: Could not find matching runway for airport: " ~ str(icao));
-					}
-					else
-					{
-						# change object co-ords to the runway midpoint 
-						GeoCoord2.set_latlon(best_rwy.lat, best_rwy.lon);
-						
-						var half_length_m = best_rwy.length_m / 2.0;
-						GeoCoord2.apply_course_distance(best_rwy.heading, half_length_m);
-					}
-				}
-
 				# apply offsets
 				var myHeading = math.atan2(o[1], -o[0]) * R2D;
 				var deltaHeading = heading + myHeading ;
@@ -13068,7 +13042,7 @@ var startScenario = func(startTime)
 				GeoCoord2.apply_course_distance(deltaHeading, dist2me);    #frontreardist in meters
 
 
-				var alt_ft = group.alt + (from.elevation +o[2]) * M2FT;
+				var alt_ft = group.alt + (from.elevation + o[2]) * M2FT;
 				# scenario altutude is in ft and relative to ground level at airport
 
 
