@@ -1027,9 +1027,6 @@ var setAttributes = func (attsObject = nil) {
 		}
 	}
 	
-	# rjw removed - now using attributes hash
-	# props.globals.getNode(""~attributes_pp, 1).setValues(attsObject);
-
 	attributes[""] = attsObject;
 	# hash used by inc_loopid for loop counters
 	attributes[""].loopids = { update_m_per_deg_latlon_loopid : 0 };
@@ -5782,7 +5779,8 @@ var mp_send_damage = func (myNodeName = "", damageRise = 0 ) {
 ###################### fireAIWeapon_stop ######################
 # fireAIWeapon_stop: turns off one of the triggers in AI/Aircraft/Fire-Particles/projectile-tracer.xml
 #  
-var fireAIWeapon_stop = func (myNodeName, elem) {
+var fireAIWeapon_stop = func (id, myNodeName, elem) {
+	id == attributes[myNodeName].loopids["fireAIWeapon_" ~ elem ~ "_loopid"] or return;
 	var weapPath = myNodeName ~ "/" ~ elem;
 	setprop(weapPath ~ "/ai-weapon-firing", 0); 
 }
@@ -5792,19 +5790,15 @@ var fireAIWeapon_stop = func (myNodeName, elem) {
 # Using the loopids ensures that it stays on for time_sec after the last time it was
 # turned on.
 #
-var fireAIWeapon = func (time_sec, myNodeName, elem, speed) {
-	# speed is the calculated intercept speed in a stationary frame
+var fireAIWeapon = func (time_sec, myNodeName, elem) {
 	var weapPath = myNodeName ~ "/" ~ elem;
-	var isFiring = getprop(weapPath ~ "/ai-weapon-firing");
-	if (isFiring != nil) {
-		if (isFiring == 1) return; #prevents double trigger
-		}
-	
 	setprop(weapPath ~ "/ai-weapon-firing", 1); 
+	var loopid = inc_loopid(myNodeName, "fireAIWeapon_" ~ elem);
+	settimer ( func { fireAIWeapon_stop(loopid, myNodeName, elem)}, time_sec);
+
 	# debprint (	"myNodeName " ~ myNodeName ~
 	# 			" elem " ~ elem,
 	# 			" time " ~ time_sec);
-	settimer ( func { fireAIWeapon_stop(myNodeName, elem)}, time_sec);
 }
 
 ###################### vertAngle_deg #########################
@@ -6060,10 +6054,10 @@ var checkAim = func ( elem, #string from weapon key
 		# NOT USED: probability P of one hit or more over the period of fire is P = 1 - ( 1 - pRound) ^ (LOOP_TIME * rounds per sec)
 		# pMiss for one round = 1 - pRound 
 
-
+		var maxSpd = ats.velocities.maxSpeed_kt;
 		var sqrt_a = 0.7071 / thisWeapon.accuracy;
 		var pRound = erf(( targetOffset_rad + targetSize_rad ) * sqrt_a) -  erf(( targetOffset_rad - targetSize_rad ) * sqrt_a);
-		pRound *= (1 - getprop (""~myNodeName1~"/velocities/true-airspeed-kt") / ats.velocities.maxSpeed_kt); # reduce probability if platform moving
+		if (maxSpd != 0) pRound *= (1 - 0.3 * getprop (""~myNodeName1~"/velocities/true-airspeed-kt") / maxSpd); # reduce probability if platform moving
 		thisWeapon.aim.nHit = pRound * LOOP_TIME * thisWeapon.roundsPerSec; 
 
 		# debprint 
@@ -6478,7 +6472,7 @@ var weapons_loop = func (id, myNodeName1 = "") {
 			
 			# fire weapons for visual effect
 			var time2Fire =  1.5 + rand();
-			fireAIWeapon(time2Fire, myNodeName1, elem, thisWeapon.aim.interceptSpeed);
+			fireAIWeapon(time2Fire, myNodeName1, elem);
 
 			#reduce ammo count
 			if (stores.reduceWeaponsCount (myNodeName1, elem, time2Fire) == 1)
@@ -6490,8 +6484,12 @@ var weapons_loop = func (id, myNodeName1 = "") {
 				targetStatusPopupTip (msg, 20);
 
 				# reset turret and gun positions with some random variation
-				setprop("" ~ myNodeName1 ~ "/" ~ elem ~ "/cannon-elev-deg" , thisWeapon.weaponAngle_deg.initialElevation + (4 * rand() - 2));
-				setprop("" ~ myNodeName1 ~ "/" ~ elem ~ "/turret-pos-deg" , thisWeapon.weaponAngle_deg.initialHeading + (10 * rand() - 5));
+				var elev = thisWeapon.weaponAngle_deg.initialElevation + (10 * rand() - 5);
+				if (elev > 90.0) elev = 90.0;
+				var hdg = thisWeapon.weaponAngle_deg.initialHeading + (20 * rand() - 10);
+				if (hdg < 0.0) hdg += 360.0;
+				setprop("" ~ myNodeName1 ~ "/" ~ elem ~ "/orientation/true-heading-deg", -hdg);
+				setprop("" ~ myNodeName1 ~ "/" ~ elem ~ "/orientation/pitch-deg", elev);
 			}
 						
 			# TO DO: a smaller chance of doing a fairly high level of damage (up to 3X the regular max),
@@ -10810,7 +10808,7 @@ var weapons_init = func (myNodeName = "") {
 # Put this nasal code in your object's load:
 #      bombable.weapons_init (cmdarg().getPath())
 # weapFixed indicates that the weapon can only fire in a fixed direction relative to its platform, e.g. wing-mounted MGs
-# We identify the following weapon types:  MG, cannon, rocket, tank gun, AA gun - TO DO
+# We identify the following weapon types:  small_arm, MG, cannon, large_cannon, rocket, laser
 # Each type has a characteristic tracer
 # The tracer is animated using the FG particle system and added to the AI model using put_tied_weapon() 
 # Individual weapons can be destroyed before the total deestruction (damage == 1) of their platform 
@@ -10959,6 +10957,8 @@ var weapons_init_func = func(myNodeName)
 		# store initial values
 		weapAngles["initialHeading"] = weapAngles.heading;
 		weapAngles["initialElevation"] = weapAngles.elevation;
+
+		
 
 		var weapFixed = (weapAngles.elevationMin == weapAngles.elevationMax) and (weapAngles.headingMin == weapAngles.headingMax) and (thisWeapon["weaponType"] != "rocket");
 		# do not include rockets since a different target can be assigned to each 'fixed' rocket 
@@ -12522,6 +12522,12 @@ var addToTargets = func(myNodeName)
 # 
 var setTeamsAndSides = func()
  {
+	teams = 
+	{
+		A:{indices: [0], target: nil, count: 1},
+	}; 
+	allPlayers = {0: [], 1: []};
+	
 	foreach (var myNodeName; nodeNames)
 	{
 		if (myNodeName == "") continue; # skip main AC
@@ -12569,6 +12575,14 @@ var initTargets = func () {
 		return;
 	}
 	debprint("initializing targets");
+
+	# reset lists of target and shooter indices for each object
+	foreach (var myNodeName; nodeNames)
+	{
+		var ats = attributes[myNodeName];
+		ats.targetIndex = [];
+		ats.shooterIndex = [];
+	}
 
 	var foundTarget = -1;
 
@@ -13131,7 +13145,7 @@ var assignStaticNames = func(staticEntries) {
 	}
 }
 
-########################## update waypoint heading func ###########################
+########################## updateWptHeading_func ###########################
 # routine to explicitly bind the current values of loopid and myNodeName into the closure's local scope at the exact moment the timer is created
 # 
 var updateWptHeading_func = func(loopid, myNodeName, name) {
@@ -13140,7 +13154,7 @@ var updateWptHeading_func = func(loopid, myNodeName, name) {
 
 
 
-########################## update wpt heading ###########################
+########################## updateWptHeading ###########################
 # function called by non-attacking aircraft that are navigating using a flightpath of waypoints
 # also used to check if they have reached the current waypoint and if so to update the index to the next one
 # specific actions are triggered on reaching each waypoint
@@ -13152,6 +13166,7 @@ var updateWptHeading_func = func(loopid, myNodeName, name) {
 
 var updateWptHeading = func(id, myNodeName, name) {
     var ats = attributes[myNodeName];
+	if (id != ats.loopids.updateWptHeading_loopid) debprint (sprintf("myNodeName = %s, id = %d, ats = %d", myNodeName, id, ats.loopids.updateWptHeading_loopid));
 	id == ats.loopids.updateWptHeading_loopid or return;
 	ats.damage >= 1 and return; # destroyed aircraft do not navigate
 	# skill ranges 0-6
@@ -13358,6 +13373,10 @@ var resetScenario = func()
 
 var resetScenarioMain = func()
 {
+	# Increment epoch to invalidate pending settimer callbacks in put_splash()
+    bombable_epoch += 1;
+	debprint("Resetting scenario, the new bombable epoch is", bombable_epoch);
+	
 	# clear pop-up message log
 	tipMessageAI = "\n\n\n\n";
 	tipMessageMain = "\n\n\n\n";
@@ -13390,33 +13409,6 @@ var resetScenarioMain = func()
 		}
 	}
 
-	# rebuild teams and players
-	teams = 
-	{
-		A:{indices: [0], target: nil, count: 1},
-	}; 
-	allPlayers = 
-	[
-		[], # [0] to make main AC a player
-		[]
-	];
-
-	foreach (var myNodeName; nodeNames)
-	{
-		var ats = attributes[myNodeName];
-		if (myNodeName != "") # omit main AC
-		{
-			var myIndex = ats.index ;
-			var teamName = ats.team ;
-			var side = ats.side ;
-			if (teams[teamName] == nil) teams[teamName] = {indices: [], target: nil, count: 0};
-			append(teams[teamName].indices, myIndex);
-			append(allPlayers[side], myIndex);
-			ats.targetIndex = []; # could initialise in initTargets
-			ats.shooterIndex = [];
-		} 
-	}
-
 	# move all AI objects out of scene and repair them
 	foreach (var myNodeName; nodeNames)	resetBombableDamageFuelWeapons (myNodeName);
 	
@@ -13428,9 +13420,6 @@ var resetScenarioMain = func()
 			setprop(""~myNodeName~"/position/longitude-deg", 0);
 		}
 	}
-	
-	# Increment epoch to invalidate pending settimer callbacks in put_splash()
-    bombable_epoch += 1;
 
 	resetTerrainFires(); # remove terrain fire and smoke models
 
@@ -13446,7 +13435,7 @@ var resetScenarioMain = func()
 	var startTime = timeNow + 120;
 	setprop("/sim/speed-up", 16);
 	msg = "delaying restart";
-	debprint(msg);
+	debprint("resetScenarioMain: " ~ msg);
 	mainStatusPopupTip(msg, 5);
 	settimer(func{startScenario(startTime)}, 1);
 }
@@ -13482,7 +13471,7 @@ var restartLoop = func(myNodeName, loopName)
 {
 	var ats = attributes[myNodeName];
 	var type= ats.type;
-	if (!contains(ats.loopids, loopName ~ "_loopid")) return; # to restart a loop we require it to have an earlier id
+	if (!contains(ats.loopids, loopName ~ "_loopid")) return; # loop must exist in order to restart it
 	var loopid = inc_loopid (myNodeName, loopName);
 	if (loopName == "weapons") 
 	{

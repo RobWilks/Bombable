@@ -11,7 +11,7 @@
         <type>rotate</type>
         <object-name>gun_mount</object-name>
         <object-name>gun_barrel</object-name>
-        <property>flak_gun_88mm/turret-pos-deg</property>
+        <property>flak_gun_88mm/orientation/true-heading-deg</property>
         <center>
             <x-m>0.0</x-m>
             <y-m>0.0</y-m>
@@ -29,7 +29,7 @@
     <animation>
         <type>rotate</type>
         <object-name>gun_barrel</object-name>
-        <property>flak_gun_88mm/cannon-elev-deg</property>
+        <property>flak_gun_88mm/orientation/pitch-deg</property>
         <center>
             <x-m>0.667</x-m>
             <y-m>0.0</y-m>

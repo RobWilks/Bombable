@@ -378,9 +378,9 @@ fgcommand("add-model", props.Node.new({
 }));
 ##################### dump branch of property tree ##########################
 
-var myNodeName = "/ai/models/ship";
+var myNodeName = "/ai/models/ship[1]";
 var ats = bombable.attributes[myNodeName];
-var key = "velocities";
+var key = "loopids";
 if (contains(ats, key)) {
 debug.dump(ats[key]);
 }
@@ -388,7 +388,10 @@ else
 {
     print(key ~ " is not a key");
 }
-foreach (var key; keys(ats)) print (key);
+foreach (var elem; keys(ats[key])) print (elem,": ",ats[key][elem]);
+print("loopid", ats.loopids.updateWptHeading_loopid);
+print("loopid", ats.loopids.ground_loopid);
+
 print("exploded = ",ats.exploded);
 print("damage = ",ats.damage);
 print("onGround = ",ats.controls.onGround);

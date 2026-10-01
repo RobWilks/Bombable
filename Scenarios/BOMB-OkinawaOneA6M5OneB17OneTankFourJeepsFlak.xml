@@ -30,7 +30,7 @@
       <rudder type="double">25</rudder>
       <heading type="double">0</heading>
     </entry>    
-    <!--  Tank_2.1 -->
+    <!--  Jeep_2.1 -->
     <entry>
       <search-order>PREFER_AI</search-order>
       <type>ship</type>
@@ -40,10 +40,13 @@
       <longitude type="double">127.648</longitude>
       <altitude>16</altitude>
       <speed>6.0</speed>
-      <rudder type="double">25</rudder>
+      <roll-order>5.0</roll-order>
+      <turn-radius-ft>0</turn-radius-ft>
+      <fixed-turn-radius-ft>0.0</fixed-turn-radius-ft>
+      <!-- <rudder type="double">25</rudder> -->
       <heading type="double">0</heading>
     </entry>    
-    <!--  Tank 2.2 -->
+    <!--  Jeep 2.2 -->
     <entry>
       <search-order>PREFER_AI</search-order>
       <type>ship</type>
@@ -53,7 +56,42 @@
       <longitude type="double">127.649</longitude>
       <altitude>16</altitude>
       <speed>6.0</speed>
-      <rudder type="double">25</rudder>
+      <roll-order>5.0</roll-order>
+      <turn-radius-ft>0</turn-radius-ft>
+      <fixed-turn-radius-ft>0.0</fixed-turn-radius-ft>
+      <!-- <rudder type="double">25</rudder> -->
+      <heading type="double">0</heading>
+    </entry>    
+    <!--  Jeep_2.3 -->
+    <entry>
+      <search-order>PREFER_AI</search-order>
+      <type>ship</type>
+      <name>JoJo_E</name>
+      <model type="string">Aircraft/jeep-Bombable/Models/WW2Jeep.xml</model>
+      <latitude type="double">26.2039</latitude>
+      <longitude type="double">127.648</longitude>
+      <altitude>16</altitude>
+      <speed>6.0</speed>
+      <roll-order>5.0</roll-order>
+      <turn-radius-ft>0</turn-radius-ft>
+      <fixed-turn-radius-ft>0.0</fixed-turn-radius-ft>
+      <!-- <rudder type="double">25</rudder> -->
+      <heading type="double">0</heading>
+    </entry>    
+    <!--  Jeep 2.4 -->
+    <entry>
+      <search-order>PREFER_AI</search-order>
+      <type>ship</type>
+      <name>WhizzPop_E</name>
+      <model type="string">Aircraft/jeep-Bombable/Models/WW2Jeep.xml</model>
+      <latitude type="double">26.2079</latitude>
+      <longitude type="double">127.649</longitude>
+      <altitude>16</altitude>
+      <speed>6.0</speed>
+      <roll-order>5.0</roll-order>
+      <turn-radius-ft>0</turn-radius-ft>
+      <fixed-turn-radius-ft>0.0</fixed-turn-radius-ft>
+      <!-- <rudder type="double">25</rudder> -->
       <heading type="double">0</heading>
     </entry>    
     <!--  First Zero Squadron -->
@@ -129,8 +167,8 @@
         <!-- Tank -->
         <team>Y</team>
         <target>E</target>
-        <arrivalTime>-30</arrivalTime>
-        <airSpeed>10</airSpeed>
+        <arrivalTime>-60</arrivalTime>
+        <airSpeed>8</airSpeed>
         <airportName>ROAH</airportName>
         <heading>180</heading>
         <alt>16</alt>
@@ -143,7 +181,7 @@
         </offsets>
     </group>
     <group>
-        <!-- Two Jeeps -->
+        <!-- Four Jeeps -->
         <team>E</team>
         <target>Y</target>
         <arrivalTime>360</arrivalTime>
@@ -160,6 +198,16 @@
             <offset>
                 <behind>20</behind>
                 <right>5</right>
+                <up>0</up>
+            </offset>
+            <offset>
+                <behind>28</behind>
+                <right>3</right>
+                <up>0</up>
+            </offset>
+            <offset>
+                <behind>32</behind>
+                <right>-5</right>
                 <up>0</up>
             </offset>
         </offsets>
@@ -179,18 +227,18 @@
         <alt>100</alt>
         <offsets>
             <offset>
-                <behind>200</behind>
-                <right>-500</right>
+                <behind>450</behind>
+                <right>-650</right>
                 <up>0</up>
             </offset>
             <offset>
-                <behind>200</behind>
-                <right>-540</right>
+                <behind>450</behind>
+                <right>-690</right>
                 <up>0</up>
             </offset>
             <offset>
-                <behind>220</behind>
-                <right>-520</right>
+                <behind>470</behind>
+                <right>-670</right>
                 <up>0</up>
             </offset>
         </offsets>
