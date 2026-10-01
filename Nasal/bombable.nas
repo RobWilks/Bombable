@@ -10811,7 +10811,7 @@ var weapons_init = func (myNodeName = "") {
 # We identify the following weapon types:  small_arm, MG, cannon, large_cannon, rocket, laser
 # Each type has a characteristic tracer
 # The tracer is animated using the FG particle system and added to the AI model using put_tied_weapon() 
-# Individual weapons can be destroyed before the total deestruction (damage == 1) of their platform 
+# Individual weapons can be destroyed before the total destruction (damage == 1) of their platform 
 # weapons_init_func() starts the main weapons_loop()
 # 
 
@@ -12953,7 +12953,6 @@ var startScenario = func(startTime)
 	targetTree.remove();
 
 
-	var myNodeName = "";
     var GeoCoord = geo.Coord.new();
     var GeoCoord2 = geo.Coord.new();
 	if (setTeamsAndSides()) debprint("Players assigned teams and sides using names and callsigns");
@@ -13020,7 +13019,7 @@ var startScenario = func(startTime)
 			{
 				#get lon, lat of group
 				GeoCoord2.set_latlon ( GeoCoord.lat(), GeoCoord.lon());
-				myNodeName = nodeNames[teams[teamName].indices[count]];
+				var myNodeName = nodeNames[teams[teamName].indices[count]];
 				var ats = attributes[myNodeName];
 				var type = ats.type;
 				count += 1;
@@ -13041,11 +13040,13 @@ var startScenario = func(startTime)
 
 						var nav = courseToWaypoint(myNodeName, current_wpt);
 						
-						print(sprintf("AI Model: %s -> Nav to WPT%d: Heading %05.1f deg, Dist %.2f NM", 
-									myNodeName, idx, nav.heading, nav.distance[0] / 1852.0));
-						var loopid = inc_loopid(myNodeName, "updateWptHeading");
-						updateWptHeading_func(loopid, myNodeName, name);
-						debprint ("Initialised updateWptHeading for " ~ myNodeName ~ " on mission " ~ name);
+						# debprint(sprintf("AI Model: %s -> Nav to WPT%d: Heading %05.1f deg, Dist %.2f NM", 
+						# 			myNodeName, idx, nav.heading, nav.distance[0] / 1852.0));
+						debprint ("Initialised flightpath for " ~ myNodeName ~ " on mission " ~ name);
+						if (bombable_epoch == 0) {
+							var loopid = inc_loopid(myNodeName, "updateWptHeading");
+							updateWptHeading_func(loopid, myNodeName);
+						}
 					}
 				}
 
@@ -13148,13 +13149,16 @@ var assignStaticNames = func(staticEntries) {
 ########################## updateWptHeading_func ###########################
 # routine to explicitly bind the current values of loopid and myNodeName into the closure's local scope at the exact moment the timer is created
 # 
-var updateWptHeading_func = func(loopid, myNodeName, name) {
-	settimer(func {updateWptHeading(loopid, myNodeName, name)}, 1 + rand());
+var updateWptHeading_func = func(loopid, myNodeName) {
+	settimer(func {
+		debprint("updateWptHeading_func: loopid = " ~ loopid ~ ", myNodeName = " ~ myNodeName);
+		updateWptHeading_loop(loopid, myNodeName);
+		}, 1 + rand());
 }
 
 
 
-########################## updateWptHeading ###########################
+########################## updateWptHeading_loop ###########################
 # function called by non-attacking aircraft that are navigating using a flightpath of waypoints
 # also used to check if they have reached the current waypoint and if so to update the index to the next one
 # specific actions are triggered on reaching each waypoint
@@ -13164,16 +13168,19 @@ var updateWptHeading_func = func(loopid, myNodeName, name) {
 # so if within 1 degree the lateral-mode is set to "roll"
 #
 
-var updateWptHeading = func(id, myNodeName, name) {
+var updateWptHeading_loop = func(id, myNodeName) {
     var ats = attributes[myNodeName];
-	if (id != ats.loopids.updateWptHeading_loopid) debprint (sprintf("myNodeName = %s, id = %d, ats = %d", myNodeName, id, ats.loopids.updateWptHeading_loopid));
+	if (id != ats.loopids.updateWptHeading_loopid) 
+		debprint (sprintf("myNodeName = %s, id = %d, ats = %d", myNodeName, id, ats.loopids.updateWptHeading_loopid));
 	id == ats.loopids.updateWptHeading_loopid or return;
 	ats.damage >= 1 and return; # destroyed aircraft do not navigate
 	# skill ranges 0-6
+
 	var skill = calcPilotSkill (myNodeName);
+	var name = ats.flightpath.name;
 	if (rand() < skill / 6 * (1.0 - ats.damage)) {
 		if (name == "sas_raid") {
-			var thresholdWpt = 100; # closest approach to waypoint before moving to the next
+			var thresholdWpt = 150; # closest approach to waypoint before moving to the next
 		}
 		elsif (name == "target_runway") {
 			var thresholdWpt = 500; 
@@ -13192,7 +13199,7 @@ var updateWptHeading = func(id, myNodeName, name) {
         var targetHdg = distHdg.heading;  # Calculated bearing to waypoint
         var msg = "";
 
-		# 3. Check if current waypoint is reached or passed
+		# Check if current waypoint is reached or passed
 		if (dist_m < (thresholdWpt * (1.2 - skill / 15.0) ) ) { # Adjust threshold plus-minus 20% based on skill level (0-6)
 			var callsign = getCallSign(myNodeName) or myNodeName;
 			var baseMsg = callsign ~ " reached waypoint " ~ currentWptIndex;
@@ -13276,7 +13283,7 @@ var updateWptHeading = func(id, myNodeName, name) {
 
 		elsif (name == "target_runway")
 		{
-			# 4. Update Target Heading in Property Tree
+			# Update Target Heading in Property Tree
 			var oldHdg = getprop(myNodeName ~ "/orientation/true-heading-deg");
 
 			# Calculate shortest heading change arc
@@ -13294,7 +13301,7 @@ var updateWptHeading = func(id, myNodeName, name) {
 			{
 				setprop(myNodeName ~ "/controls/flight/lateral-mode", "roll");
 			}
-			# 5. Update Target Alt in Property Tree
+			# Update Target Alt in Property Tree
 			var oldTgtAlt = getprop(myNodeName ~ "/controls/flight/target-alt"); 
 			var targetAlt = ats.flightpath.waypoints[currentWptIndex - 1][2];
 			if (math.abs(oldTgtAlt - targetAlt) > 300) # Only update if significant change
@@ -13307,9 +13314,9 @@ var updateWptHeading = func(id, myNodeName, name) {
 		}
 
 	}
+	# Re-schedule loop timer (2 to 3 seconds)
+    settimer(func { updateWptHeading_loop(id, myNodeName, name); }, 2.0 + rand());
 
-    # 6. Re-schedule loop timer (2 to 3 seconds)
-    settimer(func { updateWptHeading(id, myNodeName, name); }, 2.0 + rand());
 }
 
 ########################## removeAll ###########################
@@ -13381,12 +13388,13 @@ var resetScenarioMain = func()
 	tipMessageAI = "\n\n\n\n";
 	tipMessageMain = "\n\n\n\n";
 
-	# end all loops for all targets except the main AC
-	var loops = [];
+	# hash of nodeNames and loops for all targets except the main AC
+	var loops = {};
 
 	foreach (var myNodeName; nodeNames)
 	{
 		if (myNodeName == nil or myNodeName == "") continue;
+		loops[myNodeName] = [];
 
 		var ats = attributes[myNodeName];
 		if (ats == nil or !contains(ats, "loopids") or typeof(ats.loopids) != "hash") continue;
@@ -13401,7 +13409,7 @@ var resetScenarioMain = func()
 				var loopName = substr(raw_key, 0, key_len - 7);
 				inc_loopid(myNodeName, loopName);
 				debprint("Ending loop " ~ loopName ~ " for " ~ myNodeName);
-				append(loops, loopName);
+				loops[myNodeName] = append(loops[myNodeName], loopName);
 				# fireAIWeapon_stop resets fire-particle animations
 				# it is called with timers that timeout after approximately 1s
 				# we let these timeout rather than terminate early and separately zero the animation triggers
@@ -13429,6 +13437,8 @@ var resetScenarioMain = func()
 	setprop("/sim/ai/scenario-initialized", 0); # flag used to delay start of loops until after start of scenario
 	restartAllLoops(loops);
 
+	reset_aircraft_controls();
+
 
 	# wait a while to clear the smoke and contrails
 	var timeNow = getprop("/sim/time/elapsed-sec");
@@ -13454,60 +13464,68 @@ var restartAllLoops = func(loops)
 		settimer (func {restartAllLoops(loops);}, 5);
 		return;
 	}
-	foreach (var myNodeName; nodeNames)
+	foreach (var myNodeName; keys(loops))
 	{
-		if (myNodeName != "") # omit main AC
-		{
-			foreach (var loopName; loops) restartLoop(myNodeName, loopName);
-		}
+		foreach (var loopName; loops[myNodeName]) restartLoop(myNodeName, loopName);
 	}
 }
 
 ########################## restartLoop ###########################
 # helper function to restart a specific loop for a specific node
-# resets aircraft flight controls - could make this a separate function
 
 var restartLoop = func(myNodeName, loopName)
 {
 	var ats = attributes[myNodeName];
 	var type= ats.type;
 	if (!contains(ats.loopids, loopName ~ "_loopid")) return; # loop must exist in order to restart it
-	var loopid = inc_loopid (myNodeName, loopName);
+	var loopid = ats.loopids[loopName ~ "_loopid"];
 	if (loopName == "weapons") 
 	{
-		settimer ( func {weapons_loop (loopid, myNodeName); }, rand() - 7.5);
+		settimer ( func {weapons_loop (loopid, myNodeName); }, rand() + 7.5);
 	}
 	elsif (loopName == "ground") 
 	{
-		settimer( func {ground_loop (loopid, myNodeName); }, rand() - 4.5);
+		settimer( func {ground_loop (loopid, myNodeName); }, rand() + 4.5);
 	}
+	elsif (loopName == "updateWptHeading")
+	{
+		settimer ( func {updateWptHeading_loop (loopid, myNodeName); }, rand() + 5.5);
+	}
+
+	# TO DO check the next block: possibly could be simplified to a similar structure to that above
 	elsif (type == "aircraft" and getprop(""~myNodeName~"/bombable/initializers/attack-initialized") != nil) # need to check whether ground vehicles and ships have an attack mode
 	{
 		if (loopName == "attack") 
 		{
-			settimer( func {attack_loop (loopid, myNodeName); }, rand() - 5.5);
+			settimer( func {attack_loop (loopid, myNodeName); }, rand() + 5.5);
 		}
 		elsif (loopName == "speed_adjust") 
 		{
-			settimer ( func {speed_adjust_loop ( loopid, myNodeName, .3 + rand() / 30); }, rand() - 0.5 + 7);
-		}
-	}
-
-	if (type == "aircraft") {
-		# reset aircraft flight controls
-		setprop (""~myNodeName~"/controls/flight/vertical-mode", "alt"); 
-		setprop (""~myNodeName~"/controls/flight/target-roll", 0);
-		if ((ats.team == "B" or ats.team == "C") and getprop(""~myNodeName~"/bombable/initializers/attack-initialized") == nil)
-		{
-			setprop (""~myNodeName~"/controls/flight/lateral-mode", "hdg");
-			settimer(func { updateWptHeading(loopid, myNodeName, ats.flightpath.name); }, 2.0 + rand());
-		} else {
-			setprop (""~myNodeName~"/controls/flight/lateral-mode", "roll");
+			settimer ( func {speed_adjust_loop ( loopid, myNodeName, .3 + rand() / 30); }, rand() + 6.5);
 		}
 	}
 }
-
-
+##################### reset_aircraft_controls ##########################
+# 
+var reset_aircraft_controls = func() {
+	foreach (var myNodeName; nodeNames)
+	{
+		if (myNodeName == "") continue; # omit main AC
+		var ats = attributes[myNodeName];
+		var type= ats.type;
+		if (type == "aircraft") {
+			# reset aircraft flight controls
+			setprop (""~myNodeName~"/controls/flight/vertical-mode", "alt"); 
+			setprop (""~myNodeName~"/controls/flight/target-roll", 0);
+			if ((ats.team == "B" or ats.team == "C") and getprop(""~myNodeName~"/bombable/initializers/attack-initialized") == nil)
+			{
+				setprop (""~myNodeName~"/controls/flight/lateral-mode", "hdg");
+			} else {
+				setprop (""~myNodeName~"/controls/flight/lateral-mode", "roll");
+			}
+		}
+	}
+}
 ##################### find_closest_runway_details ##########################
 # Queries airportinfo(icao) and finds the runway best aligned with mainAC_heading.
 # Returns a hash containing ID, heading (deg), length (m/ft), and threshold coordinates (lat/lon).

@@ -398,6 +398,34 @@ print("onGround = ",ats.controls.onGround);
 
 var weaps=ats.weapons;
 debug.dump(weaps.top_turret_gun);
+##################### print all loopids ##########################
+
+# Iterate through all configured nodes in bombable.nodeNames
+foreach (var myNodeName; bombable.nodeNames) {
+    if (myNodeName == nil) continue;
+    
+    var ats = bombable.attributes[myNodeName];
+    print("--------------------------------------------------");
+    print("Node: ", myNodeName);
+    
+    if (ats == nil) {
+        print("  -> ats is nil");
+        continue;
+    }
+    
+    if (contains(ats, "loopids") and ats.loopids != nil) {
+        print("  loopids keys & values:");
+        foreach (var elem; keys(ats.loopids)) {
+            print("    ", elem, " : ", ats.loopids[elem]);
+        }
+    } else {
+        print("  -> 'loopids' key missing or nil in ats");
+    }
+}
+print("--------------------------------------------------");
+
+
+
 ##################### test updateWptHeading ##########################
 
 # skill ranges 0-6

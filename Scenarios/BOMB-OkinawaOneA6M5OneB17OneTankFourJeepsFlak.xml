@@ -72,7 +72,8 @@
       <longitude type="double">127.648</longitude>
       <altitude>16</altitude>
       <speed>6.0</speed>
-      <roll-order>5.0</roll-order>
+      <!-- caps the max turn rate in degrees per second -->
+      <roll-order>5.0</roll-order> 
       <turn-radius-ft>0</turn-radius-ft>
       <fixed-turn-radius-ft>0.0</fixed-turn-radius-ft>
       <!-- <rudder type="double">25</rudder> -->
@@ -184,7 +185,7 @@
         <!-- Four Jeeps -->
         <team>E</team>
         <target>Y</target>
-        <arrivalTime>360</arrivalTime>
+        <arrivalTime>240</arrivalTime>
         <airSpeed>40</airSpeed>
         <airportName>ROAH</airportName>
         <heading>315</heading>
