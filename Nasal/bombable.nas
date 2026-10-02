@@ -3216,26 +3216,30 @@ var ground_loop = func( id, myNodeName ) {
 				}
 			}
 			
-			# steer toward target heading
-			var delta_heading_deg = math.fmod ( targetHeading - heading + 3600, 360);
-			if (delta_heading_deg > 180) delta_heading_deg -= 360;
 			var sign = 1;
 			var rudder = 0;
-			if (delta_heading_deg < 0)
+			#AI ship model unstable for rudder control in this speed window
+			if (speed_kt < 14.0 or speed_kt > 16.0) 
 			{
-				delta_heading_deg = - delta_heading_deg;
-				sign = -1;
+				# steer toward target heading
+				var delta_heading_deg = math.fmod ( targetHeading - heading + 3600, 360);
+				if (delta_heading_deg > 180) delta_heading_deg -= 360;
+				if (delta_heading_deg < 0)
+				{
+					delta_heading_deg = - delta_heading_deg;
+					sign = -1;
+				}
+				if (delta_heading_deg > 81)
+					rudder = 30;
+				elsif (delta_heading_deg > 27)
+					rudder = 15;
+				elsif (delta_heading_deg > 9)
+					rudder = 10;
+				elsif (delta_heading_deg > 3)
+					rudder = 7;
+				elsif (delta_heading_deg > 1)
+					rudder = 4;
 			}
-			if (delta_heading_deg > 81)
-				rudder = 30;
-			elsif (delta_heading_deg > 27)
-				rudder = 15;
-			elsif (delta_heading_deg > 9)
-				rudder = 10;
-			elsif (delta_heading_deg > 3)
-				rudder = 7;
-			elsif (delta_heading_deg > 1)
-				rudder = 4;
 			setprop (""~myNodeName~"/surface-positions/rudder-pos-deg", rudder * sign);
 		}
 		
@@ -5241,21 +5245,42 @@ var rudder_roll_climb = func (myNodeName, degrees = 15, alt_ft = -20, time = 10,
 	# spd > 5 achieves max turn rate at 15 kts
 	# unfortunate: the turn radius is a strong function of speed ( v - 15 )^2
 	# ctrls.dodgeInProgress is a flag set by dodge()
+	# can create a handbrake turn by setting tgt-speed close to 15
+	# we fix the turn linear speed to 13 or 17 kts and use the rudder to control the angular speed
+	# the FG C++ algorithm changes speed-kts to tgt-speed-kts at a slow rate of acceleration / deceleration 0.5 ftpersecsquared  
 	{
 		if ( attributes[myNodeName].controls.dodgeInProgress )
 		{
-			setprop(""~myNodeName~"/surface-positions/rudder-pos-deg", degrees);
+			var tgtSpd = getprop (""~myNodeName~"/controls/tgt-speed-kts");
 			var spd = getprop (""~myNodeName~"/velocities/speed-kts");
+			attributes[myNodeName].velocities.oldTgtSpd = tgtSpd;
 
-			var newSpd = (spd < 10) ? 4.8 : 15;
-			var newTime *= ((spd < 10) ? 1 : 4);
+			if (type == "ship")
+			{
+				setprop(""~myNodeName~"/surface-positions/rudder-pos-deg", degrees);
+				var newSpd = (spd < 10) ? 4.8 : 15;
+				var newTime *= ((spd < 10) ? 1 : 4);
+				var rudderPos = degrees;
+			}
+			elsif (type == "vehicle") # vehicle
+			{
+				var turnRate = degrees / time;
+				var newSpd =  (turnRate > 15) ? 17.0 : 13.0;
+				var newTime = 1.0 ;
+				var rudderPos = getRudderForTurnRate(turnRate, newSpd);
+				# turn rate is in deg/sec, 15 deg/sec is a hard turn for a vehicle, 5 deg/sec is a soft turn
+				# this is a dodge so we turn quickly
+			}
 			setprop(""~myNodeName~"/controls/tgt-speed-kts", newSpd);
-			setprop(""~myNodeName~"/velocities/speed-kts", (spd + newSpd) / 2);
+			setprop(""~myNodeName~"/velocities/speed-kts", newSpd);
+			setprop(""~myNodeName~"/surface-positions/rudder-pos-deg", rudderPos );
 		}
 		else # stop dodge, return to cruise speed
 		{
 			setprop(""~myNodeName~"/surface-positions/rudder-pos-deg", 0 );
-			setprop(""~myNodeName~"/controls/tgt-speed-kts", attributes[myNodeName].velocities.cruiseSpeed_kt );
+			var tgtSpd = attributes[myNodeName].velocities.oldTgtSpd;
+			setprop(""~myNodeName~"/controls/tgt-speed-kts", tgtSpd );
+			setprop(""~myNodeName~"/velocities/speed-kts", tgtSpd);
 		}
 	}
 	debprint 
@@ -5271,6 +5296,70 @@ var rudder_roll_climb = func (myNodeName, degrees = 15, alt_ft = -20, time = 10,
 	);
 	return(newTime);
 }
+############################### getRudderForTurnRate #################################
+
+# Accepts target turn rate: positive (right turn), negative (left turn)
+# Returns required rudder position: positive (right deflection), negative (left deflection)
+var getRudderForTurnRate = func(targetRate, speed = 17) {
+    
+    # Store the sign and work with absolute magnitude
+    var sign = (targetRate < 0) ? -1.0 : 1.0;
+    var rateMag = abs(targetRate);
+
+    # Clamp target magnitude to valid lookup range [0 to 75.3]
+    if (rateMag <= 0.0) return 0.0;
+
+    # Inverse Lookup Table based on expanded data: [Turn Rate (deg/s), Rudder Angle (deg)]
+    # This data represents magnitude only.
+	if (speed == 17) {
+    if (rateMag >= 75.3) {
+        return 30.0 * sign; # Caps at max rudder (maintaining direction)
+    }
+    var lut = [
+        [0.0,   0.0],
+        [6.92,  5.0],
+        [13.27, 8.0],
+        [19.6, 10.0],
+        [41.7, 15.0],
+        [61.8, 20.0],
+        [71.8, 25.0],
+        [75.3, 30.0]
+    ];
+	} else {
+    if (rateMag >= 57.6) {
+        return 30.0 * sign;
+    }
+    var lut = [
+        [0.0,   0.0],
+        [5.3,  5.0],
+        [10.1, 8.0],
+        [14.95, 10.0],
+        [31.9, 15.0],
+        [47.0, 20.0],
+        [54.7, 25.0],
+        [57.6, 30.0]
+	];
+	};
+
+    # Find the bounding interval and perform linear interpolation
+    var resultAngle = 0.0;
+    for (var i = 0; i < size(lut) - 1; i += 1) {
+        var r0 = lut[i][0];
+        var r1 = lut[i+1][0];
+
+        if (rateMag >= r0 and rateMag <= r1) {
+            var a0 = lut[i][1];
+            var a1 = lut[i+1][1];
+
+            # Interpolation formula: a = a0 + (target - r0) * (a1 - a0) / (r1 - r0)
+            resultAngle = a0 + (rateMag - r0) * (a1 - a0) / (r1 - r0);
+            break; # Exit loop once interval is found
+        }
+    }
+
+    # Re-apply the original sign to determine direction
+    return resultAngle * sign;
+};
 ############################### dodge #################################
 # function makes an object dodge
 #
@@ -5298,8 +5387,6 @@ var dodge = func(myNodeName, dodgeAmount_deg = 0, dodgeDelay = 1)
 	var evas = ats.evasions;
 
 	debprint ("Starting Dodge", myNodeName, " type = ", type);
-				
-
 
 	# skill ranges 0-6
 	var skill = calcPilotSkill (myNodeName);
@@ -6437,15 +6524,15 @@ var weapons_loop = func (id, myNodeName1 = "") {
 		# 	" elevation = ", thisWeapon.weaponAngle_deg.elevation
 		# );
 
-		if (ats.type == "staticObject")
-		{
-			debprint (sprintf("%s weapon %s aimed at %s with nHit = %.4f ballisticMass_lb = %.1f", 
-			myNodeName1, 
-			thisWeapon.name, 
-			myNodeName2,
-			thisWeapon.aim.nHit,
-			ballisticMass_lb));
-		}
+		# if (ats.type == "staticObject")
+		# {
+		# 	debprint (sprintf("%s weapon %s aimed at %s with nHit = %.4f ballisticMass_lb = %.1f", 
+		# 	myNodeName1, 
+		# 	thisWeapon.name, 
+		# 	myNodeName2,
+		# 	thisWeapon.aim.nHit,
+		# 	ballisticMass_lb));
+		# }
 
 		# fire weapon
 		# expectation value of damage is no hits * ballistic mass per round
@@ -13173,9 +13260,9 @@ var updateWptHeading_loop = func(id, myNodeName) {
 	if (id != ats.loopids.updateWptHeading_loopid) 
 		debprint (sprintf("myNodeName = %s, id = %d, ats = %d", myNodeName, id, ats.loopids.updateWptHeading_loopid));
 	id == ats.loopids.updateWptHeading_loopid or return;
-	ats.damage >= 1 and return; # destroyed aircraft do not navigate
-	# skill ranges 0-6
+	if (ats.damage >= 1 or ats.controls.dodgeInProgress or ats.controls.avoidCliffInProgress) return;
 
+	# skill ranges 0-6
 	var skill = calcPilotSkill (myNodeName);
 	var name = ats.flightpath.name;
 	if (rand() < skill / 6 * (1.0 - ats.damage)) {
@@ -13308,8 +13395,8 @@ var updateWptHeading_loop = func(id, myNodeName) {
 			{
 				# Set target altitude to the altitude of the next waypoint
 				setprop(myNodeName ~ "/controls/flight/target-alt", targetAlt);
-				debprint(sprintf("Updated target altitude for %s to WPT%d from %.1f deg to %.1f", 
-							myNodeName, ats.flightpath.wpt_index, oldTgtAlt, targetAlt));
+				# debprint(sprintf("Updated target altitude for %s to WPT%d from %.1f deg to %.1f", 
+				# 			myNodeName, ats.flightpath.wpt_index, oldTgtAlt, targetAlt));
 			}
 		}
 

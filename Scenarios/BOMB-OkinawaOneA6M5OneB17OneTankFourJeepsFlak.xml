@@ -40,9 +40,9 @@
       <longitude type="double">127.648</longitude>
       <altitude>16</altitude>
       <speed>6.0</speed>
-      <roll-order>5.0</roll-order>
-      <turn-radius-ft>0</turn-radius-ft>
-      <fixed-turn-radius-ft>0.0</fixed-turn-radius-ft>
+      <roll-order>20.0</roll-order>
+      <turn-radius-ft type="double">0.0</turn-radius-ft>
+      <fixed-turn-radius-ft type="double">0.0</fixed-turn-radius-ft>
       <!-- <rudder type="double">25</rudder> -->
       <heading type="double">0</heading>
     </entry>    
@@ -56,9 +56,9 @@
       <longitude type="double">127.649</longitude>
       <altitude>16</altitude>
       <speed>6.0</speed>
-      <roll-order>5.0</roll-order>
-      <turn-radius-ft>0</turn-radius-ft>
-      <fixed-turn-radius-ft>0.0</fixed-turn-radius-ft>
+      <roll-order>20.0</roll-order>
+      <turn-radius-ft type="double">0.0</turn-radius-ft>
+      <fixed-turn-radius-ft type="double">0.0</fixed-turn-radius-ft>
       <!-- <rudder type="double">25</rudder> -->
       <heading type="double">0</heading>
     </entry>    
@@ -73,9 +73,9 @@
       <altitude>16</altitude>
       <speed>6.0</speed>
       <!-- caps the max turn rate in degrees per second -->
-      <roll-order>5.0</roll-order> 
-      <turn-radius-ft>0</turn-radius-ft>
-      <fixed-turn-radius-ft>0.0</fixed-turn-radius-ft>
+      <roll-order>20.0</roll-order> 
+      <turn-radius-ft type="double">0.0</turn-radius-ft>
+      <fixed-turn-radius-ft type="double">0.0</fixed-turn-radius-ft>
       <!-- <rudder type="double">25</rudder> -->
       <heading type="double">0</heading>
     </entry>    
@@ -89,9 +89,9 @@
       <longitude type="double">127.649</longitude>
       <altitude>16</altitude>
       <speed>6.0</speed>
-      <roll-order>5.0</roll-order>
-      <turn-radius-ft>0</turn-radius-ft>
-      <fixed-turn-radius-ft>0.0</fixed-turn-radius-ft>
+      <roll-order>20.0</roll-order>
+      <turn-radius-ft type="double">0.0</turn-radius-ft>
+      <fixed-turn-radius-ft type="double">0.0</fixed-turn-radius-ft>
       <!-- <rudder type="double">25</rudder> -->
       <heading type="double">0</heading>
     </entry>    
