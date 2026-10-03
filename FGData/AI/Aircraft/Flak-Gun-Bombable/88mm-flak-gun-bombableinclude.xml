@@ -148,7 +148,7 @@
                 weaponOffset_m : {x:0.667, y:0, z:1.8471}, # Offset of the weapon from the main aircraft center
                 weaponSize_m : {start: .95, end: .95 }, # Visual size of the weapon's projectile, in meters, at start & end of its path
                 nRounds : 120,
-                roundsPerSec : 0.1666, #1 shell every 6sec
+                roundsPerSec : 1.666, #1 shell every 6sec
                 accuracy : 0.2,	# 
               
               },  

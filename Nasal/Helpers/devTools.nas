@@ -9,11 +9,23 @@ debug.dump(teams);
 
 debug.dump(bombable.targetData);
 
-var myNodeName1 = "/ai/models/aircraft[1]";
+var myNodeName1 = "/ai/models/ship[1]";
 var ats = bombable.attributes[myNodeName1];
+print(ats.loopids.ground_loopid);
+ats.loopids.ground_loopid=14;
+print(ats.loopids.updateWptHeading_loopid);
+ats.loopids.updateWptHeading_loopid=14;
+
+var myNodeName1 = "/ai/models/ship[1]";
+var ats = bombable.attributes[myNodeName1];
+var key = "controls";
+foreach (var elem; keys(ats)) print (elem,": ",ats[elem]);
+foreach (var elem; keys(ats[key])) print (elem,": ",ats[key][elem]);
+
 debug.dump(ats.weapons);
 debug.dump(ats.evasions);
 debug.dump(ats.attacks);
+debug.dump(ats.controls);
 
 debug.dump(ats.index);
 debug.dump(ats.shooterIndex);
@@ -423,6 +435,27 @@ foreach (var myNodeName; bombable.nodeNames) {
     }
 }
 print("--------------------------------------------------");
+
+##################### test rate of turn vs rudder angle ##########################
+var myNodeName = "/ai/models/ship[1]";
+var ats=bombable.attributes[myNodeName];
+var dodgeAmount_deg = 40.0;
+var dodgeDelay = 7.0;
+var newSpd =  16.5;
+var hdg = getprop(""~myNodeName~"/orientation/true-heading-deg");
+setprop(""~myNodeName~"/controls/tgt-speed-kts", newSpd);
+setprop(""~myNodeName~"/velocities/speed-kts", newSpd);
+setprop(""~myNodeName~"/surface-positions/rudder-pos-deg", dodgeAmount_deg);
+settimer(func{
+    setprop(""~myNodeName~"/surface-positions/rudder-pos-deg", 0);
+    var deltaHdg = getprop(""~myNodeName~"/orientation/true-heading-deg") - hdg;
+    var turnRate = deltaHdg / dodgeDelay;
+    print(sprintf("change in heading= %d rudder= %.2f speed= %d turn rate= %.2f", 
+        getprop(""~myNodeName~"/orientation/true-heading-deg") - hdg, 
+        dodgeAmount_deg, 
+        newSpd,
+        turnRate)); 
+    }, dodgeDelay);
 
 
 
@@ -922,3 +955,169 @@ print("  OLD Method Total Time: " ~ sprintf("%.4f", time_old) ~ " seconds");
 print("  NEW Method Total Time: " ~ sprintf("%.4f", time_new) ~ " seconds");
 print("  Performance Improvement: " ~ sprintf("%.2f", speedup) ~ "x faster");
 print("=======================================================\n");
+
+
+#################################### speed tests ############################################
+
+# ==============================================================================
+# FlightGear Nasal Speed Test: getprop() vs Node Handle Lookup
+# ==============================================================================
+
+var run_property_speed_test = func(iterations = 100000) {
+    print(sprintf("\n--- Starting Property Lookup Speed Test (%d iterations) ---", iterations));
+
+    var path = "ai/models/aircraft[0]/position/latitude-deg";
+    
+    # --------------------------------------------------------------------------
+    # Test 1: getprop() Lookup
+    # --------------------------------------------------------------------------
+    var start_time = systime();
+    for (var i = 0; i < iterations; i += 1) {
+        var val = getprop(path);
+    }
+    var elapsed_getprop = systime() - start_time;
+    print(sprintf("1. getprop(path) : %.4f seconds", elapsed_getprop));
+
+    # --------------------------------------------------------------------------
+    # Test 2: Node Handle Lookup (.getValue())
+    # --------------------------------------------------------------------------
+    var node = props.globals.getNode(path, 1);
+    
+    start_time = systime();
+    for (var i = 0; i < iterations; i += 1) {
+        var val = node.getValue();
+    }
+    var elapsed_node = systime() - start_time;
+    print(sprintf("2. node.getValue(): %.4f seconds", elapsed_node));
+
+    # --------------------------------------------------------------------------
+    # Summary
+    # --------------------------------------------------------------------------
+    if (elapsed_node > 0) {
+        var ratio = elapsed_getprop / elapsed_node;
+        print(sprintf("--> Cached node access is %.2fx faster than getprop().\n", ratio));
+    }
+};
+
+run_property_speed_test();
+
+# ==============================================================================
+# FlightGear Nasal Speed Test: setprop() vs Node Handle (.setValue())
+# Target: position/altitude-ft (Safe for stationary testing)
+# ==============================================================================
+
+var run_altitude_set_speed_test = func(iterations = 100000) {
+    print(sprintf("\n--- Starting Altitude Write Speed Test (%d iterations) ---", iterations));
+
+    var path = "ai/models/aircraft[0]/position/altitude-ft";
+    
+    # Read initial altitude once prior to starting the timer
+    var base_alt = getprop(path);
+    if (base_alt == nil) base_alt = 5000.0; # Fallback if node is uninitialized
+    
+    # --------------------------------------------------------------------------
+    # Test 1: setprop() Lookup and Write
+    # --------------------------------------------------------------------------
+    var start_time = systime();
+    for (var i = 0; i < iterations; i += 1) {
+        # Modulating by a fractional value forces C++ listeners to register changes
+        setprop(path, base_alt + (i * 0.0001));
+    }
+    var elapsed_setprop = systime() - start_time;
+    print(sprintf("1. setprop(path, val) : %.4f seconds", elapsed_setprop));
+
+    # --------------------------------------------------------------------------
+    # Test 2: Node Handle Write (.setValue())
+    # --------------------------------------------------------------------------
+    var node = props.globals.getNode(path, 1);
+    
+    start_time = systime();
+    for (var i = 0; i < iterations; i += 1) {
+        node.setValue(base_alt + (i * 0.0001));
+    }
+    var elapsed_node = systime() - start_time;
+    print(sprintf("2. node.setValue(val): %.4f seconds", elapsed_node));
+
+    # Reset altitude back to baseline after test completes
+    node.setValue(base_alt);
+
+    # --------------------------------------------------------------------------
+    # Summary
+    # --------------------------------------------------------------------------
+    if (elapsed_node > 0) {
+        var ratio = elapsed_setprop / elapsed_node;
+        print(sprintf("--> Cached node write is %.2fx faster than setprop().\n", ratio));
+    }
+};
+
+run_altitude_set_speed_test();
+
+
+# ==============================================================================
+# FlightGear Nasal Speed Test: Property Node vs. Nasal Hash
+# Target: position/altitude-ft (Safe parameter)
+# ==============================================================================
+
+var run_storage_speed_test = func(iterations = 1000000) {
+    print(sprintf("\n--- Starting Storage Benchmark (%d iterations) ---", iterations));
+
+    var prop_path = "ai/models/aircraft[0]/position/altitude-ft";
+    var node = props.globals.getNode(prop_path, 1);
+    
+    # Establish baseline values
+    var base_val = node.getValue();
+    if (base_val == nil) base_val = 5000.0;
+
+    var bombable_hash = {
+        altitude: base_val,
+        health: 100,
+        mode: "patrol"
+    };
+
+    # --------------------------------------------------------------------------
+    # 1. READ TEST: Property Tree vs. Nasal Hash
+    # --------------------------------------------------------------------------
+    var start_time = systime();
+    for (var i = 0; i < iterations; i += 1) {
+        var val = node.getValue();
+    }
+    var elapsed_prop_read = systime() - start_time;
+
+    start_time = systime();
+    for (var i = 0; i < iterations; i += 1) {
+        var val = bombable_hash.altitude;
+    }
+    var elapsed_hash_read = systime() - start_time;
+
+    print(sprintf("READ  - Property Node : %.4f seconds", elapsed_prop_read));
+    print(sprintf("READ  - Nasal Hash    : %.4f seconds", elapsed_hash_read));
+    if (elapsed_hash_read > 0) {
+        print(sprintf("--> Nasal Hash READ is %.2fx faster\n", elapsed_prop_read / elapsed_hash_read));
+    }
+
+    # --------------------------------------------------------------------------
+    # 2. WRITE TEST: Property Tree vs. Nasal Hash
+    # --------------------------------------------------------------------------
+    start_time = systime();
+    for (var i = 0; i < iterations; i += 1) {
+        node.setValue(base_val + (i * 0.0001));
+    }
+    var elapsed_prop_write = systime() - start_time;
+
+    start_time = systime();
+    for (var i = 0; i < iterations; i += 1) {
+        bombable_hash.altitude = base_val + (i * 0.0001);
+    }
+    var elapsed_hash_write = systime() - start_time;
+
+    # Reset property node back to baseline
+    node.setValue(base_val);
+
+    print(sprintf("WRITE - Property Node : %.4f seconds", elapsed_prop_write));
+    print(sprintf("WRITE - Nasal Hash    : %.4f seconds", elapsed_hash_write));
+    if (elapsed_hash_write > 0) {
+        print(sprintf("--> Nasal Hash WRITE is %.2fx faster\n", elapsed_prop_write / elapsed_hash_write));
+    }
+};
+
+run_storage_speed_test();

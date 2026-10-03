@@ -1569,6 +1569,8 @@ var resetBombableDamageFuelWeapons = func (myNodeName) {
 		ctrls.stalling = 0;
 		ctrls.avoidCliffInProgress = 0;
 		ctrls.groundLoopCounter = 0;
+		ctrls.target_hdg = 0;
+
 		if (ctrls.kamikase != 0) ctrls.kamikase = 1;
 				
 		# reset the pilot's abilities, giving them
@@ -3096,7 +3098,7 @@ var ground_loop = func( id, myNodeName ) {
 		#bring all to a complete stop
 		setprop(""~myNodeName~"/controls/tgt-speed-kt", 0);
 		setprop(""~myNodeName~"/controls/flight/target-spd", 0);
-		setprop(""~myNodeName~"/velocities/true-airspeed-kt", speed_kt * 0.3); # slow down quickly
+		setprop(""~myNodeName~"/velocities/true-airspeed-kt", speed_kt * 0.6); # slow down quickly
 		setprop(""~myNodeName~"/velocities/vertical-speed-fps", 0);
 				
 		#we don't even really need the timer any more, since this object
@@ -3155,8 +3157,13 @@ var ground_loop = func( id, myNodeName ) {
 	{
 		var gradient = (toFrontAlt_ft - alt_ft ) / frontBack_ft;
 		# here can change speed according to gradient ahead
-		# /velocities/true-airspeed-kt for a ship or vehicle is its horizontal speed
 		# horizontal speed maintained up to the gradient at which the max climb rate is exceeded 
+
+		# /velocities/true-airspeed-kt and /velocities/speed-kts are tied nodes
+		# for a ship or vehicle they are the horizontal speed
+		# we change horizontal speed by a factor determined by gradient
+		# we do not change tgt-speed-kts and so the C++ AI control continually acts against the change
+		
 		var slope_rad = math.atan(gradient);
 
 		# set vert-speed not pitch for ground craft
@@ -3184,7 +3191,7 @@ var ground_loop = func( id, myNodeName ) {
 		if (!ctrls.dodgeInProgress)
 		{
 			# avoid steep terrain
-			var targetHeading = getprop (""~myNodeName~"/controls/tgt-heading-degs"); # FG C++ does not use this node; it is internal to Bombable 
+			var targetHeading = ctrls.target_hdg;
 
 			if (math.abs(gradientAhead) > 0.9) # turn if at top or bottom of cliff
 			{
@@ -3194,12 +3201,12 @@ var ground_loop = func( id, myNodeName ) {
 					var newTargetHeading = (math.abs(toLeftAlt_ft - alt_ft) > math.abs(toRightAlt_ft - alt_ft) ) ? 90 : -90; # turn toward level ground
 					newTargetHeading = math.fmod ( newTargetHeading + 3600, 360);
 					if (newTargetHeading > 180) newTargetHeading -= 360;
-					setprop (""~myNodeName~"/controls/tgt-heading-degs", newTargetHeading);
+					ctrls.target_hdg = newTargetHeading;
 					settimer
 					(
 						func
 						{
-						setprop (""~myNodeName~"/controls/tgt-heading-degs", targetHeading);
+						ctrls.target_hdg = targetHeading;
 						ctrls.avoidCliffInProgress = 0;
 						},
 						2 + rand() * 5
@@ -3216,30 +3223,41 @@ var ground_loop = func( id, myNodeName ) {
 				}
 			}
 			
+			# steer to heading
+			# could be merged with the steering algorithm in rudder_roll_climb called by dodge
+			# the following is for many speeds whereas dodge is at 13 or 17 knots to give high rate of turn 
 			var sign = 1;
 			var rudder = 0;
-			#AI ship model unstable for rudder control in this speed window
-			if (speed_kt < 14.0 or speed_kt > 16.0) 
+			var delta_heading_deg = math.fmod ( targetHeading - heading + 3600, 360);
+			if (delta_heading_deg > 180) delta_heading_deg -= 360;
+			if (delta_heading_deg < 0)
 			{
-				# steer toward target heading
-				var delta_heading_deg = math.fmod ( targetHeading - heading + 3600, 360);
-				if (delta_heading_deg > 180) delta_heading_deg -= 360;
-				if (delta_heading_deg < 0)
-				{
-					delta_heading_deg = - delta_heading_deg;
-					sign = -1;
-				}
-				if (delta_heading_deg > 81)
-					rudder = 30;
-				elsif (delta_heading_deg > 27)
-					rudder = 15;
-				elsif (delta_heading_deg > 9)
-					rudder = 10;
-				elsif (delta_heading_deg > 3)
-					rudder = 7;
-				elsif (delta_heading_deg > 1)
-					rudder = 4;
+				delta_heading_deg = - delta_heading_deg;
+				sign = -1;
 			}
+
+			# /surface-positions/rudder-pos-deg is the only dynamic input for FG C++ AI navigation 
+			# dynamic waypoints are not available. However, waypoints can be loaded at scenario initialization 
+			# from a flight path in the scenario xml config file
+
+			if (delta_heading_deg > 81)
+				rudder = 30;
+			elsif (delta_heading_deg > 27)
+				rudder = 15;
+			elsif (delta_heading_deg > 9)
+				rudder = 10;
+			elsif (delta_heading_deg > 3)
+				rudder = 7;
+			elsif (delta_heading_deg > 1)
+				rudder = 4;
+
+			if (delta_heading_deg > 1 and speed_kt > 14.0 and speed_kt < 16.0) 
+			{
+				setprop (""~myNodeName~"/velocities/true-airspeed-kt", 
+				(speed_kt > 15.0 ? 16.0 : 14.0) ); 
+				# AI ship model unstable for rudder control in this speed window
+			}
+
 			setprop (""~myNodeName~"/surface-positions/rudder-pos-deg", rudder * sign);
 		}
 		
@@ -7634,7 +7652,7 @@ var moveRocket = func (thisWeapon, index, timeInc) {
 	#check allows the index to be incremented for early termination
 	index == thisWeapon.controls.index or return;
 
-	#get flighpath waypoint
+	#get flightpath waypoint
 	var fpath = thisWeapon.controls.flightPath;
 
 	var rp = "ai/models/static[" ~ thisWeapon.modelIndex ~ "]";
@@ -9728,7 +9746,7 @@ var add_damage = func
 	# we put it here outside the "if" statement so that burning
 	# objects continue to slow/stop even if their damage is already at 1
 	# this happens when file/reset is chosen in FG					
-	# rjw: tgt-speed-kts is used for ships and flight_tgt_spd for aircraft and groundvehicles
+	# tgt-speed-kts is used for ships and and vehicles; flight_tgt_spd for aircraft 
 
 	# max speed reduction due to damage, in %
 	var minSpeedReduceFactor = 1 - spds.maxSpeedReduce_percent / 100; 
@@ -10056,6 +10074,7 @@ var initialize_func = func ( b ){
 	# add controls key, used to control animation of damaged ships and aircraft
 	b.controls = 
 	{ 
+		target_hdg: 0,
 		groundLoopCounter : 0, 
 		onGround : 0, 
 		damageAltAddCurrent_ft : 0, 
@@ -13120,15 +13139,15 @@ var startScenario = func(startTime)
 					var segmentLength = group.flightpath["segmentLength"];
 					if (segmentLength == nil) segmentLength = 3.0; # nm between waypoints
 					init_ai_flightpath(ats, group, segmentLength, name);
-					# Navigating active waypoint via ats.flightpath:
-					if (contains(ats, "flightpath")) {
-						var idx = ats.flightpath.wpt_index;
-						var current_wpt = ats.flightpath.waypoints[idx - 1];
+					# Navigating active waypoint via ats.controls.flightpath:
+					if (contains(ats.controls, "flightpath")) {
+						var idx = ats.controls.flightpath.wpt_index;
+						var current_wpt = ats.controls.flightpath.waypoints[idx - 1];
 
 						var nav = courseToWaypoint(myNodeName, current_wpt);
 						
-						# debprint(sprintf("AI Model: %s -> Nav to WPT%d: Heading %05.1f deg, Dist %.2f NM", 
-						# 			myNodeName, idx, nav.heading, nav.distance[0] / 1852.0));
+						debprint(sprintf("AI Model: %s -> Nav to WPT%d: Heading %05.1f deg, Dist %.2f NM", 
+									myNodeName, idx, nav.heading, nav.distance[0] / 1852.0));
 						debprint ("Initialised flightpath for " ~ myNodeName ~ " on mission " ~ name);
 						if (bombable_epoch == 0) {
 							var loopid = inc_loopid(myNodeName, "updateWptHeading");
@@ -13165,7 +13184,7 @@ var startScenario = func(startTime)
 				}
 				elsif (type == "ship" or type == "vehicle")
 				{
-					setprop(""~myNodeName~"/controls/tgt-heading-degs", group.heading);
+					ats.controls.target_hdg = group.heading;
 					setprop(""~myNodeName~"/velocities/speed-kts", group.airSpeed);
 					setprop(""~myNodeName~"/controls/tgt-speed-kts", group.airSpeed);
 					setprop (""~myNodeName~"/surface-positions/rudder-pos-deg", 0);	
@@ -13260,12 +13279,12 @@ var updateWptHeading_loop = func(id, myNodeName) {
 	if (id != ats.loopids.updateWptHeading_loopid) 
 		debprint (sprintf("myNodeName = %s, id = %d, ats = %d", myNodeName, id, ats.loopids.updateWptHeading_loopid));
 	id == ats.loopids.updateWptHeading_loopid or return;
-	if (ats.damage >= 1 or ats.controls.dodgeInProgress or ats.controls.avoidCliffInProgress) return;
+	if (ats.damage >= 1) return;
 
 	# skill ranges 0-6
 	var skill = calcPilotSkill (myNodeName);
-	var name = ats.flightpath.name;
-	if (rand() < skill / 6 * (1.0 - ats.damage)) {
+	if (rand() < skill / 6 * (1.0 - ats.damage) and !(ats.controls.dodgeInProgress or ats.controls.avoidCliffInProgress)) {
+		var name = ats.controls.flightpath.name;
 		if (name == "sas_raid") {
 			var thresholdWpt = 150; # closest approach to waypoint before moving to the next
 		}
@@ -13273,14 +13292,17 @@ var updateWptHeading_loop = func(id, myNodeName) {
 			var thresholdWpt = 500; 
 		}
 
-        var currentWptIndex = ats.flightpath.wpt_index;
-        var numWaypoints = size(ats.flightpath.waypoints);
+        var currentWptIndex = ats.controls.flightpath.wpt_index;
+        var numWaypoints = size(ats.controls.flightpath.waypoints);
 
         # Fetch current course and 2D/3D distance to active waypoint
         # Returns hash: { distance: [dist_xy, -dz], heading: hdg }
-        var distHdg = courseToWaypoint(myNodeName, ats.flightpath.waypoints[currentWptIndex - 1]);
+        var distHdg = courseToWaypoint(myNodeName, ats.controls.flightpath.waypoints[currentWptIndex - 1]);
         
-        if (distHdg == nil) return;
+        if (distHdg == nil) {
+			debprint(sprintf("updateWptHeading_loop: Error calculating course to waypoint %d for %s, ending navigation", currentWptIndex, myNodeName));
+			return;
+		}
 
         var dist_m = distHdg.distance[0]; # Horizontal distance in meters
         var targetHdg = distHdg.heading;  # Calculated bearing to waypoint
@@ -13342,10 +13364,10 @@ var updateWptHeading_loop = func(id, myNodeName) {
             # Advance index if more waypoints remain in flightpath
             if (currentWptIndex < numWaypoints) {
                 currentWptIndex += 1;
-                ats.flightpath.wpt_index = currentWptIndex;
+                ats.controls.flightpath.wpt_index = currentWptIndex;
                 
                 # Recalculate heading immediately for the new active waypoint
-                distHdg = courseToWaypoint(myNodeName, ats.flightpath.waypoints[currentWptIndex - 1]); 
+                distHdg = courseToWaypoint(myNodeName, ats.controls.flightpath.waypoints[currentWptIndex - 1]); 
                 if (distHdg != nil) targetHdg = distHdg.heading;
             }
         }
@@ -13353,7 +13375,7 @@ var updateWptHeading_loop = func(id, myNodeName) {
 		if (name == "sas_raid")
 		{
 			# 4. Update Target Heading in Property Tree
-			var oldHdg = getprop(myNodeName ~ "/controls/tgt-heading-degs");
+			var oldHdg = ats.controls.target_hdg;
 
 			# Calculate shortest heading change arc
 			var diff = math.abs(oldHdg - targetHdg);
@@ -13361,9 +13383,9 @@ var updateWptHeading_loop = func(id, myNodeName) {
 
 			if (diff > 1.0)  # Only update if significant change
 			{
-				setprop(myNodeName ~ "/controls/tgt-heading-degs", targetHdg);
-				debprint(sprintf("Updated target heading for %s to WPT%d from %.1f deg to %.1f deg (delta %.1f deg)", 
-							myNodeName, ats.flightpath.wpt_index, oldHdg, targetHdg, diff));
+				ats.controls.target_hdg = targetHdg;
+				# debprint(sprintf("Updated target heading for %s to WPT%d from %.1f deg to %.1f deg (delta %.1f deg)", 
+				# 			myNodeName, ats.controls.flightpath.wpt_index, oldHdg, targetHdg, diff));
 			}
 			# We wait until the ground_loop responds to the delta.  Note could set rudder position here
 		}
@@ -13381,8 +13403,8 @@ var updateWptHeading_loop = func(id, myNodeName) {
 			{
 				setprop(myNodeName ~ "/controls/flight/target-hdg", targetHdg);
 				setprop(myNodeName ~ "/controls/flight/lateral-mode", "hdg");
-				debprint(sprintf("Updated target heading for %s to WPT%d from %.1f deg to %.1f deg (delta %.1f deg)", 
-							myNodeName, ats.flightpath.wpt_index, oldHdg, targetHdg, diff));
+				# debprint(sprintf("Updated target heading for %s to WPT%d from %.1f deg to %.1f deg (delta %.1f deg)", 
+				# 			myNodeName, ats.controls.flightpath.wpt_index, oldHdg, targetHdg, diff));
 			}
 			else
 			{
@@ -13390,19 +13412,19 @@ var updateWptHeading_loop = func(id, myNodeName) {
 			}
 			# Update Target Alt in Property Tree
 			var oldTgtAlt = getprop(myNodeName ~ "/controls/flight/target-alt"); 
-			var targetAlt = ats.flightpath.waypoints[currentWptIndex - 1][2];
+			var targetAlt = ats.controls.flightpath.waypoints[currentWptIndex - 1][2];
 			if (math.abs(oldTgtAlt - targetAlt) > 300) # Only update if significant change
 			{
 				# Set target altitude to the altitude of the next waypoint
 				setprop(myNodeName ~ "/controls/flight/target-alt", targetAlt);
-				# debprint(sprintf("Updated target altitude for %s to WPT%d from %.1f deg to %.1f", 
-				# 			myNodeName, ats.flightpath.wpt_index, oldTgtAlt, targetAlt));
+				debprint(sprintf("Updated target altitude for %s to WPT%d from %.1f deg to %.1f", 
+							myNodeName, ats.controls.flightpath.wpt_index, oldTgtAlt, targetAlt));
 			}
 		}
 
 	}
 	# Re-schedule loop timer (2 to 3 seconds)
-    settimer(func { updateWptHeading_loop(id, myNodeName, name); }, 2.0 + rand());
+    settimer(func { updateWptHeading_loop(id, myNodeName); }, 2.0 + rand());
 
 }
 
@@ -13810,8 +13832,8 @@ var target_runway = func(best_rwy, dist, approach_height_ft = nil, abort_delta_f
 
 ##################### init_ai_flightpath ##########################
 # Resolves target runway geometry from group context and attaches a 3D flightpath to the AI attributes hash.
-# Creates sub-hash ats.flightpath with keys: wpt_index (initial 1), waypoints vector, airport code, and runway_id.
-# Expects group reference with keys 'airportName' and 'heading'. Returns reference to ats.flightpath.
+# Creates sub-hash ats.controls.flightpath with keys: wpt_index (initial 1), waypoints vector, airport code, and runway_id.
+# Expects group reference with keys 'airportName' and 'heading'. Returns reference to ats.controls.flightpath.
 
 var init_ai_flightpath = func (ats, group, segment_nm = 5.0, name = "target_runway") {
     # 1. Validation checks
@@ -13847,18 +13869,18 @@ var init_ai_flightpath = func (ats, group, segment_nm = 5.0, name = "target_runw
 		return nil;
 	}
 
-    # 4. Attach flightpath sub-hash directly to ats
-    ats.flightpath = {
+    # 4. Attach flightpath sub-hash directly to ats.controls
+    ats.controls.flightpath = {
         wpt_index : 1,          # Initialized to 1 (1-based index)
         waypoints : waypoints,
-		name: name
+		name: name,
     };
 
-    debprint(sprintf("Initialized ats.flightpath for AI target (%s RWY %s) - wpt_index = 1", 
+    debprint(sprintf("Initialized ats.controls.flightpath for AI target (%s RWY %s) - wpt_index = 1", 
                   icao, best_rwy.id));
 
     # Return reference to the flightpath sub-hash
-    return ats.flightpath;
+    return ats.controls.flightpath;
 }
 
 ########################## drop_ai_bomb_via_teleport ###########################
