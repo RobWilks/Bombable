@@ -185,7 +185,7 @@
         <!-- Four Jeeps -->
         <team>E</team>
         <target>Y</target>
-        <arrivalTime>240</arrivalTime>
+        <arrivalTime>300</arrivalTime>
         <airSpeed>40</airSpeed>
         <airportName>ROAH</airportName>
         <heading>315</heading>
@@ -215,7 +215,8 @@
         <flightpath>
             <name type="string">sas_raid</name>
             <segmentLength type="double">3.0</segmentLength>
-        </flightpath>        
+        </flightpath>
+        <swarm>true</swarm>        
     </group>
     <!-- Flak -->
     <group>
