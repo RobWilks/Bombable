@@ -3098,7 +3098,7 @@ var ground_loop = func( id, myNodeName ) {
 		#bring all to a complete stop
 		setprop(""~myNodeName~"/controls/tgt-speed-kt", 0);
 		setprop(""~myNodeName~"/controls/flight/target-spd", 0);
-		setprop(""~myNodeName~"/velocities/true-airspeed-kt", speed_kt * 0.6); # slow down quickly
+		setprop(""~myNodeName~"/velocities/true-airspeed-kt", speed_kt * 0.1); # slow down quickly
 		setprop(""~myNodeName~"/velocities/vertical-speed-fps", 0);
 				
 		#we don't even really need the timer any more, since this object
@@ -3223,14 +3223,29 @@ var ground_loop = func( id, myNodeName ) {
 				}
 			}
 			
-			# steer to heading
-			# could be merged with the steering algorithm in rudder_roll_climb called by dodge
-			# the following is for many speeds whereas dodge is at 13 or 17 knots to give high rate of turn 
-			var swarm_delta = (ctrls.swarm == 1) ? ctrls.flightpath.dPhi : 0.0;
-			targetHeading += swarm_delta;
+			# Calculate delta_heading_deg given navigation and swarm directions
+			# Could be merged with the steering algorithm in rudder_roll_climb called by dodge
+			# The following is for many speeds whereas dodge is at 13 or 17 knots to give high rate of turn 
+			
+			# Get weights for navigating and swarming from the property tree.  Initialised when update_swarm_loop is first called
+			var base_node = props.globals.getNode("/bombable/swarm", 1);
+			p_w1 = base_node.getNode("w1", 1);
+			p_w2 = base_node.getNode("w2", 1);
+			var w1 = p_w1.getValue();
+			var w2 = p_w2.getValue();
+
+
+			var hx = math.sin(heading * D2R) + w1 * math.sin(targetHeading * D2R);
+			var hy = math.cos(heading * D2R) + w1 * math.cos(targetHeading * D2R);
+			if (ctrls.swarm == 1) {
+				hx += w2 * ctrls.swarm_dirn.swarm_x;
+				hy += w2 * ctrls.swarm_dirn.swarm_y;
+			}
+			var turnHeading = math.atan2(hx, hy) * R2D;
+
 			var sign = 1;
 			var rudder = 0;
-			var delta_heading_deg = math.fmod ( targetHeading - heading + 3600, 360);
+			var delta_heading_deg = math.fmod ( turnHeading - heading + 3600, 360);
 			if (delta_heading_deg > 180) delta_heading_deg -= 360;
 			if (delta_heading_deg < 0)
 			{
@@ -3253,7 +3268,7 @@ var ground_loop = func( id, myNodeName ) {
 			elsif (delta_heading_deg > 1)
 				rudder = 4;
 
-			if (delta_heading_deg > 1 and speed_kt > 14.0 and speed_kt < 16.0) 
+			if (rudder != 0 and speed_kt > 14.0 and speed_kt < 16.0) 
 			{
 				setprop (""~myNodeName~"/velocities/true-airspeed-kt", 
 				(speed_kt > 15.0 ? 16.0 : 14.0) ); 
@@ -6949,7 +6964,7 @@ var guideRocket = func
 			var targetSpeed = rocketAts.velocities.speed;
 			var v = rocketAts.velocities.missileV_mps;
 			var targetPitch = math.asin(v[2]/targetSpeed);
-			var targetHeading = math.atan2(v[1], v[0]);
+			var targetHeading = math.atan2(v[1], v[0]); # TO DO check order of velocity components
 		}
 	}
 
@@ -12902,7 +12917,7 @@ var resetTargetShooter = func (myIndex) {
 # in our context a swarm is a team with xml tag swarm set to true
 # list of nodes is in teams[teamName].indices.  teams is a bombable global hash.  it has a key 'count'
 # nodeNames[] is a bombable global vector of paths. It converts teams index to path for node lookup
-# the swarm_loop updates all nodes we will store the delta headings under the bombable hash attributes[nodeName].controls.flightpath.delta_hdg
+# the swarm_loop updates all nodes.  We store the swarm unit direction vector in attributes[nodeName].controls.swarm_dirn
 
 # --- DEACTIVATED / DEBUG LAUNCH CONTROL ---
 # Set SWARM_ACTIVE = 0 to launch in monitored/inactive state.
@@ -12914,14 +12929,16 @@ var p_dist_separation = nil;
 var p_weight_separate = nil;
 var p_weight_cohesion = nil;
 var p_weight_attack   = nil;
-var p_swarm_speed     = nil;
+var p_w1		      = nil;
+var p_w2		      = nil;
 
 # Behavior Tuning Constants
-var DIST_SEPARATION  = 80.0;    # Minimum separation distance in meters
-var WEIGHT_SEPARATE  = 2.5;     # Force multiplier to avoid collisions
+var DIST_SEPARATION  = 40.0;    # Minimum separation distance in meters
+var WEIGHT_SEPARATE  = 1.0;     # Force multiplier to avoid collisions
 var WEIGHT_COHESION  = 1.0;     # Force multiplier to keep group centered
 var WEIGHT_ATTACK    = 4.0;     # High priority override when attacked
-var SWARM_SPEED_KTS  = 140.0;   # Base cruise speed
+var W1               = 0.5;     # Weight of navigation signal
+var W2               = 0.2;     # Weight of swarm signal 
 
 # Global/Static flag to initialize property nodes on first execution pass
 var params_initialized = 0;
@@ -12934,14 +12951,16 @@ var init_swarm_params = func {
     p_weight_separate = base_node.getNode("weight-separate", 1);
     p_weight_cohesion = base_node.getNode("weight-cohesion", 1);
     p_weight_attack   = base_node.getNode("weight-attack", 1);
-    p_swarm_speed     = base_node.getNode("speed-kts", 1);
+    p_w1              = base_node.getNode("w1", 1);
+    p_w2              = base_node.getNode("w2", 1);
 
     # Set default values if not already present in the property tree
     if (p_dist_separation.getValue() == nil) p_dist_separation.setDoubleValue(DIST_SEPARATION);
     if (p_weight_separate.getValue() == nil) p_weight_separate.setDoubleValue(WEIGHT_SEPARATE);
     if (p_weight_cohesion.getValue() == nil) p_weight_cohesion.setDoubleValue(WEIGHT_COHESION);
     if (p_weight_attack.getValue()   == nil) p_weight_attack.setDoubleValue(WEIGHT_ATTACK);
-    if (p_swarm_speed.getValue()     == nil) p_swarm_speed.setDoubleValue(SWARM_SPEED_KTS);
+    if (p_w1.getValue()              == nil) p_w1.setDoubleValue(W1);
+    if (p_w2.getValue()              == nil) p_w2.setDoubleValue(W2);
     
     params_initialized = 1;
 };
@@ -12955,7 +12974,6 @@ var update_tuning_params = func {
     WEIGHT_SEPARATE = p_weight_separate.getValue();
     WEIGHT_COHESION = p_weight_cohesion.getValue();
     WEIGHT_ATTACK   = p_weight_attack.getValue();
-    SWARM_SPEED_KTS = p_swarm_speed.getValue(); # not used, can remove
 };
 
 ########################## update_swarm_loop ###########################
@@ -12970,10 +12988,7 @@ var update_swarm_loop = func(epoch, teamName = "E", updateTime_s = 0.333) {
 
     update_tuning_params();
 
-    if (!contains(teams, teamName) or teams[teamName] == nil) return;
     var team = teams[teamName];
-    if (team.indices == nil or size(team.indices) == 0) return;
-
     var active_nodes = [];
     var center_x = 0.0;
     var center_y = 0.0;
@@ -12984,28 +12999,20 @@ var update_swarm_loop = func(epoch, teamName = "E", updateTime_s = 0.333) {
         var myNodeName = nodeNames[idx];
         if (myNodeName == nil or myNodeName == "") continue;
 
-        # Ensure node is alive via Bombable attributes damage metric (0.0 = sound, >= 1.0 = destroyed)
-        var node_damage = 0.0;
-        if (contains(attributes, myNodeName) and contains(attributes[myNodeName], "damage")) {
-            node_damage = attributes[myNodeName].damage;
-        }
-        if (node_damage != nil and node_damage >= 1.0) continue;
+        # Leave swarm when damaged
+		if (attributes[myNodeName].damage > 0.8) continue;
 
         # Fetch Property Node pointer ONCE for this execution frame
         var n = props.globals.getNode(myNodeName);
-        if (n == nil) continue;
 
         var lat_node = n.getNode("position/latitude-deg");
         var lon_node = n.getNode("position/longitude-deg");
         var hdg_node = n.getNode("orientation/true-heading-deg");
-		var spd_node = n.getNode("velocities/true-airspeed-kt");
 
-        if (lat_node == nil or lon_node == nil) continue;
 
         # Convert spatial coordinates to X/Y meters immediately using global m_per_deg conversion factors
         var x_val = lon_node.getValue() * m_per_deg_lon;
         var y_val = lat_node.getValue() * m_per_deg_lat;
-        var spd = spd_node.getValue() * KT2MPS;
         var hdg_val = (hdg_node != nil) ? hdg_node.getValue() : 0.0;
 
 
@@ -13016,7 +13023,7 @@ var update_swarm_loop = func(epoch, teamName = "E", updateTime_s = 0.333) {
             x: x_val,
             y: y_val,
             hdg: hdg_val,
-            hdg_node: hdg_node
+            hdg_node: hdg_node,
         });
 
         # Joint Reaction check: Has any node taken damage or locked an active attack?
@@ -13042,8 +13049,9 @@ var update_swarm_loop = func(epoch, teamName = "E", updateTime_s = 0.333) {
     var count = size(active_nodes);
     if (count <= 1) {
         # Not enough units to form a swarm; rerun loop
-        # ? might abort swarm
-        settimer(func { update_swarm_loop(epoch, teamName, updateTime_s); }, updateTime_s);
+        # Might abort swarm here.  However continuing allows their dynamic formation
+		debprint("Aborting swarm for team " ~ teamName);
+        # settimer(func { update_swarm_loop(epoch, teamName, updateTime_s); }, updateTime_s);
         return;
     }
 
@@ -13091,41 +13099,30 @@ var update_swarm_loop = func(epoch, teamName = "E", updateTime_s = 0.333) {
         #     node.getNode("bombable/mode", 1).setValue("attack");
         # }
 
-        # Step 4: Calculate final heading and apply to property tree
-        # this should be a heading offset to the course heading
-        # Inlined vector_to_heading logic to avoid function call overhead
-        var desired_heading = math.atan2(steer_x, steer_y) * (180.0 / math.pi);
-        if (desired_heading < 0) desired_heading += 360.0;
-        
-        var delta_hdg = desired_heading - obj.hdg;
-        if (delta_hdg > 180.0) delta_hdg -= 360.0;
-        if (delta_hdg < -180.0) delta_hdg += 360.0;
+        # Step 4: Calculate swarm unit direction vector [swarm_x, swarm_y]
 
 		# delta heading applied in ground_loop which a typical frequency of 3Hz.
 		# Swarm should be called at the same frequency
 
-		var max_acceleration = 9.81; #ms^-2
-		var dPhi = max_acceleration * updateTime_s / spd * math.sin(delta_hdg * D2R) * R2D;
-
+		var mag = math.sqrt(steer_x * steer_x + steer_y * steer_y);
 
         # Write delta_hdg directly to Bombable's attributes hash
-        if (contains(attributes, obj.myNodeName)) {
-            if (!contains(attributes[obj.myNodeName], "controls")) attributes[obj.myNodeName].controls = {};
-            if (!contains(attributes[obj.myNodeName].controls, "flightpath")) attributes[obj.myNodeName].controls.flightpath = {};
-            
-            attributes[obj.myNodeName].controls.flightpath.dPhi = dPhi;
-        }
+		attributes[obj.myNodeName].controls.swarm_dirn.swarm_x = steer_x / mag;
+		attributes[obj.myNodeName].controls.swarm_dirn.swarm_y = steer_y / mag;
 
         # Monitor Performance Output: Print node details when SWARM_ACTIVE is disabled (0)
         # Output rate restricted to 1 Hz (1s interval) using sim elapsed-sec time
-		var curr_time = getprop("/sim/time/elapsed-sec") or 0.0;
-		if (!contains(obj, "last_print_time")) obj.last_print_time = 0.0;
-		
-		if ((curr_time - obj.last_print_time) >= 2.0) {
-			print(sprintf("UpdateSwarm: NodeName: %s | Hdg: %05.1f deg | Delta Hdg: %+06.1f deg| dPhi: %+06.1f deg", 
-					obj.myNodeName, obj.hdg, delta_hdg, dPhi));
-			obj.last_print_time = curr_time;
+		var counter = team.swarm_counter;
+		counter += 1;
+		if (counter > 2.0 / updateTime_s) {
+			debprint(sprintf("UpdateSwarm: NodeName: %s | Obj Hdg: %05.1f deg | Swarm Hdg: %+06.1f deg", 
+					obj.myNodeName, 
+					obj.hdg, 
+					math.atan2(steer_x, steer_y) * R2D
+					));
+			counter = 0;
 		}
+		team.swarm_counter = counter;	
     }
 
     settimer(func { update_swarm_loop(epoch, teamName, updateTime_s); }, updateTime_s);
@@ -13290,7 +13287,7 @@ var startScenario = func(startTime)
 			swarm       : swarm_val,
 			target      : gNode.getNode("target", 1).getValue(),
 			arrivalTime : gNode.getNode("arrivalTime", 1).getValue(),
-			airSpeed    : gNode.getNode("airSpeed", 1).getValue() * KT2MPS,
+			airSpeed    : gNode.getNode("airSpeed", 1).getValue(), # knots
 			airportName : gNode.getNode("airportName", 1).getValue(),
 			heading     : gNode.getNode("heading", 1).getValue(),
 			alt         : gNode.getNode("alt", 1).getValue(), #ft
@@ -13372,21 +13369,31 @@ var startScenario = func(startTime)
 		if (group.swarm) 
 		{
 			var leaderIndex = teams[teamName].indices[0];
-			# swarm updates dPhi for all nodes.  We update swarm at a higher frequency than navigation update for each node
+			# Swarm updates dPhi  and dv for all nodes.  We update swarm at the frequency of the ground_loop which manages navigation for each node
 
 			var leaderPath = nodeNames[leaderIndex];
-			var delta_t = 1/6;
+			var delta_t = 0.333;
 			
 			if (contains(attributes[leaderPath], "updateTime_s")) 
 			{
 				var update_time = attributes[leaderPath].updateTime_s;
 				if (update_time != nil and update_time > 0) 
 				{
-					delta_t = update_time / 2;
+					delta_t = update_time;
 				}
 			}
 
-			foreach (var idx; teams[teamName].indices) attributes[nodeNames[idx]].controls.swarm = 1;
+			teams[teamName].swarm_counter = 0;
+
+			foreach (var idx; teams[teamName].indices) {
+				attributes[nodeNames[idx]].controls.swarm = 1;
+				attributes[nodeNames[idx]].controls.swarm_dirn = 
+				{
+					swarm_x: 0.0, # used to steer a flight formation or swarm
+					swarm_y: 0.0,
+				};
+			}
+			
 			update_swarm_func(bombable_epoch, teamName, delta_t);
 		}
 
@@ -13650,6 +13657,17 @@ var updateWptHeading_loop = func(id, myNodeName) {
                 # Recalculate heading immediately for the new active waypoint
                 distHdg = courseToWaypoint(myNodeName, ats.controls.flightpath.waypoints[currentWptIndex - 1]); 
                 if (distHdg != nil) targetHdg = distHdg.heading;
+
+				# if in swarm advance the index of the other members
+				if (ats.controls.swarm == 1) {
+					var team = teams[ats.team];
+				    foreach (var idx; team.indices) {
+        				if (idx == nil or idx >= size(nodeNames)) continue;
+        				var sNodeName = nodeNames[idx];
+        				if (sNodeName == nil or sNodeName == "") continue;
+						attributes[sNodeName].controls.flightpath.wpt_index = currentWptIndex;
+					} 
+				}
             }
         }
 
@@ -14155,7 +14173,6 @@ var init_ai_flightpath = func (ats, group, segment_nm = 5.0, name = "target_runw
         wpt_index : 1,          # Initialized to 1 (1-based index)
         waypoints : waypoints,
 		name: name,
-		dPhi: 0.0, # used to steer a flight formation or swarm
     };
 
     debprint(sprintf("Initialized ats.controls.flightpath for AI target (%s RWY %s) - wpt_index = 1", 
