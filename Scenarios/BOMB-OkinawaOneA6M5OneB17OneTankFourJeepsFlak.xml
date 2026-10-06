@@ -186,7 +186,7 @@
         <team>E</team>
         <target>Y</target>
         <arrivalTime>300</arrivalTime>
-        <airSpeed>25</airSpeed>
+        <airSpeed>30</airSpeed>
         <airportName>ROAH</airportName>
         <heading>315</heading>
         <alt>30</alt>

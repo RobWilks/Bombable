@@ -3231,17 +3231,74 @@ var ground_loop = func( id, myNodeName ) {
 			var base_node = props.globals.getNode("/bombable/swarm", 1);
 			p_w1 = base_node.getNode("w1", 1);
 			p_w2 = base_node.getNode("w2", 1);
-			var w1 = p_w1.getValue();
-			var w2 = p_w2.getValue();
+			var w1 = (p_w1 != nil) ? p_w1.getValue() : 0.035;
+			var w2 = (p_w2 != nil) ? p_w2.getValue() : 0.2;			
 
+			# 1. Physical Momentum State (World Frame)
+			var hdg_rad = heading * D2R;
+			var sin_hdg = math.sin(hdg_rad);
+			var cos_hdg = math.cos(hdg_rad);
 
-			var hx = math.sin(heading * D2R) + w1 * math.sin(targetHeading * D2R);
-			var hy = math.cos(heading * D2R) + w1 * math.cos(targetHeading * D2R);
-			if (ctrls.swarm == 1) {
-				hx += w2 * ctrls.swarm_dirn.swarm_x;
-				hy += w2 * ctrls.swarm_dirn.swarm_y;
+			var v_curr_x = speed_kt * sin_hdg;
+			var v_curr_y = speed_kt * cos_hdg;
+
+			# 2. Raw Force Demand Deltas (World Frame)
+
+			# Waypoint Navigation Target Vector Delta
+			# w1 is navigation gain; the fraction of maximum deflection turn rate per tick
+			var dv_nav_x = w1 * speed_kt * math.sin(targetHeading * D2R);
+			var dv_nav_y = w1 * speed_kt * math.cos(targetHeading * D2R);
+
+			var dv_raw_x = dv_nav_x;
+			var dv_raw_y = dv_nav_y;
+
+			if (ctrls.swarm == 1 and ctrls.swarm_velocity != nil) {
+				# Add Swarm Force Perturbations
+				dv_raw_x += w2 * ctrls.swarm_velocity.swarm_v_x;
+				dv_raw_y += w2 * ctrls.swarm_velocity.swarm_v_y;
 			}
-			var turnHeading = math.atan2(hx, hy) * R2D;
+
+			# 3. Project Raw Delta into Local Body Frame (Model Frame)
+			# dv_long = projection along craft nose/tail; dv_lat = projection along craft wing/side
+			var dv_long =  (dv_raw_x * cos_hdg) + (dv_raw_y * sin_hdg);
+			var dv_lat  =  (dv_raw_x * -sin_hdg) + (dv_raw_y * cos_hdg);
+			var maxSpd = 40.0; # knots
+
+			# Longitudinal acceleration limit
+			var max_linear_acceleration = 0.1 * grav_mpss; # m/s^2
+
+			# drag is proportional to spd ^ 2
+			dv_long -= speed_kt * speed_kt / maxSpd / maxSpd * max_linear_acceleration;
+
+			# 4. Apply Independent Physical Clamps in Body Frame
+			var MAX_DV_LONG_KT = max_linear_acceleration * updateTime_s / KT2MPS; # Max speed adjustment per tick (knots)
+
+			# Lateral maneuverability limit derived from max usable turn rate
+			var MAX_DV_LAT_KT = speed_kt * math.tan(0.18 * updateTime_s); 
+			# Max lateral velocity shift per tick (knots); 0.18 rad/sec ~ 10 degrees/sec
+
+			# Deadband on longitudinal chatter
+			if (math.abs(dv_long) < 0.5) dv_long = 0.0;
+
+			# Clamp Longitudinal Delta
+			if (dv_long > MAX_DV_LONG_KT)  dv_long = MAX_DV_LONG_KT;
+			if (dv_long < -MAX_DV_LONG_KT) dv_long = -MAX_DV_LONG_KT;
+
+			# Clamp Lateral Delta
+			if (dv_lat > MAX_DV_LAT_KT)  dv_lat = MAX_DV_LAT_KT;
+			if (dv_lat < -MAX_DV_LAT_KT) dv_lat = -MAX_DV_LAT_KT;
+
+			# 5. Rotate Clamped Body Deltas Back to World Frame
+			var dv_clamped_x = (dv_long * cos_hdg) + (dv_lat * -sin_hdg);
+			var dv_clamped_y = (dv_long * sin_hdg) + (dv_lat * cos_hdg);
+
+			speed_kt += dv_long;
+
+			# 6. Reconstitute Total Resultant Velocity Demand Vector
+			var vx = v_curr_x + dv_clamped_x;
+			var vy = v_curr_y + dv_clamped_y;
+			
+			var turnHeading = math.atan2(vx, vy) * R2D;
 
 			var sign = 1;
 			var rudder = 0;
@@ -3274,9 +3331,12 @@ var ground_loop = func( id, myNodeName ) {
 				(speed_kt > 15.0 ? 16.0 : 14.0) ); 
 				# AI ship model unstable for rudder control in this speed window
 			}
-
+			else 
+			{
+				setprop (""~myNodeName~"/velocities/true-airspeed-kt", speed_kt);
+			}
 			setprop (""~myNodeName~"/surface-positions/rudder-pos-deg", rudder * sign);
-		}
+		} # end of section dodge in progress
 		
 
 		# pitch and roll controlled by model animation
@@ -12917,7 +12977,7 @@ var resetTargetShooter = func (myIndex) {
 # in our context a swarm is a team with xml tag swarm set to true
 # list of nodes is in teams[teamName].indices.  teams is a bombable global hash.  it has a key 'count'
 # nodeNames[] is a bombable global vector of paths. It converts teams index to path for node lookup
-# the swarm_loop updates all nodes.  We store the swarm unit direction vector in attributes[nodeName].controls.swarm_dirn
+# the swarm_loop updates all nodes.  We store the swarm unit direction vector in attributes[nodeName].controls.swarm_velocity
 
 # --- DEACTIVATED / DEBUG LAUNCH CONTROL ---
 # Set SWARM_ACTIVE = 0 to launch in monitored/inactive state.
@@ -12933,12 +12993,12 @@ var p_w1		      = nil;
 var p_w2		      = nil;
 
 # Behavior Tuning Constants
-var DIST_SEPARATION  = 40.0;    # Minimum separation distance in meters
-var WEIGHT_SEPARATE  = 1.0;     # Force multiplier to avoid collisions
+var DIST_SEPARATION  = 20.0;    # Minimum separation distance in meters
+var WEIGHT_SEPARATE  = 2.5;     # Force multiplier to avoid collisions
 var WEIGHT_COHESION  = 1.0;     # Force multiplier to keep group centered
 var WEIGHT_ATTACK    = 4.0;     # High priority override when attacked
-var W1               = 0.5;     # Weight of navigation signal
-var W2               = 0.2;     # Weight of swarm signal 
+var W1               = 0.0;   # Weight of navigation signal
+var W2               = 0.0;     # Weight of swarm signal 
 
 # Global/Static flag to initialize property nodes on first execution pass
 var params_initialized = 0;
@@ -12978,13 +13038,12 @@ var update_tuning_params = func {
 
 ########################## update_swarm_loop ###########################
 # Main Swarm Loop
-# The AI object controls currently include navigation to way point by func updateWptHeading_loop
-# The navigation is by a bombable code block in ground_loop
-# The swarm deltas act as a perturbation on waypoint navigation.  How best to get them to play nicely?
+# Calculate the velocity demand vector for swarm control
+# The resultant vector is added to velocity demand vectors for navigation and threat response in ground_loop
 
 var update_swarm_loop = func(epoch, teamName = "E", updateTime_s = 0.333) {
     # Initialize tuning nodes on first call and update parameter values
-	if (epoch != bombable_epoch) return;
+    if (epoch != bombable_epoch) return;
 
     update_tuning_params();
 
@@ -12993,6 +13052,7 @@ var update_swarm_loop = func(epoch, teamName = "E", updateTime_s = 0.333) {
     var center_x = 0.0;
     var center_y = 0.0;
 
+
     # Step 1: Query active nodes and verify health/damage via Bombable attributes hash
     foreach (var idx; team.indices) {
         if (idx == nil or idx >= size(nodeNames)) continue;
@@ -13000,7 +13060,7 @@ var update_swarm_loop = func(epoch, teamName = "E", updateTime_s = 0.333) {
         if (myNodeName == nil or myNodeName == "") continue;
 
         # Leave swarm when damaged
-		if (attributes[myNodeName].damage > 0.8) continue;
+        if (attributes[myNodeName].damage > 0.8) continue;
 
         # Fetch Property Node pointer ONCE for this execution frame
         var n = props.globals.getNode(myNodeName);
@@ -13025,33 +13085,12 @@ var update_swarm_loop = func(epoch, teamName = "E", updateTime_s = 0.333) {
             hdg: hdg_val,
             hdg_node: hdg_node,
         });
-
-        # Joint Reaction check: Has any node taken damage or locked an active attack?
-        # Note taken damage is not the same as part of an active attack
-        # Add_damage can check whether the damaged object is part of a swarm
-        # Action?  Add index of target to target lists of swarm nodes?
-        # Check what other action is taken by a node when it is attacked
-        # Omit for now
-
-        # var is_damaged = n.getNode("bombable/is-damaged", 1).getBoolValue();
-        # var attacker_id = n.getNode("bombable/last-attacker-id", 1).getValue();
-
-        # if ((is_damaged or health < 100) and attacker_id != nil and attacker_id != "") {
-        #     var attacker = props.globals.getNode("/ai/models/" ~ attacker_id);
-        #     if (attacker != nil) {
-        #         group_under_attack = 1;
-        #         target_lat = attacker.getNode("position/latitude-deg").getValue();
-        #         target_lon = attacker.getNode("position/longitude-deg").getValue();
-        #     }
-        # }
     }
 
     var count = size(active_nodes);
     if (count <= 1) {
         # Not enough units to form a swarm; rerun loop
-        # Might abort swarm here.  However continuing allows their dynamic formation
-		debprint("Aborting swarm for team " ~ teamName);
-        # settimer(func { update_swarm_loop(epoch, teamName, updateTime_s); }, updateTime_s);
+        debprint("Aborting swarm for team " ~ teamName);
         return;
     }
 
@@ -13063,66 +13102,69 @@ var update_swarm_loop = func(epoch, teamName = "E", updateTime_s = 0.333) {
     center_x /= count;
     center_y /= count;
 
+    
+    # Tune Speed Response Gain
+    var K_POS = 0.1;       # Velocity gain: knots demand per meter of spatial offset
+    var MAX_V_SWARM = 2.0; # Maximum velocity contribution from swarm forces in knots (1m/s ~ 1.9 kts)
+
+
     # Step 3: Apply Forces (Cohesion, Separation, Joint Reaction) per Unit
     foreach (var obj; active_nodes) {
         var steer_x = 0.0;
         var steer_y = 0.0;
 
+        var dx = obj.x - center_x;
+        var dy = obj.y - center_y;
+
         # --- Rule A: Cohesion (Steer toward center of mass) ---
-        steer_x += (center_x - obj.x) * WEIGHT_COHESION;
-        steer_y += (center_y - obj.y) * WEIGHT_COHESION;
+        steer_x += -dx * WEIGHT_COHESION;
+        steer_y += -dy * WEIGHT_COHESION;
 
         # --- Rule B: Separation (Repel if closer than threshold) ---
         foreach (var other; active_nodes) {
             if (other == obj) continue;
-            var dx = other.x - obj.x;
-            var dy = other.y - obj.y;
-            var dist = math.sqrt(dx * dx + dy * dy);
+            var dx_sep = other.x - obj.x;
+            var dy_sep = other.y - obj.y;
+            var dist = math.sqrt(dx_sep * dx_sep + dy_sep * dy_sep);
 
             if (dist < DIST_SEPARATION and dist > 0.1) {
                 # Repulsion inverse to distance
                 var rep_factor = (DIST_SEPARATION - dist) / dist;
-                steer_x -= dx * rep_factor * WEIGHT_SEPARATE;
-                steer_y -= dy * rep_factor * WEIGHT_SEPARATE;
+                steer_x -= dx_sep * rep_factor * WEIGHT_SEPARATE;
+                steer_y -= dy_sep * rep_factor * WEIGHT_SEPARATE;
             }
         }
 
-        # --- Rule C: Joint Reaction (Swarm Aggregation on Attacker) ---
-        # skip this block for now.  Note the steer could be away from, flight vs fight?
+        # -------------------------------------------------------------
+        # Part A: Kinematic Velocity Vector Field (Knots)
+        # -------------------------------------------------------------
+        var mag = math.sqrt(steer_x * steer_x + steer_y * steer_y);
+        var swarm_v_x = 0.0; # knots
+        var swarm_v_y = 0.0;
 
-        # if (group_under_attack) {
-        #     var att_m = geo_to_meters(lat, lon, target_lat, target_lon);
-        #     steer_x += att_m.dx * WEIGHT_ATTACK;
-        #     steer_y += att_m.dy * WEIGHT_ATTACK;
-            
-        #     # Optionally signal Bombable node to enter aggressive mode
-        #     node.getNode("bombable/mode", 1).setValue("attack");
-        # }
+        if (mag > 0.1) {
+            var v_demand = mag * K_POS;
+            if (v_demand > MAX_V_SWARM) v_demand = MAX_V_SWARM;            
+            swarm_v_x = (steer_x / mag) * v_demand;
+            swarm_v_y = (steer_y / mag) * v_demand;
+        }
 
-        # Step 4: Calculate swarm unit direction vector [swarm_x, swarm_y]
+        # Write swarm velocity vector directly to Bombable's attributes hash
+        attributes[obj.myNodeName].controls.swarm_velocity.swarm_v_x = swarm_v_x;
+        attributes[obj.myNodeName].controls.swarm_velocity.swarm_v_y = swarm_v_y;
 
-		# delta heading applied in ground_loop which a typical frequency of 3Hz.
-		# Swarm should be called at the same frequency
-
-		var mag = math.sqrt(steer_x * steer_x + steer_y * steer_y);
-
-        # Write delta_hdg directly to Bombable's attributes hash
-		attributes[obj.myNodeName].controls.swarm_dirn.swarm_x = steer_x / mag;
-		attributes[obj.myNodeName].controls.swarm_dirn.swarm_y = steer_y / mag;
-
-        # Monitor Performance Output: Print node details when SWARM_ACTIVE is disabled (0)
-        # Output rate restricted to 1 Hz (1s interval) using sim elapsed-sec time
-		var counter = team.swarm_counter;
-		counter += 1;
-		if (counter > 2.0 / updateTime_s) {
-			debprint(sprintf("UpdateSwarm: NodeName: %s | Obj Hdg: %05.1f deg | Swarm Hdg: %+06.1f deg", 
-					obj.myNodeName, 
-					obj.hdg, 
-					math.atan2(steer_x, steer_y) * R2D
-					));
-			counter = 0;
-		}
-		team.swarm_counter = counter;	
+        # Monitor Performance Output
+        var counter = team.swarm_counter;
+        counter += 1;
+        if (counter > 2.0 / updateTime_s) {
+            debprint(sprintf("UpdateSwarm: NodeName: %s | Obj Hdg: %05.1f deg | Swarm Hdg: %+06.1f deg", 
+                    obj.myNodeName, 
+                    obj.hdg, 
+                    math.atan2(swarm_v_x, swarm_v_y) * R2D
+                    ));
+            counter = 0;
+        }
+        team.swarm_counter = counter;   
     }
 
     settimer(func { update_swarm_loop(epoch, teamName, updateTime_s); }, updateTime_s);
@@ -13387,10 +13429,10 @@ var startScenario = func(startTime)
 
 			foreach (var idx; teams[teamName].indices) {
 				attributes[nodeNames[idx]].controls.swarm = 1;
-				attributes[nodeNames[idx]].controls.swarm_dirn = 
+				attributes[nodeNames[idx]].controls.swarm_velocity = 
 				{
-					swarm_x: 0.0, # used to steer a flight formation or swarm
-					swarm_y: 0.0,
+					swarm_v_x: 0.0, # in knots, used to steer a flight formation or swarm
+					swarm_v_y: 0.0,
 				};
 			}
 			
