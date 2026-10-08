@@ -286,7 +286,7 @@ var show_ai_view_menu_in_memory = func {
     var models_root = props.globals.getNode("/ai/models");
 
     if (models_root != nil) {
-        foreach (var category; ["aircraft", "ship", "static", "multiplayer"]) {
+        foreach (var category; ["aircraft", "ship", "groundvehicle", "static", "multiplayer"]) {
             var children = models_root.getChildren(category);
             foreach (var child; children) {
                 var valid_node = child.getNode("valid");

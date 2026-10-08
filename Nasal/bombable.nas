@@ -2953,7 +2953,7 @@ var ground_loop = func( id, myNodeName ) {
 	# if (thorough or damageValue > 0.8 ) {	
 
 	# Only get roll for ground vehicle or AC that has just crashed
-	if (type == "vehicle" or type == "staticObject" or ctrls.onGround) 
+	if (type == "groundvehicle" or type == "staticObject" or ctrls.onGround) 
 	{	
 		# Find the slope of the ground in the direction we are heading
 
@@ -3046,7 +3046,7 @@ var ground_loop = func( id, myNodeName ) {
 	# speed is adjusted by add_damage
 	# ships and groundvehicles might be stationary at the start of a scenario
 
-	if ((type == "vehicle") or (type == "ship")) 
+	if ((type == "groundvehicle") or (type == "ship")) 
 	{
 		if (speed_kt <= 1 and ats.damage > 0.9) 
 		{
@@ -3063,7 +3063,7 @@ var ground_loop = func( id, myNodeName ) {
 			setprop(""~myNodeName~"/controls/tgt-speed-kts", 0); # no effect on FG C++ ships 
 			setprop(""~myNodeName~"/velocities/true-airspeed-kt", 0);
 			setprop(""~myNodeName~"/velocities/vertical-speed-fps", 0); # no effect on FG C++ ships
-			if (type == "vehicle") deleteSmoke("pistonexhaust", myNodeName); # could set a timer here; smoke from ship?
+			if (type == "groundvehicle") deleteSmoke("pistonexhaust", myNodeName); # could set a timer here; smoke from ship?
 			return;
 		}
 	}
@@ -3153,7 +3153,7 @@ var ground_loop = func( id, myNodeName ) {
 			
 	# set speed, pitch and roll of ground vehicle according to terrain
 	# rjw might use thorough if the number of calls to measure terrain altitude use too many clock cycles
-	if (type == "vehicle") 
+	if (type == "groundvehicle") 
 	{
 		var gradient = (toFrontAlt_ft - alt_ft ) / frontBack_ft;
 		# here can change speed according to gradient ahead
@@ -3169,7 +3169,7 @@ var ground_loop = func( id, myNodeName ) {
 		# set vert-speed not pitch for ground craft
 		var vert_speed = gradient * speed_kt * KT2FPS;
 		vert_speed += (alts.wheelsOnGroundAGL_ft / math.cos(slope_rad) / math.cos(rollangle_rad) + alt_ft - currAlt_ft) / updateTime_s; # correction if above or below ground
-		var speedFactor = vert_speed / vels.maxClimbRate_fps;  # this parm is only set for a vehicle
+		var speedFactor = vert_speed / vels.maxClimbRate_fps;  # this parm is only set for a groundvehicle
 		if (speedFactor > 1) 
 		{
 			vert_speed = vels.maxClimbRate_fps;
@@ -3260,15 +3260,16 @@ var ground_loop = func( id, myNodeName ) {
 
 			# 3. Project Raw Delta into Local Body Frame (Model Frame)
 			# dv_long = projection along craft nose/tail; dv_lat = projection along craft wing/side
-			var dv_long =  (dv_raw_x * cos_hdg) + (dv_raw_y * sin_hdg);
-			var dv_lat  =  (dv_raw_x * -sin_hdg) + (dv_raw_y * cos_hdg);
-			var maxSpd = 40.0; # knots
+            var dv_long =  (dv_raw_x * sin_hdg) + (dv_raw_y * cos_hdg);
+            var dv_lat  =  (dv_raw_x * cos_hdg) - (dv_raw_y * sin_hdg);            
+			var maxSpd = 45.0; # knots
 
 			# Longitudinal acceleration limit
-			var max_linear_acceleration = 0.1 * grav_mpss; # m/s^2
+			var max_linear_acceleration = 0.2 * grav_mpss; # m/s^2
+            var throttle = 0.5;
 
 			# drag is proportional to spd ^ 2
-			dv_long -= speed_kt * speed_kt / maxSpd / maxSpd * max_linear_acceleration;
+			dv_long += (throttle - speed_kt * speed_kt / maxSpd / maxSpd) * max_linear_acceleration * updateTime_s / KT2MPS;
 
 			# 4. Apply Independent Physical Clamps in Body Frame
 			var MAX_DV_LONG_KT = max_linear_acceleration * updateTime_s / KT2MPS; # Max speed adjustment per tick (knots)
@@ -3289,8 +3290,9 @@ var ground_loop = func( id, myNodeName ) {
 			if (dv_lat < -MAX_DV_LAT_KT) dv_lat = -MAX_DV_LAT_KT;
 
 			# 5. Rotate Clamped Body Deltas Back to World Frame
-			var dv_clamped_x = (dv_long * cos_hdg) + (dv_lat * -sin_hdg);
-			var dv_clamped_y = (dv_long * sin_hdg) + (dv_lat * cos_hdg);
+            var dv_clamped_x = (dv_long * sin_hdg) + (dv_lat * cos_hdg);
+            var dv_clamped_y = (dv_long * cos_hdg) - (dv_lat * sin_hdg);
+
 
 			speed_kt += dv_long;
 
@@ -3325,7 +3327,8 @@ var ground_loop = func( id, myNodeName ) {
 			elsif (delta_heading_deg > 1)
 				rudder = 4;
 
-			if (rudder != 0 and speed_kt > 14.0 and speed_kt < 16.0) 
+			# if (rudder != 0 and speed_kt > 14.0 and speed_kt < 16.0) 
+			if (0 and rudder != 0 and speed_kt > 14.0 and speed_kt < 16.0) # remove to check stabilisation using finite turn radius
 			{
 				setprop (""~myNodeName~"/velocities/true-airspeed-kt", 
 				(speed_kt > 15.0 ? 16.0 : 14.0) ); 
@@ -3357,7 +3360,7 @@ var ground_loop = func( id, myNodeName ) {
 		# );
 
 		return;
-	} # end of vehicle section
+	} # end of groundvehicle section
 
 	# Our target altitude for normal/undamaged forward movement
 	# based on the "lookahead radar", not the current altitude.
@@ -4927,7 +4930,7 @@ var speed_adjust_loop = func ( id, myNodeName, looptime_sec) {
 }
 
 ############################# altitude_adjust ############################
-# adjusts altitude of a vehicle
+# adjusts altitude of a groundvehicle
 #
 var altitude_adjust = func (myNodeName, alt_ft, count, delta_alt, delta_t, N_STEPS) {
 	var new_alt = alt_ft + delta_alt;
@@ -5335,7 +5338,7 @@ var rudder_roll_climb = func (myNodeName, degrees = 15, alt_ft = -20, time = 10,
 			aircraftSetVertSpeed (myNodeName, newAlt_ft, "atts" );
 		}
 	}
-	else # ship or vehicle
+	else # ship or groundvehicle
 	# spd < 5 uses fixed turn radius, see AIship parms
 	# spd > 5 achieves max turn rate at 15 kts
 	# unfortunate: the turn radius is a strong function of speed ( v - 15 )^2
@@ -5357,13 +5360,13 @@ var rudder_roll_climb = func (myNodeName, degrees = 15, alt_ft = -20, time = 10,
 				var newTime *= ((spd < 10) ? 1 : 4);
 				var rudderPos = degrees;
 			}
-			elsif (type == "vehicle") # vehicle
+			elsif (type == "groundvehicle") # groundvehicle
 			{
 				var turnRate = degrees / time;
 				var newSpd =  (turnRate > 15) ? 17.0 : 13.0;
 				var newTime = 1.0 ;
 				var rudderPos = getRudderForTurnRate(turnRate, newSpd);
-				# turn rate is in deg/sec, 15 deg/sec is a hard turn for a vehicle, 5 deg/sec is a soft turn
+				# turn rate is in deg/sec, 15 deg/sec is a hard turn for a groundvehicle, 5 deg/sec is a soft turn
 				# this is a dodge so we turn quickly
 			}
 			setprop(""~myNodeName~"/controls/tgt-speed-kts", newSpd);
@@ -6445,7 +6448,7 @@ var weapons_loop = func (id, myNodeName1 = "") {
 		# Check line of sight for ground vehicles by calculating 
 		# the height above ground of the bullet trajectory at the mid point between shooter and target
 		var groundCheck = 1;
-		if (ats.type == "vehicle")
+		if (ats.type == "groundvehicle")
 		{
 			var mid_lat_deg = (alat_deg + targetLat_deg) / 2;
 			var mid_lon_deg = (alon_deg + targetLon_deg) / 2;
@@ -9837,7 +9840,7 @@ var add_damage = func
 			reduceRPM(myNodeName);
 			aircraftCrash (myNodeName);
 		}
-		elsif (type == "ship" or type == "vehicle") 
+		elsif (type == "ship" or type == "groundvehicle") 
 		{
 			# for ships and ground vehicles decelerate at the minSpeedReduceFactor
 			var loopid = ats.loopids.ground_loopid;
@@ -9905,12 +9908,12 @@ var add_damage = func
 			if (flight_tgt_spd > minSpeed) 
 			{
 				setprop(""~myNodeName~"/controls/flight/target-spd", flight_tgt_spd * speedReduce);
-				if (type == "vehicle") spds.speedOnFlat *= speedReduce;
+				if (type == "groundvehicle") spds.speedOnFlat *= speedReduce;
 			}
 			else 
 			{
 				setprop(""~myNodeName~"/controls/flight/target-spd", minSpeed);
-				if (type == "vehicle") spds.speedOnFlat = minSpeed;
+				if (type == "groundvehicle") spds.speedOnFlat = minSpeed;
 			}
 		}
 	}  
@@ -10196,15 +10199,13 @@ var initialize_func = func ( b ){
 	}
 	else
 	{
-		if (! contains ({ staticObject: , vehicle: , rocket: ,}, b.type)) {
+		if (! contains ({ staticObject: , rocket: , groundvehicle: ,}, b.type)) {
 			debprint("error " ~ b.type ~ " is not an allowed type, setting to staticObject");
 			b.type = "staticObject";
 		}
 	}
 	# key enables types that are unique to Bombable and distinct from those already used by Flightgear
-	# allowed bombable types:  vehicle, staticObject
 	# Flightgear has a separate class called "groundvehicle" which is not used in Bombable
-	# instead AI ship models are used as vehicles since the ship C++ algorithm permits greater control
 						
 	# altitudes sanity checking
 	if (contains (b, "altitudes") and typeof (b.altitudes) == "hash") {
@@ -12997,8 +12998,8 @@ var DIST_SEPARATION  = 20.0;    # Minimum separation distance in meters
 var WEIGHT_SEPARATE  = 2.5;     # Force multiplier to avoid collisions
 var WEIGHT_COHESION  = 1.0;     # Force multiplier to keep group centered
 var WEIGHT_ATTACK    = 4.0;     # High priority override when attacked
-var W1               = 0.0;   # Weight of navigation signal
-var W2               = 0.0;     # Weight of swarm signal 
+var W1               = 0.035;   # Weight of navigation signal
+var W2               = 0.2;     # Weight of swarm signal 
 
 # Global/Static flag to initialize property nodes on first execution pass
 var params_initialized = 0;
@@ -13512,7 +13513,7 @@ var startScenario = func(startTime)
 					setprop(""~myNodeName~"/controls/flight/target-alt", alt_ft);
 					setprop(""~myNodeName~"/controls/flight/target-hdg", group.heading);
 				}
-				elsif (type == "ship" or type == "vehicle")
+				elsif (type == "ship" or type == "groundvehicle")
 				{
 					ats.controls.target_hdg = group.heading;
 					setprop(""~myNodeName~"/velocities/speed-kts", group.airSpeed);

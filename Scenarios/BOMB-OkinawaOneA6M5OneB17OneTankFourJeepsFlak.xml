@@ -23,11 +23,10 @@
       <type>ship</type>
       <name>Flaming_Ego_Y</name>
       <model type="string">Aircraft/Scimitar-Bombable/Scimitar.xml</model>
-      <latitude type="double">26.2059</latitude>
+      <latitude type="double">26.2029</latitude>
       <longitude type="double">127.648</longitude>
-      <altitude>16</altitude>
-      <speed>6.0</speed>
-      <rudder type="double">25</rudder>
+      <altitude-ft>16</altitude-ft>
+      <speed-kt>6.0</speed-kt>
       <heading type="double">0</heading>
     </entry>    
     <!--  Jeep_2.1 -->
@@ -38,12 +37,10 @@
       <model type="string">Aircraft/jeep-Bombable/Models/WW2Jeep.xml</model>
       <latitude type="double">26.2049</latitude>
       <longitude type="double">127.648</longitude>
-      <altitude>16</altitude>
-      <speed>6.0</speed>
-      <roll-order>20.0</roll-order>
-      <turn-radius-ft type="double">0.0</turn-radius-ft>
-      <fixed-turn-radius-ft type="double">0.0</fixed-turn-radius-ft>
-      <!-- <rudder type="double">25</rudder> -->
+      <altitude-ft>16</altitude-ft>
+      <speed-kt>6.0</speed-kt>
+      <turn-radius-ft type="double">10.0</turn-radius-ft>
+      <fixed-turn-radius-ft type="double">10.0</fixed-turn-radius-ft>
       <heading type="double">0</heading>
     </entry>    
     <!--  Jeep 2.2 -->
@@ -54,12 +51,10 @@
       <model type="string">Aircraft/jeep-Bombable/Models/WW2Jeep.xml</model>
       <latitude type="double">26.2059</latitude>
       <longitude type="double">127.649</longitude>
-      <altitude>16</altitude>
-      <speed>6.0</speed>
-      <roll-order>20.0</roll-order>
-      <turn-radius-ft type="double">0.0</turn-radius-ft>
-      <fixed-turn-radius-ft type="double">0.0</fixed-turn-radius-ft>
-      <!-- <rudder type="double">25</rudder> -->
+      <altitude-ft>16</altitude-ft>
+      <speed-kt>6.0</speed-kt>
+      <turn-radius-ft type="double">10.0</turn-radius-ft>
+      <fixed-turn-radius-ft type="double">10.0</fixed-turn-radius-ft>
       <heading type="double">0</heading>
     </entry>    
     <!--  Jeep_2.3 -->
@@ -70,13 +65,10 @@
       <model type="string">Aircraft/jeep-Bombable/Models/WW2Jeep.xml</model>
       <latitude type="double">26.2039</latitude>
       <longitude type="double">127.648</longitude>
-      <altitude>16</altitude>
-      <speed>6.0</speed>
-      <!-- caps the max turn rate in degrees per second -->
-      <roll-order>20.0</roll-order> 
-      <turn-radius-ft type="double">0.0</turn-radius-ft>
-      <fixed-turn-radius-ft type="double">0.0</fixed-turn-radius-ft>
-      <!-- <rudder type="double">25</rudder> -->
+      <altitude-ft>16</altitude-ft>
+      <speed-kt>6.0</speed-kt>
+      <turn-radius-ft type="double">10.0</turn-radius-ft>
+      <fixed-turn-radius-ft type="double">10.0</fixed-turn-radius-ft>
       <heading type="double">0</heading>
     </entry>    
     <!--  Jeep 2.4 -->
@@ -87,12 +79,10 @@
       <model type="string">Aircraft/jeep-Bombable/Models/WW2Jeep.xml</model>
       <latitude type="double">26.2079</latitude>
       <longitude type="double">127.649</longitude>
-      <altitude>16</altitude>
-      <speed>6.0</speed>
-      <roll-order>20.0</roll-order>
-      <turn-radius-ft type="double">0.0</turn-radius-ft>
-      <fixed-turn-radius-ft type="double">0.0</fixed-turn-radius-ft>
-      <!-- <rudder type="double">25</rudder> -->
+      <altitude-ft>16</altitude-ft>
+      <speed-kt>6.0</speed-kt>
+      <turn-radius-ft type="double">10.0</turn-radius-ft>
+      <fixed-turn-radius-ft type="double">10.0</fixed-turn-radius-ft>
       <heading type="double">0</heading>
     </entry>    
     <!--  First Zero Squadron -->
