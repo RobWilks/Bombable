@@ -2,7 +2,7 @@
 <PropertyList>
   <scenario>
     <name>Bombable: Ground and air battle for Okinawa</name>
-    <description>1 B-17 and 2 light tanks on mission to Okinawa guarded by AA battery, one Zero and two light tanks.</description>
+    <description>1 B-17 and 1 light tank and 4 jeeps on mission to Okinawa guarded by AA battery, one Zero and two light tanks.</description>
     <!-- B-17s -->
     <entry>
       <search-order>PREFER_AI</search-order>

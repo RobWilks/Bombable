@@ -3239,15 +3239,13 @@ var ground_loop = func( id, myNodeName ) {
 			var sin_hdg = math.sin(hdg_rad);
 			var cos_hdg = math.cos(hdg_rad);
 
-			var v_curr_x = speed_kt * sin_hdg;
-			var v_curr_y = speed_kt * cos_hdg;
-
 			# 2. Raw Force Demand Deltas (World Frame)
 
 			# Waypoint Navigation Target Vector Delta
 			# w1 is navigation gain; the fraction of maximum deflection turn rate per tick
-			var dv_nav_x = w1 * speed_kt * math.sin(targetHeading * D2R);
-			var dv_nav_y = w1 * speed_kt * math.cos(targetHeading * D2R);
+			
+			var dv_nav_x = w1 * speed_kt * math.sin(targetHeading * D2R); # x east
+			var dv_nav_y = w1 * speed_kt * math.cos(targetHeading * D2R); # y north
 
 			var dv_raw_x = dv_nav_x;
 			var dv_raw_y = dv_nav_y;
@@ -3260,19 +3258,14 @@ var ground_loop = func( id, myNodeName ) {
 
 			# 3. Project Raw Delta into Local Body Frame (Model Frame)
 			# dv_long = projection along craft nose/tail; dv_lat = projection along craft wing/side
-            var dv_long =  (dv_raw_x * sin_hdg) + (dv_raw_y * cos_hdg);
-            var dv_lat  =  (dv_raw_x * cos_hdg) - (dv_raw_y * sin_hdg);            
-			var maxSpd = 45.0; # knots
-
-			# Longitudinal acceleration limit
-			var max_linear_acceleration = 0.2 * grav_mpss; # m/s^2
-            var throttle = 0.5;
-
-			# drag is proportional to spd ^ 2
-			dv_long += (throttle - speed_kt * speed_kt / maxSpd / maxSpd) * max_linear_acceleration * updateTime_s / KT2MPS;
+            var dv_long =  (dv_raw_x * sin_hdg) + (dv_raw_y * cos_hdg); # forwards from body
+            var dv_lat  =  (dv_raw_x * cos_hdg) - (dv_raw_y * sin_hdg); # right from body
 
 			# 4. Apply Independent Physical Clamps in Body Frame
+			# Longitudinal acceleration limit
+			var max_linear_acceleration = 0.1 * grav_mpss; # m/s^2
 			var MAX_DV_LONG_KT = max_linear_acceleration * updateTime_s / KT2MPS; # Max speed adjustment per tick (knots)
+			var brake_factor = 2.0; # max braking deceleration / max acceleration (positive)
 
 			# Lateral maneuverability limit derived from max usable turn rate
 			var MAX_DV_LAT_KT = speed_kt * math.tan(0.18 * updateTime_s); 
@@ -3282,63 +3275,32 @@ var ground_loop = func( id, myNodeName ) {
 			if (math.abs(dv_long) < 0.5) dv_long = 0.0;
 
 			# Clamp Longitudinal Delta
+
 			if (dv_long > MAX_DV_LONG_KT)  dv_long = MAX_DV_LONG_KT;
-			if (dv_long < -MAX_DV_LONG_KT) dv_long = -MAX_DV_LONG_KT;
+			if (dv_long < -MAX_DV_LONG_KT * brake_factor) dv_long = -MAX_DV_LONG_KT * brake_factor;
 
 			# Clamp Lateral Delta
 			if (dv_lat > MAX_DV_LAT_KT)  dv_lat = MAX_DV_LAT_KT;
 			if (dv_lat < -MAX_DV_LAT_KT) dv_lat = -MAX_DV_LAT_KT;
 
-			# 5. Rotate Clamped Body Deltas Back to World Frame
-            var dv_clamped_x = (dv_long * sin_hdg) + (dv_lat * cos_hdg);
-            var dv_clamped_y = (dv_long * cos_hdg) - (dv_lat * sin_hdg);
+			# drag is proportional to spd ^ 2
+			var maxSpd = 35.0; # knots
+			var dv_drag = speed_kt * speed_kt / maxSpd / maxSpd * max_linear_acceleration * updateTime_s / KT2MPS;
 
+			var v_long = speed_kt - dv_drag + dv_long;
+			var v_lat = dv_lat;
 
-			speed_kt += dv_long;
-
-			# 6. Reconstitute Total Resultant Velocity Demand Vector
-			var vx = v_curr_x + dv_clamped_x;
-			var vy = v_curr_y + dv_clamped_y;
+			# 5. Rotate velocity in Body Frame to World Frame
+            var vx = (v_long * sin_hdg) + (v_lat * cos_hdg);
+            var vy = (v_long * cos_hdg) - (v_lat * sin_hdg);
 			
-			var turnHeading = math.atan2(vx, vy) * R2D;
+			var newHeading = math.atan2(vx, vy) * R2D;
+			if (newHeading < 0) newHeading += 360.0;
 
-			var sign = 1;
-			var rudder = 0;
-			var delta_heading_deg = math.fmod ( turnHeading - heading + 3600, 360);
-			if (delta_heading_deg > 180) delta_heading_deg -= 360;
-			if (delta_heading_deg < 0)
-			{
-				delta_heading_deg = - delta_heading_deg;
-				sign = -1;
-			}
+			setprop (""~myNodeName~"/velocities/true-airspeed-kt", v_long);
+			setprop (""~myNodeName~"/controls/tgt-speed-kts", v_long);
+			setprop (""~myNodeName~"/orientation/true-heading-deg", newHeading);
 
-			# /surface-positions/rudder-pos-deg is the only dynamic input for FG C++ AI navigation 
-			# dynamic waypoints are not available. However, waypoints can be loaded at scenario initialization 
-			# from a flight path in the scenario xml config file
-
-			if (delta_heading_deg > 81)
-				rudder = 30;
-			elsif (delta_heading_deg > 27)
-				rudder = 15;
-			elsif (delta_heading_deg > 9)
-				rudder = 10;
-			elsif (delta_heading_deg > 3)
-				rudder = 7;
-			elsif (delta_heading_deg > 1)
-				rudder = 4;
-
-			# if (rudder != 0 and speed_kt > 14.0 and speed_kt < 16.0) 
-			if (0 and rudder != 0 and speed_kt > 14.0 and speed_kt < 16.0) # remove to check stabilisation using finite turn radius
-			{
-				setprop (""~myNodeName~"/velocities/true-airspeed-kt", 
-				(speed_kt > 15.0 ? 16.0 : 14.0) ); 
-				# AI ship model unstable for rudder control in this speed window
-			}
-			else 
-			{
-				setprop (""~myNodeName~"/velocities/true-airspeed-kt", speed_kt);
-			}
-			setprop (""~myNodeName~"/surface-positions/rudder-pos-deg", rudder * sign);
 		} # end of section dodge in progress
 		
 
