@@ -20,15 +20,12 @@
     <!--  WW2 jeep -->
     <entry>
       <search-order>PREFER_AI</search-order>
-      <type>ship</type>
+      <type>static</type>
       <name>Rattle_n_Hum_E</name>
-      <model type="string">Aircraft/jeep-Bombable/Models/WW2Jeep.xml</model>
+      <model type="string">Aircraft/jeep-Bombable/Models/WW2Jeep_static.xml</model>
       <latitude type="double">26.2049</latitude>
       <longitude type="double">127.648</longitude>
       <altitude-ft>16</altitude-ft>
-      <speed-kt>6.0</speed-kt>
-      <turn-radius-ft type="double">10.0</turn-radius-ft>
-      <fixed-turn-radius-ft type="double">10.0</fixed-turn-radius-ft>
       <heading type="double">0</heading>
     </entry>    
     <!--  First Zero Squadron -->
