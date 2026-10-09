@@ -3169,17 +3169,17 @@ var ground_loop = func( id, myNodeName ) {
 		# set vert-speed not pitch for ground craft
 		var vert_speed = gradient * speed_kt * KT2FPS;
 		vert_speed += (alts.wheelsOnGroundAGL_ft / math.cos(slope_rad) / math.cos(rollangle_rad) + alt_ft - currAlt_ft) / updateTime_s; # correction if above or below ground
-		var speedFactor = vert_speed / vels.maxClimbRate_fps;  # this parm is only set for a groundvehicle
-		if (speedFactor > 1) 
-		{
-			vert_speed = vels.maxClimbRate_fps;
-			setprop (""~myNodeName~"/velocities/true-airspeed-kt", speed_kt / speedFactor); # rather than set target-speed try direct change which the AI will then adjust out
-		}
-		elsif (speedFactor < -2) 
-		{
-			vert_speed = -2 * vels.maxClimbRate_fps; # could also compare with cruise speed here
-			setprop (""~myNodeName~"/velocities/true-airspeed-kt", -speed_kt * 2 / speedFactor);
-		}
+		# var speedFactor = vert_speed / vels.maxClimbRate_fps;  # this parm is only set for a groundvehicle
+		# if (speedFactor > 1) 
+		# {
+		# 	vert_speed = vels.maxClimbRate_fps;
+		# 	setprop (""~myNodeName~"/velocities/true-airspeed-kt", speed_kt / speedFactor); # rather than set target-speed try direct change which the AI will then adjust out
+		# }
+		# elsif (speedFactor < -2) 
+		# {
+		# 	vert_speed = -2 * vels.maxClimbRate_fps; # could also compare with cruise speed here
+		# 	setprop (""~myNodeName~"/velocities/true-airspeed-kt", -speed_kt * 2 / speedFactor);
+		# }
 
 
 		# change vehicle altitude by applying a set of small deltas 
@@ -3243,9 +3243,10 @@ var ground_loop = func( id, myNodeName ) {
 
 			# Waypoint Navigation Target Vector Delta
 			# w1 is navigation gain; the fraction of maximum deflection turn rate per tick
+			# for calculating velocity demand increments we use the available acceleration
 			
-			var dv_nav_x = w1 * speed_kt * math.sin(targetHeading * D2R); # x east
-			var dv_nav_y = w1 * speed_kt * math.cos(targetHeading * D2R); # y north
+			var dv_nav_x = w1 * vels.cruiseSpeed_kt * math.sin(targetHeading * D2R); # x east
+			var dv_nav_y = w1 * vels.cruiseSpeed_kt * math.cos(targetHeading * D2R); # y north
 
 			var dv_raw_x = dv_nav_x;
 			var dv_raw_y = dv_nav_y;
@@ -3263,8 +3264,21 @@ var ground_loop = func( id, myNodeName ) {
 
 			# 4. Apply Independent Physical Clamps in Body Frame
 			# Longitudinal acceleration limit
-			var max_linear_acceleration = 0.1 * grav_mpss; # m/s^2
-			var MAX_DV_LONG_KT = max_linear_acceleration * updateTime_s / KT2MPS; # Max speed adjustment per tick (knots)
+			# Assume drag varies with speed^2 and use the max_acceleration to determine drag coefficient 
+			var max_linear_acceleration = 0.14 * grav_mpss; # m/s^2 0-60mph in 20sec
+
+			# Scale MAX_DV_LONG_KT by throttle position which is set by whether in cruise, attack or climb
+			var maxSpd = vels.maxSpeed_kt; # knots
+			var throttle = vels.cruiseSpeed_kt * vels.cruiseSpeed_kt / maxSpd / maxSpd;
+			if (gradientAhead > 0.02) {
+				throttle = 1;
+
+			}
+			elsif (gradientAhead < -0.05) {
+				throttle = 0;
+			} 
+			
+			var MAX_DV_LONG_KT = throttle * max_linear_acceleration * updateTime_s / KT2MPS; # Max speed adjustment per tick (knots)
 			var brake_factor = 2.0; # max braking deceleration / max acceleration (positive)
 
 			# Lateral maneuverability limit derived from max usable turn rate
@@ -3275,7 +3289,6 @@ var ground_loop = func( id, myNodeName ) {
 			if (math.abs(dv_long) < 0.5) dv_long = 0.0;
 
 			# Clamp Longitudinal Delta
-
 			if (dv_long > MAX_DV_LONG_KT)  dv_long = MAX_DV_LONG_KT;
 			if (dv_long < -MAX_DV_LONG_KT * brake_factor) dv_long = -MAX_DV_LONG_KT * brake_factor;
 
@@ -3284,22 +3297,28 @@ var ground_loop = func( id, myNodeName ) {
 			if (dv_lat < -MAX_DV_LAT_KT) dv_lat = -MAX_DV_LAT_KT;
 
 			# drag is proportional to spd ^ 2
-			var maxSpd = 35.0; # knots
 			var dv_drag = speed_kt * speed_kt / maxSpd / maxSpd * max_linear_acceleration * updateTime_s / KT2MPS;
 
-			var v_long = speed_kt - dv_drag + dv_long;
+			var dv_grad = math.sin(slope_rad) * grav_mpss * updateTime_s / KT2MPS; 
+			var v_long = speed_kt - dv_drag - dv_grad + dv_long;
 			var v_lat = dv_lat;
 
-			# 5. Rotate velocity in Body Frame to World Frame
-            var vx = (v_long * sin_hdg) + (v_lat * cos_hdg);
-            var vy = (v_long * cos_hdg) - (v_lat * sin_hdg);
-			
-			var newHeading = math.atan2(vx, vy) * R2D;
-			if (newHeading < 0) newHeading += 360.0;
+			if (v_long <= 0) {
+				v_long = 0; v_lat = 0;
+			}
+			else{
+				# 5. Rotate velocity in Body Frame to World Frame
+				var vx = (v_long * sin_hdg) + (v_lat * cos_hdg);
+				var vy = (v_long * cos_hdg) - (v_lat * sin_hdg);
+				
+				var newHeading = math.atan2(vx, vy) * R2D;
+				if (newHeading < 0) newHeading += 360.0;
+				setprop (""~myNodeName~"/orientation/true-heading-deg", newHeading);
+
+			}
 
 			setprop (""~myNodeName~"/velocities/true-airspeed-kt", v_long);
 			setprop (""~myNodeName~"/controls/tgt-speed-kts", v_long);
-			setprop (""~myNodeName~"/orientation/true-heading-deg", newHeading);
 
 		} # end of section dodge in progress
 		
@@ -10051,27 +10070,8 @@ var initialize = func (b) {
 # so that they can be accessed by all the different
 # subroutines
 #
-# The new way: All these variables are stored in attributes[myNodeName]
+# All these variables are stored in attributes[myNodeName]
 # (myNodeName = "" for the main aircraft).
-#
-# This saves a lot of a reading/writing from the property tree,
-# which turns out to be quite slow.
-#
-# The old way:
-#
-# If you just need a certain property or two you can simply read it
-# with getprops.
-#
-# But for those routines that use many/all we can just grab them all with
-# var b = props.globals.getNode (""~myNodeName~"/bombable/attributes");
-# bomb = b.getValues();  #all under the "bombable/attributes" branch
-# Then use values like bomb.dimensions.width_m etc.
-# Normally don't do this as it slurps in MANY values
-#
-# But (better if you only need one sub-branch)
-# dims = b.getNode("dimensions").getValues();
-# Gets values from subbranch 'dimensions'.
-# Then your values are dims.width_m etc.
 #
 #
 var initialize_func = func ( b ){
@@ -13003,8 +13003,9 @@ var update_tuning_params = func {
 # Main Swarm Loop
 # Calculate the velocity demand vector for swarm control
 # The resultant vector is added to velocity demand vectors for navigation and threat response in ground_loop
+# velocity demand scales with the maximimum speed of the craft
 
-var update_swarm_loop = func(epoch, teamName = "E", updateTime_s = 0.333) {
+var update_swarm_loop = func(epoch, teamName = "E", maxSpd = 50.0, updateTime_s = 0.333) {
     # Initialize tuning nodes on first call and update parameter values
     if (epoch != bombable_epoch) return;
 
@@ -13014,6 +13015,12 @@ var update_swarm_loop = func(epoch, teamName = "E", updateTime_s = 0.333) {
     var active_nodes = [];
     var center_x = 0.0;
     var center_y = 0.0;
+
+	# Tune Speed Response Gain
+	# Velocity gain: knots demand per meter of spatial offset per tick.  Scale by maxSpeed_kt of craft
+    var K_POS = maxSpd * updateTime_s / 150.0 ;       
+    var MAX_V_SWARM = maxSpd * updateTime_s / 5.0; # Maximum velocity contribution from swarm forces in knots (1m/s ~ 1.9 kts)
+
 
 
     # Step 1: Query active nodes and verify health/damage via Bombable attributes hash
@@ -13066,11 +13073,6 @@ var update_swarm_loop = func(epoch, teamName = "E", updateTime_s = 0.333) {
     center_y /= count;
 
     
-    # Tune Speed Response Gain
-    var K_POS = 0.1;       # Velocity gain: knots demand per meter of spatial offset
-    var MAX_V_SWARM = 2.0; # Maximum velocity contribution from swarm forces in knots (1m/s ~ 1.9 kts)
-
-
     # Step 3: Apply Forces (Cohesion, Separation, Joint Reaction) per Unit
     foreach (var obj; active_nodes) {
         var steer_x = 0.0;
@@ -13130,14 +13132,14 @@ var update_swarm_loop = func(epoch, teamName = "E", updateTime_s = 0.333) {
         team.swarm_counter = counter;   
     }
 
-    settimer(func { update_swarm_loop(epoch, teamName, updateTime_s); }, updateTime_s);
+    settimer(func { update_swarm_loop(epoch, teamName, maxSpd, updateTime_s); }, updateTime_s);
 };
 
 ########################## update_swarm_func ###########################
 # 
-var update_swarm_func = func(epoch, tName, dt)
+var update_swarm_func = func(epoch, tName, maxSpd, dt)
 {
-	settimer(func{update_swarm_loop(epoch, tName, dt)}, 2.0);
+	settimer(func{update_swarm_loop(epoch, tName, maxSpd, dt)}, 2.0);
 }
 
 ########################## waitForAttributes ###########################
@@ -13377,11 +13379,12 @@ var startScenario = func(startTime)
 			# Swarm updates dPhi  and dv for all nodes.  We update swarm at the frequency of the ground_loop which manages navigation for each node
 
 			var leaderPath = nodeNames[leaderIndex];
+			var ats = attributes[leaderPath];
 			var delta_t = 0.333;
 			
 			if (contains(attributes[leaderPath], "updateTime_s")) 
 			{
-				var update_time = attributes[leaderPath].updateTime_s;
+				var update_time = ats.updateTime_s;
 				if (update_time != nil and update_time > 0) 
 				{
 					delta_t = update_time;
@@ -13399,7 +13402,8 @@ var startScenario = func(startTime)
 				};
 			}
 			
-			update_swarm_func(bombable_epoch, teamName, delta_t);
+			var maxSpd = ats.velocities.maxSpeed_kt;
+			update_swarm_func(bombable_epoch, teamName, maxSpd, delta_t);
 		}
 
 		# location lead aircraft calculated from airport lat, lon, alt, heading, speed and arrival time
@@ -13579,7 +13583,7 @@ var updateWptHeading_loop = func(id, myNodeName) {
 	if (rand() < skill / 6 * (1.0 - ats.damage) and !(ats.controls.dodgeInProgress or ats.controls.avoidCliffInProgress)) {
 		var name = ats.controls.flightpath.name;
 		if (name == "sas_raid") {
-			var thresholdWpt = 150; # closest approach to waypoint before moving to the next
+			var thresholdWpt = 200; # closest approach to waypoint before moving to the next
 		}
 		elsif (name == "target_runway") {
 			var thresholdWpt = 500; 

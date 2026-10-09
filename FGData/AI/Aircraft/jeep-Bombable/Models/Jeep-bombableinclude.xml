@@ -189,10 +189,10 @@
             minSpeed_kt : 0, #minimum speed to reduce to when damaged.  Ground vehicles and ships might stop completely when damaged but aircraft will need a minimum speed so they keep moving until they hit the ground.
             cruiseSpeed_kt : 30, #cruising speed, typical/optimal cruising speed, V C for aircraft
             
-            attackSpeed_kt : 60, #typical/optimal speed when aggressively attacking or evading, in
+            attackSpeed_kt : 35, #typical/optimal speed when aggressively attacking or evading, in
                                  #level flight for aircraft
             
-            maxSpeed_kt : 90 , #Maximum possible speed under dive or downhill conditions, V NE for aircraft
+            maxSpeed_kt : 44 , #Maximum possible speed under dive or downhill conditions, V NE for aircraft
             
     
             damagedAltitudeChangeMaxRate_meterspersecond : 0.02, #max rate to sink or fly downwards when damaged, in meters/second

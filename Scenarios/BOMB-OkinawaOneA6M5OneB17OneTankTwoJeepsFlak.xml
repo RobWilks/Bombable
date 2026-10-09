@@ -2,7 +2,7 @@
 <PropertyList>
   <scenario>
     <name>Bombable: Ground and air battle for Okinawa</name>
-    <description>1 B-17 and 2 light tanks on mission to Okinawa guarded by AA battery, one Zero and two light tanks.</description>
+    <description>1 B-17 2 jeeps on mission to Okinawa guarded by AA battery, one Zero and 1 light tanks.</description>
     <!-- B-17s -->
     <entry>
       <search-order>PREFER_AI</search-order>
@@ -27,7 +27,8 @@
       <longitude type="double">127.648</longitude>
       <altitude>16</altitude>
       <speed>6.0</speed>
-      <rudder type="double">25</rudder>
+      <turn-radius-ft type="double">10.0</turn-radius-ft>
+      <fixed-turn-radius-ft type="double">10.0</fixed-turn-radius-ft>
       <heading type="double">0</heading>
     </entry>    
     <!--  Tank_2.1 -->
@@ -40,10 +41,11 @@
       <longitude type="double">127.648</longitude>
       <altitude>16</altitude>
       <speed>6.0</speed>
-      <rudder type="double">25</rudder>
+      <turn-radius-ft type="double">10.0</turn-radius-ft>
+      <fixed-turn-radius-ft type="double">10.0</fixed-turn-radius-ft>
       <heading type="double">0</heading>
     </entry>    
-    <!--  Tank 2.2 -->
+    <!-- 2 WW2 jeeps -->
     <entry>
       <search-order>PREFER_AI</search-order>
       <type>ship</type>
@@ -53,7 +55,8 @@
       <longitude type="double">127.649</longitude>
       <altitude>16</altitude>
       <speed>6.0</speed>
-      <rudder type="double">25</rudder>
+      <turn-radius-ft type="double">10.0</turn-radius-ft>
+      <fixed-turn-radius-ft type="double">10.0</fixed-turn-radius-ft>
       <heading type="double">0</heading>
     </entry>    
     <!--  First Zero Squadron -->
@@ -166,7 +169,8 @@
         <flightpath>
             <name type="string">sas_raid</name>
             <segmentLength type="double">3.0</segmentLength>
-        </flightpath>        
+        </flightpath>   
+        <swarm>true</swarm>        
     </group>
     <!-- Flak -->
     <group>

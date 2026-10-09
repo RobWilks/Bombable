@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <PropertyList>
   <scenario>
-    <name>Bombable: (ROAH) 3 B-17s meet 9 Zeroes on mission to Okinawa</name>
+    <name>Bombable: Ground and air battle for Okinawa</name>
     <description>1 B-17 and 1 jeep on mission to Okinawa guarded by AA battery, one Zero and two light tanks.</description>
     <!-- B-17s -->
     <entry>
