@@ -1,17 +1,17 @@
 # Custom Animation Manager integrated into Bombable
-var ObjectManager = {
+var animationManager = {
 
     # 1. Register and initialize animation controls on a Bombable object
     register: func(myNodeName) {
-        var bObj = bombable.object[myNodeName];
-        if (bObj == nil) {
-            print("ObjectManager: Target " ~ myNodeName ~ " not found in bombable.object");
+        var ats = bombable.attributes[myNodeName];
+        if (ats == nil) {
+            print("animationManager: Target " ~ myNodeName ~ " not found in bombable.attributes");
             return;
         }
 
         # Initialize controls.animation sub-hash on the Bombable object
-        bObj.controls = bObj.controls or {};
-        bObj.controls.animation = {
+        ats.controls = ats.controls or {};
+        ats.controls.animation = {
             # Active status flag
             isActive: false,
 
@@ -24,15 +24,19 @@ var ObjectManager = {
             rollNode: props.globals.getNode(myNodeName ~ "/orientation/roll-deg", 1),
 
             # Kinematic / State variables
-            speed_kts: 100.0,
-            heading_deg: 0.0,
+            dLat: 0.0,
+            dLon: 0.0,
+            dAlt: 0.0, # ft
+            dHdg: 0.0,
+            dPitch: 0.0,
+            dRoll: 0.0,
             
             # Timer instance pointer
             timer: nil
         };
 
         # Bind myNodeName to updateObject using a Nasal closure
-        var animData = bObj.controls.animation;
+        var animData = ats.controls.animation;
         var callback = func { me.updateObject(myNodeName); };
         
         # Frame-rate synchronized timer (0.0 sec interval)
@@ -41,16 +45,16 @@ var ObjectManager = {
 
     # 2. Unified per-frame update routine
     updateObject: func(myNodeName) {
-        var bObj = bombable.object[myNodeName];
-        if (bObj == nil) return;
+        var ats = bombable.attributes[myNodeName];
+        if (ats == nil) return;
 
         # Safety check: stop animation if object is damaged, dead, or inactive
-        if (bObj.isDead or bObj.health <= 0) {
+        if (ats.damage == 1) {
             me.stopObject(myNodeName);
             return;
         }
 
-        var anim = bObj.controls.animation;
+        var anim = ats.controls.animation;
         if (anim == nil or !anim.isActive) return;
 
         var dt = getprop("/sim/time/delta-sec") or 0.016;
@@ -71,29 +75,29 @@ var ObjectManager = {
 
     # 3. Control Operations
     startObject: func(myNodeName) {
-        var bObj = bombable.object[myNodeName];
-        if (bObj != nil and bObj.controls != nil and bObj.controls.animation != nil) {
-            bObj.controls.animation.isActive = true;
-            bObj.controls.animation.timer.start();
+        var ats = bombable.attributes[myNodeName];
+        if (ats != nil and ats.controls != nil and ats.controls.animation != nil) {
+            ats.controls.animation.isActive = true;
+            ats.controls.animation.timer.start();
         }
     },
 
     stopObject: func(myNodeName) {
-        var bObj = bombable.object[myNodeName];
-        if (bObj != nil and bObj.controls != nil and bObj.controls.animation != nil) {
-            bObj.controls.animation.isActive = false;
-            bObj.controls.animation.timer.stop();
+        var ats = bombable.attributes[myNodeName];
+        if (ats != nil and ats.controls != nil and ats.controls.animation != nil) {
+            ats.controls.animation.isActive = false;
+            ats.controls.animation.timer.stop();
         }
     },
 
     startAll: func {
-        foreach (var myNodeName; keys(bombable.object)) {
+        foreach (var myNodeName; keys(bombable.attributes)) {
             me.startObject(myNodeName);
         }
     },
 
     stopAll: func {
-        foreach (var myNodeName; keys(bombable.object)) {
+        foreach (var myNodeName; keys(bombable.attributes)) {
             me.stopObject(myNodeName);
         }
     },
@@ -101,14 +105,14 @@ var ObjectManager = {
     # Teardown and deallocate animation pointers for an object
     clearObject: func(myNodeName) {
         me.stopObject(myNodeName);
-        var bObj = bombable.object[myNodeName];
-        if (bObj != nil and bObj.controls != nil) {
-            bObj.controls.animation = nil;
+        var ats = bombable.attributes[myNodeName];
+        if (ats != nil and ats.controls != nil) {
+            ats.controls.animation = nil;
         }
     },
 
     clearAll: func {
-        foreach (var myNodeName; keys(bombable.object)) {
+        foreach (var myNodeName; keys(bombable.attributes)) {
             me.clearObject(myNodeName);
         }
     }
@@ -119,21 +123,23 @@ var ObjectManager = {
 
 # Example: Spawn/Initialize Bombable scenario objects
 var initScenario = func {
-    # Assuming Bombable has populated bombable.object["ai/models/static[0]"]
+    # Assuming Bombable has populated bombable.attributes["ai/models/static[0]"]
     var targetName = "ai/models/static[0]";
 
     # Register animation framework onto the target
-    ObjectManager.register(targetName);
+    animationManager.register(targetName);
 
-    # Set custom target speed
-    bombable.object[targetName].controls.animation.speed_kts = 150.0;
+    # Set custom target dLon, dLat etc.
+    bombable.attributes[targetName].controls.animation.dLat = 1e-5;
 
     # Start loop
-    ObjectManager.startObject(targetName);
+    animationManager.startObject(targetName);
 };
 
 # End of Epoch / Reset
 var endScenarioEpoch = func {
-    ObjectManager.stopAll();
-    ObjectManager.clearAll();
+    animationManager.stopAll();
+    animationManager.clearAll();
 };
+
+

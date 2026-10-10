@@ -10025,9 +10025,7 @@ var checkRangeHash = func (b = nil, v = nil, low = nil, high = nil, default = 1)
 	else return default;
 }
 
-######################################################################
 ################################ initialize ######################################
-######################################################################
 #delaying all the _init functions until FG's initialization sequence
 #has settled down seems to solve a lot of FG crashes on startup when
 #bombable is running with scenarios.
@@ -10038,7 +10036,6 @@ var initialize = func (b) {
 	settimer (func {initialize_func(b);}, 30, 1);
 
 }
-
 
 ######################### initialize_func ############################
 # initialize: Do sanity checking, then
@@ -10623,20 +10620,17 @@ var ground_init = func (myNodeName = "") {
 # Call to make your object stay on the ground, or at a constant
 # distance above ground level--like a jeep or tank that drives along
 # the ground, or an aircraft that moves along at, say, 500 ft AGL.
-# The altitude will be continually readjusted
-# as the object (set up as, say, and AI ship or aircraft moves.
+# The altitude is continually readjusted as the object moves.
 # In addition, for "ground vehicles" the pitch will change to (roughly) match
-# when going up or downhill.
+# slope of terrain.
 #
 var ground_init_func = func( myNodeName ) {
-	#return;
-	#only allow initialization for ai & multiplayer objects
+	# only allow initialization for ai & multiplayer objects
 	# in FG 2.4.0 we're having trouble with strange(!?) init requests from
 	# joysticks & the like
 	var init_allowed = 0;
 	if (find ("/ai/models/", myNodeName ) != -1 ) init_allowed = 1;
 	if (find ("/multiplayer/", myNodeName ) != -1 ) init_allowed = 1;
-
 	if (init_allowed != 1) {
 		debprint ("Attempt to initialize a Bombable subroutine on an object that is not AI or Multiplayer; aborting initialization. ", myNodeName);
 		return;
@@ -10648,7 +10642,6 @@ var ground_init_func = func( myNodeName ) {
 	#don't even try to do this to multiplayer aircraft
 	if (type == "multiplayer") return;
 
-
 	# set to 1 if initialized and 0 when de-inited. Nil if never before inited.
 	# if it 1 and we're trying to initialize, something has gone wrong and we abort with a message.
 	var inited = getprop(""~myNodeName~"/bombable/initializers/ground-initialized");
@@ -10657,49 +10650,16 @@ var ground_init_func = func( myNodeName ) {
 		debprint ("Attempt to re-initialize ground_init when it has not been de-initialized; aborting re-initialization. ", myNodeName);
 		return;
 	}
-						
 
 	# set to 1 if initialized and 0 when de-inited. Nil if never before inited.
 	setprop(""~myNodeName~"/bombable/initializers/ground-initialized", 1);
-
-
-
-	alts = attributes[myNodeName].altitudes;
 						
-						
-	#we increment loopid each time we are inited or de-inited
-	#when the loopid is changed it kills the timer loops that have that id
 	var loopid = inc_loopid(myNodeName, "ground");
-						
-	# Add some useful nodes
-						
-						
-						
-	#get the object's initial altitude
-	var lat = getprop(""~myNodeName~"/position/latitude-deg");
-	var lon = getprop(""~myNodeName~"/position/longitude-deg");
-	var alt = elev (lat, lon);
-						
-	#Do some checking for the ground_loop function so we don't always have
-	#to check this in that function
-	#damageAltAdd is the (maximum) amount the object will descend
-	#when it is damaged.
 						
 	settimer(func {ground_loop(loopid, myNodeName); }, 4.1 + rand());
 						
 	debprint ("Effect * maintain altitude above ground level * loaded for "~ myNodeName);
-	# altitude adjustment = ", alts.wheelsOnGroundAGL_ft, " max drop/fall when damaged = ",
-	# damageAltAdd, " loopid = ", loopid);
 	
-	# this loop allows ships to adjust their height according to the vertical speed.  Experiment abandoned 050318
-	# if (type == "ship") {							
-		# var haloopid = inc_loopid (myNodeName, "height_adjust");
-		# settimer (func {height_adjust_loop ( haloopid, myNodeName, .1 + rand()/100); }, 12 + rand());
-		# debprint ("Effect * adjust height * loaded for "~ myNodeName);
-
-	# }
-
-
 }
 ######################## location_init #############################
 
@@ -11784,10 +11744,9 @@ debprint ("Delaying start scenario . . . ", getprop("/sim/ai/scenario"));
 settimer (func { waitForAIModels() }, 5); #wait till AI models loaded
 
 
-
-
-
 #################################### bombableInit ####################################
+# Initialise bombable parameters for main AC
+
 var bombableInit = func {
 	debprint("Initializing variables.");
 	screenHProp = props.globals.getNode("/sim/startup/ysize");
@@ -11805,18 +11764,10 @@ var bombableInit = func {
 		#mainStatusPopupTip (msg, 10 );
 	}
 
-						
-	# read any existing bombable-startup-settings.xml  file if it exists
-	# getprop("/sim/fg-home") = fg-home directory
-						
-	# for some reason this isn't working; trying a 5 sec delay to
-	# see if that fixes it.  Something is maybe coming along
-	# afterward and overwriting the values?
-	# settimer (setupBombableMenu, 5.12);
 	setupBombableMenu();
 						
 	# Add some useful nodes
-	# these are for the "mothership" not the AI or MP objects
+	# these are for the main AC not the AI or MP objects
 						
 	setprop ("/bombable/fire-particles/smoke-startsize", 11.0);
 	setprop ("/bombable/fire-particles/smoke-endsize", 50.0);
@@ -11851,7 +11802,7 @@ var bombableInit = func {
 	# this is zero if no AI or MP models have impact detection loaded, and > 0 otherwise
 	var numModelImpactListeners = 0;
 						
-	#adds the main aircraft to the impact report detection list
+	# add the main aircraft to the impact report detection list
 	foreach (var i; bombable.impactReporters) 
 	{
 		#debprint ("i: " , i);
@@ -11862,20 +11813,7 @@ var bombableInit = func {
 	}
 						
 
-						
-	#if (getprop (""~bomb_menu_pp~"debug") == nil ) {
-		#  setprop (bomb_menu_save_lock, 1); #save_lock prevents this change from being written to the menu save file
-		#	  props.globals.getNode(bomb_menu_pp~"debug", 1).setBoolValue(0);
-		#	setprop (bomb_menu_save_lock, 0);
-	#}
-						
-	#turn on debug flag (for testing)
-	#  setprop (bomb_menu_save_lock, 1); #save_lock prevents this change from being written to the menu save file
-	#props.globals.getNode(bomb_menu_pp~, 1).setBoolValue(1);
-	#  setprop (bomb_menu_save_lock, 0); #save_lock prevents this change from being written to the menu save file
-						
-	#we increment loopid each time we are inited or de-inited
-	#when the loopid is changed it kills the timer loops that have that id
+	# fire_loop for main AC
 	var loopid = inc_loopid("", "fire");
 	settimer(func{fire_loop(loopid,"");},5.04 + rand());
 						
@@ -11930,8 +11868,6 @@ var bombableInit = func {
 							
 	});
 
-					
-						
 	print ("Bombable (ver. "~ bombableVersion ~") loaded - bombable, weapons, damage, fire, and explosion effects");
 
 	# we save this for last because mp_broadcast doesn't exist for some people,
@@ -14462,4 +14398,153 @@ var isTargetBestMatch = func(weapHash, targetIndex) {
     }
     return 0;
 };
+
+########################## animationManager ###########################
+# Custom Animation Manager integrated into Bombable
+var animationManager = {
+
+    # 1. Register and initialize animation controls on a Bombable object
+    register: func(myNodeName) {
+        var ats = bombable.attributes[myNodeName];
+        if (ats == nil) {
+            print("animationManager: Target " ~ myNodeName ~ " not found in bombable.attributes");
+            return;
+        }
+
+        # Initialize controls.animation sub-hash on the Bombable object
+        ats.controls = ats.controls or {};
+        ats.controls.animation = {
+            # Active status flag
+            isActive: false,
+
+            # Pre-cached property nodes for high-frequency execution
+            latNode: props.globals.getNode(myNodeName ~ "/position/latitude-deg", 1),
+            lonNode: props.globals.getNode(myNodeName ~ "/position/longitude-deg", 1),
+            altNode: props.globals.getNode(myNodeName ~ "/position/altitude-ft", 1),
+            hdgNode: props.globals.getNode(myNodeName ~ "/orientation/heading-deg", 1),
+            pitchNode: props.globals.getNode(myNodeName ~ "/orientation/pitch-deg", 1),
+            rollNode: props.globals.getNode(myNodeName ~ "/orientation/roll-deg", 1),
+
+            # Kinematic / State variables
+            dLat: 0.0,
+            dLon: 0.0,
+            dAlt: 0.0, # ft
+            dHdg: 0.0,
+            dPitch: 0.0,
+            dRoll: 0.0,
+            
+            # Timer instance pointer
+            timer: nil
+        };
+
+        # Bind myNodeName to updateObject using a Nasal closure
+        var animData = ats.controls.animation;
+        var callback = func { me.updateObject(myNodeName); };
+        
+        # Frame-rate synchronized timer (0.0 sec interval)
+        animData.timer = maketimer(0.0, callback);
+    },
+
+########################## updateObject ###########################
+    # 2. Unified per-frame update routine
+    updateObject: func(myNodeName) {
+        var ats = bombable.attributes[myNodeName];
+        if (ats == nil) return;
+
+        # Safety check: stop animation if object is damaged, dead, or inactive
+        if (ats.damage == 1) {
+            me.stopObject(myNodeName);
+            return;
+        }
+
+        var anim = ats.controls.animation;
+        if (anim == nil or !anim.isActive) return;
+
+        # Fetch current position
+        var lat = anim.latNode.getValue() or 0.0;
+        var lon = anim.lonNode.getValue() or 0.0;
+        var alt = anim.altNode.getValue() or 0.0;
+        var hdg = anim.hdgNode.getValue() or 0.0;
+
+        # Update cached property nodes directly
+        anim.latNode.setDoubleValue(lat + anim.dLat);
+        anim.latNode.setDoubleValue(lon + anim.dLon);
+        anim.latNode.setDoubleValue(alt + anim.dAlt);
+        anim.latNode.setDoubleValue(hdg + anim.dHdg);
+        # -----------------------------------
+    },
+
+    # 3. Control Operations
+    startObject: func(myNodeName) {
+        var ats = bombable.attributes[myNodeName];
+        if (ats != nil and ats.controls != nil and ats.controls.animation != nil) {
+            ats.controls.animation.isActive = true;
+            ats.controls.animation.timer.start();
+        }
+    },
+
+    stopObject: func(myNodeName) {
+        var ats = bombable.attributes[myNodeName];
+        if (ats != nil and ats.controls != nil and ats.controls.animation != nil) {
+            ats.controls.animation.isActive = false;
+            ats.controls.animation.timer.stop();
+        }
+    },
+
+    startAll: func {
+        foreach (var myNodeName; keys(bombable.attributes)) {
+            me.startObject(myNodeName);
+        }
+    },
+
+    stopAll: func {
+        foreach (var myNodeName; keys(bombable.attributes)) {
+            me.stopObject(myNodeName);
+        }
+    },
+
+    # Teardown and deallocate animation pointers for an object
+    clearObject: func(myNodeName) {
+        me.stopObject(myNodeName);
+        var ats = bombable.attributes[myNodeName];
+        if (ats != nil and ats.controls != nil) {
+            ats.controls.animation = nil;
+        }
+    },
+
+    clearAll: func {
+        foreach (var myNodeName; keys(bombable.attributes)) {
+            me.clearObject(myNodeName);
+        }
+    }
+};
+
+
+
+
+# Example: Spawn/Initialize Bombable scenario objects
+var initScenario = func {
+    # Assuming Bombable has populated bombable.attributes["ai/models/static[0]"]
+    var targetName = "ai/models/static[0]";
+
+    # Register animation framework onto the target
+    animationManager.register(targetName);
+
+    # Set custom target dLon, dLat etc.
+    bombable.attributes[targetName].controls.animation.dLat = 1e-5;
+
+    # Start loop
+    animationManager.startObject(targetName);
+};
+
+# End of Epoch / Reset
+var endScenarioEpoch = func {
+    animationManager.stopAll();
+    animationManager.clearAll();
+};
+
+
+
+
+
 ########################## END ###########################
