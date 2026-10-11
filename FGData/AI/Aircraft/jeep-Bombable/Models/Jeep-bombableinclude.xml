@@ -174,7 +174,7 @@
           # all in meters
           #                     
           altitudes : {	
-            wheelsOnGroundAGL_m : 0.986 , #altitude correction to add to your aircraft or ship that is needed to put wheels on ground (or, for a ship, make it float in the water at the correct level).  For most objects this is 0 but some models need a small correction to place them exactly at ground level
+            wheelsOnGroundAGL_m : 0.98 , #altitude correction to add to your aircraft or ship that is needed to put wheels on ground (or, for a ship, make it float in the water at the correct level).  For most objects this is 0 but some models need a small correction to place them exactly at ground level
             
             minimumAGL_m : 0, #minimum altitude above ground level this object is allowed to fly
             maximumAGL_m : 0, #maximum altitude AGL this object is allowed to fly	    
@@ -196,7 +196,9 @@
             
     
             damagedAltitudeChangeMaxRate_meterspersecond : 0.02, #max rate to sink or fly downwards when damaged, in meters/second
-      			maxClimbRate_fps : 11, #needed for ground vehicles
+      			maxTurnRate : 50, #deg per sec needed for ground vehicles
+      			minTurnRate : 10, #deg per sec in the high speed regime
+            maxTurnSpeed : 10, #knots, turn rate increases linearly with speed up to this value and decreases 1/speed beyond it
           },
           #  
           #########################################

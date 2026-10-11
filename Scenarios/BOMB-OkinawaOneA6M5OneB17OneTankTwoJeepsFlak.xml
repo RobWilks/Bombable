@@ -20,43 +20,35 @@
     <!--  Tank -->
     <entry>
       <search-order>PREFER_AI</search-order>
-      <type>ship</type>
+      <type>static</type>
       <name>Flaming_Ego_Y</name>
       <model type="string">Aircraft/Scimitar-Bombable/Scimitar.xml</model>
       <latitude type="double">26.2059</latitude>
       <longitude type="double">127.648</longitude>
       <altitude>16</altitude>
       <speed>6.0</speed>
-      <turn-radius-ft type="double">10.0</turn-radius-ft>
-      <fixed-turn-radius-ft type="double">10.0</fixed-turn-radius-ft>
-      <heading type="double">0</heading>
-    </entry>    
-    <!--  Tank_2.1 -->
-    <entry>
-      <search-order>PREFER_AI</search-order>
-      <type>ship</type>
-      <name>Rattle_n_Hum_E</name>
-      <model type="string">Aircraft/jeep-Bombable/Models/WW2Jeep.xml</model>
-      <latitude type="double">26.2049</latitude>
-      <longitude type="double">127.648</longitude>
-      <altitude>16</altitude>
-      <speed>6.0</speed>
-      <turn-radius-ft type="double">10.0</turn-radius-ft>
-      <fixed-turn-radius-ft type="double">10.0</fixed-turn-radius-ft>
       <heading type="double">0</heading>
     </entry>    
     <!-- 2 WW2 jeeps -->
     <entry>
       <search-order>PREFER_AI</search-order>
-      <type>ship</type>
+      <type>static</type>
+      <name>Rattle_n_Hum_E</name>
+      <model type="string">Aircraft/jeep-Bombable/Models/WW2Jeep_static.xml</model>
+      <latitude type="double">26.2049</latitude>
+      <longitude type="double">127.648</longitude>
+      <altitude-ft>16</altitude-ft>
+      <heading type="double">0</heading>
+    </entry>    
+    <entry>
+      <search-order>PREFER_AI</search-order>
+      <type>static</type>
       <name>Smite_E</name>
       <model type="string">Aircraft/jeep-Bombable/Models/WW2Jeep.xml</model>
       <latitude type="double">26.2059</latitude>
       <longitude type="double">127.649</longitude>
       <altitude>16</altitude>
       <speed>6.0</speed>
-      <turn-radius-ft type="double">10.0</turn-radius-ft>
-      <fixed-turn-radius-ft type="double">10.0</fixed-turn-radius-ft>
       <heading type="double">0</heading>
     </entry>    
     <!--  First Zero Squadron -->

@@ -2987,7 +2987,7 @@ var ground_loop = func( id, myNodeName ) {
 		GeoCoord.apply_course_distance( heading, tick_m + 2 * frontBack_m);
 		var altNextTick_m = elev_m(GeoCoord.lat(), GeoCoord.lon());
 		var gradientNextTick = (altNextTick_m - toFrontAlt_m) / tick_m;
-		var pitchNextTick = math.atan(gradientNextTick) * R2D;
+		var pitchNextTick = math.atan2(altNextTick_m - toFrontAlt_m, tick_m) * R2D;
 
 		var distAhead_m = speed_kt * KT2MPS * 5;
 		GeoCoord.apply_course_distance(heading, distAhead_m);
@@ -3292,8 +3292,17 @@ var ground_loop = func( id, myNodeName ) {
 		var MAX_DV_LONG_KT = throttle * max_linear_acceleration * updateTime_s / KT2MPS; # Max speed adjustment per tick (knots)
 		var brake_factor = 2.0; # max braking deceleration / max acceleration (positive)
 
-		# Lateral maneuverability limit derived from max usable turn rate
-		var MAX_DV_LAT_KT = speed_kt * math.tan(0.18 * updateTime_s); 
+		# Lateral maneuverability limit derived from max turn rate
+		# Two regimes: low speed turn rate varies with speed; highh speed turn rate varies with 1 / speed
+		if (speed_kt > vels.maxTurnSpeed) {
+			var turnRate = vels.maxTurnRate * vels.maxTurnSpeed / speed_kt;
+			if (turnRate < vels.maxTurnRate) turnRate = vels.maxTurnRate;
+		}
+		else{
+			var turnRate = vels.maxTurnRate * speed_kt / vels.maxTurnSpeed;
+		}
+
+		var MAX_DV_LAT_KT = speed_kt * turnRate * D2R * updateTime_s; 
 		# Max lateral velocity shift per tick (knots); 0.18 rad/sec ~ 10 degrees/sec
 
 		# Deadband on longitudinal chatter
@@ -4941,25 +4950,6 @@ var speed_adjust_loop = func ( id, myNodeName, looptime_sec) {
 				
 	speed_adjust (myNodeName, looptime_sec);
 
-}
-
-############################# altitude_adjust ############################
-# adjusts altitude of a groundvehicle
-#
-var altitude_adjust = func (myNodeName, alt_ft, count, delta_alt, delta_t, N_STEPS) {
-	var new_alt = alt_ft + delta_alt;
-
-	count += 1; 
-	if (count < N_STEPS)
-	{
-		settimer(func
-		{
-			setprop (""~myNodeName~"/position/altitude-ft", new_alt);
-			altitude_adjust(myNodeName, new_alt, count, delta_alt, delta_t, N_STEPS);
-		},
-		delta_t
-		);
-	}
 }
 
 ################################## do_acrobatic_loop_loop ####################################
@@ -10421,6 +10411,8 @@ var initialize_func = func ( b ){
 		
 		b.velocities["curr_acrobat_vertical_speed_fps"] = 0; # used to control AI aircraft when flying loops					
 		b.velocities.damagedAltitudeChangeMaxRate_meterspersecond = checkRangeHash (b.velocities, "damagedAltitudeChangeMaxRate_meterspersecond", 0, nil, 0.5 );
+		b.velocities.maxTurnRate = checkRangeHash ( b.velocities, "maxTurnRate", 5, 60, 50 ); # degs per sec
+		b.velocities.maxTurnSpeed = checkRangeHash ( b.velocities, "maxTurnSpeed", 5, 15, 9 ); # knots
 							
 		if (contains (b.velocities, "diveTerminalVelocities") and typeof (b.velocities.diveTerminalVelocities) == "hash") {
 			var ave = 0;
@@ -10481,6 +10473,7 @@ var initialize_func = func ( b ){
 				b.velocities.climbTerminalVelocityFactor = 750; #average of Camel & Zero values, so a good typical value
 			}
 		}
+
 	}
 
 	# damage sanity checking
@@ -10616,7 +10609,10 @@ var initialize_func = func ( b ){
 	addToTargets(myNodeName); # add AI model to list of targets and ID its team.  Targets are assigned after scenario initialization
 
 	# register groundvehicle animation
-	if (b.type == "groundvehicle") animationManager.register(myNodeName);
+	if (b.type == "groundvehicle" or b.type == "ship") 
+	{
+		animationManager.register(myNodeName);
+	}
 	
 }
 
