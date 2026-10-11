@@ -22,6 +22,11 @@ var key = "controls";
 foreach (var elem; keys(ats)) print (elem,": ",ats[elem]);
 foreach (var elem; keys(ats[key])) print (elem,": ",ats[key][elem]);
 
+var myNodeName1 = "/ai/models/static";
+var ctrls = bombable.attributes[myNodeName1].controls;
+var key = "animation";
+foreach (var elem; keys(ctrls[key])) print (elem,": ",ctrls[key][elem]);
+
 debug.dump(ats.weapons);
 debug.dump(ats.evasions);
 debug.dump(ats.attacks);
@@ -161,7 +166,15 @@ var find_closest_runway_details = func(icao, mainAC_heading) {
 }
 # Fetch airport object by ICAO
 var airport_name = "ROAH";
-find_closest_runway_details(airport_name, 180.0);
+result = find_closest_runway_details(airport_name, 180.0);
+var GeoCoord = geo.Coord.new();
+
+
+GeoCoord.set_latlon(result.lat, result.lon);
+var alt_m = bombable.elev(GeoCoord.lat(), GeoCoord.lon());
+print("alt_m = ", alt_m);
+
+
 
 
 ##################### check teams ##########################

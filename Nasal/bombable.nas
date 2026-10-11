@@ -1359,7 +1359,7 @@ var revitalizeAllAIObjects = func (revitType = "aircraft", preservePosSpeed = 0)
 		{
 			var currLat = getprop (myNodeName~"/position/latitude-deg");
 			var currLon = getprop (myNodeName~"/position/longitude-deg");
-			var old_elev_ft = elev (currLat,currLon);
+			var old_elev_ft = elev_ft(currLat,currLon);
 			
 			if (referenceLat == 0 and referenceLon == 0) 
 			{
@@ -1377,7 +1377,7 @@ var revitalizeAllAIObjects = func (revitType = "aircraft", preservePosSpeed = 0)
 		
 		setprop (myNodeName~"/position/latitude-deg",  newlat_deg );
 		setprop (myNodeName~"/position/longitude-deg",  newlon_deg );
-		var elev_ft = elev (newlat_deg,newlon_deg);
+		var elev_ft = elev_ft(newlat_deg,newlon_deg);
 		var currAlt_ft = getprop (myNodeName~"/position/altitude-ft");
 		
 		if (type == "aircraft") 
@@ -2435,19 +2435,28 @@ var trueAirspeed2indicatedAirspeed = func (myNodeName = "", trueAirspeed_kt = 0 
 
 }
 
-######################### elev ###########################
+######################### elev_ft ###########################
 #return altitude (in feet) of given lat/lon
-# rjw: The first entry in the vector is the elevation (in meters) for the given point, and the second is a hash with information about the assigned material - very CPU-intensive
-var elev = func (lat, lon) {
-
+# rjw: The first entry in the vector is the elevation (in meters) for the given point, 
+# and the second is a hash with information about the assigned material - very CPU-intensive
+var elev_ft = func (lat, lon) {
 	var info = geodinfo(lat, lon);
-			
 	if (info != nil) {
 		var alt_m = info[0];
 		if (alt_m == nil) alt_m = 0;
 		return alt_m * M2FT; #return the altitude in feet
 	} else  return 0;
+}
 			
+######################### elev_m ###########################
+#return altitude (in metres) of given lat/lon
+var elev_m = func (lat, lon) {
+	var info = geodinfo(lat, lon);
+	if (info != nil) {
+		var alt_m = info[0];
+		if (alt_m == nil) alt_m = 0;
+		return alt_m;
+	} else  return 0;
 }
 		
 ##################################### damage_msg ##########################################
@@ -2856,9 +2865,11 @@ var setVerticalSpeed = func (myNodeName, targetVertSpeed_fps = 70, maxChange_fps
 # the object becomes damaged, usually it is negative - say a sinking ship or tires flattening on a vehicle.
 # damageAltMaxRate is the max rate to allow the object to rise or sink as it becomes disabled
 
-# rjw: the ground_loop affects the descent of aircraft. It initialises slowly, 
+# The ground_loop determines the descent of aircraft. It initialises slowly, 
 # e.g. possible for aircraft to enter a crash sequence before ground_loop is first called
-# the ground_loop attempts to control descent of aircraft for high damage values, so does aircraftCrashControl
+# the ground_loop controls descent of aircraft for high damage values, so does aircraftCrashControl.  TO DO check conflict
+
+
 
 var ground_loop = func( id, myNodeName ) {
 	id == attributes[myNodeName].loopids.ground_loopid or return;
@@ -2908,8 +2919,18 @@ var ground_loop = func( id, myNodeName ) {
 	var lat = getprop(""~myNodeName~"/position/latitude-deg");
 	var lon = getprop(""~myNodeName~"/position/longitude-deg");
 	var heading = getprop(""~myNodeName~"/orientation/true-heading-deg");
-	var speed_kt = getprop(""~myNodeName~"/velocities/true-airspeed-kt");
-	var distance_til_update_ft = speed_kt * KT2FPS * updateTime_s;
+
+	var speed_kt = 0;
+	if (type == "aircraft") {
+		speed_kt = getprop(""~myNodeName~"/velocities/true-airspeed-kt") 
+	}
+	elsif (type == "groundvehicle" or type == "ship") 
+	 {
+		speed_kt = getprop(""~myNodeName~"/velocities/speed-kts");
+	}
+	var tick_ft = speed_kt * KT2FPS * updateTime_s;
+	var tick_m = tick_ft * FT2M;
+
 	var damageValue = ats.damage;
 	var damageAltAddPrev_ft = ctrls.damageAltAddCurrent_ft;
 			
@@ -2932,19 +2953,21 @@ var ground_loop = func( id, myNodeName ) {
 			
 	var GeoCoord = geo.Coord.new();
 	GeoCoord.set_latlon(lat, lon);
-	var alt_ft = elev (GeoCoord.lat(), GeoCoord.lon()  ); #in feet
+	var alt_ft = elev_ft(GeoCoord.lat(), GeoCoord.lon()); #in feet
 	# assume lat, lon are at the centre of the object
 	#debprint ("GeoCoord.apply_course_distance(heading, dims.length_m/2); ",heading, " ", dims.length_m/2 );
+
 	GeoCoord.apply_course_distance(heading, frontBack_m);    #frontreardist in meters
-	var toFrontAlt_ft = elev ( GeoCoord.lat(), GeoCoord.lon() ); #in feet
+	var toFrontAlt_m = elev_m(GeoCoord.lat(), GeoCoord.lon());
+	var toFrontAlt_ft = toFrontAlt_m * M2FT;
 			
 	# This loop is one of our biggest framerate sucks and so if we're an undamaged
 	# aircraft way above our minimum AGL we're just going to skip it entirely.
 	if (type == "aircraft" and damageValue < 0.95 and (currAlt_ft - toFrontAlt_ft) > 3 * alts.minimumAGL_ft) return;
-			
+
 			
 
-	
+			
 	# DELETE since approach no longer used, or reinstate because it should be?
 	# Highly damaged ACs can take a long time to reach the ground!
 	# If an AC damaged we always get the pitch angle etc as that is how we force it down.
@@ -2957,13 +2980,18 @@ var ground_loop = func( id, myNodeName ) {
 		# Find the slope of the ground in the direction we are heading
 
 		GeoCoord.apply_course_distance(heading + 180, 2 * frontBack_m );
-		var toRearAlt_ft = elev (GeoCoord.lat(), GeoCoord.lon()  );
-		pitchangle1_deg = math.atan2( toFrontAlt_ft - toRearAlt_ft, 2 * frontBack_ft ) * R2D;
+		var toRearAlt_m = elev_m(GeoCoord.lat(), GeoCoord.lon());
+		pitchangle1_deg = math.atan2( toFrontAlt_m - toRearAlt_m, 2 * frontBack_m ) * R2D;
 		pitchangle_deg = pitchangle1_deg; 
 
+		GeoCoord.apply_course_distance( heading, tick_m + 2 * frontBack_m);
+		var altNextTick_m = elev_m(GeoCoord.lat(), GeoCoord.lon());
+		var gradientNextTick = (altNextTick_m - toFrontAlt_m) / tick_m;
+		var pitchNextTick = math.atan(gradientNextTick) * R2D;
+
 		var distAhead_m = speed_kt * KT2MPS * 5;
-		GeoCoord.apply_course_distance( heading, distAhead_m + 2 * frontBack_m);
-		var gradientAhead = (elev ( GeoCoord.lat(), GeoCoord.lon() ) - toFrontAlt_ft) * FT2M / distAhead_m;
+		GeoCoord.apply_course_distance(heading, distAhead_m);
+		var gradientAhead = (elev_m(GeoCoord.lat(), GeoCoord.lon()) - altNextTick_m) / distAhead_m;
 
 		# In Canvas, an elevation query at an object's position returns the top of that particular object.  
 		# So to find the elevation of the actual landscape we query ahead, behind, to left, to right of object & take the average.
@@ -2973,13 +3001,15 @@ var ground_loop = func( id, myNodeName ) {
 
 		var GeoCoord2 = geo.Coord.new();
 		GeoCoord2.set_latlon(lat, lon);
-		GeoCoord2.apply_course_distance( heading - 90, leftRight_m );  #sidedist in meters
-		var toLeftAlt_ft = elev (GeoCoord2.lat(), GeoCoord2.lon()  ); #in feet
-		GeoCoord2.apply_course_distance( heading + 90, 2 * leftRight_m );  #sidedist in meters
-		var toRightAlt_ft = elev (GeoCoord2.lat(), GeoCoord2.lon()  ); #in feet
-		var rollangle_rad = math.atan2( toLeftAlt_ft - toRightAlt_ft, 2 * leftRight_ft ); 
-		rollangle_deg = R2D * rollangle_rad; 
-		alt_ft = (toFrontAlt_ft + toRearAlt_ft + toLeftAlt_ft + toRightAlt_ft) / 4; #in feet
+		GeoCoord2.apply_course_distance( heading - 90, leftRight_m ); #sidedist in meters
+		var toLeftAlt_m = elev_m(GeoCoord2.lat(), GeoCoord2.lon());
+		GeoCoord2.apply_course_distance( heading + 90, 2 * leftRight_m ); #sidedist in meters
+		var toRightAlt_m = elev_m(GeoCoord2.lat(), GeoCoord2.lon());
+		var toLeftAlt_ft = toLeftAlt_m * M2FT;
+		var toRightAlt_ft = toRightAlt_m * M2FT;
+		var rollangle_rad = math.atan2( toLeftAlt_m - toRightAlt_m, 2 * leftRight_m ); 
+		rollangle_deg = rollangle_rad * R2D; 
+		alt_ft = (toFrontAlt_m + toRearAlt_m + toLeftAlt_m + toRightAlt_m) * M2FT / 4; #in feet
 	}
 	else
 	{
@@ -3045,23 +3075,20 @@ var ground_loop = func( id, myNodeName ) {
 	# speed is adjusted by add_damage
 	# ships and groundvehicles might be stationary at the start of a scenario
 
-	if ((type == "groundvehicle") or (type == "ship")) 
+	if (type == "groundvehicle" or type == "ship") 
 	{
 		if (speed_kt <= 1 and ats.damage > 0.9) 
 		{
 			debprint(sprintf
 				(
-				"Ground loop terminated for %s speed_kt=%6.2f tgt_speed=%6.2f",
+				"Ground loop terminated for %s speed_kt=%6.2f",
 				myNodeName,
-				speed_kt,
-				getprop(""~myNodeName~"/controls/tgt-speed-kts")
+				speed_kt
 				)
 			);
 			ats.exploded = 1; # this acts as a flag to terminate the ground loop when its is next called 
 			ats.damage = 1; # could continue fighting even though immobilised?
-			setprop(""~myNodeName~"/controls/tgt-speed-kts", 0); # no effect on FG C++ ships 
-			setprop(""~myNodeName~"/velocities/true-airspeed-kt", 0);
-			setprop(""~myNodeName~"/velocities/vertical-speed-fps", 0); # no effect on FG C++ ships
+			setprop(""~myNodeName~"/velocities/speed-kts", 0);
 			if (type == "groundvehicle") deleteSmoke("pistonexhaust", myNodeName); # could set a timer here; smoke from ship?
 			return;
 		}
@@ -3119,7 +3146,7 @@ var ground_loop = func( id, myNodeName ) {
 		GeoCoord.apply_course_distance( heading, speed_kt * KT2MPS * 10 );
 		# 10sec look ahead - 120s below?
 				
-		var radarAheadAlt_ft = elev ( GeoCoord.lat(), GeoCoord.lon() ); #in feet
+		var radarAheadAlt_ft = elev_ft(GeoCoord.lat(), GeoCoord.lon());
 				
 				
 		# our target altitude (for aircraft purposes) is the greater of the
@@ -3165,6 +3192,10 @@ var ground_loop = func( id, myNodeName ) {
 		var alt_gain = gradient * speed_kt * KT2FPS * updateTime_s +
 				alts.wheelsOnGroundAGL_ft / math.cos(slope_rad) / math.cos(rollangle_rad) + 
 				alt_ft - currAlt_ft; # correction if above or below ground
+
+		# var alt_gain = altNextTick_m * M2FT + alts.wheelsOnGroundAGL_ft / math.cos(slope_rad) / math.cos(rollangle_rad) - currAlt_ft;
+
+		
 
 		# avoid steep terrain
 		var targetHeading = ctrls.target_hdg;
@@ -3292,16 +3323,41 @@ var ground_loop = func( id, myNodeName ) {
 			var vy = (v_long * cos_hdg) - (v_lat * sin_hdg);
 			
 			var newHeading = math.atan2(vx, vy) * R2D;
-			if (newHeading < 0) newHeading += 360.0;
+			var deltaHdg = newHeading - heading;
+			if (deltaHdg > 180)  deltaHdg -= 360;
+			if (deltaHdg < -180) deltaHdg += 360;
 
-			setprop (""~myNodeName~"/orientation/true-heading-deg", newHeading);
-			setprop(""~myNodeName~"/position/latitude-deg", lat + vx * updateTime_s * KT2MPS / m_per_deg_lat);
-			setprop(""~myNodeName~"/position/longitude-deg", lon + vy * updateTime_s * KT2MPS / m_per_deg_lon);
-			setprop(""~myNodeName~"/position/altitude-ft", currAlt_ft + alt_gain);
-			setprop (""~myNodeName~"/velocities/true-airspeed-kt", v_long);
+			var sign = (deltaHdg < 0) ? -1 : 1;
+			var absDeltaHdg = sign * deltaHdg;
+			var rudder = 0;
+			if (absDeltaHdg > 81) rudder = 30
+				elsif (absDeltaHdg > 20) rudder = 27 
+				elsif (absDeltaHdg > 16) rudder = 23 
+				elsif (absDeltaHdg > 12) rudder = 20
+				elsif (absDeltaHdg > 8) rudder = 17
+				elsif (absDeltaHdg > 5.1) rudder = 13
+				elsif (absDeltaHdg > 3) rudder = 10
+				elsif (absDeltaHdg > 1.2) rudder = 7
+				elsif (absDeltaHdg > 0.3) rudder = 4;
+
+			setprop(myNodeName~"/surface-positions/rudder-pos-deg", rudder * sign);
+
+
+			var dt = getprop("/sim/time/delta-sec") or 0.016;
+
+			ctrls.animation.dLat = vy * KT2MPS / m_per_deg_lat * dt;
+			ctrls.animation.dLon = vx * KT2MPS / m_per_deg_lon * dt;
+			ctrls.animation.dAlt = alt_gain / updateTime_s * dt;
+			ctrls.animation.dHdg = deltaHdg / updateTime_s * dt;
+
 			# pitch and roll controlled by model animation
-			setprop (""~myNodeName~"/orientation/roll-animation", rollangle_deg ); 
-			setprop (""~myNodeName~"/orientation/pitch-animation", pitchangle_deg ); 
+			setprop (""~myNodeName~"/orientation/pitch-deg", pitchangle_deg); 
+			setprop (""~myNodeName~"/orientation/roll-deg", rollangle_deg); 
+			# var old_roll = getprop (""~myNodeName~"/orientation/roll-deg"); 
+			# ctrls.animation.dRoll = (rollangle_deg - old_roll) / updateTime_s * dt;
+			# ctrls.animation.dPitch = (pitchNextTick - pitchangle_deg) / updateTime_s * dt;
+
+			setprop (""~myNodeName~"/velocities/speed-kts", v_long);
 		}
 		
 		# if (thorough) debprint(
@@ -3392,18 +3448,18 @@ var ground_loop = func( id, myNodeName ) {
 	# rjw removed since not realistic:  Badly damaged diving aircraft do not match their pitch to the gradient of ground.  
 	# Causes errors since pitchangle1_deg only calculated when on ground.  See ctrls.onGround == 1 code block
 	{ 
-		var pitchangle2_deg = R2D * math.asin(damageAltAddCurrent, distance_til_update_ft );
-		if (damageAltAddCurrent == 0 and distance_til_update_ft > 0) pitchangle2_deg = 0; #forward
-		if (damageAltAddCurrent < 0 and distance_til_update_ft == 0) pitchangle2_deg = -90; #straight down
+		var pitchangle2_deg = R2D * math.asin(damageAltAddCurrent, tick_ft );
+		if (damageAltAddCurrent == 0 and tick_ft > 0) pitchangle2_deg = 0; #forward
+		if (damageAltAddCurrent < 0 and tick_ft == 0) pitchangle2_deg = -90; #straight down
 		#Straight up won't happen here because we are (on purpose) forcing
 		#the object down as we crash.  So we ignore the case.
-		#if (distance_til_update_ft == 0 and damageAltAddCurrent > 0 ) pitchangle2 = 90; straight up
+		#if (tick_ft == 0 and damageAltAddCurrent > 0 ) pitchangle2 = 90; straight up
 				
 		#if no movement at all then we leave the pitch alone
 		#if movement is less than 0.5 feet for pitch purposes we consider it
 		#no movement at all--just a bit of wiggling
 
-		if ( (abs(damageAltAddCurrent) < 0.5) and ( abs(distance_til_update_ft) < 0.5)) pitchangle2_deg = 0;
+		if ( (abs(damageAltAddCurrent) < 0.5) and ( abs(tick_ft) < 0.5)) pitchangle2_deg = 0;
 				
 		if (abs(pitchangle2_deg) > abs(pitchangle1_deg)) pitchangle_deg = pitchangle2_deg;
 		#pitchangle1_deg is the slope of the land at the location of the object
@@ -3419,8 +3475,8 @@ var ground_loop = func( id, myNodeName ) {
 		# );		
 
 		# pitch and roll controlled by model animation
-		rollangle_deg = getprop (""~myNodeName~"/orientation/roll-animation");
-		pitchangle_deg = getprop (""~myNodeName~"/orientation/pitch-animation");
+		rollangle_deg = getprop (""~myNodeName~"/orientation/roll-deg");
+		pitchangle_deg = getprop (""~myNodeName~"/orientation/pitch-deg");
 		if (rollangle_deg == nil) rollangle_deg = 0;
 		if (pitchangle_deg == nil) pitchangle_deg = 0;
 		if (ctrls["target_roll"] != nil) # initialised by add_damage
@@ -3428,8 +3484,8 @@ var ground_loop = func( id, myNodeName ) {
 			rollangle_deg = 0.95 * rollangle_deg + 0.05 * ctrls.target_roll;
 			pitchangle_deg = 0.95 * pitchangle_deg + 0.05 * ctrls.target_pitch;
 		}
-		setprop (""~myNodeName~"/orientation/roll-animation", rollangle_deg );
-		setprop (""~myNodeName~"/orientation/pitch-animation", pitchangle_deg );
+		setprop (""~myNodeName~"/orientation/roll-deg", rollangle_deg );
+		setprop (""~myNodeName~"/orientation/pitch-deg", pitchangle_deg );
 
 		# rjw check if grounded
 		if ((targetAlt_ft - alts.initialAlt_ft) > 3) 
@@ -5121,7 +5177,7 @@ var choose_random_acrobatic = func (myNodeName) {
 	#get the object's initial altitude
 	var lat = getprop(""~myNodeName~"/position/latitude-deg");
 	var lon = getprop(""~myNodeName~"/position/longitude-deg");
-	var elev_m = elev (lat, lon) * FT2M;
+	var elev_m = elev_m(lat, lon);
 	var alt_m = getprop ("/position/altitude-ft") * FT2M;
 	var altAGL_m = alt_m-elev_m;
 	var alts = attributes[myNodeName].altitudes;
@@ -5181,7 +5237,7 @@ var choose_attack_acrobatic = func
 	#rjw mod: if the arguments for elev are lat and long of current aircraft position why not read property tree directly?
 	#geo.aircraft_position(); Returns the main aircraft's current position in the form of a geo.Coord object
 	#currElev_m is the elevation of the ground beneath the AI aircraft - try
-	#var currElev_m = elev (getprop(""~myNodeName~"/position/latitude-deg"),getprop(""~myNodeName~"/position/longitude-deg")) * FT2M;
+	#var currElev_m = elev_m(getprop(""~myNodeName~"/position/latitude-deg"),getprop(""~myNodeName~"/position/longitude-deg"));
 	#or create a new geo object for the AI aircraft using coord = geo.Coord.new(geo.aircraft_position(myNodeName))
  			
 	#loops only help if the target is behind us
@@ -6314,16 +6370,12 @@ var weapons_loop = func (id, myNodeName1 = "") {
 	var aAlt_m = getprop(""~myNodeName1~"/position/altitude-ft") * FT2M;
 	
 	# the heading, pitch and roll of the shooter are used to determine the orientation of its weapon in the ground frame of reference 
-	# AI aircraft animate model using pitch and roll; for AI ships and ground_vehicles code animation here
 	# roll increases clockwise in the direction of travel
 	ats.myHeading_deg = getprop ("" ~ myNodeName1 ~ "/orientation/true-heading-deg");
-	ats.roll_deg = getprop("" ~ myNodeName1 ~ "/orientation/roll-animation");
-	ats.pitch_deg = getprop("" ~ myNodeName1 ~ "/orientation/pitch-animation");
-	if (ats.roll_deg == nil)
-	{
-		ats.roll_deg = getprop("" ~ myNodeName1 ~ "/orientation/roll-deg");
-		ats.pitch_deg = getprop("" ~ myNodeName1 ~ "/orientation/pitch-deg");
-	}
+	ats.roll_deg = getprop("" ~ myNodeName1 ~ "/orientation/roll-deg");
+	ats.pitch_deg = getprop("" ~ myNodeName1 ~ "/orientation/pitch-deg");
+	if (ats.roll_deg == nil) ats.roll_deg = 0;
+	if (ats.pitch_deg == nil) ats.pitch_deg = 0;
 
 	var myTargets = ats.targetIndex;
 	var nTargets = size(myTargets);
@@ -6413,7 +6465,7 @@ var weapons_loop = func (id, myNodeName1 = "") {
 			var mid_Alt_m = (aAlt_m + targetAlt_m) / 2;
 			var GeoCoord = geo.Coord.new();
 			GeoCoord.set_latlon(mid_lat_deg, mid_lon_deg);
-			var ground_Alt_m = elev (GeoCoord.lat(), GeoCoord.lon()) * FT2M; 
+			var ground_Alt_m = elev_m(GeoCoord.lat(), GeoCoord.lon()); 
 			groundCheck = (ground_Alt_m < mid_Alt_m);
 		}
 		append ( groundData,  groundCheck );
@@ -7191,7 +7243,7 @@ var guideRocket = func
 	# check above ground level
 	var GeoCoord = geo.Coord.new();
 	GeoCoord.set_latlon(alat_deg, alon_deg);
-	var ground_Alt_m = elev (GeoCoord.lat(), GeoCoord.lon()) * FT2M; 
+	var ground_Alt_m = elev_m(GeoCoord.lat(), GeoCoord.lon()); 
 	if (ground_Alt_m > aAlt_m) 
 	{
 		debprint (sprintf("checkAGL for %s: rocket alt = %6.0fm ground alt = %6.0fm",  myNodeName1 ~ "/" ~ elem , aAlt_m, ground_Alt_m));
@@ -8640,7 +8692,7 @@ var attack_loop = func ( id, myNodeName ) {
 
 	#it turns out that the main AC's AGL is available in the prop tree, which is
 	#far quicker to access then the elev function, which is very slow
-	#elevTarget_m = elev (geo.aircraft_position().lat(),geo.aircraft_position().lon() ) * FT2M;
+	#elevTarget_m = elev_m(geo.aircraft_position().lat(),geo.aircraft_position().lon());
 	#targetAGL_m = targetAlt_m-elevTarget_m;
 				
 	var targetAlt_m = getprop (targetNode ~ "/position/altitude-ft") * FT2M;
@@ -10025,6 +10077,146 @@ var checkRangeHash = func (b = nil, v = nil, low = nil, high = nil, default = 1)
 	else return default;
 }
 
+########################## animationManager ###########################
+# Custom Animation Manager integrated into Bombable
+var animationManager = {
+
+    # 1. Register and initialize animation controls on a Bombable object
+    register: func(myNodeName) {
+        var ats = attributes[myNodeName];
+        if (ats == nil) {
+            print("animationManager: Target " ~ myNodeName ~ " not found in attributes");
+            return;
+        }
+
+        # Initialize controls.animation sub-hash on the Bombable object
+        ats.controls = ats.controls or {};
+        ats.controls.animation = {
+            # Active status flag
+            isActive: false,
+
+            # Pre-cached property nodes
+            latNode: props.globals.getNode(myNodeName ~ "/position/latitude-deg", 1),
+            lonNode: props.globals.getNode(myNodeName ~ "/position/longitude-deg", 1),
+            altNode: props.globals.getNode(myNodeName ~ "/position/altitude-ft", 1),
+            hdgNode: props.globals.getNode(myNodeName ~ "/orientation/true-heading-deg", 1),
+            pitchNode: props.globals.getNode(myNodeName ~ "/orientation/pitch-deg", 1),
+            rollNode: props.globals.getNode(myNodeName ~ "/orientation/roll-deg", 1),
+
+            # Kinematic / State variables
+            dLat: 0.0,
+            dLon: 0.0,
+            dAlt: 0.0, # ft
+            dHdg: 0.0,
+            dPitch: 0.0,
+            dRoll: 0.0,
+            
+            # Timer instance pointer
+            timer: nil
+        };
+
+        # Bind myNodeName to updateObject using a Nasal closure
+        var animData = ats.controls.animation;
+        var callback = func { me.updateObject(myNodeName); };
+        
+        # Frame-rate synchronized timer (0.0 sec interval)
+        animData.timer = maketimer(0.0, callback);
+
+		# Bind timer to simulated time (pauses with FlightGear)
+        animData.timer.simulatedTime = 1;
+    },
+
+########################## updateObject ###########################
+    # 2. Unified per-frame update routine
+    updateObject: func(myNodeName) {
+        var ats = attributes[myNodeName];
+        if (ats == nil) return;
+
+        # Safety check: stop animation if object is damaged, dead, or inactive
+        if (ats.damage == 1) {
+            me.stopObject(myNodeName);
+            return;
+        }
+
+        var anim = ats.controls.animation;
+        if (anim == nil or !anim.isActive) return;
+
+        # Fetch current position
+        var lat = anim.latNode.getValue() or 0.0;
+        var lon = anim.lonNode.getValue() or 0.0;
+        var alt = anim.altNode.getValue() or 0.0;
+        var hdg = anim.hdgNode.getValue() or 0.0;
+        # var pitch = anim.pitchNode.getValue() or 0.0;
+        # var roll = anim.rollNode.getValue() or 0.0;
+
+		var new_hdg = hdg + anim.dHdg;
+
+		if (new_hdg >= 360.0) {
+			new_hdg -= 360.0;
+		} else if (new_hdg < 0.0) {
+			new_hdg += 360.0;
+		}		
+
+        # Update cached property nodes directly
+        anim.latNode.setDoubleValue(lat + anim.dLat);
+        anim.lonNode.setDoubleValue(lon + anim.dLon);
+        anim.altNode.setDoubleValue(alt + anim.dAlt);
+        anim.hdgNode.setDoubleValue(new_hdg);
+        # anim.pitchNode.setDoubleValue(anim.dPitch);
+        # anim.rollNode.setDoubleValue(anim.dRoll);
+    },
+
+########################## startObject ###########################
+    startObject: func(myNodeName) {
+        var ats = attributes[myNodeName];
+        if (ats != nil and ats.controls != nil and ats.controls.animation != nil) {
+            ats.controls.animation.isActive = true;
+            ats.controls.animation.timer.start();
+        }
+    },
+
+########################## stopObject ###########################
+    stopObject: func(myNodeName) {
+        var ats = attributes[myNodeName];
+        if (ats != nil and ats.controls != nil and ats.controls.animation != nil) {
+            ats.controls.animation.isActive = false;
+            ats.controls.animation.timer.stop();
+        }
+    },
+
+########################## startAll ###########################
+    startAll: func {
+        foreach (var myNodeName; keys(attributes)) {
+            me.startObject(myNodeName);
+        }
+    },
+
+########################## stopAll ###########################
+    stopAll: func {
+        foreach (var myNodeName; keys(attributes)) {
+            me.stopObject(myNodeName);
+        }
+    },
+
+########################## clearObject ###########################
+    # Teardown and deallocate animation pointers for an object
+    clearObject: func(myNodeName) {
+        me.stopObject(myNodeName);
+        var ats = attributes[myNodeName];
+        if (ats != nil and ats.controls != nil) {
+            ats.controls.animation = nil;
+        }
+    },
+
+########################## clearAll ###########################
+    clearAll: func {
+        foreach (var myNodeName; keys(attributes)) {
+            me.clearObject(myNodeName);
+        }
+    }
+};
+
+
 ################################ initialize ######################################
 #delaying all the _init functions until FG's initialization sequence
 #has settled down seems to solve a lot of FG crashes on startup when
@@ -10034,7 +10226,6 @@ var checkRangeHash = func (b = nil, v = nil, low = nil, high = nil, default = 1)
 var initialize = func (b) {
 	debprint ("Delaying initialize . . . ", b.objectNodeName);
 	settimer (func {initialize_func(b);}, 30, 1);
-
 }
 
 ######################### initialize_func ############################
@@ -10061,12 +10252,10 @@ var initialize_func = func ( b ){
 		debprint ("Attempt to initialize a Bombable subroutine on an object that is not AI or Multiplayer; aborting initialization. ", b.objectNodeName);
 		return;
 	}
-						
 
-
-	#do sanity checking on input
-	#also calculate a few values that will be useful later on &
-	#add them to the object
+	# do sanity checking on input
+	# also calculate a few values that will be useful later on &
+	# add them to the object
 
 	# set to 1 if initialized and 0 when de-inited. Nil if never before inited.
 	# if it 1 and we're trying to initialize, something has gone wrong and we abort with a message.
@@ -10079,7 +10268,6 @@ var initialize_func = func ( b ){
 	# set to 1 if initialized and 0 when de-inited. Nil if never before inited.
 	setprop(""~b.objectNodeName~"/bombable/initializers/attributes-initialized", 1);
 	debprint( "Initializing bombable attributes for ", b.objectNodeName);
-
 
 	b.updateTime_s = checkRange ( b.updateTime_s, 0, 10, 1);
 
@@ -10132,6 +10320,9 @@ var initialize_func = func ( b ){
 
 	if (! contains (b, "type")) {
 		b["type"] = props.globals.getNode(""~b.objectNodeName).getName(); 
+		if (b.type == "groundvehicle") {
+			debprint("initialize_func: error: <type><groundvehicle></type> must not be used in scenario config files. Change to <type><static></type> and use 'type: groundvehicle' in the bombable include file");
+		}
 	}
 	else
 	{
@@ -10140,6 +10331,7 @@ var initialize_func = func ( b ){
 			b.type = "staticObject";
 		}
 	}
+
 	# key enables types that are unique to Bombable and distinct from those already used by Flightgear
 	# Flightgear has a separate class called "groundvehicle" which is not used in Bombable
 						
@@ -10196,8 +10388,6 @@ var initialize_func = func ( b ){
 
 	}
 						
-						
-						
 	# dimensions sanity checking
 	# Need to re-write checkRange so it integrates the check of whether b.dimensions.XXXX
 	# even exists and takes appropriate action if not
@@ -10212,8 +10402,6 @@ var initialize_func = func ( b ){
 		if (!contains(b.dimensions, "crashRadius_m")) b.dimensions.crashRadius_m = nil;
 		b.dimensions.crashRadius_m = checkRange ( b.dimensions.crashRadius_m, 0, nil, b.dimensions.vitalDamageRadius_m );
 							
-
-
 		# add some helpful new:
 		#
 		b.dimensions.width_ft = b.dimensions.width_m * M2FT;
@@ -10405,26 +10593,10 @@ var initialize_func = func ( b ){
 		b.damageLiveries.count = size (b.damageLiveries.damageLivery) ;
 	}
 						
-						
-						
-	# the object has stored the node telling where to store itself on the
-	# property tree as b.objectNodeName.  This creates "/bombable/attributes"
-	# under the nodename & saves these values there.
+	# Bombable attributes are stored under the bombable.attributes hash
+	# Any attributes needed for model animation or control of AI models by Flightgear native C++ are stored in the property tree
+	# where they are globally available i.e. outside the bombable namespace.
 
-						
-	# for now we are saving the attributes hash to the property tree and
-	# then also under attributes[myNodeName].  Many of the functions above
-	# still get certain
-	# attributes values from the property tree.  However it is far better for
-	# performance to simply store the values in a local variable.
-	# In future for performance reasons we might just save it under local
-	# variable attributes[myNodeName] and not in the property tree at all, unless
-	# something needs to be made globally available to change at runtime (outside bombable namespace).
-
-	# rjw implemented - deleted property tree attributes
-	# b.objectNode.getNode("bombable/attributes",1).setValues( b );
-
-	
 	attributes[b.objectNodeName] = b;
 	var myNodeName = b.objectNodeName;
 	stores.fillFuel(myNodeName, 1);
@@ -10442,6 +10614,9 @@ var initialize_func = func ( b ){
 	setprop("/bombable/rockets/count", nRockets + rocketCount);
 
 	addToTargets(myNodeName); # add AI model to list of targets and ID its team.  Targets are assigned after scenario initialization
+
+	# register groundvehicle animation
+	if (b.type == "groundvehicle") animationManager.register(myNodeName);
 	
 }
 
@@ -10621,8 +10796,9 @@ var ground_init = func (myNodeName = "") {
 # distance above ground level--like a jeep or tank that drives along
 # the ground, or an aircraft that moves along at, say, 500 ft AGL.
 # The altitude is continually readjusted as the object moves.
-# In addition, for "ground vehicles" the pitch will change to (roughly) match
+# In addition, for ground vehicles the pitch and roll are calculated so that the model animation can match the
 # slope of terrain.
+# Ground vehicles are static objects animated by class animationManager
 #
 var ground_init_func = func( myNodeName ) {
 	# only allow initialization for ai & multiplayer objects
@@ -10658,8 +10834,8 @@ var ground_init_func = func( myNodeName ) {
 						
 	settimer(func {ground_loop(loopid, myNodeName); }, 4.1 + rand());
 						
-	debprint ("Effect * maintain altitude above ground level * loaded for "~ myNodeName);
-	
+	debprint ("Effect * maintain altitude above ground level * loaded for " ~ myNodeName);
+
 }
 ######################## location_init #############################
 
@@ -13396,9 +13572,8 @@ var startScenario = func(startTime)
 				{
 					ats.controls.target_hdg = group.heading;
 					setprop(""~myNodeName~"/velocities/speed-kts", group.airSpeed);
-					setprop(""~myNodeName~"/controls/tgt-speed-kts", group.airSpeed);
-					setprop (""~myNodeName~"/surface-positions/rudder-pos-deg", 0);	
-					debprint(sprintf("Set speed and heading for %s type %s to %.1f and %.1f", myNodeName, type, group.airSpeed, group.heading));				
+					debprint(sprintf("Set speed and heading for %s type %s to %.1f and %.1f", myNodeName, type, group.airSpeed, group.heading));
+					animationManager.startObject(myNodeName);
 				}
 			}
 		}
@@ -13638,7 +13813,7 @@ var updateWptHeading_loop = func(id, myNodeName) {
 			{
 				# Set target altitude to the altitude of the next waypoint
 				setprop(myNodeName ~ "/controls/flight/target-alt", targetAlt);
-				debprint(sprintf("Updated target altitude for %s to WPT%d from %.1f deg to %.1f", 
+				debprint(sprintf("Updated target altitude for %s to WPT%d from %.1f ft to %.1f ft", 
 							myNodeName, ats.controls.flightpath.wpt_index, oldTgtAlt, targetAlt));
 			}
 		}
@@ -13745,6 +13920,8 @@ var resetScenarioMain = func()
 				# we let these timeout rather than terminate early and separately zero the animation triggers
 			}
 		}
+		var ats = attributes[myNodeName];
+		if (ats.type == "ship" or ats.type == "groundvehicle") animationManager.stopObject(myNodeName);
 	}
 
 	# move all AI objects out of scene and repair them
@@ -13940,13 +14117,13 @@ var sas_raid = func(best_rwy, dist = 3.0, icao = "ROAH", initial_heading = 0.0) 
         # WPT 1: Touch point of nearest runway
         var wpt1_pos = geo.Coord.new();
         wpt1_pos.set_latlon(best_rwy.lat, best_rwy.lon);
-        var wpt1_alt = elev(wpt1_pos.lat(), wpt1_pos.lon()) * M2FT;
+        var wpt1_alt = elev_ft(wpt1_pos.lat(), wpt1_pos.lon());
         
 		# WPT 2: Third of way along runway
         var wpt2_pos = geo.Coord.new(); 
         wpt2_pos.set_latlon(best_rwy.lat, best_rwy.lon);
         wpt2_pos.apply_course_distance(best_rwy.heading, best_rwy.length_m / 3.0);
-        var wpt2_alt = elev(wpt2_pos.lat(), wpt2_pos.lon()) * M2FT;
+        var wpt2_alt = elev_ft(wpt2_pos.lat(), wpt2_pos.lon());
 
         # WPT 3: Airport control tower position
         # Fallback to ARP (Aerodrome Reference Point) if tower coordinates are undefined
@@ -13964,14 +14141,14 @@ var sas_raid = func(best_rwy, dist = 3.0, icao = "ROAH", initial_heading = 0.0) 
 
         var wpt3_pos = geo.Coord.new();
         wpt3_pos.set_latlon(tower_lat, tower_lon);
-        var wpt3_alt = elev(wpt3_pos.lat(), wpt3_pos.lon()) * M2FT;
+        var wpt3_alt = elev_ft(wpt3_pos.lat(), wpt3_pos.lon());
 
         # WPT 4: Segment length distance from control tower reversing initial direction
         var segment_m = dist * NM2M; 
         var wpt4_pos = geo.Coord.new();
         wpt4_pos.set_latlon(tower_lat, tower_lon);
         wpt4_pos.apply_course_distance(math.fmod(initial_heading + 180, 360), segment_m);
-        var wpt4_alt = elev(wpt4_pos.lat(), wpt4_pos.lon()) * M2FT;
+        var wpt4_alt = elev_ft(wpt4_pos.lat(), wpt4_pos.lon());
 
         # Assemble waypoints triplet vector [[lat, lon, alt_ft], ...]
         var waypoints = [
@@ -14398,153 +14575,5 @@ var isTargetBestMatch = func(weapHash, targetIndex) {
     }
     return 0;
 };
-
-########################## animationManager ###########################
-# Custom Animation Manager integrated into Bombable
-var animationManager = {
-
-    # 1. Register and initialize animation controls on a Bombable object
-    register: func(myNodeName) {
-        var ats = bombable.attributes[myNodeName];
-        if (ats == nil) {
-            print("animationManager: Target " ~ myNodeName ~ " not found in bombable.attributes");
-            return;
-        }
-
-        # Initialize controls.animation sub-hash on the Bombable object
-        ats.controls = ats.controls or {};
-        ats.controls.animation = {
-            # Active status flag
-            isActive: false,
-
-            # Pre-cached property nodes for high-frequency execution
-            latNode: props.globals.getNode(myNodeName ~ "/position/latitude-deg", 1),
-            lonNode: props.globals.getNode(myNodeName ~ "/position/longitude-deg", 1),
-            altNode: props.globals.getNode(myNodeName ~ "/position/altitude-ft", 1),
-            hdgNode: props.globals.getNode(myNodeName ~ "/orientation/heading-deg", 1),
-            pitchNode: props.globals.getNode(myNodeName ~ "/orientation/pitch-deg", 1),
-            rollNode: props.globals.getNode(myNodeName ~ "/orientation/roll-deg", 1),
-
-            # Kinematic / State variables
-            dLat: 0.0,
-            dLon: 0.0,
-            dAlt: 0.0, # ft
-            dHdg: 0.0,
-            dPitch: 0.0,
-            dRoll: 0.0,
-            
-            # Timer instance pointer
-            timer: nil
-        };
-
-        # Bind myNodeName to updateObject using a Nasal closure
-        var animData = ats.controls.animation;
-        var callback = func { me.updateObject(myNodeName); };
-        
-        # Frame-rate synchronized timer (0.0 sec interval)
-        animData.timer = maketimer(0.0, callback);
-    },
-
-########################## updateObject ###########################
-    # 2. Unified per-frame update routine
-    updateObject: func(myNodeName) {
-        var ats = bombable.attributes[myNodeName];
-        if (ats == nil) return;
-
-        # Safety check: stop animation if object is damaged, dead, or inactive
-        if (ats.damage == 1) {
-            me.stopObject(myNodeName);
-            return;
-        }
-
-        var anim = ats.controls.animation;
-        if (anim == nil or !anim.isActive) return;
-
-        # Fetch current position
-        var lat = anim.latNode.getValue() or 0.0;
-        var lon = anim.lonNode.getValue() or 0.0;
-        var alt = anim.altNode.getValue() or 0.0;
-        var hdg = anim.hdgNode.getValue() or 0.0;
-
-        # Update cached property nodes directly
-        anim.latNode.setDoubleValue(lat + anim.dLat);
-        anim.latNode.setDoubleValue(lon + anim.dLon);
-        anim.latNode.setDoubleValue(alt + anim.dAlt);
-        anim.latNode.setDoubleValue(hdg + anim.dHdg);
-        # -----------------------------------
-    },
-
-    # 3. Control Operations
-    startObject: func(myNodeName) {
-        var ats = bombable.attributes[myNodeName];
-        if (ats != nil and ats.controls != nil and ats.controls.animation != nil) {
-            ats.controls.animation.isActive = true;
-            ats.controls.animation.timer.start();
-        }
-    },
-
-    stopObject: func(myNodeName) {
-        var ats = bombable.attributes[myNodeName];
-        if (ats != nil and ats.controls != nil and ats.controls.animation != nil) {
-            ats.controls.animation.isActive = false;
-            ats.controls.animation.timer.stop();
-        }
-    },
-
-    startAll: func {
-        foreach (var myNodeName; keys(bombable.attributes)) {
-            me.startObject(myNodeName);
-        }
-    },
-
-    stopAll: func {
-        foreach (var myNodeName; keys(bombable.attributes)) {
-            me.stopObject(myNodeName);
-        }
-    },
-
-    # Teardown and deallocate animation pointers for an object
-    clearObject: func(myNodeName) {
-        me.stopObject(myNodeName);
-        var ats = bombable.attributes[myNodeName];
-        if (ats != nil and ats.controls != nil) {
-            ats.controls.animation = nil;
-        }
-    },
-
-    clearAll: func {
-        foreach (var myNodeName; keys(bombable.attributes)) {
-            me.clearObject(myNodeName);
-        }
-    }
-};
-
-
-
-
-# Example: Spawn/Initialize Bombable scenario objects
-var initScenario = func {
-    # Assuming Bombable has populated bombable.attributes["ai/models/static[0]"]
-    var targetName = "ai/models/static[0]";
-
-    # Register animation framework onto the target
-    animationManager.register(targetName);
-
-    # Set custom target dLon, dLat etc.
-    bombable.attributes[targetName].controls.animation.dLat = 1e-5;
-
-    # Start loop
-    animationManager.startObject(targetName);
-};
-
-# End of Epoch / Reset
-var endScenarioEpoch = func {
-    animationManager.stopAll();
-    animationManager.clearAll();
-};
-
-
-
-
 
 ########################## END ###########################

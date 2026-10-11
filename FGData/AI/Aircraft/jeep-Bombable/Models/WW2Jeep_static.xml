@@ -2,9 +2,9 @@
 
 <PropertyList include="Jeep-bombableinclude.xml">
 	<path>WW2Jeep.ac</path>
-	<offsets>
+	<!-- <offsets>
         <heading-deg>180</heading-deg>
-    </offsets>
+    </offsets> -->
 
 	<animation>
 		<name>WW2Jeep</name>
@@ -27,13 +27,24 @@
 		<object-name>ammo_box</object-name>
 	</animation>	
 	
+	<!-- <animation>
+		<type>rotate</type>
+		<object-name>WW2Jeep</object-name>
+		<property>orientation/true-heading-deg</property>
+		<axis>
+			<x>0</x>
+			<y>0</y>
+			<z>-1</z>
+		</axis>
+	</animation> -->
+
 	<animation>
 		<type>rotate</type>
 		<object-name>WW2Jeep</object-name>
-		<property>orientation/pitch-animation</property>
+		<property>orientation/pitch-deg</property>
 		<axis>
 			<x>0</x>
-			<y>-1</y>
+			<y>1</y>
 			<z>0</z>
 		</axis>
 	</animation>
@@ -41,9 +52,9 @@
 	<animation>
 		<type>rotate</type>
 		<object-name>WW2Jeep</object-name>
-		<property>orientation/roll-animation</property>
+		<property>orientation/roll-deg</property>
 		<axis>
-			<x>1</x>
+			<x>-1</x>
 			<y>0</y>
 			<z>0</z>
 		</axis>
