@@ -3703,7 +3703,7 @@ var vehicle_ground_loop = func( id, myNodeName ) {
 	var vels = ats.velocities;
 
 	ctrls.groundLoopCounter += 1;	
-	# rjw used to control debug printing and roll calculation
+	# Used to control debug printing and roll calculation
 	var thorough = (math.fmod(ctrls.groundLoopCounter , 5) == 0); # to save FR we only do it thoroughly sometimes
 	
 	var FGAltObjectPerimeterBuffer_m = 0.5 * dims.length_m;
@@ -3729,7 +3729,7 @@ var vehicle_ground_loop = func( id, myNodeName ) {
 		debprint ("Lon = NIL, ground_loop ", myNodeName);
 	}
 
-	# End of life:  damaged ships and ground vehicles grind to a halt; aircraft explode and flag onGround
+	# End of life:  damaged ships and ground vehicles grind to a halt
 	# Ships and groundvehicles might be stationary at the start of a scenario
 	# Speed is reduced by add_damage.  Check both for end of life
 	if (speed_kt <= 1 and ats.damage > 0.9) 
@@ -3775,6 +3775,11 @@ var vehicle_ground_loop = func( id, myNodeName ) {
 	var altNextTick_m = elev_m(GeoCoord.lat(), GeoCoord.lon());
 	var gradientNextTick = (altNextTick_m - toFrontAlt_m) / tick_m;
 	var pitchNextTick = math.atan2(altNextTick_m - toFrontAlt_m, tick_m) * R2D;
+
+	var distAhead_m = speed_kt * KT2MPS * 5;
+	GeoCoord.apply_course_distance(heading, distAhead_m);
+	var gradientAhead = (elev_m(GeoCoord.lat(), GeoCoord.lon()) - altNextTick_m) / distAhead_m;
+
 
 	# In Canvas, an elevation query at an object's position returns the top of that particular object.  
 	# So to find the elevation of the ground under the object we get the average of the elevations ahead, behind, to left, and to right.
@@ -3832,353 +3837,190 @@ var vehicle_ground_loop = func( id, myNodeName ) {
 	
 
 	# set speed, pitch and roll of ground vehicle according to terrain
-	if (type == "groundvehicle") # not for ship!
+	var gradient = (toFrontAlt_ft - alt_ft ) / frontBack_ft; # note calculated on old heading.  Better to update velocity beforehand
+	var slope_rad = math.atan(gradient);
+	# change speed according to gradient ahead
+	# for a ship or vehicle prop tree /velocities/speed-kts is the horizontal speed
+	# TO DO calculate new velocity before finding gradient
+
+	var alt_gain = gradient * speed_kt * KT2FPS * updateTime_s +
+			alts.wheelsOnGroundAGL_ft / math.cos(slope_rad) / math.cos(rollangle_rad) + 
+			alt_ft - currAlt_ft; # correction if above or below ground
+
+	# var alt_gain = altNextTick_m * M2FT + alts.wheelsOnGroundAGL_ft / math.cos(slope_rad) / math.cos(rollangle_rad) - currAlt_ft;
+
+	# avoid steep terrain
+	var targetHeading = ctrls.target_hdg;
+
+	if (math.abs(gradientAhead) > 0.9) # turn if at top or bottom of cliff
 	{
-		var gradient = (toFrontAlt_ft - alt_ft ) / frontBack_ft; # note calculated on old heading.  Better to update velocity beforehand
-		var slope_rad = math.atan(gradient);
-		# change speed according to gradient ahead
-		# for a ship or vehicle prop tree /velocities/speed-kts is the horizontal speed
-		# TO DO calculate new velocity before finding gradient
-
-		var alt_gain = gradient * speed_kt * KT2FPS * updateTime_s +
-				alts.wheelsOnGroundAGL_ft / math.cos(slope_rad) / math.cos(rollangle_rad) + 
-				alt_ft - currAlt_ft; # correction if above or below ground
-
-		# var alt_gain = altNextTick_m * M2FT + alts.wheelsOnGroundAGL_ft / math.cos(slope_rad) / math.cos(rollangle_rad) - currAlt_ft;
-
-		
-
-		# avoid steep terrain
-		var targetHeading = ctrls.target_hdg;
-
-		if (math.abs(gradientAhead) > 0.9) # turn if at top or bottom of cliff
+		if (!ctrls.avoidCliffInProgress)
 		{
-			if (!ctrls.avoidCliffInProgress)
-			{
-				# var newTargetHeading = (rand() > 0.5 ? 90 : -90); # could choose minimum grad
-				var newTargetHeading = (math.abs(toLeftAlt_ft - alt_ft) > math.abs(toRightAlt_ft - alt_ft) ) ? 90 : -90; # turn toward level ground
-				newTargetHeading = math.fmod ( newTargetHeading + 3600, 360);
-				if (newTargetHeading > 180) newTargetHeading -= 360;
-				ctrls.target_hdg = newTargetHeading;
-				# the new heading should be a high priority demand component for the duration of the manoeuvre
-				settimer
-				(
-					func
-					{
-					ctrls.target_hdg = targetHeading;
-					ctrls.avoidCliffInProgress = 0;
-					},
-					2 + rand() * 5
-				);
-				ctrls.avoidCliffInProgress = 1;
-				targetHeading = newTargetHeading;
-				debprint
-				(
-					sprintf(
-						"avoiding cliff, new target hdg = %5.1f, slope = %5.1f", 
-						newTargetHeading, slope_rad * R2D
-					)
-				);
-			}
+			# var newTargetHeading = (rand() > 0.5 ? 90 : -90); # could choose minimum grad
+			var newTargetHeading = (math.abs(toLeftAlt_ft - alt_ft) > math.abs(toRightAlt_ft - alt_ft) ) ? 90 : -90; # turn toward level ground
+			newTargetHeading = math.fmod ( newTargetHeading + 3600, 360);
+			if (newTargetHeading > 180) newTargetHeading -= 360;
+			ctrls.target_hdg = newTargetHeading;
+			# the new heading should be a high priority demand component for the duration of the manoeuvre
+			settimer
+			(
+				func
+				{
+				ctrls.target_hdg = targetHeading;
+				ctrls.avoidCliffInProgress = 0;
+				},
+				2 + rand() * 5
+			);
+			ctrls.avoidCliffInProgress = 1;
+			targetHeading = newTargetHeading;
+			debprint
+			(
+				sprintf(
+					"avoiding cliff, new target hdg = %5.1f, slope = %5.1f", 
+					newTargetHeading, slope_rad * R2D
+				)
+			);
 		}
-		
-		# Calculate delta_heading_deg given navigation and swarm directions
-		# Could be merged with the steering algorithm in rudder_roll_climb called by dodge
-		# The following is for many speeds whereas dodge is at 13 or 17 knots to give high rate of turn 
-		
-		# Get weights for navigating and swarming from the property tree.  Initialised when update_swarm_loop is first called
-		var base_node = props.globals.getNode("/bombable/swarm", 1);
-		p_w1 = base_node.getNode("w1", 1);
-		p_w2 = base_node.getNode("w2", 1);
-		var w1 = (p_w1 != nil) ? p_w1.getValue() : 0.035;
-		var w2 = (p_w2 != nil) ? p_w2.getValue() : 0.2;			
+	}
+	
+	# Calculate delta_heading_deg given navigation and swarm directions
+	# Could be merged with the steering algorithm in rudder_roll_climb called by dodge
+	# The following is for many speeds whereas dodge is at 13 or 17 knots to give high rate of turn 
+	
+	# Get weights for navigating and swarming from the property tree.  Initialised when update_swarm_loop is first called
+	var base_node = props.globals.getNode("/bombable/swarm", 1);
+	p_w1 = base_node.getNode("w1", 1);
+	p_w2 = base_node.getNode("w2", 1);
+	var w1 = (p_w1 != nil) ? p_w1.getValue() : 0.035;
+	var w2 = (p_w2 != nil) ? p_w2.getValue() : 0.2;			
 
-		# 1. Physical Momentum State (World Frame)
-		var hdg_rad = heading * D2R;
-		var sin_hdg = math.sin(hdg_rad);
-		var cos_hdg = math.cos(hdg_rad);
+	# 1. Physical Momentum State (World Frame)
+	var hdg_rad = heading * D2R;
+	var sin_hdg = math.sin(hdg_rad);
+	var cos_hdg = math.cos(hdg_rad);
 
-		# 2. Raw Force Demand Deltas (World Frame)
-		# TO DO add demand component for evasion / dodge
-		# TO DO add demand component for avoid cliff
-		# 
+	# 2. Raw Force Demand Deltas (World Frame)
+	# TO DO add demand component for evasion / dodge
+	# TO DO add demand component for avoid cliff
+	# 
 
-		# Waypoint Navigation Target Vector Delta
-		# w1 is navigation gain; the fraction of maximum deflection turn rate per tick
-		# for calculating velocity demand increments we use the available acceleration
-		
-		var dv_nav_x = w1 * vels.cruiseSpeed_kt * math.sin(targetHeading * D2R); # x east
-		var dv_nav_y = w1 * vels.cruiseSpeed_kt * math.cos(targetHeading * D2R); # y north
+	# Waypoint Navigation Target Vector Delta
+	# w1 is navigation gain; the fraction of maximum deflection turn rate per tick
+	# for calculating velocity demand increments we use the available acceleration
+	
+	var dv_nav_x = w1 * vels.cruiseSpeed_kt * math.sin(targetHeading * D2R); # x east
+	var dv_nav_y = w1 * vels.cruiseSpeed_kt * math.cos(targetHeading * D2R); # y north
 
-		var dv_raw_x = dv_nav_x;
-		var dv_raw_y = dv_nav_y;
+	var dv_raw_x = dv_nav_x;
+	var dv_raw_y = dv_nav_y;
 
-		if (ctrls.swarm == 1 and ctrls.swarm_velocity != nil) {
-			# Add Swarm Force Perturbations
-			dv_raw_x += w2 * ctrls.swarm_velocity.swarm_v_x;
-			dv_raw_y += w2 * ctrls.swarm_velocity.swarm_v_y;
-		}
+	if (ctrls.swarm == 1 and ctrls.swarm_velocity != nil) {
+		# Add Swarm Force Perturbations
+		dv_raw_x += w2 * ctrls.swarm_velocity.swarm_v_x;
+		dv_raw_y += w2 * ctrls.swarm_velocity.swarm_v_y;
+	}
 
-		# 3. Project Raw Delta into Local Body Frame (Model Frame)
-		# dv_long = projection along craft nose/tail; dv_lat = projection along craft wing/side
-		var dv_long =  (dv_raw_x * sin_hdg) + (dv_raw_y * cos_hdg); # forwards from body
-		var dv_lat  =  (dv_raw_x * cos_hdg) - (dv_raw_y * sin_hdg); # right from body
+	# 3. Project Raw Delta into Local Body Frame (Model Frame)
+	# dv_long = projection along craft nose/tail; dv_lat = projection along craft wing/side
+	var dv_long =  (dv_raw_x * sin_hdg) + (dv_raw_y * cos_hdg); # forwards from body
+	var dv_lat  =  (dv_raw_x * cos_hdg) - (dv_raw_y * sin_hdg); # right from body
 
-		# 4. Apply Independent Physical Clamps in Body Frame
-		# Longitudinal acceleration limit
-		# Assume drag varies with speed^2 and use the max_acceleration to determine drag coefficient 
-		var max_linear_acceleration = vels.maxAcceleration; # m/s^2
+	# 4. Apply Independent Physical Clamps in Body Frame
+	# Longitudinal acceleration limit
+	# Assume drag varies with speed^2 and use the max_acceleration to determine drag coefficient 
+	var max_linear_acceleration = vels.maxAcceleration; # m/s^2
 
-		# Scale MAX_DV_LONG_KT by throttle position which is set by whether in cruise, attack or climb
-		var maxSpd = vels.maxSpeed_kt; # knots
-		var throttle = vels.cruiseSpeed_kt * vels.cruiseSpeed_kt / maxSpd / maxSpd;
-		if (gradientAhead > 0.02) {
-			throttle = 1;
+	# Scale MAX_DV_LONG_KT by throttle position which is set by whether in cruise, attack or climb
+	var maxSpd = vels.maxSpeed_kt; # knots
+	var throttle = vels.cruiseSpeed_kt * vels.cruiseSpeed_kt / maxSpd / maxSpd;
+	if (gradientAhead > 0.02) {
+		throttle = 1;
 
-		}
-		elsif (gradientAhead < -0.05) {
-			throttle = 0;
-		} 
-		
-		var MAX_DV_LONG_KT = throttle * max_linear_acceleration * updateTime_s / KT2MPS; # Max speed adjustment per tick (knots)
-		var brake_factor = vels.brakeFactor; # max braking deceleration / max acceleration (positive)
-
-		# Lateral maneuverability limit derived from max turn rate
-		# Two regimes: low speed turn rate varies with speed; highh speed turn rate varies with 1 / speed
-		if (speed_kt > vels.maxTurnSpeed) {
-			var turnRate = vels.maxTurnRate * vels.maxTurnSpeed / speed_kt;
-			if (turnRate < vels.minTurnRate) turnRate = vels.minTurnRate;		}
-		else{
-			var turnRate = vels.maxTurnRate * speed_kt / vels.maxTurnSpeed;
-		}
-
-		var MAX_DV_LAT_KT = speed_kt * turnRate * D2R * updateTime_s; 
-		# Max lateral velocity shift per tick (knots); 0.18 rad/sec ~ 10 degrees/sec
-
-		# Deadband on longitudinal chatter
-		if (math.abs(dv_long) < 0.5) dv_long = 0.0;
-
-		# Clamp Longitudinal Delta
-		if (dv_long > MAX_DV_LONG_KT)  dv_long = MAX_DV_LONG_KT;
-		if (dv_long < -MAX_DV_LONG_KT * brake_factor) dv_long = -MAX_DV_LONG_KT * brake_factor;
-
-		# Clamp Lateral Delta
-		if (dv_lat > MAX_DV_LAT_KT)  dv_lat = MAX_DV_LAT_KT;
-		if (dv_lat < -MAX_DV_LAT_KT) dv_lat = -MAX_DV_LAT_KT;
-
-		# drag is proportional to spd ^ 2
-		var dv_drag = speed_kt * speed_kt / maxSpd / maxSpd * max_linear_acceleration * updateTime_s / KT2MPS;
-
-		var dv_grad = math.sin(slope_rad) * grav_mpss * updateTime_s / KT2MPS; 
-		var v_long = speed_kt - dv_drag - dv_grad + dv_long;
-		var v_lat = dv_lat;
-
-		if (v_long <= 0) { # stalled
-			v_long = 0; v_lat = 0;
-		}
-		else{
-			# 5. Rotate velocity in Body Frame to World Frame
-			var vx = (v_long * sin_hdg) + (v_lat * cos_hdg);
-			var vy = (v_long * cos_hdg) - (v_lat * sin_hdg);
-			
-			var newHeading = math.atan2(vx, vy) * R2D;
-			var deltaHdg = newHeading - heading;
-			if (deltaHdg > 180)  deltaHdg -= 360;
-			if (deltaHdg < -180) deltaHdg += 360;
-
-			var sign = (deltaHdg < 0) ? -1 : 1;
-			var absDeltaHdg = sign * deltaHdg;
-			var rudder = 0;
-			if (absDeltaHdg > 81) rudder = 30
-				elsif (absDeltaHdg > 20) rudder = 27 
-				elsif (absDeltaHdg > 16) rudder = 23 
-				elsif (absDeltaHdg > 12) rudder = 20
-				elsif (absDeltaHdg > 8) rudder = 17
-				elsif (absDeltaHdg > 5.1) rudder = 13
-				elsif (absDeltaHdg > 3) rudder = 10
-				elsif (absDeltaHdg > 1.2) rudder = 7
-				elsif (absDeltaHdg > 0.3) rudder = 4;
-
-			setprop(myNodeName~"/surface-positions/rudder-pos-deg", rudder * sign);
-
-			ctrls.animation.dLat = vy * KT2MPS / m_per_deg_lat;
-			ctrls.animation.dLon = vx * KT2MPS / m_per_deg_lon;
-			ctrls.animation.dAlt = alt_gain / updateTime_s;
-			ctrls.animation.dHdg = deltaHdg / updateTime_s;
-
-			# pitch and roll
-			setprop (""~myNodeName~"/orientation/pitch-deg", pitchangle_deg); 
-			setprop (""~myNodeName~"/orientation/roll-deg", rollangle_deg); 
-
-			setprop (""~myNodeName~"/velocities/speed-kts", v_long);
-		}
-		
-		# if (thorough) debprint(
-		# "Ground_loop: ",
-		# sprintf("pitchangle_deg = %4.1f", pitchangle_deg),
-		# sprintf("slopeAhead_deg = %4.1f", slope_rad * R2D),	
-		# sprintf("alt_ft - currAlt_ft = %4.1f", alt_ft - currAlt_ft)
-		# );
-
-		return;
-	} # end of groundvehicle section
-
-	# Our target altitude for normal/undamaged forward movement
-	# based on the "lookahead radar", not the current altitude.
-	# As the craft becomes more damaged it loses the ability to look ahead
-	# (see above: lookingAheadAlt just becomes the same as toFrontAlt)
-
-	var targetAlt_ft = lookingAheadAlt_ft + alts.targetAGL_ft + alts.wheelsOnGroundAGL_ft;  # allows aircraft to fly at constant height AGL
-
-	#debprint ("laa ", lookingAheadAlt_ft, " tagl ", alts.targetAGL_ft, " awog ", alts.wheelsOnGroundAGL_ft);
-			
-			
-	var fullDamageAltAdd_ft = (alt_ft + alts.crashedAGL_ft + alts.wheelsOnGroundAGL_ft) - currAlt_ft; 
-	# Amount we should add to our current altitude when fully crashed.  
-	# This is to get the object to "full crashed position", i.e. on the ground for an aircraft, fully sunk for a ship, etc.
-			
-			
-	# Now calculate how far to force the model down if it is crashing/damaged
-	# rjw ships also sink/fall when damaged
-	# check how the change in altitude forced by the ground_loop affects aircraftCrashControl - how is the handover managed? 
-
-	var damageAltAddCurrent = 0; # local value of variable in attributes hash
-	var damageAltMaxPerCycle_ft = 0;
-	if ( damageValue > 0.8)  
-	{
-		var damageAltAddMax_ft = damageValue * fullDamageAltAdd_ft; 
-		# max amount to add to the altitude of this object based on its current damage.
-
-		# Like fullDamageAltAdd & damageAltAddPrev this should always be zero
-		# or negative as everything on earth falls or sinks when it loses
-		# power. And assuming that simplifies calculations immensely.
-				
-		# The altitude the object should be at, based on damagealtAddMax & the ground level:
-		# currAlt_ft + damageAltAddMax_ft
-
-		
-		# Limit height reduction to damageAltMaxRate in one hit/loop--otherwise it just goes down too fast, not realistic.  
-		# Analogous to the terminal velocity
-		damageAltMaxPerCycle_ft = -abs(vels.damagedAltitudeChangeMaxRate_meterspersecond * updateTime_s * M2FT);
-		# rjw: might change this amount if crashing at the terminal velocity; probably no need for abs unless error in input data		
-				
-				
-		# rjw: descent rate increases at 10% per second; initialised at 1% the max rate
-		# rjw: 48sec to reach max descent rate
-		# making sure to move in the right direction! (using sgn of damageAltAdd)
-
-		if (damageAltAddPrev_ft != 0) damageAltAddCurrent = -abs((1 + 0.1 * updateTime_s) * damageAltAddPrev_ft);
-		else damageAltAddCurrent = - abs(0.01 * damageAltMaxPerCycle_ft);
-				
-		# Ensure this is not bigger than the max rate, if so only change
-		# it by the max amount allowed per cycle
-		if (abs( damageAltAddCurrent ) > abs(damageAltMaxPerCycle_ft )) damageAltAddCurrent = damageAltMaxPerCycle_ft;
-				
-		# Make sure we're not above the max allowed altitude change for this damage level; if so, cut it off
-		if (abs(damageAltAddCurrent) > abs(damageAltAddMax_ft)) {
-			damageAltAddCurrent = damageAltAddMax_ft;
-		}
+	}
+	elsif (gradientAhead < -0.05) {
+		throttle = 0;
 	} 
+	
+	var MAX_DV_LONG_KT = throttle * max_linear_acceleration * updateTime_s / KT2MPS; # Max speed adjustment per tick (knots)
+	var brake_factor = vels.brakeFactor; # max braking deceleration / max acceleration (positive)
 
-
-
-			
-
-	if (type == "ship" and thorough )
-	{
-		# if (math.fmod(ctrls.groundLoopCounter , 10) == 0) debprint(
-		# "Ground_loop: ",
-		# "vels.maxSpeedReduce_percent = ", vels.maxSpeedReduce_percent,
-		# "alts.initialAlt_ft = ", alts.initialAlt_ft
-		# );		
-
-		# pitch and roll controlled by model animation
-		rollangle_deg = getprop (""~myNodeName~"/orientation/roll-deg");
-		pitchangle_deg = getprop (""~myNodeName~"/orientation/pitch-deg");
-		if (rollangle_deg == nil) rollangle_deg = 0;
-		if (pitchangle_deg == nil) pitchangle_deg = 0;
-		if (ctrls["target_roll"] != nil) # initialised by add_damage
-		{
-			rollangle_deg = 0.95 * rollangle_deg + 0.05 * ctrls.target_roll;
-			pitchangle_deg = 0.95 * pitchangle_deg + 0.05 * ctrls.target_pitch;
-		}
-		setprop (""~myNodeName~"/orientation/roll-deg", rollangle_deg );
-		setprop (""~myNodeName~"/orientation/pitch-deg", pitchangle_deg );
-
-		# rjw check if grounded
-		if ((targetAlt_ft - alts.initialAlt_ft) > 3) 
-		{
-			vels.maxSpeedReduce_percent = 20;
-			add_damage(1, "nonweapon", myNodeName);
-			return(); # no need to sink now			
-		}
+	# Lateral maneuverability limit derived from max turn rate
+	# Two regimes: low speed turn rate varies with speed; highh speed turn rate varies with 1 / speed
+	if (speed_kt > vels.maxTurnSpeed) {
+		var turnRate = vels.maxTurnRate * vels.maxTurnSpeed / speed_kt;
+		if (turnRate < vels.minTurnRate) turnRate = vels.minTurnRate;		}
+	else{
+		var turnRate = vels.maxTurnRate * speed_kt / vels.maxTurnSpeed;
 	}
 
-	var currTgtAlt_ft = getprop (""~myNodeName~"/controls/flight/target-alt");#in ft
-	if (currTgtAlt_ft == nil) currTgtAlt_ft = 0;
-			
-	if ( (damageValue <= 0.8 ) or targetAlt_ft < currTgtAlt_ft ) 
-	{
-		setprop (""~myNodeName~"/controls/flight/target-alt", targetAlt_ft);   
-		# target altitude is 10 feet or so in front of us for a ship or up to 1 minute in front for an aircraft
+	var MAX_DV_LAT_KT = speed_kt * turnRate * D2R * updateTime_s; 
+	# Max lateral velocity shift per tick (knots); 0.18 rad/sec ~ 10 degrees/sec
+
+	# Deadband on longitudinal chatter
+	if (math.abs(dv_long) < 0.5) dv_long = 0.0;
+
+	# Clamp Longitudinal Delta
+	if (dv_long > MAX_DV_LONG_KT)  dv_long = MAX_DV_LONG_KT;
+	if (dv_long < -MAX_DV_LONG_KT * brake_factor) dv_long = -MAX_DV_LONG_KT * brake_factor;
+
+	# Clamp Lateral Delta
+	if (dv_lat > MAX_DV_LAT_KT)  dv_lat = MAX_DV_LAT_KT;
+	if (dv_lat < -MAX_DV_LAT_KT) dv_lat = -MAX_DV_LAT_KT;
+
+	# drag is proportional to spd ^ 2
+	var dv_drag = speed_kt * speed_kt / maxSpd / maxSpd * max_linear_acceleration * updateTime_s / KT2MPS;
+
+	var dv_grad = math.sin(slope_rad) * grav_mpss * updateTime_s / KT2MPS; 
+	var v_long = speed_kt - dv_drag - dv_grad + dv_long;
+	var v_lat = dv_lat;
+
+	if (v_long <= 0) { # stalled
+		v_long = 0; v_lat = 0;
 	}
-			
-	# If going uphill base the target altitude on the front of the vehicle (targetAlt) so as to stop the vehicle from sinking into the
-	# hillside when climbing.  
-	# Given that we have already calculated targetAlt in calculating the pitch, this is a quick kludge.
-	# To make the calculation precise, calculate the correct position forward
-	# based on the current speed of the current object and updateTime_s
-	# and find the altitude of that spot.
-	# For aircraft the targetAlt is the altitude 1 minute out IF that is higher
-	# than the ground level.
-	# rjw_mod based on above
-	var calcAlt_ft = targetAlt_ft +  ctrls.damageAltAddCumulative_ft + damageAltAddCurrent;
-	if (calcAlt_ft < objectsLowestAllowedAlt_ft) calcAlt_ft = objectsLowestAllowedAlt_ft;
-			
-			
-	# calcAlt_ft = where the object should be, in feet
-	# For aircraft we try to control targetAlt strictly (above).
-	# For a ship etc. we just have to force it to calcAlt_ft (below).  
-	# However if an aircraft gets too close to the ground the AI aircraft controls don't react quickly enough so we "rescue"
-	# it by simply moving it up a bit (see below).
+	else{
+		# 5. Rotate velocity in Body Frame to World Frame
+		var vx = (v_long * sin_hdg) + (v_lat * cos_hdg);
+		var vy = (v_long * cos_hdg) - (v_lat * sin_hdg);
+		
+		var newHeading = math.atan2(vx, vy) * R2D;
+		var deltaHdg = newHeading - heading;
+		if (deltaHdg > 180)  deltaHdg -= 360;
+		if (deltaHdg < -180) deltaHdg += 360;
 
-	# rjw:  changing target altitude does not bring the aircraft down to the ground quickly. The AI system does not respond in the way intended
-	# rjw:  with pitch-target at -70 continue gliding with pitch at -4
-	# rjw:  potentially might improve the response by reducing the airspeed
+		var sign = (deltaHdg < 0) ? -1 : 1;
+		var absDeltaHdg = sign * deltaHdg;
+		var rudder = 0;
+		if (absDeltaHdg > 81) rudder = 30
+			elsif (absDeltaHdg > 20) rudder = 27 
+			elsif (absDeltaHdg > 16) rudder = 23 
+			elsif (absDeltaHdg > 12) rudder = 20
+			elsif (absDeltaHdg > 8) rudder = 17
+			elsif (absDeltaHdg > 5.1) rudder = 13
+			elsif (absDeltaHdg > 3) rudder = 10
+			elsif (absDeltaHdg > 1.2) rudder = 7
+			elsif (absDeltaHdg > 0.3) rudder = 4;
 
-	
-	
-	# for an aircraft, if it is within feet of the ground (and not forced
-	# there because of damage etc.) then we "rescue" it be putting it 25 feet
-	# above ground again.
-	
+		setprop(myNodeName~"/surface-positions/rudder-pos-deg", rudder * sign);
 
+		ctrls.animation.dLat = vy * KT2MPS / m_per_deg_lat;
+		ctrls.animation.dLon = vx * KT2MPS / m_per_deg_lon;
+		ctrls.animation.dAlt = alt_gain / updateTime_s;
+		ctrls.animation.dHdg = deltaHdg / updateTime_s;
 
-	if ( damageValue > 0.8 ) 
-	{
-		setprop(""~myNodeName~"/position/altitude-ft", calcAlt_ft ); 
-		# Uncommented next block
-		if ( damageAltAddCurrent > damageAltMaxPerCycle_ft )  
-		{
-			setprop(""~myNodeName~"/position/altitude-ft", currAlt_ft + damageAltMaxPerCycle_ft );
-		}
-		else
-		{
-			setprop(""~myNodeName~"/position/altitude-ft", currAlt_ft + damageAltAddCurrent);
-		}
-	}		
-	# Whatever else, we don't let aircraft go below their lowest allowed altitude
-	# Maybe they are skidding along on the ground, but they are not allowed
-	# to skid along UNDER the ground . . .
+		# pitch and roll
+		setprop (""~myNodeName~"/orientation/pitch-deg", pitchangle_deg); 
+		setprop (""~myNodeName~"/orientation/roll-deg", rollangle_deg); 
 
-	if (currAlt_ft < objectsLowestAllowedAlt_ft)
-	{
-		setprop(""~myNodeName~"/position/altitude-ft", objectsLowestAllowedAlt_ft); #where the object is, in feet
+		setprop (""~myNodeName~"/velocities/speed-kts", v_long);
 	}
-	ctrls.damageAltAddCurrent_ft = damageAltAddCurrent; # store local values in global hash
-	ctrls.damageAltAddCumulative_ft += damageAltAddCurrent;
-			
-	# debprint ("alt = ", alt, " currAlt_ft = ", currAlt_ft, " deltaAlt = ", deltaAlt, " altAdjust = ", alts.wheelsOnGroundAGL_ft, " calcAlt_ft = ", calcAlt_ft, "damageAltAddCurrent = ", damageAltAddCurrent, " ", myNodeName);
+	
+	# if (thorough) debprint(
+	# "Ground_loop: ",
+	# sprintf("pitchangle_deg = %4.1f", pitchangle_deg),
+	# sprintf("slopeAhead_deg = %4.1f", slope_rad * R2D),	
+	# sprintf("alt_ft - currAlt_ft = %4.1f", alt_ft - currAlt_ft)
+	# );
+
 } # end of vehicle_ground_loop
 
 ########################### location_loop ############################
@@ -11101,7 +10943,7 @@ var initialize_func = func ( b ){
 	addToTargets(myNodeName); # add AI model to list of targets and ID its team.  Targets are assigned after scenario initialization
 
 	# register groundvehicle animation
-	if (b.type == "groundvehicle" or b.type == "ship") 
+	if (b.type == "groundvehicle") 
 	{
 		animationManager.register(myNodeName);
 	}
@@ -14062,20 +13904,27 @@ var startScenario = func(startTime)
 				setprop(""~myNodeName~"/position/altitude-ft", alt_ft);
 				debprint("startScenario: " ~ myNodeName ~ " at alt=" ~ getprop(""~myNodeName~"/position/altitude-ft"));
 
-				if (type == "aircraft")
+				if (type == "ship" or type == "aircraft")
 				{
 					setprop(""~myNodeName~"/velocities/true-airspeed-kt", group.airSpeed);
 					setprop(""~myNodeName~"/controls/flight/target-spd", group.airSpeed);
 					setprop(""~myNodeName~"/controls/flight/target-alt", alt_ft);
 					setprop(""~myNodeName~"/controls/flight/target-hdg", group.heading);
 				}
-				elsif (type == "ship" or type == "groundvehicle")
+				elsif (type == "groundvehicle")
 				{
 					ats.controls.target_hdg = group.heading;
 					setprop(""~myNodeName~"/velocities/speed-kts", group.airSpeed);
-					debprint(sprintf("Set speed and heading for %s type %s to %.1f and %.1f", myNodeName, type, group.airSpeed, group.heading));
 					animationManager.startObject(myNodeName);
 				}
+				elsif (type == "ship")
+				{
+					setprop(""~myNodeName~"/velocities/speed-kts", group.airSpeed);
+					setprop(""~myNodeName~"/controls/tgt-speed-kts", group.airSpeed);
+					setprop(""~myNodeName~"/controls/tgt-heading-degs", group.heading);
+				}
+
+				debprint(sprintf("Set speed and heading for %s type %s to %.1f and %.1f", myNodeName, type, group.airSpeed, group.heading));
 			}
 		}
 	}
@@ -14422,7 +14271,7 @@ var resetScenarioMain = func()
 			}
 		}
 		var ats = attributes[myNodeName];
-		if (ats.type == "ship" or ats.type == "groundvehicle") animationManager.stopObject(myNodeName);
+		if (ats.type == "groundvehicle") animationManager.stopObject(myNodeName);
 	}
 
 	# move all AI objects out of scene and repair them
