@@ -181,16 +181,19 @@
             maxSpeedReduce_percent : 5.31, #max % to reduce speed, per step, when damaged
             minSpeed_kt : 0, #minimum speed to reduce to when damaged.  Ground vehicles and ships might stop completely when damaged but aircraft will need a minimum speed so they keep moving until they hit the ground.  Vs for aircraft (http://en.wikipedia.org/wiki/V_speeds)
             
-            cruiseSpeed_kt : 25, #cruising speed, typical/optimal cruising speed, V C for aircraft
+            cruiseSpeed_kt : 18, #cruising speed, typical/optimal cruising speed, V C for aircraft
             
-            attackSpeed_kt : 35, #typical/optimal speed when aggressively attacking or evading, in
+            attackSpeed_kt : 26, #typical/optimal speed when aggressively attacking or evading, in
                                  #level flight for aircraft
             
-            maxSpeed_kt : 42,#Maximum possible speed under dive or downhill conditions, V NE for aircraft
+            maxSpeed_kt : 37,#Maximum possible speed under dive or downhill conditions, V NE for aircraft
     
             damagedAltitudeChangeMaxRate_meterspersecond : 0.02, #max rate to sink or fly downwards when damaged, in meters/second
-			
-			maxClimbRate_fps : 3, #needed for ground vehicles calculated from shaftPower / weight * roughnessIndex (see https://www.sciencedirect.com/science/article/pii/S1474667015368622)
+      			maxTurnRate : 25, #deg per sec needed for ground vehicles
+      			minTurnRate : 2.7, #deg per sec in the high speed regime
+            maxTurnSpeed : 5, #knots, turn rate increases linearly with speed up to this value and decreases 1/speed beyond it 
+            maxAcceleration: 1.62, #metres s^-2 0 to 30 mph (0 to 48.3 km/h) in approximately 16 seconds
+            brakeFactor: 3.0, #max braking deceleration / max acceleration (positive)
           },
           #  
           #########################################

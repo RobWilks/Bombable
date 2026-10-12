@@ -180,10 +180,11 @@
             maxSpeed_kt : 35,#Maximum possible speed under dive or downhill conditions, V NE for aircraft
     
             damagedAltitudeChangeMaxRate_meterspersecond : 0.02, #max rate to sink or fly downwards when damaged, in meters/second
-			
       			maxTurnRate : 50, #deg per sec needed for ground vehicles
       			minTurnRate : 8, #deg per sec in the high speed regime
             maxTurnSpeed : 5, #knots, turn rate increases linearly with speed up to this value and decreases 1/speed beyond it 
+            maxAcceleration: 0.84, #metres s^-2 0 to 30 mph (0 to 48.3 km/h) in approximately 16 seconds
+            brakeFactor: 6.0, #max braking deceleration / max acceleration (positive)
           },
           #  
           #########################################

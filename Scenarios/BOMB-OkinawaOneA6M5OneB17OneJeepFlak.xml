@@ -22,7 +22,7 @@
       <search-order>PREFER_AI</search-order>
       <type>static</type>
       <name>Rattle_n_Hum_E</name>
-      <model type="string">Aircraft/jeep-Bombable/Models/WW2Jeep_static.xml</model>
+      <model type="string">Aircraft/jeep-Bombable/Models/WW2Jeep.xml</model>
       <latitude type="double">26.2049</latitude>
       <longitude type="double">127.648</longitude>
       <altitude-ft>16</altitude-ft>
