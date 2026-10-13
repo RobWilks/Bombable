@@ -1,0 +1,195 @@
+<?xml version="1.0"?>
+<PropertyList>
+  <scenario>
+    <name>Bombable: Ground and air battle for Okinawa</name>
+    <description>1 B-17 and 1 jeep on mission to Okinawa guarded by AA battery, one Zero and two light tanks.</description>
+    <!-- B-17s -->
+    <entry>
+      <search-order>PREFER_AI</search-order>
+      <type>aircraft</type>
+      <callsign>B17_Doomed_B</callsign>
+      <name>B17-2</name>
+      <model type="string">Aircraft/B-17-Bombable/Models/b17.xml</model>
+      <latitude type="double">26.1902</latitude>
+      <longitude type="double">127.6372</longitude>
+      <altitude type="double">5100</altitude>
+      <speed>182</speed>
+      <bank type="double">0</bank>
+      <heading type="double">180.1</heading>
+    </entry>
+    <!--  ferry boat -->
+    <entry>
+        <search-order>PREFER_AI</search-order>
+        <type>static</type>
+        <name>Dreadnought_C</name>
+        <model type="string">Aircraft/Ferry-Bombable/FerryGunBoat.xml</model>
+        <latitude type="double">26.2044</latitude>
+        <longitude type="double">127.647</longitude>
+        <altitude>20</altitude>
+        <heading type="double">300</heading>
+    </entry>    
+    <!--  WW2 jeep -->
+    <entry>
+      <search-order>PREFER_AI</search-order>
+      <type>static</type>
+      <name>Rattle_n_Hum_E</name>
+      <model type="string">Aircraft/jeep-Bombable/Models/WW2Jeep.xml</model>
+      <latitude type="double">26.2049</latitude>
+      <longitude type="double">127.648</longitude>
+      <altitude-ft>16</altitude-ft>
+      <heading type="double">0</heading>
+    </entry>    
+    <!--  First Zero Squadron -->
+    <entry>
+      <search-order>PREFER_AI</search-order>
+      <type>aircraft</type>
+      <callsign>A6M2_No_Tommorow_X</callsign>
+      <name>A6M21</name>
+      <model type="string">Aircraft/A6M2-Bombable/Models/a6m2-anim.xml</model>
+      <latitude type="double">26.1851097548720</latitude>
+      <longitude type="double">127.6384</longitude>
+      <altitude type="double">6000</altitude>
+      <speed>250</speed>
+      <bank type="double">0</bank>
+      <heading type="double">160</heading>
+      <performance-class>ww2_fighter</performance-class>
+    </entry>
+    <!--  Flak battery at airport -->
+    <entry>
+      <search-order>PREFER_AI</search-order>
+      <type>static</type>
+      <name>flak_gun_1_W</name>
+      <model type="string">Aircraft/Flak-Gun-Bombable/88mm-flak-gun.xml</model>
+      <latitude type="double">26.1902</latitude>
+      <longitude type="double">127.6392</longitude>
+      <altitude type="double">5100</altitude>
+      <heading type="double">0</heading>
+    </entry>
+    <entry>
+      <search-order>PREFER_AI</search-order>
+      <type>static</type>
+      <name>flak_gun_2_W</name>
+      <model type="string">Aircraft/Flak-Gun-Bombable/88mm-flak-gun.xml</model>
+      <latitude type="double">26.1912</latitude>
+      <longitude type="double">127.6372</longitude>
+      <altitude type="double">5100</altitude>
+      <heading type="double">0</heading>
+    </entry>
+    <entry>
+      <search-order>PREFER_AI</search-order>
+      <type>static</type>
+      <name>flak_gun_3_W</name>
+      <model type="string">Aircraft/Flak-Gun-Bombable/88mm-flak-gun.xml</model>
+      <latitude type="double">26.1922</latitude>
+      <longitude type="double">127.6382</longitude>
+      <altitude type="double">5100</altitude>
+      <heading type="double">0</heading>
+    </entry>
+  </scenario>
+  <extension>
+    <group>
+        <!-- B17s -->
+        <team>B</team>
+        <target>X</target>
+        <arrivalTime>240</arrivalTime>
+        <speed>182</speed>
+        <airportName>ROAH</airportName>
+        <heading>225</heading>
+        <alt>5000</alt>
+        <offsets>
+            <offset>
+                <behind>0</behind>
+                <right>0</right>
+                <up>0</up>
+            </offset>
+        </offsets>
+        <flightpath>
+            <name type="string">target_runway</name>
+            <segmentLength type="double">3.0</segmentLength>
+        </flightpath>
+    </group>
+        <!-- One Gun Boat -->
+    <group>
+        <team>C</team>
+        <target>W</target>
+        <arrivalTime>480</arrivalTime>
+        <speed>20</speed>
+        <airportName>ROAH</airportName>
+        <heading>90</heading>
+        <alt>30</alt>
+        <offsets>
+            <offset>
+                <behind>0</behind>
+                <right>-1000</right>
+                <up>0</up>
+            </offset>
+        </offsets>
+    </group>
+    <group>
+        <!-- One Jeep -->
+        <team>E</team>
+        <target>W</target>
+        <arrivalTime>300</arrivalTime>
+        <speed>30</speed>
+        <airportName>ROAH</airportName>
+        <heading>300</heading>
+        <alt>30</alt>
+        <offsets>
+            <offset>
+                <behind>0</behind>
+                <right>0</right>
+                <up>0</up>
+            </offset>
+        </offsets>
+        <flightpath>
+            <name type="string">sas_raid</name>
+            <segmentLength type="double">3.0</segmentLength>
+        </flightpath>
+        <swarm>true</swarm>        
+    </group>
+    <!-- Flak -->
+    <group>
+        <team>W</team>
+        <target>C</target>
+        <arrivalTime>0</arrivalTime>
+        <speed>0</speed>
+        <airportName>ROAH</airportName>
+        <heading>0</heading>
+        <alt>100</alt>
+        <offsets>
+            <offset>
+                <behind>450</behind>
+                <right>-650</right>
+                <up>0</up>
+            </offset>
+            <offset>
+                <behind>450</behind>
+                <right>-690</right>
+                <up>0</up>
+            </offset>
+            <offset>
+                <behind>470</behind>
+                <right>-670</right>
+                <up>0</up>
+            </offset>
+        </offsets>
+    </group>
+    <!-- Zero -->
+    <group>
+        <team>X</team>
+        <target>B</target>
+        <arrivalTime>90</arrivalTime>
+        <speed>250</speed>
+        <airportName>ROAH</airportName>
+        <heading>160</heading>
+        <alt>6000</alt>
+        <offsets>
+            <offset>
+                <behind>0</behind>
+                <right>0</right>
+                <up>0</up>
+            </offset>
+        </offsets>
+    </group>
+  </extension>
+</PropertyList>

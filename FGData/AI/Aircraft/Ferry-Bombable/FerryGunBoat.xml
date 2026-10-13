@@ -12,8 +12,8 @@
 		<name>Gun_Turret1_FC</name>
 		<overlay>
 			<params>
-				<n1>Gun_Turret1_FC/turret-pos-deg</n1>
-				<n2>Gun_Turret1_FC/cannon-elev-deg</n2>
+				<n1>Gun_Turret1_FC/orientation/true-heading-deg</n1>
+				<n2>Gun_Turret1_FC/orientation/pitch-deg</n2>
 			</params>
 		</overlay>
 		<offsets>
@@ -29,8 +29,8 @@
 		<name>Gun_Turret2_FR</name>
 		<overlay>
 			<params>
-				<n1>Gun_Turret2_FR/turret-pos-deg</n1>
-				<n2>Gun_Turret2_FR/cannon-elev-deg</n2>
+				<n1>Gun_Turret2_FR/orientation/true-heading-deg</n1>
+				<n2>Gun_Turret2_FR/orientation/pitch-deg</n2>
 			</params>
 		</overlay>
 		<offsets>
@@ -46,8 +46,8 @@
 		<name>Gun_Turret3_AR</name>
 		<overlay>
 			<params>
-				<n1>Gun_Turret3_AR/turret-pos-deg</n1>
-				<n2>Gun_Turret3_AR/cannon-elev-deg</n2>
+				<n1>Gun_Turret3_AR/orientation/true-heading-deg</n1>
+				<n2>Gun_Turret3_AR/orientation/pitch-deg</n2>
 			</params>
 		</overlay>		
 		<offsets>
@@ -64,8 +64,8 @@
 		
 		<overlay>
 			<params>
-				<n1>Gun_Turret4_AC/turret-pos-deg</n1>
-				<n2>Gun_Turret4_AC/cannon-elev-deg</n2>
+				<n1>Gun_Turret4_AC/orientation/true-heading-deg</n1>
+				<n2>Gun_Turret4_AC/orientation/pitch-deg</n2>
 			</params>
 		</overlay>
 
@@ -82,8 +82,8 @@
 		<name>Gun_Turret5_AL</name>
 		<overlay>
 			<params>
-				<n1>Gun_Turret5_AL/turret-pos-deg</n1>
-				<n2>Gun_Turret5_AL/cannon-elev-deg</n2>
+				<n1>Gun_Turret5_AL/orientation/true-heading-deg</n1>
+				<n2>Gun_Turret5_AL/orientation/pitch-deg</n2>
 			</params>
 		</overlay>
 		<offsets>
@@ -99,8 +99,8 @@
 		<name>Gun_Turret6_FL</name>
 		<overlay>
 			<params>
-				<n1>Gun_Turret6_FL/turret-pos-deg</n1>
-				<n2>Gun_Turret6_FL/cannon-elev-deg</n2>
+				<n1>Gun_Turret6_FL/orientation/true-heading-deg</n1>
+				<n2>Gun_Turret6_FL/orientation/pitch-deg</n2>
 			</params>
 		</overlay>
 		<offsets>

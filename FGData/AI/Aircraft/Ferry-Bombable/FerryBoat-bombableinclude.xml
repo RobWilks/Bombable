@@ -51,6 +51,7 @@
           
           objectNodeName : thisNodeName,
           objectNode : props.globals.getNode(thisNodeName),
+          type: "ship",
           updateTime_s : 1/2, #time, in seconds, between the updates that 
           #keep the object at its AGL. Tradeoff is high-speed updates look more
           #realistic but slow down the framerate/cause jerkiness.  Faster-moving
@@ -80,10 +81,15 @@
             attackSpeed_kt : 26, #typical/optimal speed when aggressively attacking or evading, in
                                  #level flight for aircraft
             
-            maxSpeed_kt : 35 , #Maximum possible speed under dive or downhill conditions, V NE for aircraft
+            maxSpeed_kt : 30 , #Maximum possible speed under dive or downhill conditions, V NE for aircraft
             
     
             damagedAltitudeChangeMaxRate_meterspersecond : .051, #max rate to sink or fly downwards when damaged, in meters/second
+      			maxTurnRate : 3, #deg per sec needed for ground vehicles
+      			minTurnRate : 0.8, #deg per sec in the high speed regime
+            maxTurnSpeed : 10, #knots, turn rate increases linearly with speed up to this value and then decreases 1/speed beyond it
+            maxAcceleration: 0.213, #metres s^-2 0-60mph in 20sec
+            brakeFactor: 0.06, #max braking deceleration / max acceleration (positive)
           },
           #  
           #########################################
@@ -138,7 +144,7 @@
           # The weapons system makes the AI aircraft fire on the main aircraft 
           # You can define any number of weapons--just enclose each in curly brackets
           # and separate with commas (,).  
-		  # headingMax is clockwise of headingMin.  Heading values increase clockwise from forwards direction of craft	
+    		  # headingMax is clockwise of headingMin.  Heading values increase clockwise from forwards direction of craft	
 		  
           weapons : {
 
@@ -146,17 +152,19 @@
               {               
                 name : "Anti-Aircraft Gun - Front", # name presented to users, ie in on-screen messages
                 weaponType : "large_cannon",
-                maxDamage_percent : 4, # maximum percentage damage one hit from the aircraft's main weapon/machine guns will do to an opponent
-                maxDamageDistance_m : 700, # maximum distance at which the aircrafts main weapon/maching guns will be able to damage an opponent
+                maxDamage_percent : 45.5, # maximum percentage damage one hit from the aircraft's main weapon/machine guns will do to an opponent
+                maxDamageDistance_m : 3000, # maximum distance at which the aircrafts main weapon/maching guns will be able to damage an opponent
                 weaponAngle_deg  :  { heading: 0, elevation: 15.0, headingMin: -45, headingMax: 45, elevationMin: -3.0, elevationMax: 70  }, # direction the aircraft's main weapon is aimed.   
                                                                   # 0,0 = straight ahead, 90,0=directly right, 0,90=directly up, 0,180=directly back, etc.
                 weaponOffset_m : {x:-77, y:0, z:7.3}, # Offset of the weapon from the main aircraft center
                 weaponSize_m : {start:1.0, end:3.0}, # Visual size of the weapon's projectile, in meters, at start & end of its path
-				ammo_seconds : 300, 
+                nRounds : 120,
+                roundsPerSec : 1.666, #1 shell every 6sec
+                accuracy : 0.2,	# 
 				
               },
              
-			  Gun_Turret2_FR :  #internal name - this can be any name you want; must be a valid nasal variable name
+	    		  Gun_Turret2_FR :  #internal name - this can be any name you want; must be a valid nasal variable name
               {               
                 name : "Anti-Aircraft Gun - Right/Front", # name presented to users, ie in on-screen messages
                 weaponType : "large_cannon",
@@ -166,7 +174,9 @@
                                                                   # 0,0 = straight ahead, 90,0=directly right, 0,90=directly up, 0,180=directly back, etc.
                 weaponOffset_m : {x:-24.0, y:12.0, z:19.0}, # Offset of the weapon from the main aircraft center
                 weaponSize_m : {start:1.0, end:3.0}, # Visual size of the weapon's projectile, in meters, at start & end of its path
-				ammo_seconds : 300, 
+                nRounds : 120,
+                roundsPerSec : 1.666, #1 shell every 6sec
+                accuracy : 0.2,	# 
 
               },
 			  			  
@@ -180,7 +190,9 @@
                                                                   # 0,0 = straight ahead, 90,0=directly right, 0,90=directly up, 0,180=directly back, etc.
                 weaponOffset_m : {x:16.0, y:9.0, z:18.8}, # Offset of the weapon from the main aircraft center
                 weaponSize_m : {start:1.0, end:3.0}, # Visual size of the weapon's projectile, in meters, at start & end of its path
-				ammo_seconds : 300, 
+                nRounds : 120,
+                roundsPerSec : 1.666, #1 shell every 6sec
+                accuracy : 0.2,	# 
 
               }, 
 
@@ -194,11 +206,13 @@
                                                                   # 0,0 = straight ahead, 90,0=directly right, 0,90=directly up, 0,180=directly back, etc.
                 weaponOffset_m : {x:66, y:0, z:18.8}, # Offset of the weapon from the main aircraft center
                 weaponSize_m : {start:1.0, end:3.0}, # Visual size of the weapon's projectile, in meters, at start & end of its path
-				ammo_seconds : 300, 
+                nRounds : 120,
+                roundsPerSec : 1.666, #1 shell every 6sec
+                accuracy : 0.2,	# 
 
               }, 
 			  
-             Gun_Turret5_AL :  #internal name - this can be any name you want; must be a valid nasal variable name
+              Gun_Turret5_AL :  #internal name - this can be any name you want; must be a valid nasal variable name
               {               
                 name : "Anti-Aircraft Gun - Left/Rear", # name presented to users, ie in on-screen messages
                 weaponType : "large_cannon",
@@ -208,7 +222,9 @@
                                                                   # 0,0 = straight ahead, 90,0=directly right, 0,90=directly up, 0,180=directly back, etc.
                 weaponOffset_m : {x:16.0, y:-9.0, z:18.8}, # Offset of the weapon from the main aircraft center
                 weaponSize_m : {start:1.0, end:3.0}, # Visual size of the weapon's projectile, in meters, at start & end of its path
-				ammo_seconds : 300, 
+                nRounds : 120,
+                roundsPerSec : 1.666, #1 shell every 6sec
+                accuracy : 0.2,	# 
 
               },                                  
 
@@ -222,7 +238,9 @@
                                                                   # 0,0 = straight ahead, 90,0=directly right, 0,90=directly up, 0,180=directly back, etc.
                 weaponOffset_m : {x:-24, y:-12.0, z:19.0}, # Offset of the weapon from the main aircraft center
                 weaponSize_m : {start:1.0, end:3.0}, # Visual size of the weapon's projectile, in meters, at start & end of its path
-				ammo_seconds : 300, 
+                nRounds : 120,
+                roundsPerSec : 1.666, #1 shell every 6sec
+                accuracy : 0.2,	# 
 
               },
 

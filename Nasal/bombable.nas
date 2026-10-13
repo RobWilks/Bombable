@@ -1570,6 +1570,9 @@ var resetBombableDamageFuelWeapons = func (myNodeName) {
 		ctrls.dodge_deg = 0;
 		ctrls.groundLoopCounter = 0;
 		ctrls.target_hdg = 0;
+		ctrls.target_roll = nil;
+		ctrls.target_pitch = nil;
+
 
 		if (ctrls.kamikase != 0) ctrls.kamikase = 1;
 				
@@ -2925,7 +2928,7 @@ var ground_loop = func( id, myNodeName ) {
 		speed_kt = getprop(""~myNodeName~"/velocities/true-airspeed-kt") 
 	}
 	elsif (type == "groundvehicle" or type == "ship") 
-	 {
+	{
 		speed_kt = getprop(""~myNodeName~"/velocities/speed-kts");
 	}
 	var tick_ft = speed_kt * KT2FPS * updateTime_s;
@@ -3744,7 +3747,7 @@ var vehicle_ground_loop = func( id, myNodeName ) {
 		ats.exploded = 1; # flag to terminate the ground loop on next call 
 		ats.damage = 1;
 		setprop(""~myNodeName~"/velocities/speed-kts", 0);
-		if (type == "groundvehicle") deleteSmoke("pistonexhaust", myNodeName); # could set a timer here; smoke from ship?
+		deleteSmoke("pistonexhaust", myNodeName); # could set a timer here; smoke from ship?
 		return;
 	}
 
@@ -4019,6 +4022,352 @@ var vehicle_ground_loop = func( id, myNodeName ) {
 	# );
 
 } # end of vehicle_ground_loop
+
+####################### ship_ground_loop ##########################
+# timer function, every (0.5 to 1.5 * updateTime_s) seconds, to keep ship
+# at sea level
+# length_m & width_m are distances (in meters)
+# needed to clear the object and find open water at front/back.
+# damagealtadd is the total amount to add to the altitude above ground level (in meters) as
+# the ship becomes damaged, usually it is negative.
+# damageAltMaxRate is the max rate to allow the object to rise or sink as it becomes disabled.
+
+var ship_ground_loop = func( id, myNodeName ) {
+	id == attributes[myNodeName].loopids.ship_ground_loopid or return;
+
+	var updateTime_s = attributes[myNodeName].updateTime_s * (0.9 + 0.2 * rand());
+	var ats = attributes[myNodeName];
+	var ctrls = ats.controls;	
+	var type = ats.type;
+	if (ats.exploded == 1) 
+	{
+		setprop(""~myNodeName~"/velocities/speed-kts", 0);
+		return();
+	}	
+
+	# reset the timer loop first so we don't lose it entirely in case of a runtime error or such
+	# add rand() so that all objects don't do this function simultaneously
+	# on the first call objects are given the correct altitude and orientation
+
+	settimer(func { ship_ground_loop(id, myNodeName)}, updateTime_s );
+
+	# Allow this function to be disabled via menu since it can kill framerate at times
+	if (! bombableMenu["ai-ground-loop-enabled"] or ! bombableMenu["bombable-enabled"] ) return;
+
+
+	var alts = ats.altitudes;
+	var dims = ats.dimensions;
+	var vels = ats.velocities;
+
+	ctrls.groundLoopCounter += 1;	
+	# Used to control debug printing and roll calculation
+	var thorough = (math.fmod(ctrls.groundLoopCounter , 5) == 0); # to save FR we only do it thoroughly sometimes
+	
+	var FGAltObjectPerimeterBuffer_m = 0.5 * dims.length_m;
+	var FGAltObjectPerimeterBuffer_ft = FGAltObjectPerimeterBuffer_m * M2FT;
+			
+	# Update altitude to keep moving objects at the local ground level
+	var currAlt_ft = getprop(""~myNodeName~"/position/altitude-ft"); # altitude in feet above mean sea level (MSL)			
+	var lat = getprop(""~myNodeName~"/position/latitude-deg");
+	var lon = getprop(""~myNodeName~"/position/longitude-deg");
+	var heading = getprop(""~myNodeName~"/orientation/true-heading-deg");
+	var speed_kt = getprop(""~myNodeName~"/velocities/speed-kts");
+	var tick_ft = speed_kt * KT2FPS * updateTime_s;
+	var tick_m = tick_ft * FT2M;
+	var damageValue = ats.damage;
+	var damageAltAddPrev_ft = ctrls.damageAltAddCurrent_ft;
+			
+	if (lat == nil) {
+		lat = 0;
+		debprint ("Lat = NIL, ground_loop ", myNodeName);
+	}
+	if (lon == nil) {
+		lon = 0;
+		debprint ("Lon = NIL, ground_loop ", myNodeName);
+	}
+
+	# End of life:  damaged ships and ground vehicles grind to a halt
+	# Ships and groundvehicles might be stationary at the start of a scenario
+	# Speed is reduced by add_damage.  Check both for end of life
+	if (speed_kt <= 1 and ats.damage > 0.9) 
+	{
+		debprint(sprintf
+			(
+			"Ground loop terminated for %s speed_kt=%6.2f",
+			myNodeName,
+			speed_kt
+			)
+		);
+		ats.exploded = 1; # flag to terminate the ground loop on next call 
+		ats.damage = 1;
+		setprop(""~myNodeName~"/velocities/speed-kts", 0);
+		deleteSmoke("pistonexhaust", myNodeName); # could set a timer here; smoke from ship?
+		return;
+	}
+
+	# Find the slope of the ground in the direction we are heading
+	var pitchangle_deg = 0;
+	var rollangle_deg = 0;
+	var pitchangle1_deg = 0;
+	var frontBack_m = dims.length_m / 2 + FGAltObjectPerimeterBuffer_m;
+	var frontBack_ft = frontBack_m * M2FT;
+			
+	var GeoCoord = geo.Coord.new();
+	GeoCoord.set_latlon(lat, lon);
+	var alt_ft = elev_ft(GeoCoord.lat(), GeoCoord.lon());
+	# Assume origin of 3D model is at its centre
+
+	GeoCoord.apply_course_distance(heading, frontBack_m);    #frontreardist in meters
+	var toFrontAlt_m = elev_m(GeoCoord.lat(), GeoCoord.lon());
+	var toFrontAlt_ft = toFrontAlt_m * M2FT;
+			
+	GeoCoord.apply_course_distance(heading + 180, 2 * frontBack_m );
+	var toRearAlt_m = elev_m(GeoCoord.lat(), GeoCoord.lon());
+	pitchangle1_deg = math.atan2( toFrontAlt_m - toRearAlt_m, 2 * frontBack_m ) * R2D;
+	pitchangle_deg = pitchangle1_deg; 
+
+	GeoCoord.apply_course_distance( heading, tick_m + 2 * frontBack_m);
+	var altNextTick_m = elev_m(GeoCoord.lat(), GeoCoord.lon());
+	var gradientNextTick = (altNextTick_m - toFrontAlt_m) / tick_m;
+	var pitchNextTick = math.atan2(altNextTick_m - toFrontAlt_m, tick_m) * R2D;
+
+	var distAhead_m = speed_kt * KT2MPS * 5;
+	GeoCoord.apply_course_distance(heading, distAhead_m);
+	var gradientAhead = (elev_m(GeoCoord.lat(), GeoCoord.lon()) - altNextTick_m) / distAhead_m;
+
+
+	var rollangle_rad = 0.0; 
+	rollangle_deg = rollangle_rad * R2D; 
+	alt_ft = (toFrontAlt_m + toRearAlt_m) * M2FT / 2;
+	
+	# The first time called initialize altitudes then exit
+	if ( alts.initialized != 1 ) 
+	{
+		var initial_altitude_ft = getprop (""~myNodeName~"/position/altitude-ft");
+		if (initial_altitude_ft < alt_ft + alts.wheelsOnGroundAGL_ft + alts.minimumAGL_ft) {
+			initial_altitude_ft = alt_ft + alts.wheelsOnGroundAGL_ft + alts.minimumAGL_ft;
+		}
+		if (initial_altitude_ft > alt_ft + alts.wheelsOnGroundAGL_ft + alts.maximumAGL_ft) {
+			initial_altitude_ft = alt_ft + alts.wheelsOnGroundAGL_ft + alts.maximumAGL_ft;
+		}
+				
+		var target_alt_AGL_ft = initial_altitude_ft - alt_ft - alts.wheelsOnGroundAGL_ft; 
+				
+		debprint (sprintf("Initial Altitude:%6.0f Target AGL:%6.0f Object = %s", initial_altitude_ft, target_alt_AGL_ft, myNodeName));
+		# debprint ("", alt_ft, " ", toRightAlt_ft, " ",toLeftAlt_ft, " ",toFrontAlt_ft," ", toLeftAlt_ft, " ", alts.wheelsOnGroundAGL_ft);
+		
+		setprop (""~myNodeName~"/position/altitude-ft", alt_ft ); # ships and groundvehicles are set to altitude of ground in their initial location
+		alts.targetAGL_ft = 0; 
+		alts.initialAlt_ft = alt_ft;  # rjw mod to check for grounded ships
+		alts.initialized = 1;
+		return;
+	}
+
+	var objectsLowestAllowedAlt_ft = alt_ft + alts.wheelsOnGroundAGL_ft + alts.crashedAGL_ft;
+	# if (thorough) debprint (" objectsLowestAllowedAlt_ft = ", objectsLowestAllowedAlt_ft);
+			
+	# If the object is as low as allowed by crashedAGL_m we consider it "on the ground" (for an airplane) or 
+	# completely sunk (for a ship) etc.
+	# If the object is plummeting at speed we consider it crashed into the ground. 
+	# When controls.onGround is set to true then the speed will slow quite dramatically.
+	# Setting this flag allows for example airplanes to continue forward movement
+	# in the air but skid to a sudden halt when hitting the ground.
+	#
+	# alts.wheelsOnGroundAGL_ft + damageAltAdd = the altitude (AGL) the object should be at when
+	# finished crashing, sinking, etc.
+
+	var alt_gain = ctrls.damageAltAddCurrent_ft; # correction if above or below ground
+
+	# var alt_gain = altNextTick_m * M2FT + alts.wheelsOnGroundAGL_ft / math.cos(slope_rad) / math.cos(rollangle_rad) - currAlt_ft;
+
+	# check for land ahead
+	if (math.abs(gradientAhead) > 0.01) 
+	{
+		if (!ctrls.dodgeInProgress)
+		{
+			ctrls.dodgeInProgress = 1;
+			var dodge_dir = (math.abs(toLeftAlt_ft - alt_ft) > math.abs(toRightAlt_ft - alt_ft) ) ? 1 : -1; # turn toward level ground
+			ctrls.dodge_deg = dodge_dir * (85.0 + rand() * 10.0);
+			debprint
+			(
+				sprintf(
+					"%s avoiding cliff, slope = %5.1f", 
+					myNodeName, slope_rad * R2D
+				)
+			);
+			settimer
+			(
+				func
+				{
+				ctrls.dodgeInProgress = 0;
+				ctrls.dodge_deg = 0;
+				},
+				2 + rand() * 5
+			);
+		}
+	}
+
+	# check if ran aground
+	if (math.abs(gradientNextTick) > 0.02) 
+	{
+		add_damage(rand() * 0.1, "ran aground", myNodeName);
+	}
+
+	var dodgeHeading = ctrls.target_hdg + ctrls.dodge_deg;
+	dodgeHeading = math.fmod (dodgeHeading + 3600, 360);
+
+	# Calculate delta_heading_deg given navigation and swarm directions
+	# Could be merged with the steering algorithm in rudder_roll_climb called by dodge
+	# The following is for many speeds whereas dodge is at 13 or 17 knots to give high rate of turn 
+	
+	# Get weights for navigating and swarming from the property tree.  Initialised when update_swarm_loop is first called
+	var base_node = props.globals.getNode("/bombable/swarm", 1);
+	p_w1 = base_node.getNode("w1", 1);
+	p_w2 = base_node.getNode("w2", 1);
+	var w1 = (p_w1 != nil) ? p_w1.getValue() : 0.035;
+	var w2 = (p_w2 != nil) ? p_w2.getValue() : 0.2;			
+
+	# 1. Physical Momentum State (World Frame)
+	var hdg_rad = heading * D2R;
+	var sin_hdg = math.sin(hdg_rad);
+	var cos_hdg = math.cos(hdg_rad);
+
+	# 2. Raw Force Demand Deltas (World Frame)
+	# TO DO add demand component for evasion / dodge
+	# TO DO add demand component for avoid cliff
+	# 
+
+	# Waypoint Navigation Target Vector Delta
+	# w1 is navigation gain; the fraction of maximum deflection turn rate per tick
+	# for calculating velocity demand increments we use the available acceleration
+	
+	var dv_nav_x = w1 * vels.cruiseSpeed_kt * math.sin(dodgeHeading * D2R); # x east
+	var dv_nav_y = w1 * vels.cruiseSpeed_kt * math.cos(dodgeHeading * D2R); # y north
+
+	var dv_raw_x = dv_nav_x;
+	var dv_raw_y = dv_nav_y;
+
+	if (ctrls.swarm == 1 and ctrls.swarm_velocity != nil) {
+		# Add Swarm Force Perturbations
+		dv_raw_x += w2 * ctrls.swarm_velocity.swarm_v_x;
+		dv_raw_y += w2 * ctrls.swarm_velocity.swarm_v_y;
+	}
+
+	# 3. Project Raw Delta into Local Body Frame (Model Frame)
+	# dv_long = projection along craft nose/tail; dv_lat = projection along craft wing/side
+	var dv_long =  (dv_raw_x * sin_hdg) + (dv_raw_y * cos_hdg); # forwards from body
+	var dv_lat  =  (dv_raw_x * cos_hdg) - (dv_raw_y * sin_hdg); # right from body
+
+	# 4. Apply Independent Physical Clamps in Body Frame
+	# Longitudinal acceleration limit
+	# Assume drag varies with speed^2 and use the max_acceleration to determine drag coefficient 
+	var max_linear_acceleration = vels.maxAcceleration; # m/s^2
+
+	#damaged vehicles lose the ability to accelerate
+	if (ats.damage > 0.8) max_linear_acceleration *= (1 - (ats.damage - 0.8)/ 0.2);
+
+	# Scale MAX_DV_LONG_KT by throttle position which is set by whether in cruise, attack or climb
+	var maxSpd = vels.maxSpeed_kt; # knots
+	var throttle = vels.cruiseSpeed_kt * vels.cruiseSpeed_kt / maxSpd / maxSpd;
+	if (gradientAhead > 0.02) {
+		throttle = 1;
+
+	}
+	elsif (gradientAhead < -0.05) {
+		throttle = 0;
+	} 
+	
+	var MAX_DV_LONG_KT = throttle * max_linear_acceleration * updateTime_s / KT2MPS; # Max speed adjustment per tick (knots)
+	var brake_factor = vels.brakeFactor; # max braking deceleration / max acceleration (positive)
+
+	# Lateral maneuverability limit derived from max turn rate
+	# Two regimes: low speed turn rate varies with speed; highh speed turn rate varies with 1 / speed
+	if (speed_kt > vels.maxTurnSpeed) {
+		var turnRate = vels.maxTurnRate * vels.maxTurnSpeed / speed_kt;
+		if (turnRate < vels.minTurnRate) turnRate = vels.minTurnRate;		}
+	else{
+		var turnRate = vels.maxTurnRate * speed_kt / vels.maxTurnSpeed;
+	}
+
+	var MAX_DV_LAT_KT = speed_kt * turnRate * D2R * updateTime_s; 
+	# Max lateral velocity shift per tick (knots); 0.18 rad/sec ~ 10 degrees/sec
+
+	# Deadband on longitudinal chatter
+	if (math.abs(dv_long) < 0.5) dv_long = 0.0;
+
+	# Clamp Longitudinal Delta
+	if (dv_long > MAX_DV_LONG_KT)  dv_long = MAX_DV_LONG_KT;
+	if (dv_long < -MAX_DV_LONG_KT * brake_factor) dv_long = -MAX_DV_LONG_KT * brake_factor;
+
+	# Clamp Lateral Delta
+	if (dv_lat > MAX_DV_LAT_KT)  dv_lat = MAX_DV_LAT_KT;
+	if (dv_lat < -MAX_DV_LAT_KT) dv_lat = -MAX_DV_LAT_KT;
+
+	# drag is proportional to spd ^ 2
+	var dv_drag = speed_kt * speed_kt / maxSpd / maxSpd * max_linear_acceleration * updateTime_s / KT2MPS;
+
+	var dv_grad = math.sin(slope_rad) * grav_mpss * updateTime_s / KT2MPS; 
+	var v_long = speed_kt - dv_drag - dv_grad + dv_long;
+	var v_lat = dv_lat;
+
+	if (v_long <= 0) { # stalled
+		v_long = 0; v_lat = 0;
+	}
+	else{
+		# 5. Rotate velocity in Body Frame to World Frame
+		var vx = (v_long * sin_hdg) + (v_lat * cos_hdg);
+		var vy = (v_long * cos_hdg) - (v_lat * sin_hdg);
+		
+		var newHeading = math.atan2(vx, vy) * R2D;
+		var deltaHdg = newHeading - heading;
+		if (deltaHdg > 180)  deltaHdg -= 360;
+		if (deltaHdg < -180) deltaHdg += 360;
+
+		var sign = (deltaHdg < 0) ? -1 : 1;
+		var absDeltaHdg = sign * deltaHdg;
+		var rudder = 0;
+		if (absDeltaHdg > 81) rudder = 30
+			elsif (absDeltaHdg > 20) rudder = 27 
+			elsif (absDeltaHdg > 16) rudder = 23 
+			elsif (absDeltaHdg > 12) rudder = 20
+			elsif (absDeltaHdg > 8) rudder = 17
+			elsif (absDeltaHdg > 5.1) rudder = 13
+			elsif (absDeltaHdg > 3) rudder = 10
+			elsif (absDeltaHdg > 1.2) rudder = 7
+			elsif (absDeltaHdg > 0.3) rudder = 4;
+
+		setprop(myNodeName~"/surface-positions/rudder-pos-deg", rudder * sign);
+
+		ctrls.animation.dLat = vy * KT2MPS / m_per_deg_lat;
+		ctrls.animation.dLon = vx * KT2MPS / m_per_deg_lon;
+		ctrls.animation.dAlt = alt_gain / updateTime_s;
+		ctrls.animation.dHdg = deltaHdg / updateTime_s;
+
+		setprop (""~myNodeName~"/velocities/speed-kts", v_long);
+	}
+	
+
+	# pitch and roll
+	var rollangle_deg = getprop (""~myNodeName~"/orientation/roll-deg");
+	var pitchangle_deg = getprop (""~myNodeName~"/orientation/pitch-deg");
+	if (ctrls["target_roll"] != nil) # initialised by add_damage
+	{
+		rollangle_deg = 0.95 * rollangle_deg + 0.05 * ctrls.target_roll;
+		pitchangle_deg = 0.95 * pitchangle_deg + 0.05 * ctrls.target_pitch;
+		setprop (""~myNodeName~"/orientation/roll-deg", rollangle_deg );
+		setprop (""~myNodeName~"/orientation/pitch-deg", pitchangle_deg );
+	}
+
+
+	# if (thorough) debprint(
+	# "Ground_loop: ",
+	# sprintf("pitchangle_deg = %4.1f", pitchangle_deg),
+	# sprintf("slopeAhead_deg = %4.1f", slope_rad * R2D),	
+	# sprintf("alt_ft - currAlt_ft = %4.1f", alt_ft - currAlt_ft)
+	# );
+
+} # end of ship_ground_loop
+
 
 ########################### location_loop ############################
 # location-check loop, a timer function, every 15-16 seconds to check if the object has been relocated
@@ -5631,97 +5980,51 @@ var choose_attack_acrobatic = func
 }
 
 ############################# rudder_roll_climb ############################
-#rudder_roll_climb - sets the rudder position/roll degrees
-#roll degrees controls aircraft & rudder position
-#and for aircraft, sets an amount of climb
-#controls ships, so we just change both, to be safe
-#alt_ft is a change to the current altitude
-#returns time which is determined by the type of turn 
+# for aircraft only
+# rudder_roll_climb - sets the rudder position/roll degrees
+# roll degrees controls aircraft & rudder position
+# and sets an amount of climb
+# alt_ft is a change to the current altitude
+# returns time which is determined by the type of turn 
 
 var rudder_roll_climb = func (myNodeName, degrees = 15, alt_ft = -20, time = 10, roll_limit_deg = 85 ) {
 	var type = attributes[myNodeName].type;
 	var newTime = time;
 
-	if (type == "aircraft")
+	var alts = attributes[myNodeName].altitudes;
+	var currRoll = getprop(""~myNodeName~"/controls/flight/target-roll");
+	if (currRoll == nil) currRoll = 0;
+	if ( math.abs(degrees) > 0.1 ) aircraftRoll (myNodeName, degrees, time, roll_limit_deg);
+	setprop(""~myNodeName~"/controls/flight/target-roll", currRoll + degrees);
+
+	# altitude
+	# This only works for aircraft but that's OK because it's not sensible
+	# for a ground vehicle or ship to dive or climb above or below ground/sea
+	# level anyway (submarines excepted . . . but under current the FG AI system
+	# it would have to be operated as an "aircraft", not a "ship", if it
+	# wants to be able to climb & dive).
+
+	var currAlt_ft = getprop(""~myNodeName~"/position/altitude-ft"); #where the object is, in ft
+	
+	var newAlt_ft = currAlt_ft + alt_ft;			
+	if (newAlt_ft < alts.minimumAGL_ft ) newAlt_ft = alts.minimumAGL_ft 
+	elsif (newAlt_ft > alts.maximumAGL_ft ) newAlt_ft = alts.maximumAGL_ft;
+	#
+	# we set the target altitude, unless we are stalling and trying to move
+	# higher, then we basically stop moving up
+	# confusion about whether alt_ft is absolute or relative
+	var stalling = attributes[myNodeName].controls.stalling;
+	if (!stalling or newAlt_ft < currAlt_ft) 
 	{
-		var alts = attributes[myNodeName].altitudes;
-		var currRoll = getprop(""~myNodeName~"/controls/flight/target-roll");
-		if (currRoll == nil) currRoll = 0;
-		if ( math.abs(degrees) > 0.1 ) aircraftRoll (myNodeName, degrees, time, roll_limit_deg);
-		setprop(""~myNodeName~"/controls/flight/target-roll", currRoll + degrees);
-
-		# altitude
-		# This only works for aircraft but that's OK because it's not sensible
-		# for a ground vehicle or ship to dive or climb above or below ground/sea
-		# level anyway (submarines excepted . . . but under current the FG AI system
-		# it would have to be operated as an "aircraft", not a "ship", if it
-		# wants to be able to climb & dive).
-
-		var currAlt_ft = getprop(""~myNodeName~"/position/altitude-ft"); #where the object is, in ft
-		
-		var newAlt_ft = currAlt_ft + alt_ft;			
-		if (newAlt_ft < alts.minimumAGL_ft ) newAlt_ft = alts.minimumAGL_ft 
-		elsif (newAlt_ft > alts.maximumAGL_ft ) newAlt_ft = alts.maximumAGL_ft;
-		#
-		# we set the target altitude, unless we are stalling and trying to move
-		# higher, then we basically stop moving up
-		# confusion about whether alt_ft is absolute or relative
-		var stalling = attributes[myNodeName].controls.stalling;
-		if (!stalling or newAlt_ft < currAlt_ft) 
-		{
-			setprop (""~myNodeName~"/controls/flight/target-alt", newAlt_ft);
-			aircraftSetVertSpeed (myNodeName, newAlt_ft, "atts" );
-		} 
-		else 
-		{
-			#case: stalling
-			newAlt_ft = currAlt_ft - rand() * 20 ;
-			setprop (""~myNodeName~"/controls/flight/target-alt", newAlt_ft );
-			aircraftSetVertSpeed (myNodeName, newAlt_ft, "atts" );
-		}
-	}
-	else # ship or groundvehicle
-	# spd < 5 uses fixed turn radius, see AIship parms
-	# spd > 5 achieves max turn rate at 15 kts
-	# unfortunate: the turn radius is a strong function of speed ( v - 15 )^2
-	# ctrls.dodgeInProgress is a flag set by dodge()
-	# can create a handbrake turn by setting tgt-speed close to 15
-	# we fix the turn linear speed to 13 or 17 kts and use the rudder to control the angular speed
-	# the FG C++ algorithm changes speed-kts to tgt-speed-kts at a slow rate of acceleration / deceleration 0.5 ftpersecsquared  
+		setprop (""~myNodeName~"/controls/flight/target-alt", newAlt_ft);
+		aircraftSetVertSpeed (myNodeName, newAlt_ft, "atts" );
+	} 
+	else 
 	{
-		if ( attributes[myNodeName].controls.dodgeInProgress )
-		{
-			var tgtSpd = getprop (""~myNodeName~"/controls/tgt-speed-kts");
-			var spd = getprop (""~myNodeName~"/velocities/speed-kts");
-			attributes[myNodeName].velocities.oldTgtSpd = tgtSpd;
-
-			if (type == "ship")
-			{
-				setprop(""~myNodeName~"/surface-positions/rudder-pos-deg", degrees);
-				var newSpd = (spd < 10) ? 4.8 : 15;
-				var newTime *= ((spd < 10) ? 1 : 4);
-				var rudderPos = degrees;
-			}
-			elsif (type == "groundvehicle") # groundvehicle
-			{
-				var turnRate = degrees / time;
-				var newSpd =  (turnRate > 15) ? 17.0 : 13.0;
-				var newTime = 1.0 ;
-				var rudderPos = getRudderForTurnRate(turnRate, newSpd);
-				# turn rate is in deg/sec, 15 deg/sec is a hard turn for a groundvehicle, 5 deg/sec is a soft turn
-				# this is a dodge so we turn quickly
-			}
-			setprop(""~myNodeName~"/controls/tgt-speed-kts", newSpd);
-			setprop(""~myNodeName~"/velocities/speed-kts", newSpd);
-			setprop(""~myNodeName~"/surface-positions/rudder-pos-deg", rudderPos );
-		}
-		else # stop dodge, return to cruise speed
-		{
-			setprop(""~myNodeName~"/surface-positions/rudder-pos-deg", 0 );
-			var tgtSpd = attributes[myNodeName].velocities.oldTgtSpd;
-			setprop(""~myNodeName~"/controls/tgt-speed-kts", tgtSpd );
-			setprop(""~myNodeName~"/velocities/speed-kts", tgtSpd);
-		}
+		#case: stalling
+		newAlt_ft = currAlt_ft - rand() * 20 ;
+		setprop (""~myNodeName~"/controls/flight/target-alt", newAlt_ft );
+		aircraftSetVertSpeed (myNodeName, newAlt_ft, "atts" );
 	}
 	debprint 
 	(
@@ -5937,24 +6240,7 @@ var dodge = func(myNodeName, dodgeAmount_deg = 0, dodgeDelay = 1)
 		debprint (sprintf("Dodging: %s dodgeAmount_deg = %6.1f dodgeAltAmount_ft = %6.1f dodgeVertSpeed_fps = %6.1f rollTime_sec = %5.1f dodgeDelay = %6.1f", 
 		myNodeName, dodgeAmount_deg, dodgeAltAmount_ft, dodgeVertSpeed_fps ,rollTime_sec, dodgeDelay));
 	} 
-	elsif (type == "ship") 
-	{  
-		# for ships		
-		# set rudder degrees for a change in direction
-		# the dodge starts immediately and stops at turnTime, set according to type of turn
-
-		var turnTime = rudder_roll_climb (myNodeName, dodgeAmount_deg, dodgeAltAmount_ft, dodgeDelay);
-		stores.reduceFuel (myNodeName, dodgeDelay );
-		settimer 
-			( func 
-				{
-				ctrls.dodgeInProgress = 0;
-				rudder_roll_climb (myNodeName, 0, 0, dodgeDelay );
-				},
-				turnTime 
-			);	
-	}
-	elsif (type == "groundvehicle") 
+	elsif (type == "groundvehicle" or type == "ship") 
 	{  
 		stores.reduceFuel (myNodeName, dodgeDelay);
 		ctrls.dodge_deg = dodgeAmount_deg;
@@ -10171,16 +10457,6 @@ var add_damage = func
 		}
 	}
 
-	# for moving objects (ships & aircraft), reduce velocity each time damage added
-	# eventually  stopping when damage = 1.
-	# But don't reduce speed below minSpeed.
-	# we put it here outside the "if" statement so that burning
-	# objects continue to slow/stop even if their damage is already at 1
-	# this happens when file/reset is chosen in FG					
-	# tgt-speed-kts is used for ships and and vehicles; flight_tgt_spd for aircraft 
-
-	# max speed reduction due to damage, in %
-	var minSpeedReduceFactor = 1 - spds.maxSpeedReduce_percent / 100; 
 
 	if ( damageValue == 1 and damageIncrease > 0) 
 	{
@@ -10191,64 +10467,41 @@ var add_damage = func
 			reduceRPM(myNodeName);
 			aircraftCrash (myNodeName);
 		}
-		elsif (type == "ship") 
-		{
-			# for ships and ground vehicles decelerate at the minSpeedReduceFactor
-			var loopid = ats.loopids.ground_loopid;
-			settimer( func{reduceSpeed(loopid, myNodeName, minSpeedReduceFactor, type)}, 1);
-		}
-		else #staticObject
-		{
-			return;
-		}
-		# exit here or skip next block but need to start ship listing?
 	}
 
-	var speedReduce = 1 - damageValue;
-	if (speedReduce < minSpeedReduceFactor) speedReduce = minSpeedReduceFactor;
-					
-	minSpeed = spds.minSpeed_kt;
+
 	if (type == "ship") 
 	# ships are controlled in a similar way to ground vehicles
 	{
-		var tgt_spd_kts = getprop (""~myNodeName~"/controls/tgt-speed-kts");
-		if (tgt_spd_kts == nil ) tgt_spd_kts = 0;
-
-		if (tgt_spd_kts > minSpeed) 
-		{
-			setprop(""~myNodeName~"/controls/tgt-speed-kts", tgt_spd_kts * speedReduce);
-		}
-		else
-		{
-			setprop(""~myNodeName~"/controls/tgt-speed-kts", minSpeed);
-		}
-			
-		# believe that the ship AI will handle this
-		# if (true_spd > minSpeed)
-		# setprop(""~myNodeName~"/velocities/true-airspeed-kt",
-		# true_spd * speedReduce);
-		
 		# start listing of ship
-		# progressive motion managed by ground loop
-		if ((rand() < 0.5) and ( damageValue >= 0.75)) 
+		# progressive motion managed by ship_ground_loop
+		if ((rand() < 0.5) and ( damageValue >= 0.75) and ctrls["target_roll"] == nil) 
 		{
-			if (ctrls["target_roll"] == nil) 
-			{
-				ctrls.target_roll = rand() * 60 - 30; #up to 30 degrees
-				
-				ctrls.target_pitch = rand() * 10 - 5; #up to 5 degrees
-			}
+			var sinkTime = math.pow(10, rand() + 1.0);
+			ctrls.target_roll = rand() * 60 - 30; #up to 30 degrees
+			ctrls.target_pitch = rand() * 10 - 5; #up to 5 degrees
+			ctrls.damageAltAddCurrent_ft = (alts.crashedAGL_ft - alts.wheelsOnGroundAGL_ft) * (1 - rand() * rand()) / sinkTime * ats.updateTime_s;
 		}
 	}
-	else  # aircraft or GV
+	elsif (type == "aircraft") 
 	{
-		if (type == "aircraft") minSpeed = trueAirspeed2indicatedAirspeed (myNodeName, spds.minSpeed_kt); # correct for altitude
+		# for aircraft use flight_tgt_spd to reduce speed each time damage added
+		# eventually  stopping when damage = 1.
+		# But don't reduce speed below minSpeed.
+		# we put it here outside the "if" statement so that burning
+		# objects continue to slow/stop even if their damage is already at 1
+		# this happens when file/reset is chosen in FG					
+
+		# max speed reduction due to damage, in %
+		var minSpeedReduceFactor = 1 - spds.maxSpeedReduce_percent / 100; 
+		var speedReduce = 1 - damageValue;
+		if (speedReduce < minSpeedReduceFactor) speedReduce = minSpeedReduceFactor;
+		var minSpeed = trueAirspeed2indicatedAirspeed (myNodeName, spds.minSpeed_kt); # correct for altitude
 		var flight_tgt_spd = getprop (""~myNodeName~"/controls/flight/target-spd");
 		if (flight_tgt_spd == nil ) flight_tgt_spd = 0;
 					
 		var true_spd = getprop (""~myNodeName~"/velocities/true-airspeed-kt");
 		if (true_spd == nil ) true_spd = 0;
-
 
 		# only reduce speeds at high damage values
 		if ( damageValue >= 0.75) 
@@ -10272,30 +10525,28 @@ var add_damage = func
 					
 	#don't print this for every fire damage rise, but otherwise . . .
 	#if (!fireStarted or damageRise > vuls.fireDamageRate_percentpersecond * 2.5 ) debprint ("Damage added: ", damageRise, ", Total damage: ", damageValue);
-	#Start damaged engine smoke but only sometimes; greater chance when hitting an aircraft
-
+	
+	
+	# Start damaged engine smoke but only sometimes; greater chance when hitting an aircraft
 	if (!damageEngineSmokeStarted and !fireStarted and rand() < damageRise * vuls.engineDamageVulnerability_percent / 2 ) 
 	{
 		startSmoke("damagedengine",myNodeName);
-		#rjw: can reduce engine rpm at startSmoke or at this point
 		if (type == "aircraft") reduceRPM(myNodeName);
 	}
-	# start fire if there is enough damage.
-	# if(damageValue >= 1 - vuls.fireVulnerability_percent/100 and !fireStarted ) {
 						
 	# a percentage change of starting a fire with each hit
 	if( rand() < .035 * damageRise * (vuls.fireVulnerability_percent) and !fireStarted ) 
 	{
 		debprint ("Starting fire for" ~ myNodeName);
 						
-		#use small, medium, large smoke column depending on vuls.damageVulnerability
-		#(high vuls.damageVulnerability means small/light/easily damaged while
+		# use small, medium, large smoke column depending on vuls.damageVulnerability
+		# high vuls.damageVulnerability means small/light/easily damaged while
 		# low vuls.damageVulnerability means a difficult, hardened target that should burn
 		# more vigorously once finally on fire)
-		#var fp = "";
-		#if (vuls.explosiveMass_kg < 1000 ) { fp = "AI/Aircraft/Fire-Particles/fire-particles-small.xml"; }
-		#elsif (vuls.explosiveMass_kg > 50000 ) { fp = "AI/Aircraft/Fire-Particles/fire-particles-large.xml"; }
-		#else {fp = "AI/Aircraft/Fire-Particles/fire-particles.xml";}
+		# var fp = "";
+		# if (vuls.explosiveMass_kg < 1000 ) { fp = "AI/Aircraft/Fire-Particles/fire-particles-small.xml"; }
+		# elsif (vuls.explosiveMass_kg > 50000 ) { fp = "AI/Aircraft/Fire-Particles/fire-particles-large.xml"; }
+		# else {fp = "AI/Aircraft/Fire-Particles/fire-particles.xml";}
 
 		#small, med, large fire depending on size of hit that caused it
 		var fp = "";
@@ -10304,13 +10555,13 @@ var add_damage = func
 		else {fp = "AI/Aircraft/Fire-Particles/fire-particles-small.xml";}
 						
 		startFire(myNodeName, fp);
-		#only one damage smoke at a time . . .
+		# only one damage smoke at a time . . .
 		deleteSmoke("damagedengine",myNodeName);
 						
 						
-		#fire can be extinguished up to MaxTime_seconds in the future,
-		#if it is extinguished we set up the damagedengine smoke so
-		#the smoke doesn't entirely go away, but no more damage added
+		# fire can be extinguished up to MaxTime_seconds in the future,
+		# if it is extinguished we set up the damagedengine smoke so
+		# the smoke doesn't entirely go away, but no more damage added
 		if ( rand() * 100 < vuls.fireExtinguishSuccess_percentage ) 
 		{
 			settimer (func {
@@ -10329,6 +10580,7 @@ var add_damage = func
 			livery );
 		}
 	} # end of starting fire block
+
 	#only send damage via multiplayer if it is weapon damage from our weapons
 	if (type == "multiplayer" and damageType == "weapon") 
 	{
@@ -10611,6 +10863,8 @@ var initialize_func = func ( b ){
 	b.controls = 
 	{ 
 		target_hdg: 0,
+		target_roll: ,
+		target_pitch: ,
 		groundLoopCounter : 0, 
 		onGround : 0, 
 		damageAltAddCurrent_ft : 0, 
@@ -10651,14 +10905,14 @@ var initialize_func = func ( b ){
 	b.maxTargets = 0;
 
 	if (! contains (b, "type")) {
-		b["type"] = props.globals.getNode(""~b.objectNodeName).getName(); 
-		if (b.type == "groundvehicle") {
-			debprint("initialize_func: error: <type><groundvehicle></type> must not be used in scenario config files. Change to <type><static></type> and use 'type: groundvehicle' in the bombable include file");
-		}
+		debprint("Initialize_func: error: no bombable type has been set");
+		var aiModelType = props.globals.getNode(""~b.objectNodeName).getName(); 
+		if (aiModelType != "aircraft") b.type = "staticObject" else b.type = "aircraft";
+		debprint("Setting bombable type to ", b.type);
 	}
 	else
 	{
-		if (! contains ({ staticObject: , rocket: , groundvehicle: ,}, b.type)) {
+		if (! contains ({aircraft: , ship: , staticObject: , rocket: , groundvehicle: ,}, b.type)) {
 			debprint("error " ~ b.type ~ " is not an allowed type, setting to staticObject");
 			b.type = "staticObject";
 		}
@@ -10952,12 +11206,8 @@ var initialize_func = func ( b ){
 
 	addToTargets(myNodeName); # add AI model to list of targets and ID its team.  Targets are assigned after scenario initialization
 
-	# register groundvehicle animation
-	if (b.type == "groundvehicle") 
-	{
-		animationManager.register(myNodeName);
-	}
-	
+	# register animation for groundvehicles and ships 
+	if (b.type == "groundvehicle" or b.type == "ship") animationManager.register(myNodeName);
 }
 
 ######################## update_m_per_deg_latlon #########################
@@ -11176,6 +11426,11 @@ var ground_init_func = func( myNodeName ) {
 		var loopid = inc_loopid(myNodeName, "vehicle_ground");
 		settimer(func {vehicle_ground_loop(loopid, myNodeName); }, 4.1 + rand());
 		debprint ("Effect * stay on ground * loaded for " ~ myNodeName);
+	}
+	elsif (ats.type == "ship"){
+		var loopid = inc_loopid(myNodeName, "ship_ground");
+		settimer(func {ship_ground_loop(loopid, myNodeName); }, 4.1 + rand());
+		debprint ("Effect * stay on water * loaded for " ~ myNodeName);
 	}
 	else {
 		var loopid = inc_loopid(myNodeName, "ground");
@@ -11988,6 +12243,9 @@ var ground_del = func(myNodeName) {
 
 	if (ats.type == "groundvehicle" or ats.type == "staticObject"){
 		var loopid = inc_loopid(myNodeName, "vehicle_ground");
+	}
+	elsif (ats.type == "ship"){
+		var loopid = inc_loopid(myNodeName, "ship_ground");
 	}
 	else {
 		var loopid = inc_loopid(myNodeName, "ground");
@@ -13921,7 +14179,7 @@ var startScenario = func(startTime)
 					setprop(""~myNodeName~"/controls/flight/target-alt", alt_ft);
 					setprop(""~myNodeName~"/controls/flight/target-hdg", group.heading);
 				}
-				elsif (type == "groundvehicle")
+				elsif (type == "groundvehicle" or type == "ship")
 				{
 					ats.controls.target_hdg = group.heading;
 					setprop(""~myNodeName~"/velocities/speed-kts", group.speed);
@@ -13931,12 +14189,6 @@ var startScenario = func(startTime)
 				{
 					ats.controls.target_hdg = group.heading;
 					setprop(""~myNodeName~"/velocities/speed-kts", 0);
-				}
-				elsif (type == "ship")
-				{
-					setprop(""~myNodeName~"/velocities/speed-kts", group.speed);
-					setprop(""~myNodeName~"/controls/tgt-speed-kts", group.speed);
-					setprop(""~myNodeName~"/controls/tgt-heading-degs", group.heading);
 				}
 
 				debprint(sprintf("Set speed and heading for %s type %s to %.1f and %.1f", myNodeName, type, group.speed, group.heading));
@@ -14286,7 +14538,7 @@ var resetScenarioMain = func()
 			}
 		}
 		var ats = attributes[myNodeName];
-		if (ats.type == "groundvehicle") animationManager.stopObject(myNodeName);
+		if (ats.type == "groundvehicle" or ats.type == "ship") animationManager.stopObject(myNodeName);
 	}
 
 	# move all AI objects out of scene and repair them
@@ -14362,6 +14614,10 @@ var restartLoop = func(myNodeName, loopName)
 	elsif (loopName == "vehicle_ground") 
 	{
 		settimer( func {vehicle_ground_loop (loopid, myNodeName); }, rand() + 4.5);
+	}
+	elsif (loopName == "ship_ground") 
+	{
+		settimer( func {ship_ground_loop (loopid, myNodeName); }, rand() + 4.5);
 	}
 	elsif (loopName == "updateWptHeading")
 	{

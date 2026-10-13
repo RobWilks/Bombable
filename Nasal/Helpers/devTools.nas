@@ -449,9 +449,19 @@ foreach (var myNodeName; bombable.nodeNames) {
 }
 print("--------------------------------------------------");
 
+var myHash = {roll: {target_roll: }};
+print (myHash.roll.target_roll == nil);
+print(myHash["pitch"] == nil);
+myHash.roll.target_roll = 5;
+print (myHash.roll.target_roll == nil);
+myHash.roll.target_roll = nil;
+print (myHash.roll.target_roll == nil);
+debug.dump(myHash);
+
 ##################### test rate of turn vs rudder angle ##########################
 var myNodeName = "/ai/models/static";
 var ats=bombable.attributes[myNodeName];
+print(ats.type);
 var dodgeAmount_deg = 40.0;
 var dodgeDelay = 7.0;
 bombable.dodge(myNodeName, dodgeAmount_deg, dodgeDelay);
