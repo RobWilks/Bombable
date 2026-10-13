@@ -5,7 +5,7 @@
         <team>B</team>
         <target>X</target>
         <arrivalTime>-360</arrivalTime>
-        <airSpeed>25</airSpeed>
+        <speed>25</speed>
         <airportName>EGOD</airportName>
         <heading>225</heading>
         <alt>0</alt>
@@ -22,7 +22,7 @@
         <team>X</team>
         <target>B</target>
         <arrivalTime>200</arrivalTime>
-        <airSpeed>500</airSpeed>
+        <speed>500</speed>
         <airportName>EGOD</airportName>
         <heading>30</heading>
         <alt>5000</alt>

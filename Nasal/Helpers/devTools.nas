@@ -450,10 +450,18 @@ foreach (var myNodeName; bombable.nodeNames) {
 print("--------------------------------------------------");
 
 ##################### test rate of turn vs rudder angle ##########################
-var myNodeName = "/ai/models/ship[1]";
+var myNodeName = "/ai/models/static";
 var ats=bombable.attributes[myNodeName];
 var dodgeAmount_deg = 40.0;
 var dodgeDelay = 7.0;
+bombable.dodge(myNodeName, dodgeAmount_deg, dodgeDelay);
+
+
+var myNodeName = "/ai/models/static";
+var ats=bombable.attributes[myNodeName];
+print ("damage = ",ats.damage);
+ats.damage = 0.81;
+
 var newSpd =  16.5;
 var hdg = getprop(""~myNodeName~"/orientation/true-heading-deg");
 setprop(""~myNodeName~"/controls/tgt-speed-kts", newSpd);

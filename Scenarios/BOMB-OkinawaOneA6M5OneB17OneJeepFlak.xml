@@ -81,7 +81,7 @@
         <team>B</team>
         <target>X</target>
         <arrivalTime>240</arrivalTime>
-        <airSpeed>182</airSpeed>
+        <speed>182</speed>
         <airportName>ROAH</airportName>
         <heading>225</heading>
         <alt>5000</alt>
@@ -102,7 +102,7 @@
         <team>E</team>
         <target>W</target>
         <arrivalTime>300</arrivalTime>
-        <airSpeed>30</airSpeed>
+        <speed>30</speed>
         <airportName>ROAH</airportName>
         <heading>300</heading>
         <alt>30</alt>
@@ -124,7 +124,7 @@
         <team>W</team>
         <target>B</target>
         <arrivalTime>0</arrivalTime>
-        <airSpeed>0</airSpeed>
+        <speed>0</speed>
         <airportName>ROAH</airportName>
         <heading>0</heading>
         <alt>100</alt>
@@ -151,7 +151,7 @@
         <team>X</team>
         <target>B</target>
         <arrivalTime>90</arrivalTime>
-        <airSpeed>250</airSpeed>
+        <speed>250</speed>
         <airportName>ROAH</airportName>
         <heading>160</heading>
         <alt>6000</alt>

@@ -1567,7 +1567,7 @@ var resetBombableDamageFuelWeapons = func (myNodeName) {
 		ctrls.attackClimbDiveInProgress = 0;
 		ctrls.attackClimbDiveTargetAGL_m = 0;
 		ctrls.stalling = 0;
-		ctrls.avoidCliffInProgress = 0;
+		ctrls.dodge_deg = 0;
 		ctrls.groundLoopCounter = 0;
 		ctrls.target_hdg = 0;
 
@@ -3834,7 +3834,6 @@ var vehicle_ground_loop = func( id, myNodeName ) {
 	#
 	# alts.wheelsOnGroundAGL_ft + damageAltAdd = the altitude (AGL) the object should be at when
 	# finished crashing, sinking, etc.
-	
 
 	# set speed, pitch and roll of ground vehicle according to terrain
 	var gradient = (toFrontAlt_ft - alt_ft ) / frontBack_ft; # note calculated on old heading.  Better to update velocity beforehand
@@ -3850,39 +3849,34 @@ var vehicle_ground_loop = func( id, myNodeName ) {
 	# var alt_gain = altNextTick_m * M2FT + alts.wheelsOnGroundAGL_ft / math.cos(slope_rad) / math.cos(rollangle_rad) - currAlt_ft;
 
 	# avoid steep terrain
-	var targetHeading = ctrls.target_hdg;
-
 	if (math.abs(gradientAhead) > 0.9) # turn if at top or bottom of cliff
 	{
-		if (!ctrls.avoidCliffInProgress)
+		if (!ctrls.dodgeInProgress)
 		{
-			# var newTargetHeading = (rand() > 0.5 ? 90 : -90); # could choose minimum grad
-			var newTargetHeading = (math.abs(toLeftAlt_ft - alt_ft) > math.abs(toRightAlt_ft - alt_ft) ) ? 90 : -90; # turn toward level ground
-			newTargetHeading = math.fmod ( newTargetHeading + 3600, 360);
-			if (newTargetHeading > 180) newTargetHeading -= 360;
-			ctrls.target_hdg = newTargetHeading;
-			# the new heading should be a high priority demand component for the duration of the manoeuvre
+			ctrls.dodgeInProgress = 1;
+			var dodge_dir = (math.abs(toLeftAlt_ft - alt_ft) > math.abs(toRightAlt_ft - alt_ft) ) ? 1 : -1; # turn toward level ground
+			ctrls.dodge_deg = dodge_dir * (85.0 + rand() * 10.0);
+			debprint
+			(
+				sprintf(
+					"%s avoiding cliff, slope = %5.1f", 
+					myNodeName, slope_rad * R2D
+				)
+			);
 			settimer
 			(
 				func
 				{
-				ctrls.target_hdg = targetHeading;
-				ctrls.avoidCliffInProgress = 0;
+				ctrls.dodgeInProgress = 0;
+				ctrls.dodge_deg = 0;
 				},
 				2 + rand() * 5
 			);
-			ctrls.avoidCliffInProgress = 1;
-			targetHeading = newTargetHeading;
-			debprint
-			(
-				sprintf(
-					"avoiding cliff, new target hdg = %5.1f, slope = %5.1f", 
-					newTargetHeading, slope_rad * R2D
-				)
-			);
 		}
 	}
-	
+	var dodgeHeading = ctrls.target_hdg + ctrls.dodge_deg;
+	dodgeHeading = math.fmod (dodgeHeading + 3600, 360);
+
 	# Calculate delta_heading_deg given navigation and swarm directions
 	# Could be merged with the steering algorithm in rudder_roll_climb called by dodge
 	# The following is for many speeds whereas dodge is at 13 or 17 knots to give high rate of turn 
@@ -3908,8 +3902,8 @@ var vehicle_ground_loop = func( id, myNodeName ) {
 	# w1 is navigation gain; the fraction of maximum deflection turn rate per tick
 	# for calculating velocity demand increments we use the available acceleration
 	
-	var dv_nav_x = w1 * vels.cruiseSpeed_kt * math.sin(targetHeading * D2R); # x east
-	var dv_nav_y = w1 * vels.cruiseSpeed_kt * math.cos(targetHeading * D2R); # y north
+	var dv_nav_x = w1 * vels.cruiseSpeed_kt * math.sin(dodgeHeading * D2R); # x east
+	var dv_nav_y = w1 * vels.cruiseSpeed_kt * math.cos(dodgeHeading * D2R); # y north
 
 	var dv_raw_x = dv_nav_x;
 	var dv_raw_y = dv_nav_y;
@@ -3929,6 +3923,9 @@ var vehicle_ground_loop = func( id, myNodeName ) {
 	# Longitudinal acceleration limit
 	# Assume drag varies with speed^2 and use the max_acceleration to determine drag coefficient 
 	var max_linear_acceleration = vels.maxAcceleration; # m/s^2
+
+	#damaged vehicles lose the ability to accelerate
+	if (ats.damage > 0.8) max_linear_acceleration *= (1 - (ats.damage - 0.8)/ 0.2);
 
 	# Scale MAX_DV_LONG_KT by throttle position which is set by whether in cruise, attack or climb
 	var maxSpd = vels.maxSpeed_kt; # knots
@@ -5821,7 +5818,7 @@ var dodge = func(myNodeName, dodgeAmount_deg = 0, dodgeDelay = 1)
 	if ( ctrls.dodgeInProgress ) return;
 	if (ats.type == "staticObject") return;
 	
-	# Don't change rudder/roll again until the delay
+	# Set lock to stop multiple calls
 	ctrls.dodgeInProgress = 1;
 				
 	var type = ats.type;
@@ -5835,7 +5832,7 @@ var dodge = func(myNodeName, dodgeAmount_deg = 0, dodgeDelay = 1)
 	var skill = calcPilotSkill (myNodeName);
 	var skillMult = (skill <= .2) ? 15 : 3/skill;
 
-	# dodgeAmount is set in function call when want small 1sec changes to direction
+	# dodgeAmount_deg is set in function call when want small 1sec changes to direction
 	if (!dodgeAmount_deg) {
 
 		# amount to dodge left-right, up to dodgeMax_deg in either direction
@@ -5940,9 +5937,9 @@ var dodge = func(myNodeName, dodgeAmount_deg = 0, dodgeDelay = 1)
 		debprint (sprintf("Dodging: %s dodgeAmount_deg = %6.1f dodgeAltAmount_ft = %6.1f dodgeVertSpeed_fps = %6.1f rollTime_sec = %5.1f dodgeDelay = %6.1f", 
 		myNodeName, dodgeAmount_deg, dodgeAltAmount_ft, dodgeVertSpeed_fps ,rollTime_sec, dodgeDelay));
 	} 
-	else 
+	elsif (type == "ship") 
 	{  
-		# for ships	and groundvehicles		
+		# for ships		
 		# set rudder degrees for a change in direction
 		# the dodge starts immediately and stops at turnTime, set according to type of turn
 
@@ -5955,6 +5952,19 @@ var dodge = func(myNodeName, dodgeAmount_deg = 0, dodgeDelay = 1)
 				rudder_roll_climb (myNodeName, 0, 0, dodgeDelay );
 				},
 				turnTime 
+			);	
+	}
+	elsif (type == "groundvehicle") 
+	{  
+		stores.reduceFuel (myNodeName, dodgeDelay);
+		ctrls.dodge_deg = dodgeAmount_deg;
+		settimer 
+			( func 
+				{
+				ctrls.dodgeInProgress = 0;
+				ctrls.dodge_deg = 0.0;
+				},
+				dodgeDelay 
 			);	
 	}
 			
@@ -10181,7 +10191,7 @@ var add_damage = func
 			reduceRPM(myNodeName);
 			aircraftCrash (myNodeName);
 		}
-		elsif (type == "ship" or type == "groundvehicle") 
+		elsif (type == "ship") 
 		{
 			# for ships and ground vehicles decelerate at the minSpeedReduceFactor
 			var loopid = ats.loopids.ground_loopid;
@@ -10606,7 +10616,7 @@ var initialize_func = func ( b ){
 		damageAltAddCurrent_ft : 0, 
 		damageAltAddCumulative_ft : 0, 
 		dodgeInProgress : 0, 
-		avoidCliffInProgress : 0,
+		dodge_deg : 0,
 		attackInProgress : 0, 
 		attackClimbDiveInProgress : 0,
 		attackClimbDiveTargetAGL_m : 0,
@@ -13726,7 +13736,7 @@ var startScenario = func(startTime)
 			swarm       : swarm_val,
 			target      : gNode.getNode("target", 1).getValue(),
 			arrivalTime : gNode.getNode("arrivalTime", 1).getValue(),
-			airSpeed    : gNode.getNode("airSpeed", 1).getValue(), # knots
+			speed       : gNode.getNode("speed", 1).getValue(), # knots
 			airportName : gNode.getNode("airportName", 1).getValue(),
 			heading     : gNode.getNode("heading", 1).getValue(),
 			alt         : gNode.getNode("alt", 1).getValue(), #ft
@@ -13843,7 +13853,7 @@ var startScenario = func(startTime)
 
 
 		GeoCoord.set_latlon(apt.lat, apt.lon);
-		var dist = group.airSpeed * KT2MPS * group.arrivalTime;
+		var dist = group.speed * KT2MPS * group.arrivalTime;
 		var heading = group.heading;
 		GeoCoord.apply_course_distance(heading + 180, dist);
 		foreach (var o ; group.offsets)  
@@ -13904,27 +13914,32 @@ var startScenario = func(startTime)
 				setprop(""~myNodeName~"/position/altitude-ft", alt_ft);
 				debprint("startScenario: " ~ myNodeName ~ " at alt=" ~ getprop(""~myNodeName~"/position/altitude-ft"));
 
-				if (type == "ship" or type == "aircraft")
+				if (type == "aircraft")
 				{
-					setprop(""~myNodeName~"/velocities/true-airspeed-kt", group.airSpeed);
-					setprop(""~myNodeName~"/controls/flight/target-spd", group.airSpeed);
+					setprop(""~myNodeName~"/velocities/true-airspeed-kt", group.speed);
+					setprop(""~myNodeName~"/controls/flight/target-spd", group.speed);
 					setprop(""~myNodeName~"/controls/flight/target-alt", alt_ft);
 					setprop(""~myNodeName~"/controls/flight/target-hdg", group.heading);
 				}
 				elsif (type == "groundvehicle")
 				{
 					ats.controls.target_hdg = group.heading;
-					setprop(""~myNodeName~"/velocities/speed-kts", group.airSpeed);
+					setprop(""~myNodeName~"/velocities/speed-kts", group.speed);
 					animationManager.startObject(myNodeName);
+				}
+				elsif (type == "staticObject")
+				{
+					ats.controls.target_hdg = group.heading;
+					setprop(""~myNodeName~"/velocities/speed-kts", 0);
 				}
 				elsif (type == "ship")
 				{
-					setprop(""~myNodeName~"/velocities/speed-kts", group.airSpeed);
-					setprop(""~myNodeName~"/controls/tgt-speed-kts", group.airSpeed);
+					setprop(""~myNodeName~"/velocities/speed-kts", group.speed);
+					setprop(""~myNodeName~"/controls/tgt-speed-kts", group.speed);
 					setprop(""~myNodeName~"/controls/tgt-heading-degs", group.heading);
 				}
 
-				debprint(sprintf("Set speed and heading for %s type %s to %.1f and %.1f", myNodeName, type, group.airSpeed, group.heading));
+				debprint(sprintf("Set speed and heading for %s type %s to %.1f and %.1f", myNodeName, type, group.speed, group.heading));
 			}
 		}
 	}
@@ -14018,7 +14033,7 @@ var updateWptHeading_loop = func(id, myNodeName) {
 
 	# skill ranges 0-6
 	var skill = calcPilotSkill (myNodeName);
-	if (rand() < skill / 6 * (1.0 - ats.damage) and !(ats.controls.dodgeInProgress or ats.controls.avoidCliffInProgress)) {
+	if (rand() < skill / 6 * (1.0 - ats.damage) and !(ats.controls.dodgeInProgress)) {
 		var name = ats.controls.flightpath.name;
 		if (name == "sas_raid") {
 			var thresholdWpt = 200; # closest approach to waypoint before moving to the next
