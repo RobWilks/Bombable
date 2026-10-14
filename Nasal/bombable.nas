@@ -4223,7 +4223,8 @@ var ship_ground_loop = func( id, myNodeName ) {
 	# Drag is proportional to spd ^ 2.  At max acceleration drag force = thrust
 	var dv_drag = speed_kt * speed_kt / maxSpd / maxSpd * max_linear_acceleration * updateTime_s / KT2MPS;
 	# Drag increases with keel damage caused by grounding whereas it is not affected by damage above the waterline.  
-	dv_drag *= (1 + ats.keelDamage * 9);
+	# grounding creates forces from mechanical friction and ploughing both increasing as buoyancy is lost
+	dv_drag *= math.pow(10.0, ats.keelDamage * 2);
 
 	# Damaged ships lose the ability to accelerate
 	if (damageValue > 0.8) {
@@ -6747,12 +6748,13 @@ var checkAim = func ( elem, #string from weapon key
 	
 	# calculate the distance
 	var distance_m = vectorModulus(targetDispGndFrame); 
+	var muzzleSpd = thisWeapon.maxMissileSpeed_mps;
 	
 	var intercept = findIntercept( #intercept vector calculated in the ground frame
 		myNodeName1, myNodeName2, 
 		targetDispGndFrame,
 		distance_m,
-		thisWeapon.maxMissileSpeed_mps
+		muzzleSpd
 	);
 
 	if (intercept.time == 9999) return(targetSighted);
@@ -6899,6 +6901,14 @@ var checkAim = func ( elem, #string from weapon key
 
 			thisWeapon.aim.weaponDirModelFrame = newDirModelFrame;
 			thisWeapon.aim.weaponDirGndFrame = rotate_zxy(newDirModelFrame, -ats.pitch_deg, -ats.roll_deg, ats.myHeading_deg);
+
+			# quadrant elevation or sight elevation angle - direct LoS angle
+			# The extra elevation angle (in radians) is roughly the drop divided by the distance:
+			var extraElev_deg = grav_mpss * dist_m / muzzleSpd / muzzleSpd * R2D;
+			if (extraElev_deg > 15) extraElev_deg = 15;
+			thisWeapon.aim.extraElev = extraElev_deg;
+
+
 		}
 	}
 	return (targetSighted); 	
@@ -11571,6 +11581,10 @@ var weaponsOrientationUpdate = func (myNodeName, elem) {
 	thisWeapon.weaponAngle_deg.heading = newHeading;
 	thisWeapon.weaponAngle_deg.elevation = newElev;
 
+	# for aesthetics we add some sight elevation
+	# calculated as a small angle approximation and assuming elevation is about a horizontal axis
+	if (newElev < 75) newElev += thisWeapon.aim.extraElev;
+
 	# position in model frame of reference
 	setprop("" ~ myNodeName ~ "/" ~ elem ~ "/orientation/true-heading-deg", -newHeading);
 	setprop("" ~ myNodeName ~ "/" ~ elem ~ "/orientation/pitch-deg", newElev);
@@ -11799,6 +11813,7 @@ var weapons_init_func = func(myNodeName)
 			interceptSpeed:0,
 			fixed:weapFixed, 
 			target:-1, #index of object to shoot at; -1 flag to show not initialized
+			extraElev: 0, # sight elevation to allow for gravity
 			}; 
 		# aim records direction weapon is pointing
 		# in the frame of reference of model and the frame of reference of the scene
@@ -13013,6 +13028,8 @@ var findRoots = func(a, b, c)
 # speed of interceptor, displacement vector between aircraft1 and aircraft2
 # dist_m is the magnitude of the displacement vector
 # returns hash of time to intercept and velocity vector of interceptor in the ground frame
+# does not take into account gravity
+# 
 var findIntercept = func (myNodeName1, myNodeName2, displacement, dist_m, interceptSpeed) {
 	var speed1 = getprop(""~myNodeName1~"/velocities/true-airspeed-kt") * KT2MPS; # AI
 	var pitch1 = getprop(""~myNodeName1~"/orientation/pitch-deg") * D2R;
@@ -14990,7 +15007,7 @@ var spawn_custom_tracer = func(myNodeName, elem, target_weapon_path, archetype_p
 	var tps = thisWeapon.roundsPerSec;
 	var tracersPerSec = (tps > 1) ? math.sqrt(tps) : tps;
 	var spd = thisWeapon.maxMissileSpeed_mps;
-	var lifetime = thisWeapon.maxDamageDistance_m / thisWeapon.maxMissileSpeed_mps;
+	var lifetime = thisWeapon.maxDamageDistance_m / spd;
 
 	# 1. Read template file into string atomically using io.readfile
     var xml_content = io.readfile(archetype_path);
