@@ -4046,9 +4046,6 @@ var ship_ground_loop = func( id, myNodeName ) {
 	}	
 
 	# reset the timer loop first so we don't lose it entirely in case of a runtime error or such
-	# add rand() so that all objects don't do this function simultaneously
-	# on the first call objects are given the correct altitude and orientation
-
 	settimer(func { ship_ground_loop(id, myNodeName)}, updateTime_s );
 
 	# Allow this function to be disabled via menu since it can kill framerate at times
@@ -4089,7 +4086,7 @@ var ship_ground_loop = func( id, myNodeName ) {
 	# End of life:  damaged ships and ground vehicles grind to a halt
 	# Ships and groundvehicles might be stationary at the start of a scenario
 	# Speed is reduced by add_damage.  Check both for end of life
-	if (speed_kt <= 1 and ats.damage > 0.9) 
+	if (speed_kt <= 0.5 and ats.damage > 0.9) 
 	{
 		debprint(sprintf
 			(
@@ -4129,7 +4126,7 @@ var ship_ground_loop = func( id, myNodeName ) {
 	GeoCoord.apply_course_distance( heading, tick_m + 2 * frontBack_m);
 	var altNextTick_m = elev_m(GeoCoord.lat(), GeoCoord.lon());
 	var gradientNextTick = (altNextTick_m - toFrontAlt_m) / tick_m;
-	var pitchNextTick = math.atan2(altNextTick_m - toFrontAlt_m, tick_m) * R2D;
+	var pitchNextTick_rad = math.atan2(altNextTick_m - toFrontAlt_m, tick_m);
 
 	var distAhead_m = speed_kt * KT2MPS * 5;
 	GeoCoord.apply_course_distance(heading, distAhead_m);
@@ -4143,22 +4140,12 @@ var ship_ground_loop = func( id, myNodeName ) {
 	# The first time called initialize altitudes then exit
 	if ( alts.initialized != 1 ) 
 	{
-		var initial_altitude_ft = getprop (""~myNodeName~"/position/altitude-ft");
-		if (initial_altitude_ft < alt_ft + alts.wheelsOnGroundAGL_ft + alts.minimumAGL_ft) {
-			initial_altitude_ft = alt_ft + alts.wheelsOnGroundAGL_ft + alts.minimumAGL_ft;
-		}
-		if (initial_altitude_ft > alt_ft + alts.wheelsOnGroundAGL_ft + alts.maximumAGL_ft) {
-			initial_altitude_ft = alt_ft + alts.wheelsOnGroundAGL_ft + alts.maximumAGL_ft;
-		}
-				
-		var target_alt_AGL_ft = initial_altitude_ft - alt_ft - alts.wheelsOnGroundAGL_ft; 
-				
-		debprint (sprintf("Initial Altitude:%6.0f Target AGL:%6.0f Object = %s", initial_altitude_ft, target_alt_AGL_ft, myNodeName));
-		# debprint ("", alt_ft, " ", toRightAlt_ft, " ",toLeftAlt_ft, " ",toFrontAlt_ft," ", toLeftAlt_ft, " ", alts.wheelsOnGroundAGL_ft);
-		
-		setprop (""~myNodeName~"/position/altitude-ft", alt_ft ); # ships and groundvehicles are set to altitude of ground in their initial location
-		alts.targetAGL_ft = 0; 
-		alts.initialAlt_ft = alt_ft;  # rjw mod to check for grounded ships
+		var initialAlt_ft = alt_ft + alts.wheelsOnGroundAGL_ft;
+		If (alt_ft > 0.5) debprint ("Ship_ground_loop: attempt to init ship on land.  Move to sea");
+		debprint (
+			sprintf("%s: Initial altitude: %.1f with origin / keel above waterline %.1f", 
+			myNodeName, initial_altitude_ft, alts.wheelsOnGroundAGL_ft));
+		setprop (""~myNodeName~"/position/altitude-ft", initialAlt_ft ); # ships are set to altitude of ground in their initial location		alts.targetAGL_ft = 0; 
 		alts.initialized = 1;
 		return;
 	}
@@ -4176,23 +4163,21 @@ var ship_ground_loop = func( id, myNodeName ) {
 	# alts.wheelsOnGroundAGL_ft + damageAltAdd = the altitude (AGL) the object should be at when
 	# finished crashing, sinking, etc.
 
-	var alt_gain = ctrls.damageAltAddCurrent_ft; # correction if above or below ground
-
-	# var alt_gain = altNextTick_m * M2FT + alts.wheelsOnGroundAGL_ft / math.cos(slope_rad) / math.cos(rollangle_rad) - currAlt_ft;
+	var alt_gain = ctrls.damageAltAddCurrent_ft + altNextTick_m * M2FT;
 
 	# check for land ahead
-	if (math.abs(gradientAhead) > 0.01) 
+	if (gradientAhead > 0.01) 
 	{
 		if (!ctrls.dodgeInProgress)
 		{
 			ctrls.dodgeInProgress = 1;
-			var dodge_dir = (math.abs(toLeftAlt_ft - alt_ft) > math.abs(toRightAlt_ft - alt_ft) ) ? 1 : -1; # turn toward level ground
+			var dodge_dir = (rand() > 0.5) ? 1 : -1; # turn toward level ground
 			ctrls.dodge_deg = dodge_dir * (85.0 + rand() * 10.0);
 			debprint
 			(
 				sprintf(
-					"%s avoiding cliff, slope = %5.1f", 
-					myNodeName, slope_rad * R2D
+					"%s avoiding land, slope = %.1f degrees", 
+					myNodeName, math.atan(gradientAhead) * R2D
 				)
 			);
 			settimer
@@ -4202,15 +4187,19 @@ var ship_ground_loop = func( id, myNodeName ) {
 				ctrls.dodgeInProgress = 0;
 				ctrls.dodge_deg = 0;
 				},
-				2 + rand() * 5
+				3 + rand() * 7
 			);
 		}
 	}
 
 	# check if ran aground
-	if (math.abs(gradientNextTick) > 0.02) 
+	if (altNextTick_m > 2) 
 	{
-		add_damage(rand() * 0.1, "ran aground", myNodeName);
+		add_damage(rand() * 0.5, "hit shore", myNodeName);
+	}
+	elsif (altNextTick_m > 0.1) 
+	{
+		add_damage(rand() * 0.1, "beached", myNodeName);
 	}
 
 	var dodgeHeading = ctrls.target_hdg + ctrls.dodge_deg;
@@ -4271,7 +4260,6 @@ var ship_ground_loop = func( id, myNodeName ) {
 	var throttle = vels.cruiseSpeed_kt * vels.cruiseSpeed_kt / maxSpd / maxSpd;
 	if (gradientAhead > 0.02) {
 		throttle = 1;
-
 	}
 	elsif (gradientAhead < -0.05) {
 		throttle = 0;
@@ -4306,7 +4294,7 @@ var ship_ground_loop = func( id, myNodeName ) {
 	# drag is proportional to spd ^ 2
 	var dv_drag = speed_kt * speed_kt / maxSpd / maxSpd * max_linear_acceleration * updateTime_s / KT2MPS;
 
-	var dv_grad = math.sin(slope_rad) * grav_mpss * updateTime_s / KT2MPS; 
+	var dv_grad = math.sin(pitchNextTick_rad) * grav_mpss * updateTime_s / KT2MPS; 
 	var v_long = speed_kt - dv_drag - dv_grad + dv_long;
 	var v_lat = dv_lat;
 
@@ -10469,7 +10457,6 @@ var add_damage = func
 		}
 	}
 
-
 	if (type == "ship") 
 	# ships are controlled in a similar way to ground vehicles
 	{
@@ -10477,9 +10464,9 @@ var add_damage = func
 		# progressive motion managed by ship_ground_loop
 		if ((rand() < 0.5) and ( damageValue >= 0.75) and ctrls["target_roll"] == nil) 
 		{
-			var sinkTime = math.pow(10, rand() + 1.0);
-			ctrls.target_roll = rand() * 60 - 30; #up to 30 degrees
-			ctrls.target_pitch = rand() * 10 - 5; #up to 5 degrees
+			var sinkTime = math.pow(10, rand() * 2 + 0.5);
+			ctrls.target_roll = rand() * rand() * 180 - 90; #up to 90 degrees
+			ctrls.target_pitch = rand() * 30 - 15; #up to 15 degrees
 			ctrls.damageAltAddCurrent_ft = (alts.crashedAGL_ft - alts.wheelsOnGroundAGL_ft) * (1 - rand() * rand()) / sinkTime * ats.updateTime_s;
 		}
 	}
