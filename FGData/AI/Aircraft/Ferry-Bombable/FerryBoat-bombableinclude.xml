@@ -153,14 +153,14 @@
                 name : "Anti-Aircraft Gun - Front", # name presented to users, ie in on-screen messages
                 weaponType : "large_cannon",
                 maxDamage_percent : 45.5, # maximum percentage damage one hit from the aircraft's main weapon/machine guns will do to an opponent
-                maxDamageDistance_m : 3000, # maximum distance at which the aircrafts main weapon/maching guns will be able to damage an opponent
+                maxDamageDistance_m : 6000, # maximum distance at which the aircrafts main weapon/maching guns will be able to damage an opponent
                 weaponAngle_deg  :  { heading: 0, elevation: 15.0, headingMin: -45, headingMax: 45, elevationMin: -3.0, elevationMax: 70  }, # direction the aircraft's main weapon is aimed.   
                                                                   # 0,0 = straight ahead, 90,0=directly right, 0,90=directly up, 0,180=directly back, etc.
                 weaponOffset_m : {x:-77, y:0, z:7.3}, # Offset of the weapon from the main aircraft center
                 weaponSize_m : {start:1.0, end:3.0}, # Visual size of the weapon's projectile, in meters, at start & end of its path
                 nRounds : 120,
                 roundsPerSec : 1.666, #1 shell every 6sec
-                accuracy : 0.2,	# 
+                accuracy : 0.4,	# 
 				
               },
              
@@ -168,15 +168,15 @@
               {               
                 name : "Anti-Aircraft Gun - Right/Front", # name presented to users, ie in on-screen messages
                 weaponType : "large_cannon",
-                maxDamage_percent : 4, # maximum percentage damage one hit from the aircraft's main weapon/machine guns will do to an opponent
-                maxDamageDistance_m : 700, # maximum distance at which the aircrafts main weapon/maching guns will be able to damage an opponent
+                maxDamage_percent : 45.5, # maximum percentage damage one hit from the aircraft's main weapon/machine guns will do to an opponent
+                maxDamageDistance_m : 6000, # maximum distance at which the aircrafts main weapon/maching guns will be able to damage an opponent
                 weaponAngle_deg  :  { heading: 90, elevation: 15.0, headingMin: 60, headingMax: 120, elevationMin: -3.0, elevationMax: 70  }, # direction the aircraft's main weapon is aimed.   
                                                                   # 0,0 = straight ahead, 90,0=directly right, 0,90=directly up, 0,180=directly back, etc.
                 weaponOffset_m : {x:-24.0, y:12.0, z:19.0}, # Offset of the weapon from the main aircraft center
                 weaponSize_m : {start:1.0, end:3.0}, # Visual size of the weapon's projectile, in meters, at start & end of its path
                 nRounds : 120,
                 roundsPerSec : 1.666, #1 shell every 6sec
-                accuracy : 0.2,	# 
+                accuracy : 0.4,	# 
 
               },
 			  			  
@@ -184,15 +184,15 @@
               {               
                 name : "Anti-Aircraft Gun - Right/Rear", # name presented to users, ie in on-screen messages
                 weaponType : "large_cannon",
-                maxDamage_percent : 4, # maximum percentage damage one hit from the aircraft's main weapon/machine guns will do to an opponent
-                maxDamageDistance_m : 700, # maximum distance at which the aircrafts main weapon/maching guns will be able to damage an opponent
+                maxDamage_percent : 45.5, # maximum percentage damage one hit from the aircraft's main weapon/machine guns will do to an opponent
+                maxDamageDistance_m : 6000, # maximum distance at which the aircrafts main weapon/maching guns will be able to damage an opponent
                 weaponAngle_deg  :  { heading: 90, elevation: 15.0, headingMin: 60, headingMax: 120, elevationMin: -3.0, elevationMax: 70  }, # direction the aircraft's main weapon is aimed.   
                                                                   # 0,0 = straight ahead, 90,0=directly right, 0,90=directly up, 0,180=directly back, etc.
                 weaponOffset_m : {x:16.0, y:9.0, z:18.8}, # Offset of the weapon from the main aircraft center
                 weaponSize_m : {start:1.0, end:3.0}, # Visual size of the weapon's projectile, in meters, at start & end of its path
                 nRounds : 120,
                 roundsPerSec : 1.666, #1 shell every 6sec
-                accuracy : 0.2,	# 
+                accuracy : 0.4,	# 
 
               }, 
 
@@ -200,15 +200,15 @@
               {               
                 name : "Anti-Aircraft Gun - Rear", # name presented to users, ie in on-screen messages
                 weaponType : "large_cannon",
-                maxDamage_percent : 4, # maximum percentage damage one hit from the aircraft's main weapon/machine guns will do to an opponent
-                maxDamageDistance_m : 700, # maximum distance at which the aircrafts main weapon/maching guns will be able to damage an opponent
+                maxDamage_percent : 45.5, # maximum percentage damage one hit from the aircraft's main weapon/machine guns will do to an opponent
+                maxDamageDistance_m : 6000, # maximum distance at which the aircrafts main weapon/maching guns will be able to damage an opponent
                 weaponAngle_deg  :  { heading: 180, elevation: 15.0, headingMin: 150, headingMax: -150, elevationMin: -3.0, elevationMax: 70  }, # direction the aircraft's main weapon is aimed.   
                                                                   # 0,0 = straight ahead, 90,0=directly right, 0,90=directly up, 0,180=directly back, etc.
                 weaponOffset_m : {x:66, y:0, z:18.8}, # Offset of the weapon from the main aircraft center
                 weaponSize_m : {start:1.0, end:3.0}, # Visual size of the weapon's projectile, in meters, at start & end of its path
                 nRounds : 120,
                 roundsPerSec : 1.666, #1 shell every 6sec
-                accuracy : 0.2,	# 
+                accuracy : 0.4,	# 
 
               }, 
 			  
@@ -216,15 +216,15 @@
               {               
                 name : "Anti-Aircraft Gun - Left/Rear", # name presented to users, ie in on-screen messages
                 weaponType : "large_cannon",
-                maxDamage_percent : 4, # maximum percentage damage one hit from the aircraft's main weapon/machine guns will do to an opponent
-                maxDamageDistance_m : 700, # maximum distance at which the aircrafts main weapon/maching guns will be able to damage an opponent
+                maxDamage_percent : 45.5, # maximum percentage damage one hit from the aircraft's main weapon/machine guns will do to an opponent
+                maxDamageDistance_m : 6000, # maximum distance at which the aircrafts main weapon/maching guns will be able to damage an opponent
                 weaponAngle_deg  :  { heading: -90, elevation: 15.0, headingMin: -120, headingMax: -60, elevationMin: -3.0, elevationMax: 70  }, # direction the aircraft's main weapon is aimed.   
                                                                   # 0,0 = straight ahead, 90,0=directly right, 0,90=directly up, 0,180=directly back, etc.
                 weaponOffset_m : {x:16.0, y:-9.0, z:18.8}, # Offset of the weapon from the main aircraft center
                 weaponSize_m : {start:1.0, end:3.0}, # Visual size of the weapon's projectile, in meters, at start & end of its path
                 nRounds : 120,
                 roundsPerSec : 1.666, #1 shell every 6sec
-                accuracy : 0.2,	# 
+                accuracy : 0.4,	# 
 
               },                                  
 
@@ -232,15 +232,15 @@
               {               
                 name : "Anti-Aircraft Gun - Left/Front", # name presented to users, ie in on-screen messages
                 weaponType : "large_cannon",
-                maxDamage_percent : 4, # maximum percentage damage one hit from the aircraft's main weapon/machine guns will do to an opponent
-                maxDamageDistance_m : 700, # maximum distance at which the aircrafts main weapon/maching guns will be able to damage an opponent
+                maxDamage_percent : 45.5, # maximum percentage damage one hit from the aircraft's main weapon/machine guns will do to an opponent
+                maxDamageDistance_m : 6000, # maximum distance at which the aircrafts main weapon/maching guns will be able to damage an opponent
                 weaponAngle_deg  :  { heading: -90, elevation: 15.0, headingMin: -120, headingMax: -60, elevationMin: -3.0, elevationMax: 70  }, # direction the aircraft's main weapon is aimed.   
                                                                   # 0,0 = straight ahead, 90,0=directly right, 0,90=directly up, 0,180=directly back, etc.
                 weaponOffset_m : {x:-24, y:-12.0, z:19.0}, # Offset of the weapon from the main aircraft center
                 weaponSize_m : {start:1.0, end:3.0}, # Visual size of the weapon's projectile, in meters, at start & end of its path
                 nRounds : 120,
                 roundsPerSec : 1.666, #1 shell every 6sec
-                accuracy : 0.2,	# 
+                accuracy : 0.4,	# 
 
               },
 
@@ -259,9 +259,9 @@
           # earth/water beyond the model          
           #           
           dimensions : {                  
-            width_m : 17,  #width of your object, ie, for aircraft, wingspan
-            length_m : 170, #length of your object, ie, for aircraft, distance nose to tail
-            height_m : 51, #height of your object, ie, for aircraft ground to highest point when sitting on runway
+            width_m : 40,  #width of your object, ie, for aircraft, wingspan
+            length_m : 179, #length of your object, ie, for aircraft, distance nose to tail
+            height_m : 32, #height of your object, ie, for aircraft ground to highest point when sitting on runway
             damageRadius_m : 80, #typically 1/2 the longest dimension of the object. Hits within this distance of the 
                                 #center of object have some possibility of damage
             vitalDamageRadius_m : 17, #typically the radius of the fuselage or cockpit or other most 

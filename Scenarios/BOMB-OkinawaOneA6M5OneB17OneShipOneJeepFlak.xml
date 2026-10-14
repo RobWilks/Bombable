@@ -112,7 +112,7 @@
     <group>
         <team>C</team>
         <target>W</target>
-        <arrivalTime>480</arrivalTime>
+        <arrivalTime>360</arrivalTime>
         <speed>20</speed>
         <airportName>ROAH</airportName>
         <heading>90</heading>

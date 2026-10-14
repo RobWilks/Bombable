@@ -3802,47 +3802,24 @@ var vehicle_ground_loop = func( id, myNodeName ) {
 	rollangle_deg = rollangle_rad * R2D; 
 	alt_ft = (toFrontAlt_m + toRearAlt_m + toLeftAlt_m + toRightAlt_m) * M2FT / 4; #in feet
 	
-	# The first time called initialize altitudes then exit
+	# The first time called initialize altitudes, check vehicle on land then exit
 	if ( alts.initialized != 1 ) 
 	{
-		var initial_altitude_ft = getprop (""~myNodeName~"/position/altitude-ft");
-		if (initial_altitude_ft < alt_ft + alts.wheelsOnGroundAGL_ft + alts.minimumAGL_ft) {
-			initial_altitude_ft = alt_ft + alts.wheelsOnGroundAGL_ft + alts.minimumAGL_ft;
-		}
-		if (initial_altitude_ft > alt_ft + alts.wheelsOnGroundAGL_ft + alts.maximumAGL_ft) {
-			initial_altitude_ft = alt_ft + alts.wheelsOnGroundAGL_ft + alts.maximumAGL_ft;
-		}
-				
-		var target_alt_AGL_ft = initial_altitude_ft - alt_ft - alts.wheelsOnGroundAGL_ft; 
-				
-		debprint (sprintf("Initial Altitude:%6.0f Target AGL:%6.0f Object = %s", initial_altitude_ft, target_alt_AGL_ft, myNodeName));
-		# debprint ("", alt_ft, " ", toRightAlt_ft, " ",toLeftAlt_ft, " ",toFrontAlt_ft," ", toLeftAlt_ft, " ", alts.wheelsOnGroundAGL_ft);
-		
-		setprop (""~myNodeName~"/position/altitude-ft", alt_ft ); # ships and groundvehicles are set to altitude of ground in their initial location
-		alts.targetAGL_ft = 0; 
-		alts.initialAlt_ft = alt_ft;  # rjw mod to check for grounded ships
+		var vehicleAlt_ft = alt_ft + alts.wheelsOnGroundAGL_ft;
+		if (alt_ft < 0.1) debprint ("vehicle_ground_loop: attempt to init vehicle on sea.  Move to land");
+		debprint (
+			sprintf("%s: vehicle altitude: %.1f ft with origin %.1f ft above ground", 
+			myNodeName, vehicleAlt_ft, alts.wheelsOnGroundAGL_ft));
+		setprop (""~myNodeName~"/position/altitude-ft", vehicleAlt_ft ); # vehicles are set to altitude of ground in their initial location
 		alts.initialized = 1;
 		return;
 	}
 
-	var objectsLowestAllowedAlt_ft = alt_ft + alts.wheelsOnGroundAGL_ft + alts.crashedAGL_ft;
-	# if (thorough) debprint (" objectsLowestAllowedAlt_ft = ", objectsLowestAllowedAlt_ft);
-			
-	# If the object is as low as allowed by crashedAGL_m we consider it "on the ground" (for an airplane) or 
-	# completely sunk (for a ship) etc.
-	# If the object is plummeting at speed we consider it crashed into the ground. 
-	# When controls.onGround is set to true then the speed will slow quite dramatically.
-	# Setting this flag allows for example airplanes to continue forward movement
-	# in the air but skid to a sudden halt when hitting the ground.
-	#
-	# alts.wheelsOnGroundAGL_ft + damageAltAdd = the altitude (AGL) the object should be at when
-	# finished crashing, sinking, etc.
-
-	# set speed, pitch and roll of ground vehicle according to terrain
+	# set speed, pitch and roll of vehicle according to terrain
 	var gradient = (toFrontAlt_ft - alt_ft ) / frontBack_ft; # note calculated on old heading.  Better to update velocity beforehand
 	var slope_rad = math.atan(gradient);
 	# change speed according to gradient ahead
-	# for a ship or vehicle prop tree /velocities/speed-kts is the horizontal speed
+	# for a vehicle prop tree /velocities/speed-kts is the horizontal speed
 	# TO DO calculate new velocity before finding gradient
 
 	var alt_gain = gradient * speed_kt * KT2FPS * updateTime_s +
@@ -3881,9 +3858,6 @@ var vehicle_ground_loop = func( id, myNodeName ) {
 	dodgeHeading = math.fmod (dodgeHeading + 3600, 360);
 
 	# Calculate delta_heading_deg given navigation and swarm directions
-	# Could be merged with the steering algorithm in rudder_roll_climb called by dodge
-	# The following is for many speeds whereas dodge is at 13 or 17 knots to give high rate of turn 
-	
 	# Get weights for navigating and swarming from the property tree.  Initialised when update_swarm_loop is first called
 	var base_node = props.globals.getNode("/bombable/swarm", 1);
 	p_w1 = base_node.getNode("w1", 1);
@@ -3897,9 +3871,6 @@ var vehicle_ground_loop = func( id, myNodeName ) {
 	var cos_hdg = math.cos(hdg_rad);
 
 	# 2. Raw Force Demand Deltas (World Frame)
-	# TO DO add demand component for evasion / dodge
-	# TO DO add demand component for avoid cliff
-	# 
 
 	# Waypoint Navigation Target Vector Delta
 	# w1 is navigation gain; the fraction of maximum deflection turn rate per tick
@@ -3918,7 +3889,7 @@ var vehicle_ground_loop = func( id, myNodeName ) {
 	}
 
 	# 3. Project Raw Delta into Local Body Frame (Model Frame)
-	# dv_long = projection along craft nose/tail; dv_lat = projection along craft wing/side
+	# dv_long = projection along vehicle nose/tail; dv_lat = projection along vehicle side
 	var dv_long =  (dv_raw_x * sin_hdg) + (dv_raw_y * cos_hdg); # forwards from body
 	var dv_lat  =  (dv_raw_x * cos_hdg) - (dv_raw_y * sin_hdg); # right from body
 
@@ -3945,7 +3916,7 @@ var vehicle_ground_loop = func( id, myNodeName ) {
 	var brake_factor = vels.brakeFactor; # max braking deceleration / max acceleration (positive)
 
 	# Lateral maneuverability limit derived from max turn rate
-	# Two regimes: low speed turn rate varies with speed; highh speed turn rate varies with 1 / speed
+	# Two regimes: low speed turn rate varies with speed; high speed turn rate varies with 1 / speed
 	if (speed_kt > vels.maxTurnSpeed) {
 		var turnRate = vels.maxTurnRate * vels.maxTurnSpeed / speed_kt;
 		if (turnRate < vels.minTurnRate) turnRate = vels.minTurnRate;		}
@@ -4063,7 +4034,7 @@ var ship_ground_loop = func( id, myNodeName ) {
 	var FGAltObjectPerimeterBuffer_m = 0.5 * dims.length_m;
 	var FGAltObjectPerimeterBuffer_ft = FGAltObjectPerimeterBuffer_m * M2FT;
 			
-	# Update altitude to keep moving objects at the local ground level
+	# Update altitudes to check for land
 	var currAlt_ft = getprop(""~myNodeName~"/position/altitude-ft"); # altitude in feet above mean sea level (MSL)			
 	var lat = getprop(""~myNodeName~"/position/latitude-deg");
 	var lon = getprop(""~myNodeName~"/position/longitude-deg");
@@ -4072,7 +4043,6 @@ var ship_ground_loop = func( id, myNodeName ) {
 	var tick_ft = speed_kt * KT2FPS * updateTime_s;
 	var tick_m = tick_ft * FT2M;
 	var damageValue = ats.damage;
-	var damageAltAddPrev_ft = ctrls.damageAltAddCurrent_ft;
 			
 	if (lat == nil) {
 		lat = 0;
@@ -4083,10 +4053,10 @@ var ship_ground_loop = func( id, myNodeName ) {
 		debprint ("Lon = NIL, ground_loop ", myNodeName);
 	}
 
-	# End of life:  damaged ships and ground vehicles grind to a halt
-	# Ships and groundvehicles might be stationary at the start of a scenario
+	# End of life:  damaged ships grind to a halt, list and sink
+	# Ships might be stationary at the start of a scenario
 	# Speed is reduced by add_damage.  Check both for end of life
-	if (speed_kt <= 0.5 and ats.damage > 0.9) 
+	if (speed_kt <= 0.5 and damageValue > 0.9) 
 	{
 		debprint(sprintf
 			(
@@ -4125,6 +4095,7 @@ var ship_ground_loop = func( id, myNodeName ) {
 
 	GeoCoord.apply_course_distance( heading, tick_m + 2 * frontBack_m);
 	var altNextTick_m = elev_m(GeoCoord.lat(), GeoCoord.lon());
+	var altNextTick_ft = altNextTick_m * M2FT;
 	var gradientNextTick = (altNextTick_m - toFrontAlt_m) / tick_m;
 	var pitchNextTick_rad = math.atan2(altNextTick_m - toFrontAlt_m, tick_m);
 
@@ -4132,38 +4103,27 @@ var ship_ground_loop = func( id, myNodeName ) {
 	GeoCoord.apply_course_distance(heading, distAhead_m);
 	var gradientAhead = (elev_m(GeoCoord.lat(), GeoCoord.lon()) - altNextTick_m) / distAhead_m;
 
-
 	var rollangle_rad = 0.0; 
 	rollangle_deg = rollangle_rad * R2D; 
 	alt_ft = (toFrontAlt_m + toRearAlt_m) * M2FT / 2;
 	
-	# The first time called initialize altitudes then exit
+	# The first time called initialize altitudes, check ship at sea then exit
 	if ( alts.initialized != 1 ) 
 	{
-		var initialAlt_ft = alt_ft + alts.wheelsOnGroundAGL_ft;
-		If (alt_ft > 0.5) debprint ("Ship_ground_loop: attempt to init ship on land.  Move to sea");
+		var shipAlt_ft = alt_ft + alts.wheelsOnGroundAGL_ft;
+		if (alt_ft > 0.5) debprint ("Ship_ground_loop: attempt to init ship on land.  Move to sea");
 		debprint (
-			sprintf("%s: Initial altitude: %.1f with origin / keel above waterline %.1f", 
-			myNodeName, initial_altitude_ft, alts.wheelsOnGroundAGL_ft));
-		setprop (""~myNodeName~"/position/altitude-ft", initialAlt_ft ); # ships are set to altitude of ground in their initial location		alts.targetAGL_ft = 0; 
+			sprintf("%s: ship altitude: %.1f ft with origin / keel %.1f ft above waterline", 
+			myNodeName, shipAlt_ft, alts.wheelsOnGroundAGL_ft));
+		setprop (""~myNodeName~"/position/altitude-ft", shipAlt_ft ); # ships are set to altitude of ground in their initial location
+		alts.seaLevelAlt_ft = alt_ft;  # to check for ship running aground
+		ats.keelDamage = 0; # used only for ships to account for damage caused by running aground
 		alts.initialized = 1;
 		return;
 	}
 
-	var objectsLowestAllowedAlt_ft = alt_ft + alts.wheelsOnGroundAGL_ft + alts.crashedAGL_ft;
-	# if (thorough) debprint (" objectsLowestAllowedAlt_ft = ", objectsLowestAllowedAlt_ft);
-			
-	# If the object is as low as allowed by crashedAGL_m we consider it "on the ground" (for an airplane) or 
-	# completely sunk (for a ship) etc.
-	# If the object is plummeting at speed we consider it crashed into the ground. 
-	# When controls.onGround is set to true then the speed will slow quite dramatically.
-	# Setting this flag allows for example airplanes to continue forward movement
-	# in the air but skid to a sudden halt when hitting the ground.
-	#
-	# alts.wheelsOnGroundAGL_ft + damageAltAdd = the altitude (AGL) the object should be at when
-	# finished crashing, sinking, etc.
-
-	var alt_gain = ctrls.damageAltAddCurrent_ft + altNextTick_m * M2FT;
+	var alt_gain = ctrls.damageAltAddCurrent_ft + altNextTick_ft - toFrontAlt_ft;
+	# to avoid cumulative errors might check against targetAlt_ft
 
 	# check for land ahead
 	if (gradientAhead > 0.01) 
@@ -4193,21 +4153,31 @@ var ship_ground_loop = func( id, myNodeName ) {
 	}
 
 	# check if ran aground
-	if (altNextTick_m > 2) 
+	if (altNextTick_ft > 7) 
 	{
-		add_damage(rand() * 0.5, "hit shore", myNodeName);
+		add_damage(rand() * 0.5, "aground", myNodeName);
+		debprint("cliff: altNextTick = ", altNextTick_ft, " alts.seaLevelAlt_ft = ", alts.seaLevelAlt_ft, " tick_m = ", tick_m);
 	}
-	elsif (altNextTick_m > 0.1) 
+	elsif (altNextTick_ft > 0.4) 
 	{
-		add_damage(rand() * 0.1, "beached", myNodeName);
+		add_damage(rand() * 0.1, "aground", myNodeName);
+		debprint("beach: altNextTick = ", altNextTick_ft, " alts.seaLevelAlt_ft = ", alts.seaLevelAlt_ft, " tick_m = ", tick_m);
+	}
+	if (altNextTick_ft - alts.seaLevelAlt_ft > 1) 
+	{
+		add_damage(rand() * 0.2, "aground", myNodeName);
+		if (ats.keelDamage < 1) ats.keelDamage += rand() * 0.5; 
+		debprint("land: altNextTick = ", altNextTick_ft, " alts.seaLevelAlt_ft = ", alts.seaLevelAlt_ft, " tick_m = ", tick_m);
+	}
+	else
+	{
+		alts.seaLevelAlt_ft = alts.seaLevelAlt_ft * 0.5 + altNextTick_ft * 0.5; # high-pass filter since sea-level varies with location 
 	}
 
 	var dodgeHeading = ctrls.target_hdg + ctrls.dodge_deg;
 	dodgeHeading = math.fmod (dodgeHeading + 3600, 360);
 
 	# Calculate delta_heading_deg given navigation and swarm directions
-	# Could be merged with the steering algorithm in rudder_roll_climb called by dodge
-	# The following is for many speeds whereas dodge is at 13 or 17 knots to give high rate of turn 
 	
 	# Get weights for navigating and swarming from the property tree.  Initialised when update_swarm_loop is first called
 	var base_node = props.globals.getNode("/bombable/swarm", 1);
@@ -4222,8 +4192,6 @@ var ship_ground_loop = func( id, myNodeName ) {
 	var cos_hdg = math.cos(hdg_rad);
 
 	# 2. Raw Force Demand Deltas (World Frame)
-	# TO DO add demand component for evasion / dodge
-	# TO DO add demand component for avoid cliff
 	# 
 
 	# Waypoint Navigation Target Vector Delta
@@ -4243,7 +4211,7 @@ var ship_ground_loop = func( id, myNodeName ) {
 	}
 
 	# 3. Project Raw Delta into Local Body Frame (Model Frame)
-	# dv_long = projection along craft nose/tail; dv_lat = projection along craft wing/side
+	# dv_long = projection along hull of ship; dv_lat = projection left-right of ship hull
 	var dv_long =  (dv_raw_x * sin_hdg) + (dv_raw_y * cos_hdg); # forwards from body
 	var dv_lat  =  (dv_raw_x * cos_hdg) - (dv_raw_y * sin_hdg); # right from body
 
@@ -4251,12 +4219,20 @@ var ship_ground_loop = func( id, myNodeName ) {
 	# Longitudinal acceleration limit
 	# Assume drag varies with speed^2 and use the max_acceleration to determine drag coefficient 
 	var max_linear_acceleration = vels.maxAcceleration; # m/s^2
+	var maxSpd = vels.maxSpeed_kt; # knots
+	# Drag is proportional to spd ^ 2.  At max acceleration drag force = thrust
+	var dv_drag = speed_kt * speed_kt / maxSpd / maxSpd * max_linear_acceleration * updateTime_s / KT2MPS;
+	# Drag increases with keel damage caused by grounding whereas it is not affected by damage above the waterline.  
+	dv_drag *= (1 + ats.keelDamage * 9);
 
-	#damaged vehicles lose the ability to accelerate
-	if (ats.damage > 0.8) max_linear_acceleration *= (1 - (ats.damage - 0.8)/ 0.2);
+	# Damaged ships lose the ability to accelerate
+	if (damageValue > 0.8) {
+		var lossFactor = 1 - (damageValue - 0.8)/ 0.2;
+		max_linear_acceleration *= lossFactor;
+	}
+
 
 	# Scale MAX_DV_LONG_KT by throttle position which is set by whether in cruise, attack or climb
-	var maxSpd = vels.maxSpeed_kt; # knots
 	var throttle = vels.cruiseSpeed_kt * vels.cruiseSpeed_kt / maxSpd / maxSpd;
 	if (gradientAhead > 0.02) {
 		throttle = 1;
@@ -4269,7 +4245,7 @@ var ship_ground_loop = func( id, myNodeName ) {
 	var brake_factor = vels.brakeFactor; # max braking deceleration / max acceleration (positive)
 
 	# Lateral maneuverability limit derived from max turn rate
-	# Two regimes: low speed turn rate varies with speed; highh speed turn rate varies with 1 / speed
+	# Two regimes: low speed turn rate varies with speed; high speed turn rate varies with 1 / speed
 	if (speed_kt > vels.maxTurnSpeed) {
 		var turnRate = vels.maxTurnRate * vels.maxTurnSpeed / speed_kt;
 		if (turnRate < vels.minTurnRate) turnRate = vels.minTurnRate;		}
@@ -4291,8 +4267,6 @@ var ship_ground_loop = func( id, myNodeName ) {
 	if (dv_lat > MAX_DV_LAT_KT)  dv_lat = MAX_DV_LAT_KT;
 	if (dv_lat < -MAX_DV_LAT_KT) dv_lat = -MAX_DV_LAT_KT;
 
-	# drag is proportional to spd ^ 2
-	var dv_drag = speed_kt * speed_kt / maxSpd / maxSpd * max_linear_acceleration * updateTime_s / KT2MPS;
 
 	var dv_grad = math.sin(pitchNextTick_rad) * grav_mpss * updateTime_s / KT2MPS; 
 	var v_long = speed_kt - dv_drag - dv_grad + dv_long;
@@ -4335,7 +4309,7 @@ var ship_ground_loop = func( id, myNodeName ) {
 	}
 	
 
-	# pitch and roll
+	# ship pitch and roll
 	var rollangle_deg = getprop (""~myNodeName~"/orientation/roll-deg");
 	var pitchangle_deg = getprop (""~myNodeName~"/orientation/pitch-deg");
 	if (ctrls["target_roll"] != nil) # initialised by add_damage
@@ -10330,6 +10304,7 @@ var add_damage = func
 	var spds = ats.velocities;
 	var livs = ats.damageLiveries;
 	var ctrls = ats.controls;
+	var alts = ats.altitudes;
 	var liveriesCount = livs.count;
 	var type = ats.type;
 
@@ -10469,6 +10444,8 @@ var add_damage = func
 			ctrls.target_pitch = rand() * 30 - 15; #up to 15 degrees
 			ctrls.damageAltAddCurrent_ft = (alts.crashedAGL_ft - alts.wheelsOnGroundAGL_ft) * (1 - rand() * rand()) / sinkTime * ats.updateTime_s;
 		}
+
+		if (damageType == "aground") debprint (sprintf("%s ran aground, damage %.1f%%", myNodeName, damageValue * 100));
 	}
 	elsif (type == "aircraft") 
 	{

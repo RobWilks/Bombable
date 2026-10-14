@@ -169,12 +169,23 @@ var airport_name = "ROAH";
 result = find_closest_runway_details(airport_name, 180.0);
 var GeoCoord = geo.Coord.new();
 
+print(math.sqrt(2));
+
 
 GeoCoord.set_latlon(result.lat, result.lon);
-var alt_m = bombable.elev(GeoCoord.lat(), GeoCoord.lon());
+var alt_m = bombable.elev_m(GeoCoord.lat(), GeoCoord.lon());
 print("alt_m = ", alt_m);
 
-
+##################### get elev near object ##########################
+var GeoCoord = geo.Coord.new();
+var myNodeName = "/ai/models/static";
+var dLat = 1e-5;
+var dLon = 1e-5;
+var lat = getprop(""~myNodeName~"/position/latitude-deg");
+var lon = getprop(""~myNodeName~"/position/longitude-deg");
+GeoCoord.set_latlon(lat + dLat, lon + dLon);
+var alt_m = bombable.elev_m(GeoCoord.lat(), GeoCoord.lon());
+print("alt_m = ", alt_m);
 
 
 ##################### check teams ##########################
@@ -402,6 +413,23 @@ fgcommand("add-model", props.Node.new({
     "roll-deg-prop":       ai_node.getPath() ~ "/orientation/roll-deg"
 }));
 ##################### dump branch of property tree ##########################
+
+var myNodeName = "/ai/models/static";
+var ats = bombable.attributes[myNodeName];
+var key = "controls";
+if (contains(ats, key)) {
+debug.dump(ats[key]);
+}
+else
+{
+    print(key ~ " is not a key");
+}
+foreach (var key; keys(ats)) print (key);
+print("exploded = ",ats.exploded);
+print("damage = ",ats.damage);
+print("onGround = ",ats.controls.onGround);
+
+
 
 var myNodeName = "/ai/models/ship[1]";
 var ats = bombable.attributes[myNodeName];
