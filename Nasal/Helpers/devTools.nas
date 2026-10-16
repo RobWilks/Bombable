@@ -431,17 +431,27 @@ print("onGround = ",ats.controls.onGround);
 
 
 
-var myNodeName = "/ai/models/ship[1]";
+var myNodeName = "/ai/models/aircraft[1]";
 var ats = bombable.attributes[myNodeName];
-var key = "loopids";
+var key = "altitudes";
 if (contains(ats, key)) {
-debug.dump(ats[key]);
+# debug.dump(ats[key]);
 }
 else
 {
     print(key ~ " is not a key");
 }
 foreach (var elem; keys(ats[key])) print (elem,": ",ats[key][elem]);
+
+
+
+var myNodeName = "/ai/models/aircraft[1]";
+var ats = bombable.attributes[myNodeName];
+var key = "controls";
+foreach (var elem; keys(ats[key])) print (elem,": ",ats[key][elem]);
+var key = "altitudes";
+foreach (var elem; keys(ats[key])) print (elem,": ",ats[key][elem]);
+
 print("loopid", ats.loopids.updateWptHeading_loopid);
 print("loopid", ats.loopids.ground_loopid);
 
@@ -495,10 +505,11 @@ var dodgeDelay = 7.0;
 bombable.dodge(myNodeName, dodgeAmount_deg, dodgeDelay);
 
 
-var myNodeName = "/ai/models/static";
+var myNodeName = "/ai/models/aircraft[1]";
 var ats=bombable.attributes[myNodeName];
 print ("damage = ",ats.damage);
-ats.damage = 0.81;
+# ats.damage = 0.81;
+bombable.add_damage(.35,"nonweapons", myNodeName);
 
 var newSpd =  16.5;
 var hdg = getprop(""~myNodeName~"/orientation/true-heading-deg");
