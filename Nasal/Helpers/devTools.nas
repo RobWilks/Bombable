@@ -1191,3 +1191,90 @@ var run_storage_speed_test = func(iterations = 1000000) {
 };
 
 run_storage_speed_test();
+
+print("\n\n####################\n\n");
+
+io.load_nasal("/home/michael-wilkinson/.fgfs/Nasal/fSim.nas", "fSim");
+
+debug.dump(fSim.myObjectState);
+fSim.myObjectState.tgt_roll = 30;
+fSim.myObjectState.tgt_pitch = 2;
+print(fSim.myObjectState.tgt_pitch);
+print(fSim.myObjectState.tgt_speed);
+var ats = fSim.myObjectState;
+ats.tgt_heading = 179.9;
+
+print (ats.tgt_pitch);
+ats.tgt_pitch = 3;
+ats.dPitch = 1e-2;
+print (ats.tgt_pitch);
+debug.dump(ats);
+ats.tgt_roll = 30;
+print (ats.tgt_roll);
+
+
+# 1. Set a target roll
+fSim.myObjectState.tgt_roll = 30.0;
+
+# 2. Manually execute one physics tick
+fSim.run_flight_physics("AI_F15");
+
+# 3. Check what changed in the state object
+print("Current Roll: " ~ fSim.myObjectState.roll);
+print("Target Roll:  " ~ fSim.myObjectState.tgt_roll);
+print("Computed dHdg:" ~ fSim.myObjectState.dHdg);
+print("Current Hdg:  " ~ fSim.myObjectState.hdg);
+
+
+# 1. Force a target heading offset so update_roll_target has a reason to bank
+fSim.myObjectState.tgt_heading = 90.0;
+
+# 2. Manually step the physics function a few times to let it roll and turn
+fSim.run_flight_physics("AI_F15");
+fSim.run_flight_physics("AI_F15");
+fSim.run_flight_physics("AI_F15");
+
+# 3. Check the results
+print("Current Roll:  " ~ fSim.myObjectState.roll);
+print("Target Roll:   " ~ fSim.myObjectState.tgt_roll);
+print("Computed dHdg: " ~ fSim.myObjectState.dHdg);
+print("Current Hdg:   " ~ fSim.myObjectState.hdg);
+
+fSim.myObjectState.tgt_altitude_ft = 3500;
+fSim.myObjectState.tgt_heading = 10;
+fSim.myObjectState.tgt_pitch = 0;
+fSim.myObjectState.tgt_roll = 0;
+fSim.myObjectState.tgt_vs = 0;
+fSim.myObjectState.tgt_speed = 300;
+
+# 2. Manually step the physics function a few times to let it roll and turn
+fSim.run_flight_physics("AI_F15");
+fSim.run_flight_physics("AI_F15");
+fSim.run_flight_physics("AI_F15");
+
+# 3. Check the results
+print("Current Pitch:  " ~ fSim.myObjectState.pitch);
+print("Target Pitch:   " ~ fSim.myObjectState.tgt_pitch);
+print("Computed dAlt: " ~ fSim.myObjectState.dAlt);
+print("Current Alt:   " ~ fSim.myObjectState.alt_ft);
+
+var monitorValues = func(count) {
+    print(sprintf("Current Roll: %.2f deg rollNodeValue: %.2f dRoll: %.2f heading: %.2f tgt-heading: %.2f",
+    fSim.myObjectState.roll,
+    getprop("AI_F15/orientation/roll-deg"),
+    fSim.myObjectState.dRoll,
+    getprop("AI_F15/orientation/true-heading-deg"),
+    fSim.myObjectState.tgt_heading
+    ));
+    count += 1;
+    if (count < 10) 
+    {
+        settimer(func {monitorValues(count); }, 0.5);
+    }
+};
+
+# 1. Force a target heading offset so update_roll_target has a reason to bank
+print("Target heading:  " ~ fSim.myObjectState.tgt_heading);
+fSim.myObjectState.tgt_heading -= 20.0;
+print("Target heading:  " ~ fSim.myObjectState.tgt_heading);
+monitorValues(0);
