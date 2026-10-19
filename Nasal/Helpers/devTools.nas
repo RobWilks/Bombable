@@ -1278,3 +1278,13 @@ print("Target heading:  " ~ fSim.myObjectState.tgt_heading);
 fSim.myObjectState.tgt_heading -= 20.0;
 print("Target heading:  " ~ fSim.myObjectState.tgt_heading);
 monitorValues(0);
+
+
+# --- Example Console Commands You Can Run Anytime ---
+# 1. Turn to heading 180 deg and climb to 2,000 ft with full military power:
+ fSim.set_targets(hdg: 025.0, alt: 4900, thr: 0.99);
+
+# 2. Check current targets vs actual state:
+fSim.get_state();
+
+fSimL.start_loop(fSimL.myObjectState);                                   # defaults: 220 m/s, 4 g at the bottom

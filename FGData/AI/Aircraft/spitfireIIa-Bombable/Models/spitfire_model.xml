@@ -7,4 +7,98 @@ $Id$
 
 	<path>spitfireIIa_gear_up.ac</path>
 
+	<!-- ***** Navigation Lights ****** -->
+	<model>
+		<path>light-green.xml</path>
+		<name>Stbd-Light</name>
+		<offsets>
+			<x-m>2.35</x-m>
+			<y-m>5.4805</y-m>
+			<z-m>-0.26532</z-m>
+		</offsets>
+	</model>
+
+	<model>
+		<path>light-red.xml</path>
+		<name>Port-Light</name>
+		<offsets>
+			<x-m>2.35</x-m>
+			<y-m>-5.4805</y-m>
+			<z-m>-0.26532</z-m>
+		</offsets>
+	</model>
+
+	<model>
+		<path>light-white.xml</path>
+		<name>Tail-Light</name>
+		<offsets>
+			<x-m>9.05</x-m>
+			<y-m>0.0</y-m>
+			<z-m>0.837072</z-m>
+		</offsets>
+	</model>
+
+	<!-- ***** Propeller ***** -->
+	<animation>
+		<type>select</type>
+		<object-name>Propeller</object-name>
+		<condition>
+			<less-than>
+				<property>/spitfire/engines/engine[0]/rpm</property>
+				<value>1000</value>
+			</less-than>
+		</condition>
+	</animation>
+	<animation>
+		<type>spin</type>
+		<object-name>Propeller</object-name>
+		<property>/spitfire/engines/engine[0]/rpm</property>
+		<factor>0.477</factor>
+		<center>
+			<x-m>-0.40</x-m>
+			<y-m>0.0</y-m>
+			<z-m>0.0</z-m>
+		</center>
+		<axis>
+			<x>-1.0</x>
+			<y>0.0</y>
+			<z>0.0</z>
+		</axis>
+	</animation>
+	<animation>
+		<type>spin</type>
+		<object-name>Spinner</object-name>
+		<property>/spitfire/engines/engine[0]/rpm</property>
+		<factor>0.477</factor>
+		<center>
+			<x-m>-0.40</x-m>
+			<y-m>0.0</y-m>
+			<z-m>0.0</z-m>
+		</center>
+		<axis>
+			<x>-1.0</x>
+			<y>0.0</y>
+			<z>0.0</z>
+		</axis>
+	</animation>
+	<animation>
+		<type>select</type>
+		<object-name>PropellerDisk</object-name>
+		<condition>
+			<greater-than>
+				<property>/spitfire/engines/engine[0]/rpm</property>
+				<value>900</value>
+			</greater-than>
+		</condition>
+	</animation>
+	<animation>
+		<type>blend</type>
+		<object-name>PropellerDisk</object-name>
+		<property>/spitfire/engines/engine[0]/rpm</property>
+		<factor>0.0005</factor>
+		<offset>-0.5</offset>
+		<min>0.0</min>
+		<max>1</max>
+	</animation>
+
 </PropertyList>

@@ -339,6 +339,7 @@ var modelName = "/spitfire";
 ###########################################################
 
 if (modelName == "/F15") {
+    var modelPath = "/home/michael-wilkinson/.fgfs/fgdata_2024_1/AI/Aircraft/F-15/Models/F-15.xml";
     var perf_profile = {
         climb_rate: 40000.0, # ft per min
         descent_rate: 30000.0, #ft per min
@@ -360,6 +361,7 @@ if (modelName == "/F15") {
 ###########################################################
 
 elsif (modelName == "/spitfire") {
+    var modelPath = "/home/michael-wilkinson/Desktop/Bombable 5.0/Bombable/FGData/AI/Aircraft/spitfireIIa-Bombable/Models/spitfire_model.xml";
     var perf_profile = {
         climb_rate: 4000.0,            # ft per min (~66.7 ft/sec, ~4,000 ft/min combat climb)
         descent_rate: 3000.0,          # ft per min (~500.0 ft/sec)
@@ -391,7 +393,7 @@ var C_L_vmax = (2.0 * weight_N) / (rho0 * perf_profile.max_speed_mps * perf_prof
 
 
 # 2. Aircraft State Factory
-var create_aircraft_state = func(callsign, initial_lat, initial_lon, initial_alt_ft, initial_hdg, initial_speed_kts) {
+var create_aircraft_state = func(callsign, initial_lat, initial_lon, initial_alt_ft, initial_hdg, initial_speed_kts, initial_throttle) {
     var initial_spd_mps = initial_speed_kts * kts_to_mps;
     var hdg_rad = initial_hdg * D2R;
 
@@ -419,7 +421,7 @@ var create_aircraft_state = func(callsign, initial_lat, initial_lon, initial_alt
         tgt_altitude_ft: initial_alt_ft,
         tgt_roll: 0.0,
         tgt_pitch: 0.0,
-        throttle: 0.7,
+        throttle: initial_throttle,
         
         # Rates for animationManager compatibility (per second)
         dLat: 0.0,
@@ -461,15 +463,11 @@ if (apt != nil and size(apt.runways) > 0) {
 # Initial flight parameters for level flight northwards (Heading 0°, Speed 250 kts)
 var init_hdg = 0.0;
 var init_speed = 400.0;
+var init_throttle = 0.7;
 
 ########################## Initialize model ###########################
 
 # 4. Define Property Nodes & Add Model via fgcommand
-# var modelPath = "/home/michael-wilkinson/.fgfs/fgdata_2024_1/Models/Aircraft/F-15-lowpoly.xml";
-# var modelPath = "/home/michael-wilkinson/.fgfs/fgdata_2024_1/AI/Aircraft/F-15/Models/F-15-camView.xml";
-# var modelPath = "/home/michael-wilkinson/.fgfs/fgdata_2024_1/AI/Aircraft/F-15/Models/F-15.xml";
-var modelPath = "/home/michael-wilkinson/Desktop/Bombable 5.0/Bombable/FGData/AI/Aircraft/spitfireIIa-Bombable/Models/spitfire_model.xml";
-
 
 # Create /model (or nodeName) property tree structure and set initial values
 var latNode = props.globals.getNode(modelName ~ "/position/latitude-deg", 1);
@@ -479,6 +477,7 @@ var hdgNode = props.globals.getNode(modelName ~ "/orientation/true-heading-deg",
 var pitchNode = props.globals.getNode(modelName ~ "/orientation/pitch-deg", 1);
 var rollNode = props.globals.getNode(modelName ~ "/orientation/roll-deg", 1);
 var spdNode = props.globals.getNode(modelName ~ "/velocities/true-airspeed-kts", 1);
+var engineNode = props.globals.getNode(modelName ~ "/engines/engine[0]/rpm", 1);
 
 
 latNode.setDoubleValue(init_lat);
@@ -488,6 +487,7 @@ hdgNode.setDoubleValue(init_hdg);
 pitchNode.setDoubleValue(0.0);
 rollNode.setDoubleValue(0.0);
 spdNode.setDoubleValue(init_speed);
+engineNode.setDoubleValue(init_throttle);
 
 # 4. Load model via fgcommand (allocates next model index under target_weapon_path)
 var spawn_config = props.Node.new({
@@ -522,7 +522,7 @@ var monitorValues = func(count, countmax = 500, dt = 0.1) {
 
 # 5. Create Aircraft State Instance & Register with animationManager
 # Initialize the state and bind it to the global fSim namespace
-globals.fSim.myObjectState = create_aircraft_state(modelName, init_lat, init_lon, init_alt_ft, init_hdg, init_speed);
+globals.fSim.myObjectState = create_aircraft_state(modelName, init_lat, init_lon, init_alt_ft, init_hdg, init_speed, init_throttle);
 
 # Create a local alias so internal script loops can access it instantly without typing globals
 var myObjectState = globals.fSim.myObjectState;
