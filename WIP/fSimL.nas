@@ -38,6 +38,8 @@ var g = 9.80665;             # Acceleration due to gravity (m/s^2)
 var rho0 = 1.225;            # Sea level air density (kg/m^3)
 var lbf_to_N = 4.44822;
 var kts_to_mps = 0.514444;
+var PI = 3.14159265358979;
+
 
 var m_per_deg_lat = 111699.7;
 var m_per_deg_lon = 111321.5;
@@ -207,7 +209,9 @@ var update_force_physics = func(self, dt) {
     # Flight-path angle in the plane of flight, signed: valid over the top of a loop
     var v_pl  = ve * sps + vn * cps;
     var gamma = math.atan2(vu, v_pl);                      # (-pi, pi]
-    var alpha = wrap180((th - gamma) * R2D) * D2R;         # wrapped angle of attack
+    var alpha = math.atan2(-(ve * l_e + vn * l_n + vu * l_u),
+                                ve * f_e + vn * f_n + vu * f_u);
+
 
     var CL = lift_curve(alpha);
     var CD = C_D0 + K_IND * CL * CL;
@@ -256,6 +260,504 @@ var update_force_physics = func(self, dt) {
     self.dAlt = v_up_fps;
     self.alt_ft += v_up_fps * dt;
 };
+
+########################## acrobatic manoeuvres ###########################
+
+
+
+# Immelmann turn, 360 degree aileron roll and split-S, each a complete state machine in its own
+# update function (self.manoeuvre.update), in the same style as update_loop_target.
+# Only small primitives are shared (load-factor -> attitude target, roll stepper, entry and
+# recovery helpers); no manoeuvre is built by chaining another.
+#
+# Load after loop_manoeuvre.nas and loop_control.nas. Uses from them:
+#   wrap180, wrap360, air_density, hold_speed, lift_curve constants (C_L_vmax, CL_ALPHA, CL_MAX,
+#   A_STALL_POS, A_STALL_NEG, K_IND, C_D0), weight_N, g, D2R, R2D, kts_to_mps,
+#   update_roll_target, start_loop.
+#
+# ---- REQUIRED CHANGES TO EXISTING CODE ------------------------------------------------------
+#
+# 1. update_force_physics: angle of attack must be measured in the aircraft frame, not as
+#    (pitch - path angle). They are identical while roll = 0 (so the loop is unchanged) but the
+#    old form is wrong for any rolled or inverted attitude. Replace
+#        var alpha = wrap180((th - gamma) * R2D) * D2R;
+#    with (it must come after l_e, l_n, l_u and f_e, f_n, f_u are defined):
+#        var alpha = math.atan2(-(ve * l_e + vn * l_n + vu * l_u),
+#                                 ve * f_e + vn * f_n + vu * f_u);
+#
+# 2. K_IND: because lift acts perpendicular to the AXIS, the tilt of the lift vector from the
+#    flight path is already an induced drag with an effective k of about 1/CL_ALPHA = 0.2.
+#    The extra K_IND term double counts it. Set  var K_IND = 0.0;  (the Immelmann needs the
+#    energy: see the notes in the reply).
+#
+# 3. update_pitch_target: use air_density(self.alt_ft * 0.3048) instead of rho0 in qS.
+#
+# 4. Keep physics_update_interval at 0.1 s or less: a 175 deg/s roll moves 17 degrees per tick.
+
+########################## shared primitives ###########################
+
+# Put the attitude in canonical form (|pitch| <= 90) and make the normal holds continue from it.
+# The property-tree output (canonical_euler) is identical before and after.
+var normalise_attitude = func(self) {
+    if (math.abs(self.pitch) > 90.0) {
+        self.pitch = wrap180(180.0 - self.pitch);
+        self.hdg   = wrap360(self.hdg + 180.0);
+        self.roll  = wrap180(self.roll + 180.0);
+    }
+    self.tgt_pitch = self.pitch;
+    self.tgt_roll  = self.roll;
+};
+
+# For manoeuvres that reverse heading: normalise, then hold the new heading and altitude.
+var finish_reversal = func(self) {
+    normalise_attitude(self);
+    self.tgt_heading     = self.hdg;
+    self.tgt_altitude_ft = self.alt_ft;
+};
+
+var v_stall_1g = func(self) {
+    var rho = air_density(self.alt_ft * 0.3048);
+    return math.sqrt(2.0 * weight_N / (rho * self.perf.wing_area_m2 * CL_MAX));
+};
+
+# Angle of attack (rad) giving load factor n_cmd along body-up, allowing for the thrust and
+# drag component normal to the flight path (using last tick's alpha).
+var alpha_for_load = func(self, n_cmd, qS) {
+    var a_prev = (self.alpha_deg or 0.0) * D2R;
+    var axial  = self.throttle * self.perf.max_thrust_N - (self.drag_N or 0.0);
+    var CL_req = (n_cmd * weight_N - axial * math.sin(a_prev)) / math.max(qS, 1.0);
+    return math.clamp((CL_req - C_L_vmax) / CL_ALPHA, 0.9 * A_STALL_NEG, 0.9 * A_STALL_POS);
+};
+
+# The aircraft-frame alpha is about (pitch - path angle)*cos(roll). Invert that for the
+# pitch offset to command: tan(delta) = tan(alpha) / cos(roll), with |cos| floored near knife edge.
+var delta_for_alpha = func(a, phi) {
+    var c  = math.cos(phi);
+    var sg = (c < 0.0) ? -1.0 : 1.0;
+    return math.atan2(sg * math.sin(a), math.cos(a) * math.max(math.abs(c), 0.25));
+};
+
+# Command a body-axis load factor: sets tgt_pitch = path angle + offset + rate feed-forward.
+var command_load = func(self, v, n_cmd, lead_deg) {
+    var rho = air_density(self.alt_ft * 0.3048);
+    var qS  = 0.5 * rho * v * v * self.perf.wing_area_m2;
+    var n_stall = 0.85 * qS * CL_MAX / weight_N;
+    var n_pos = math.min(0.9 * (self.perf.n_max_pos or 6.0), n_stall);
+    var n_neg = math.min(0.9 * math.abs(self.perf.n_max_neg or 3.0), n_stall);
+    n_cmd = math.clamp(n_cmd, -n_neg, n_pos);
+
+    var a_req = alpha_for_load(self, n_cmd, qS);
+    var delta = delta_for_alpha(a_req, self.roll * D2R);
+    self.tgt_pitch = wrap180((self.gamma_deg or 0.0) + delta * R2D + lead_deg);
+    return n_cmd;
+};
+
+# Command a path curvature rate gdot (rad/s, + = path rotating upward, in the vertical plane).
+# Required lift along the path normal is W*cos(gamma) + m*V*gdot.
+#   steady (roll 0 or 180): n = X / cos(roll)
+#   rolling:                n = 2 cos(roll) X   (barrel schedule: net vertical impulse over the
+#                                                roll equals that of 1 g steady flight)
+var command_path = func(self, v, gdot, rolling, dt) {
+    var c = math.cos(self.roll * D2R);
+    var X = v * gdot / g + math.cos((self.gamma_deg or 0.0) * D2R);
+    var n = 0.0;
+    if (rolling) {
+        n = 2.0 * c * X;
+    } else {
+        if (math.abs(c) < 0.3) c = (c < 0.0) ? -0.3 : 0.3;
+        n = X / c;
+    }
+    return command_load(self, v, n, gdot * dt * R2D);
+};
+
+# Normal flight until the entry conditions are met. Returns 1 ready, 0 waiting, -1 timed out.
+var run_entry = func(self, m, dt) {
+    update_roll_target(self, dt);
+    update_pitch_target(self, dt);
+    hold_speed(self, m.entry_speed);
+    var v = self.speed * kts_to_mps;
+    if (math.abs(v - m.entry_speed) < 5.0
+        and math.abs(self.gamma_deg or 0.0) < 3.0
+        and math.abs(self.roll) < 3.0) return 1;
+    if (m.t > 120.0) return -1;
+    return 0;
+};
+
+# Flight-path recovery to level. Unlike the altitude-hold pitch law (which commands an attitude
+# and so deepens a stall as the path falls away) this commands path curvature with the angle of
+# attack capped, so a slow aircraft trades height for speed.
+var recover_level = func(self, dt, v_hold) {
+    update_roll_target(self, dt);
+    hold_speed(self, v_hold);
+    var v   = math.max(self.speed * kts_to_mps, 20.0);
+    var v_h = math.sqrt(self.v_east * self.v_east + self.v_north * self.v_north);
+    var vs  = (self.tgt_altitude_ft - self.alt_ft) / 3.28084 * 0.1;
+    vs = math.clamp(vs, -self.perf.descent_rate * 0.00508, self.perf.climb_rate * 0.00508);
+    var gcmd = math.atan2(vs, math.max(v_h, 1.0));
+    if (v < 1.25 * v_stall_1g(self)) gcmd = math.min(gcmd, -8.0 * D2R);   # slow: unload and dive
+    var gdot = math.clamp(0.8 * (gcmd - (self.gamma_deg or 0.0) * D2R), -0.5, 0.5);
+    return command_path(self, v, gdot, 0, dt);
+};
+
+var recovered = func(self, m) {
+    var ok = math.abs(self.gamma_deg or 0.0) < 3.0
+         and math.abs(wrap180(self.pitch)) < 10.0
+         and self.speed * kts_to_mps > math.max(1.25 * v_stall_1g(self), 0.8 * m.entry_speed);
+    return (m.t > 3.0 and ok) or m.t > 45.0;
+};
+
+# Roll stepper A: roll through `total` degrees from where it started (any amount up to 360).
+# Returns degrees remaining.
+var step_roll = func(self, m, dt, total) {
+    m.roll_swept += m.dir * wrap180(self.roll - m.roll_prev);
+    m.roll_prev = self.roll;
+    var remaining = total - m.roll_swept;
+    var rr   = self.aerobatic ? (self.perf.max_roll_rate_aero or 90.0) : self.perf.max_roll_rate;
+    var step = math.min(math.min(m.roll_rate, rr) * dt, math.max(remaining, 0.0));
+    self.tgt_roll = wrap180(self.roll + m.dir * step);
+    return remaining;
+};
+
+# Roll stepper B: roll in direction m.dir to an absolute roll angle (e.g. 180 = inverted),
+# whatever the starting bank. Returns degrees remaining.
+var step_roll_to = func(self, m, dt, target) {
+    var remaining = wrap360(m.dir * (target - self.roll));
+    if (remaining > 350.0) remaining = 0.0;
+    var rr   = self.aerobatic ? (self.perf.max_roll_rate_aero or 90.0) : self.perf.max_roll_rate;
+    var step = math.min(math.min(m.roll_rate, rr) * dt, remaining);
+    self.tgt_roll = wrap180(self.roll + m.dir * step);
+    return remaining;
+};
+
+####################### 2. aileron roll ###########################
+# From steady flight: roll 360 degrees about the aircraft axis at the commanded rate, holding
+# the path roughly straight with the barrel load schedule n = 2 cos(roll) cos(gamma) (positive
+# load while upright, pushing while inverted). Heading and altitude holds then resume.
+# Phases: entry -> roll -> recover.
+#
+# opts: direction ("right"/"left", default right), roll_rate (deg/s, default max_roll_rate_aero),
+#       entry_speed (m/s, default current speed), immediate (1 = skip the entry phase)
+
+var start_aileron_roll = func(self, opts = nil) {
+    opts = opts or {};
+    var v   = self.speed * kts_to_mps;
+    var imm = opts["immediate"] or 0;
+    self.manoeuvre = {
+        name: "aileron_roll", phase: imm ? "roll" : "entry", t: 0.0,
+        entry_speed: opts["entry_speed"] or v,
+        dir: (opts["direction"] == "left") ? -1.0 : 1.0,
+        roll_rate: opts["roll_rate"] or (self.perf.max_roll_rate_aero or 90.0),
+        roll_swept: 0.0, roll_prev: self.roll, stall_t: 0.0,
+        update: update_aileron_roll_target
+    };
+    if (imm) self.aerobatic = 1;
+    return self.manoeuvre;
+};
+
+var update_aileron_roll_target = func(self, dt) {
+    var m = self.manoeuvre;
+    var v = self.speed * kts_to_mps;
+    m.t += dt;
+
+    if (m.phase == "entry") {
+        var r = run_entry(self, m, dt);
+        if (r == 1) {
+            m.phase = "roll";  m.t = 0.0;
+            m.roll_swept = 0.0;  m.roll_prev = self.roll;  m.stall_t = 0.0;
+            self.aerobatic = 1;
+        } else if (r < 0) {
+            self.manoeuvre = nil;
+        }
+        return;
+    }
+
+    if (m.phase == "roll") {
+        hold_speed(self, m.entry_speed);
+        command_path(self, v, 0.0, 1, dt);
+        var remaining = step_roll(self, m, dt, 360.0);
+        if (self.stalled) m.stall_t += dt; else m.stall_t = 0.0;
+        if (remaining <= 1.0 or m.stall_t > 1.0 or m.t > 30.0) {
+            m.phase = "recover";
+            m.t = 0.0;
+        }
+        return;
+    }
+
+    if (m.phase == "recover") {
+        update_roll_target(self, dt);
+        update_pitch_target(self, dt);
+        hold_speed(self, m.entry_speed);
+        if (m.t > 2.0 and math.abs(wrap180(self.roll)) < 3.0
+            and math.abs(self.gamma_deg or 0.0) < 3.0) {
+            self.manoeuvre = nil;
+            self.aerobatic = 0;
+        }
+        return;
+    }
+};
+
+############# 1. Immelmann ###########################
+# Half loop up (constant pitch rate, as the loop), then a 180 degree roll to upright started
+# roll_lead_deg before the path reaches inverted, ending level and upright with the heading
+# reversed and the height gained. Phases: entry -> pull -> roll -> recover.
+#
+# The roll is made at the top, near stall speed, so energy decides feasibility. start_immelmann
+# predicts the top speed and refuses if it would be below the 1 g stall speed there
+# (opts.force = 1 overrides).
+#
+# opts: entry_speed (m/s, default 0.97*max_speed), n_bottom (default min(5, 0.9*n_max_pos):
+#       a tighter loop reaches the top with more speed), roll_lead_deg (default 20),
+#       direction ("right"/"left"), roll_rate, force
+
+var predict_immelmann_top = func(self, v0, n_bottom) {
+    var S = self.perf.wing_area_m2;
+    var T = self.perf.max_thrust_N;
+    var n_cap = 0.9 * (self.perf.n_max_pos or 6.0);
+    var q = g * (n_bottom - 1.0) / v0;
+    var dt = 0.05;
+    var v = v0;  var gm = 0.0;  var h = 0.0;  var t = 0.0;
+    while (gm < PI - 0.35 and t < 90.0) {
+        var rho = air_density(self.alt_ft * 0.3048 + h);
+        var qS  = 0.5 * rho * v * v * S;
+        var n   = math.min(v * q / g + math.cos(gm),
+                           math.min(n_cap, 0.85 * qS * CL_MAX / weight_N));
+        var CL  = n * weight_N / math.max(qS, 1.0);
+        var al  = (CL - C_L_vmax) / CL_ALPHA;
+        var D   = qS * (C_D0 + K_IND * CL * CL);
+        var L   = qS * CL;
+        var a_ax = (T - D) * math.cos(al) - L * math.sin(al);
+        v += (a_ax / self.perf.mass_kg - g * math.sin(gm)) * dt;
+        v  = math.max(v, 5.0);
+        h += v * math.sin(gm) * dt;
+        gm += g * (n - math.cos(gm)) / math.max(v, 20.0) * dt;
+        t += dt;
+    }
+    return { v: v, h: h };
+};
+
+var start_immelmann = func(self, opts = nil) {
+    opts = opts or {};
+    var v_e = opts["entry_speed"] or (0.97 * self.perf.max_speed_mps);
+    var n_b = opts["n_bottom"] or math.min(5.0, 0.9 * (self.perf.n_max_pos or 6.0));
+
+    if (!opts["force"]) {
+        var pr    = predict_immelmann_top(self, v_e, n_b);
+        var probe = { alt_ft: self.alt_ft + pr.h / 0.3048, perf: self.perf };
+        var vs    = v_stall_1g(probe);
+        if (pr.v < vs) {
+            print(sprintf("Immelmann refused: predicted top speed %.0f kt is below the %.0f kt stall speed there",
+                          pr.v / kts_to_mps, vs / kts_to_mps));
+            return nil;
+        }
+    }
+
+    self.manoeuvre = {
+        name: "immelmann", phase: "entry", t: 0.0,
+        entry_speed: v_e, n_bottom: n_b,
+        roll_lead_deg: opts["roll_lead_deg"] or 20.0,
+        dir: (opts["direction"] == "left") ? -1.0 : 1.0,
+        roll_rate: opts["roll_rate"] or (self.perf.max_roll_rate_aero or 90.0),
+        swept: 0.0, gamma_prev: 0.0, q_loop: 0.0,
+        roll_swept: 0.0, roll_prev: 0.0, stall_t: 0.0,
+        update: update_immelmann_target
+    };
+    return self.manoeuvre;
+};
+
+var update_immelmann_target = func(self, dt) {
+    var m = self.manoeuvre;
+    var v = self.speed * kts_to_mps;
+    m.t += dt;
+
+    if (m.phase == "entry") {
+        var r = run_entry(self, m, dt);
+        if (r == 1) {
+            m.phase = "pull";  m.t = 0.0;
+            m.swept = 0.0;  m.gamma_prev = self.gamma_deg;
+            m.q_loop = g * (m.n_bottom - 1.0) / v;                 # rad/s, held constant
+            self.aerobatic = 1;
+        } else if (r < 0) {
+            self.manoeuvre = nil;
+        }
+        return;
+    }
+
+    if (m.phase == "pull") {
+        self.tgt_roll = 0.0;
+        hold_speed(self, m.entry_speed);
+        command_path(self, v, m.q_loop, 0, dt);
+        m.swept += wrap180(self.gamma_deg - m.gamma_prev);
+        m.gamma_prev = self.gamma_deg;
+        if (m.swept >= 180.0 - m.roll_lead_deg or m.t > 60.0) {
+            m.phase = "roll";  m.t = 0.0;
+            m.roll_swept = 0.0;  m.roll_prev = self.roll;
+        }
+        return;
+    }
+
+    if (m.phase == "roll") {
+        hold_speed(self, m.entry_speed);
+        # keep curving toward inverted level (gamma = 180) while rolling
+        var err  = wrap180(180.0 - self.gamma_deg) * D2R;
+        var gdot = math.clamp(0.8 * err, -m.q_loop, m.q_loop);
+        command_path(self, v, gdot, 1, dt);
+        var remaining = step_roll_to(self, m, dt, 180.0);
+        if (remaining <= 1.0 or m.t > 30.0) {
+            finish_reversal(self);
+            m.phase = "recover";
+            m.t = 0.0;
+        }
+        return;
+    }
+
+    if (m.phase == "recover") {
+        recover_level(self, dt, m.entry_speed);
+        if (recovered(self, m)) {
+            self.manoeuvre = nil;
+            self.aerobatic = 0;
+        }
+        return;
+    }
+};
+
+########################## 3. split-S ###########################
+# Half roll to inverted, then a half loop downward (constant load factor, with the onset
+# ramped and the path angle captured smoothly at the end), ending level and upright with the
+# heading reversed and the height lost. Phases: entry -> roll -> pull -> recover.
+#
+# The height loss is large, so start_split_s predicts it with a planar integration of the pull
+# and refuses if the aircraft is too low (the prediction runs about 15-40 percent
+# conservative). opts.force = 1 overrides. The pull law pulls at maximum load once below floor_ft.
+#
+# opts: n_pull (g, default 4), entry_speed (m/s, default current speed), direction
+#       ("right"/"left", default = the shorter way to inverted), immediate (1 = start the
+#       roll at once from any attitude, e.g. a banked turn), ground_ft (default 0),
+#       clearance_ft (default 1000), onset (g/s, default 6), roll_rate, force
+
+var predict_split_s_loss = func(self, v0, n_pull) {
+    var S = self.perf.wing_area_m2;
+    var m = self.perf.mass_kg;
+    var n_cap = 0.9 * (self.perf.n_max_pos or 6.0);
+    var dt = 0.05;
+    var v = v0;  var gp = 0.0;  var loss = 0.0;  var t = 0.0;
+    while (gp < PI - 0.05 and t < 90.0) {
+        var rho = air_density(self.alt_ft * 0.3048 - loss);
+        var qS  = 0.5 * rho * v * v * S;
+        var n   = math.min(n_pull, math.min(n_cap, 0.85 * qS * CL_MAX / weight_N));
+        var CL  = n * weight_N / math.max(qS, 1.0);
+        var D   = qS * (C_D0 + K_IND * CL * CL);
+        gp   += g * (n + math.cos(gp)) / math.max(v, 20.0) * dt;
+        v    += (-D / m + g * math.sin(gp)) * dt;
+        loss += v * math.sin(gp) * dt;
+        t += dt;
+    }
+    var rr = self.perf.max_roll_rate_aero or 90.0;
+    return 1.2 * loss + 0.25 * g * (180.0 / rr) * (180.0 / rr);     # margin + half-roll sink
+};
+
+var start_split_s = func(self, opts = nil) {
+    opts = opts or {};
+    var v0     = self.speed * kts_to_mps;
+    var n_pull = opts["n_pull"] or 4.0;
+    var ground_ft    = opts["ground_ft"] or 0.0;
+    var clearance_ft = opts["clearance_ft"] or 1000.0;
+
+    if (!opts["force"]) {
+        var loss  = predict_split_s_loss(self, v0, n_pull);
+        var avail = (self.alt_ft - ground_ft - clearance_ft) * 0.3048;
+        if (loss > avail) {
+            print(sprintf("Split-S refused: needs about %.0f ft, only %.0f ft available",
+                          loss / 0.3048, avail / 0.3048));
+            return nil;
+        }
+    }
+
+    var d = opts["direction"];
+    var dir = (d == "left") ? -1.0 : ((d == "right") ? 1.0 : ((self.roll < 0.0) ? -1.0 : 1.0));
+    var imm = opts["immediate"] or 0;
+
+    self.manoeuvre = {
+        name: "split_s", phase: imm ? "roll" : "entry", t: 0.0,
+        entry_speed: opts["entry_speed"] or v0,
+        n_pull: n_pull, onset: opts["onset"] or 6.0,
+        exit_deg: 3.0, k_capture: 1.2,
+        floor_ft: ground_ft + clearance_ft,
+        dir: dir,
+        roll_rate: opts["roll_rate"] or (self.perf.max_roll_rate_aero or 90.0),
+        roll_swept: 0.0, roll_prev: self.roll,
+        swept: 0.0, gamma_prev: 0.0, stall_t: 0.0,
+        update: update_split_s_target
+    };
+    if (imm) self.aerobatic = 1;
+    return self.manoeuvre;
+};
+
+var update_split_s_target = func(self, dt) {
+    var m   = self.manoeuvre;
+    var v   = self.speed * kts_to_mps;
+    var gam = (self.gamma_deg or 0.0) * D2R;
+    m.t += dt;
+
+    if (m.phase == "entry") {
+        var r = run_entry(self, m, dt);
+        if (r == 1) {
+            m.phase = "roll";  m.t = 0.0;
+            m.roll_swept = 0.0;  m.roll_prev = self.roll;
+            self.aerobatic = 1;
+        } else if (r < 0) {
+            self.manoeuvre = nil;
+        }
+        return;
+    }
+
+    if (m.phase == "roll") {
+        hold_speed(self, m.entry_speed);
+        command_path(self, v, 0.0, 1, dt);
+        var remaining = step_roll_to(self, m, dt, 180.0);
+        if (remaining <= 1.0 or m.t > 30.0) {
+            m.phase = "pull";  m.t = 0.0;
+            m.swept = 0.0;  m.gamma_prev = self.gamma_deg;
+        }
+        return;
+    }
+
+    if (m.phase == "pull") {
+        self.tgt_roll = (self.roll < 0.0) ? -180.0 : 180.0;      # hold inverted
+        hold_speed(self, m.entry_speed);
+
+        # Target load factor, ramped up from the -1 g needed to hold inverted level flight.
+        var c    = math.cos(self.roll * D2R);                    # about -1
+        var rem  = (180.0 - m.swept) * D2R;                      # path rotation still to go
+        var n_t  = math.min(m.n_pull, -1.0 + m.onset * m.t);
+        if (self.alt_ft < m.floor_ft) n_t = 99.0;                # low: pull as hard as allowed
+        # path rotation rate that gives n_t (negative: path rotating downward), captured smoothly
+        var gdot = g * (n_t * c - math.cos(gam)) / math.max(v, 20.0);
+        gdot = math.max(gdot, -m.k_capture * rem);
+        command_path(self, v, gdot, 0, dt);
+
+        m.swept += wrap180(m.gamma_prev - self.gamma_deg);       # path angle decreasing
+        m.gamma_prev = self.gamma_deg;
+        if (180.0 - m.swept <= m.exit_deg or m.t > 60.0) {
+            finish_reversal(self);
+            m.phase = "recover";
+            m.t = 0.0;
+        }
+        return;
+    }
+
+    if (m.phase == "recover") {
+        recover_level(self, dt, m.entry_speed);
+        if (recovered(self, m)) {
+            self.manoeuvre = nil;
+            self.aerobatic = 0;
+        }
+        return;
+    }
+};
+
+
+
+
 
 ########################## start_loop ###########################
 # Phases: entry (normal flight to entry speed) -> pull (loop) -> recover (normal hold) -> done.
@@ -536,6 +1038,8 @@ if (modelName == "/F15") {
         max_pitch_rate_aero: 30.0, # 30 deg/s
         max_roll_rate_aero:  90.0, # deg/s
         n_max_pos: 6.0, # g factor
+        n_max_neg: 3.5, 
+        
 
     };
 }
@@ -563,6 +1067,7 @@ elsif (modelName == "/spitfire") {
         max_pitch_rate_aero: 30.0, # 30 deg/s
         max_roll_rate_aero:  90.0, # deg/s
         n_max_pos: 6.0, # g factor
+        n_max_neg: 3.5,                
 
     };
 }
@@ -589,6 +1094,7 @@ elsif (modelName == "/spitfireXVI") {
         max_pitch_rate_aero: 35.0,     # deg/s (Maximum transient pitch rate before high-speed stall or G-lock limit)
         max_roll_rate_aero:  175.0,    # deg/s (Aerodynamic maximum roll rate achieved under optimal speed/airspeed pressures)
         n_max_pos: 6.0,                # g factor (Official design limit load factor for structural airframe integrity)
+        n_max_neg: 3.5,                
     };
 }
 
@@ -651,6 +1157,7 @@ var create_aircraft_state = func(callsign, initial_lat, initial_lon, initial_alt
         dRoll: 0.0,
 
         aerobatic: 0, # flag to enable aerobgatic performance
+        manoeuvre: nil,
 
         perf: perf_profile
     };
@@ -675,7 +1182,7 @@ if (apt != nil and size(apt.runways) > 0) {
     init_lon = first_rwy.lon;
 
     var apt_elev_ft = apt.elevation * 3.28084 or 0.0;
-    init_alt_ft = apt_elev_ft + 5000.0;
+    init_alt_ft = apt_elev_ft + 15000.0;
     print("fly.nas: Initialized position from " ~ airport_id ~ " Runway threshold at Lat: " ~ init_lat ~ ", Lon: " ~ init_lon);
 } else {
     print("fly.nas: Warning - Could not load airport " ~ airport_id ~ ", using default fallback coordinates.");
@@ -699,7 +1206,6 @@ var pitchNode = props.globals.getNode(modelName ~ "/orientation/pitch-deg", 1);
 var rollNode = props.globals.getNode(modelName ~ "/orientation/roll-deg", 1);
 var spdNode = props.globals.getNode(modelName ~ "/velocities/true-airspeed-kts", 1);
 var engineNode = props.globals.getNode(modelName ~ "/engines/engine[0]/rpm", 1);
-var startLoopNode = props.globals.getNode(modelName ~ "/controls/startLoop", 1);
 
 
 latNode.setDoubleValue(init_lat);
@@ -710,7 +1216,6 @@ pitchNode.setDoubleValue(0.0);
 rollNode.setDoubleValue(0.0);
 spdNode.setDoubleValue(init_speed);
 engineNode.setDoubleValue(init_throttle);
-startLoopNode.setBoolValue(0);
 
 # 4. Load model via fgcommand (allocates next model index under target_weapon_path)
 var spawn_config = props.Node.new({
@@ -811,23 +1316,50 @@ var setup_fSimL_chase_view = func(slot_idx, mName) {
 
 setup_fSimL_chase_view(101, modelName);
 
-########################## loop usage ###########################
-# 
-# Create a property listener for startLoopNode
-setlistener(startLoopNode, func(node) {
-    # Only trigger if the node value becomes true (1)
-    if (node.getValue()) {
-        var startSpd = 160; nBottom = 4.0;
-        start_loop(myObjectState, {entry_speed: startSpd, n_bottom: nBottom});
-        print("Starting loop for ", modelName, " with entry spd: ", startSpd, "mps   n bottom: ", nBottom);
-        print("Dumping aircraft performance parameters ...");
-        debug.dump(myObjectState.perf);
-        print("Monitoring flight parameters ...");
-        monitorValues(0, 500, 1);
-        
-        # Reset the node back to 0 after 1 second (1.0 seconds)
-        settimer(func() {
-            startLoopNode.setBoolValue(0);
-        }, 1.0);
+########################## register_manoeuvre_listeners ###########################
+# Example listener registration (adapt the node path to your controls node):
+
+  var register_manoeuvre_listeners = func(mName) {
+      foreach (var name; ["loop", "immelmann", "aileron_roll", "split_s"]) {
+          (func(name) {
+              var node = props.globals.getNode(mName ~ "/controls/manoeuvres/" ~ name, 1);
+              node.setBoolValue(0);
+              setlistener(node, func(n) {
+                  if (n.getBoolValue()) {
+                    var startSpd = 180; nBottom = 4.0;
+                    start_manoeuvre(mName, myObjectState, name, {entry_speed: startSpd, n_bottom: nBottom});
+                    n.setBoolValue(0);
+                  }
+              }, 0, 0);
+          })(name);
+      }
+  };
+
+########################## dispatcher ###########################
+# Call from the listeners on the model's controls node. One manoeuvre at a time.
+#   start_manoeuvre(myObjectState, "immelmann");
+#   start_manoeuvre(myObjectState, "split_s", {n_pull: 4.5, clearance_ft: 1500});
+# Returns the manoeuvre hash, or nil if it was refused or one is already running.
+
+var start_manoeuvre = func(mname, self, name, opts = nil) {
+    if (self.manoeuvre != nil) {
+        print("Manoeuvre " ~ self.manoeuvre.name ~ " is already running");
+        return nil;
     }
-}, 0, 0); # runtime = 0 (don't fire immediately on load), async = 0
+    if (name == "loop")              start_loop(self, opts);
+    else if (name == "immelmann")    start_immelmann(self, opts);
+    else if (name == "aileron_roll") start_aileron_roll(self, opts);
+    else if (name == "split_s")      start_split_s(self, opts);
+    else {
+        print("Unknown manoeuvre: " ~ name);
+        return nil;
+    }
+    print("Starting ", name, " for ", mname, " with entry spd: ", opts.entry_speed, "mps   n bottom: ", opts.n_bottom);
+    print("Dumping aircraft performance parameters ...");
+    debug.dump(self.perf);
+    print("Monitoring flight parameters ...");
+    monitorValues(0, 300, 1);    
+    return self.manoeuvre;
+};
+
+register_manoeuvre_listeners(modelName);
