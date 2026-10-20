@@ -44,7 +44,7 @@ $Id$
 		<object-name>Propeller</object-name>
 		<condition>
 			<less-than>
-				<property>/spitfire/engines/engine[0]/rpm</property>
+				<property>/spitfireXVI/engines/engine[0]/rpm</property>
 				<value>1000</value>
 			</less-than>
 		</condition>
@@ -52,7 +52,7 @@ $Id$
 	<animation>
 		<type>spin</type>
 		<object-name>Propeller</object-name>
-		<property>/spitfire/engines/engine[0]/rpm</property>
+		<property>/spitfireXVI/engines/engine[0]/rpm</property>
 		<factor>0.477</factor>
 		<center>
 			<x-m>-0.40</x-m>
@@ -68,7 +68,7 @@ $Id$
 	<animation>
 		<type>spin</type>
 		<object-name>Spinner</object-name>
-		<property>/spitfire/engines/engine[0]/rpm</property>
+		<property>/spitfireXVI/engines/engine[0]/rpm</property>
 		<factor>0.477</factor>
 		<center>
 			<x-m>-0.40</x-m>
@@ -86,7 +86,7 @@ $Id$
 		<object-name>PropellerDisk</object-name>
 		<condition>
 			<greater-than>
-				<property>/spitfire/engines/engine[0]/rpm</property>
+				<property>/spitfireXVI/engines/engine[0]/rpm</property>
 				<value>900</value>
 			</greater-than>
 		</condition>
@@ -94,7 +94,7 @@ $Id$
 	<animation>
 		<type>blend</type>
 		<object-name>PropellerDisk</object-name>
-		<property>/spitfire/engines/engine[0]/rpm</property>
+		<property>/spitfireXVI/engines/engine[0]/rpm</property>
 		<factor>0.0005</factor>
 		<offset>-0.5</offset>
 		<min>0.0</min>

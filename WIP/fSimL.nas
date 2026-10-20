@@ -812,16 +812,14 @@ var setup_fSimL_chase_view = func(slot_idx, mName) {
 setup_fSimL_chase_view(101, modelName);
 
 ########################## loop usage ###########################
-#   start_loop(myObjectState);                                   # defaults: 220 m/s, 4 g at the bottom
-#   start_loop(myObjectState, {entry_speed: 200, n_bottom: 3.5});
-
+# 
 # Create a property listener for startLoopNode
 setlistener(startLoopNode, func(node) {
     # Only trigger if the node value becomes true (1)
     if (node.getValue()) {
-        var startSpd = 140; nBottom = 3.5;
+        var startSpd = 160; nBottom = 4.0;
         start_loop(myObjectState, {entry_speed: startSpd, n_bottom: nBottom});
-        print("Staring loop for ", modelName, " with entry spd: ", startSpd, "mps   n bottom: ", nBottom);
+        print("Starting loop for ", modelName, " with entry spd: ", startSpd, "mps   n bottom: ", nBottom);
         print("Dumping aircraft performance parameters ...");
         debug.dump(myObjectState.perf);
         print("Monitoring flight parameters ...");
