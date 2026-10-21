@@ -5,7 +5,7 @@
  <description>Fokker Dr.1</description>
  <author>Erik Hofman (3D model)</author>
 
- <path>../../../../Aircraft/fkdr1-Bombable/Models/dr1.ac</path> 
+ <path>dr1.ac</path> 
  <texture-path>../../../../Aircraft/fkdr1-Bombable/Models</texture-path>
 
  <offsets>

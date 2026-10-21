@@ -136,7 +136,7 @@ var update_pitch_target = func(self, dt) {
 
     var gamma_cmd = math.atan2(vs_cmd, math.max(v_h, 1.0));
 
-    var qS = 0.5 * rho0 * speed * speed * self.perf.wing_area_m2;
+    var qS = 0.5 * air_density(self.alt_ft * 0.3048) * speed * speed * self.perf.wing_area_m2;
     var cphi = math.cos(self.roll * D2R);
     if (cphi < 0.3) cphi = 0.3;
 
@@ -887,6 +887,8 @@ var run_flight_physics = func(mName) {
     update_orientation(state, dt);
     update_force_physics(state, dt);
 
+    var throttleFactor = (contains(state.perf, "max_rpm")) ? state.perf.max_rpm : 0.0; 
+
     # 4. Push to the animation manager
     var anim = attributes[mName].controls["animation"];
     if (anim != nil and anim.isActive) {
@@ -902,6 +904,8 @@ var run_flight_physics = func(mName) {
         anim.rollNode.setDoubleValue(o.roll);
         anim.altNode.setDoubleValue(state.alt_ft);
         anim.speedNode.setDoubleValue(state.speed);
+        anim.engineNode.setDoubleValue(state.throttle * throttleFactor);
+
     }
 };
 
@@ -926,6 +930,7 @@ var animationManager = {
             pitchNode: props.globals.getNode(myNodeName ~ "/orientation/pitch-deg", 1),
             rollNode: props.globals.getNode(myNodeName ~ "/orientation/roll-deg", 1),
             speedNode: props.globals.getNode(myNodeName ~ "/velocities/true-airspeed-kts", 1),
+            engineNode: props.globals.getNode(modelName ~ "/engines/engine[0]/rpm", 1),
 
             tNode: props.globals.getNode("/sim/time/delta-sec", 1),
 
@@ -1012,7 +1017,7 @@ var animationManager = {
 
 
 # 1. Performance Profile & Force Coefficients
-var modelName = "/spitfireXVI";
+var modelName = "/fkdr1";
 
 
 ###########################################################
@@ -1039,7 +1044,6 @@ if (modelName == "/F15") {
         max_roll_rate_aero:  90.0, # deg/s
         n_max_pos: 6.0, # g factor
         n_max_neg: 3.5, 
-        
 
     };
 }
@@ -1067,7 +1071,8 @@ elsif (modelName == "/spitfire") {
         max_pitch_rate_aero: 30.0, # 30 deg/s
         max_roll_rate_aero:  90.0, # deg/s
         n_max_pos: 6.0, # g factor
-        n_max_neg: 3.5,                
+        n_max_neg: 3.5,    
+        max_rpm: 3500,              # Merlin engine            
 
     };
 }
@@ -1094,7 +1099,34 @@ elsif (modelName == "/spitfireXVI") {
         max_pitch_rate_aero: 35.0,     # deg/s (Maximum transient pitch rate before high-speed stall or G-lock limit)
         max_roll_rate_aero:  175.0,    # deg/s (Aerodynamic maximum roll rate achieved under optimal speed/airspeed pressures)
         n_max_pos: 6.0,                # g factor (Official design limit load factor for structural airframe integrity)
-        n_max_neg: 3.5,                
+        n_max_neg: 3.5,
+        max_rpm: 3500,              # Merlin engine            
+                
+    };
+}
+
+elsif (modelName == "/fkdr1") {
+    var modelPath = "/home/michael-wilkinson/Desktop/Bombable 5.0/Bombable/FGData/AI/Aircraft/fkdr1-Bombable/Models/dr1.xml";
+    var perf_profile = {
+        climb_rate: 1122.0,           # ft per min (Max rate of climb ~5.7 m/s)
+        descent_rate: 3500.0,          # ft per min (Typical WWI combat dive limit)
+        max_bank_angle: 180.0,         # deg (Fully aerobatic maneuverability)
+        max_roll_rate: 90.0,           # deg/sec (Moderate aileron authority via interplane struts/warp characteristics)
+        max_pitch_angle: 180.0,        # deg (Full loop capability)
+        max_pitch_rate: 20.0,          # deg/sec (Highly responsive pitch control due to short tail moment)
+        
+        # Force-Vector Parameters
+        mass_kg: 586.0,                # kg (Standard operational gross weight)
+        wing_area_m2: 18.7,            # m^2 (Combined area across all three wings, ~201 sq ft)
+        max_thrust_N: 1400.0,          # N (Approximate static thrust derived from the 110 hp Oberursel Ur.II rotary engine)
+        max_speed_mps: 50.0,           # m/s (Maximum level speed, ~110–115 mph / 97–100 knots)
+
+        max_pitch_rate_aero: 25.0,     # deg/s (Transient aerodynamic pitch limit)
+        max_roll_rate_aero:  90.0,     # deg/s (Maximum aerodynamic roll rate)
+        n_max_pos: 5.0,                # g factor (WWI structural design limit load factor)
+        n_max_neg: -2.5,
+        max_rpm: 1200,                 # engine (Typical maximum RPM for the Oberursel Ur.II rotary engine)
+                    
     };
 }
 
@@ -1111,7 +1143,7 @@ var CL_MAX   = 1.6;    # simple stall clamp (symmetric)
 # CL needed for L = W at max speed, sea level.
 # This is the CL at alpha = 0, i.e. at the attitude where theta == gamma at vmax.
 var C_L_vmax = (2.0 * weight_N) / (rho0 * perf_profile.max_speed_mps * perf_profile.max_speed_mps * perf_profile.wing_area_m2);
-var K_IND = 0.13;                                   # induced drag factor k in CD = CD0 + k*CL^2
+var K_IND = 0.0;                                    # Lift acts perpendicular to the aircraft axis, so its tilt from the flight path is already an induced dra
 var C_D0  = C_D - K_IND * C_L_vmax * C_L_vmax;      # C_D was derived at max speed, where CL is tiny
 var A_STALL_POS = (CL_MAX - C_L_vmax) / CL_ALPHA;   # rad
 var A_STALL_NEG = -(CL_MAX + C_L_vmax) / CL_ALPHA;  # rad
@@ -1192,6 +1224,7 @@ if (apt != nil and size(apt.runways) > 0) {
 var init_hdg = 0.0;
 var init_speed = 400.0;
 var init_throttle = 0.7;
+var init_rpm = 1000;
 
 ########################## Initialize model ###########################
 
@@ -1215,7 +1248,7 @@ hdgNode.setDoubleValue(init_hdg);
 pitchNode.setDoubleValue(0.0);
 rollNode.setDoubleValue(0.0);
 spdNode.setDoubleValue(init_speed);
-engineNode.setDoubleValue(init_throttle);
+engineNode.setDoubleValue(1000);
 
 # 4. Load model via fgcommand (allocates next model index under target_weapon_path)
 var spawn_config = props.Node.new({
@@ -1319,15 +1352,16 @@ setup_fSimL_chase_view(101, modelName);
 ########################## register_manoeuvre_listeners ###########################
 # Example listener registration (adapt the node path to your controls node):
 
-  var register_manoeuvre_listeners = func(mName) {
+  var register_manoeuvre_listeners = func(mName, self) {
       foreach (var name; ["loop", "immelmann", "aileron_roll", "split_s"]) {
           (func(name) {
               var node = props.globals.getNode(mName ~ "/controls/manoeuvres/" ~ name, 1);
               node.setBoolValue(0);
               setlistener(node, func(n) {
                   if (n.getBoolValue()) {
-                    var startSpd = 180; nBottom = 4.0;
-                    start_manoeuvre(mName, myObjectState, name, {entry_speed: startSpd, n_bottom: nBottom});
+                    var opts = {};
+                    if (contains(self, "manoeuvre_opts")) opts = self.manoeuvre_opts;
+                    start_manoeuvre(mName, self, name, opts);
                     n.setBoolValue(0);
                   }
               }, 0, 0);
@@ -1354,7 +1388,8 @@ var start_manoeuvre = func(mname, self, name, opts = nil) {
         print("Unknown manoeuvre: " ~ name);
         return nil;
     }
-    print("Starting ", name, " for ", mname, " with entry spd: ", opts.entry_speed, "mps   n bottom: ", opts.n_bottom);
+    print("Starting ", name, " for ", mname, " manoeuvre options ...");
+    if (opts != nil) debug.dump(opts) else print("No options defined using defaults");
     print("Dumping aircraft performance parameters ...");
     debug.dump(self.perf);
     print("Monitoring flight parameters ...");
@@ -1362,4 +1397,4 @@ var start_manoeuvre = func(mname, self, name, opts = nil) {
     return self.manoeuvre;
 };
 
-register_manoeuvre_listeners(modelName);
+register_manoeuvre_listeners(modelName, myObjectState);

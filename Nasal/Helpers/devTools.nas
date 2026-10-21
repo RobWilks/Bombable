@@ -1288,3 +1288,27 @@ monitorValues(0);
 fSim.get_state();
 
 fSimL.start_loop(fSimL.myObjectState);                                   # defaults: 220 m/s, 4 g at the bottom
+
+
+fSimL.myObjectState.manoeuvre_opts = {
+    # loop
+        entry_speed: 200.0,           # m/s
+        n_bottom:    4.0,             # design load factor at the bottom
+        exit_deg:    3.0,             # hand back to normal control this far from 360
+        floor_ft:    ,
+    # immelmann
+        roll_lead_deg: 20.0,
+        direction: "left",            # "right"/"left", default = the shorter way to inverted
+        roll_rate: 90.0,
+    # aileron_roll
+        immediate: 0,                 # 1 skip entry phase, start the roll at once from any attitude, e.g. a banked turn
+    # split_s
+        n_pull: 4.0,                  # g, default 4
+        ground_ft: 0,                 # default 0
+        clearance_ft: 1000.0,         # default 1000
+        onset: 6,                     # g/s, default 6
+        force: 0,                     # 1 to force manoeuvre even when too close to ground
+};
+debug.dump(fSimL.myObjectState.manoeuvre_opts);
+
+fSimL.myObjectState.manoeuvre = nil;
