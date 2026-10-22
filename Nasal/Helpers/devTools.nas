@@ -1312,3 +1312,10 @@ fSimL.myObjectState.manoeuvre_opts = {
 debug.dump(fSimL.myObjectState.manoeuvre_opts);
 
 fSimL.myObjectState.manoeuvre = nil;
+
+print(
+    fSimL.myObjectState.time,
+    fSimL.myObjectState.dTime,
+    fSimL.myObjectState.tNode
+);
+

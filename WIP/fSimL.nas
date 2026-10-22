@@ -379,7 +379,11 @@ var run_entry = func(self, m, dt) {
     if (math.abs(v - m.entry_speed) < 5.0
         and math.abs(self.gamma_deg or 0.0) < 3.0
         and math.abs(self.roll) < 3.0) return 1;
-    if (m.t > 120.0) return -1;
+    if (m.t > 120.0) {
+        print(sprintf("%s cancelled: entry conditions not met in 120 s (speed %.0f m/s, entry_speed %.0f m/s)",
+                      m.name, v, m.entry_speed));
+        return -1;
+    }
     return 0;
 };
 
@@ -626,8 +630,8 @@ var update_immelmann_target = func(self, dt) {
 # heading reversed and the height lost. Phases: entry -> roll -> pull -> recover.
 #
 # The height loss is large, so start_split_s predicts it with a planar integration of the pull
-# and refuses if the aircraft is too low (the prediction runs about 15-40 percent
-# conservative). opts.force = 1 overrides. The pull law pulls at maximum load once below floor_ft.
+# and refuses if the aircraft is too low (checked against the Spitfire log: predicted 3640 ft
+# raw, 4370 ft with the 1.2 margin, against 3440 ft flown). opts.force = 1 overrides. The pull law pulls at maximum load once below floor_ft.
 #
 # opts: n_pull (g, default 4), entry_speed (m/s, default current speed), direction
 #       ("right"/"left", default = the shorter way to inverted), immediate (1 = start the
@@ -645,9 +649,13 @@ var predict_split_s_loss = func(self, v0, n_pull) {
         var qS  = 0.5 * rho * v * v * S;
         var n   = math.min(n_pull, math.min(n_cap, 0.85 * qS * CL_MAX / weight_N));
         var CL  = n * weight_N / math.max(qS, 1.0);
+        var al  = (CL - C_L_vmax) / CL_ALPHA;
         var D   = qS * (C_D0 + K_IND * CL * CL);
+        var L   = qS * CL;
         gp   += g * (n + math.cos(gp)) / math.max(v, 20.0) * dt;
-        v    += (-D / m + g * math.sin(gp)) * dt;
+        # drag acts along the axis, lift is normal to the axis: the tilt of lift from the
+        # flight path is the model's main induced drag (about 20 kN at 4 g for the Spitfire)
+        v    += ((-D * math.cos(al) - L * math.sin(al)) / m + g * math.sin(gp)) * dt;
         loss += v * math.sin(gp) * dt;
         t += dt;
     }
@@ -874,6 +882,10 @@ var canonical_euler = func(s) {
 var run_flight_physics = func(mName) {
     var dt = physics_update_interval;
     var state = myObjectState;
+    var timeNow = state.tNode.getValue() or 0.0;
+    var lastTime = state.time;
+    state.dTime = timeNow - lastTime;
+    state.time = timeNow;
 
     # 1. Targets: a running manoeuvre owns the targets, otherwise normal holds
     if (state["manoeuvre"] != nil) {
@@ -1017,7 +1029,7 @@ var animationManager = {
 
 
 # 1. Performance Profile & Force Coefficients
-var modelName = "/fkdr1";
+var modelName = "/spitfireXVI";
 
 
 ###########################################################
@@ -1153,6 +1165,7 @@ var A_STALL_NEG = -(CL_MAX + C_L_vmax) / CL_ALPHA;  # rad
 var create_aircraft_state = func(callsign, initial_lat, initial_lon, initial_alt_ft, initial_hdg, initial_speed_kts, initial_throttle) {
     var initial_spd_mps = initial_speed_kts * kts_to_mps;
     var hdg_rad = initial_hdg * D2R;
+    var tNode = props.globals.getNode("/sim/time/elapsed-sec", 1);
 
     return {
         callsign: callsign,
@@ -1191,7 +1204,11 @@ var create_aircraft_state = func(callsign, initial_lat, initial_lon, initial_alt
         aerobatic: 0, # flag to enable aerobgatic performance
         manoeuvre: nil,
 
-        perf: perf_profile
+        perf: perf_profile,
+
+        tNode: tNode,
+        time: tNode.getValue(),
+        dTime: 0.1,
     };
 };
 
@@ -1270,7 +1287,7 @@ print("fSimL.nas: Spawned model from " ~ modelPath);
 
 var monitorValues = func(count, countmax = 500, dt = 0.1) {
     if (fSimL.myObjectState.manoeuvre == nil) return;
-    print(sprintf("Phase: %s Gamma: %.2f Pitch %.2f Alpha: %.2f Drag: %.2f Load: %.2f Stalled %d Speed_kts: %.1f Alt_ft: %.1f",
+    print(sprintf("Phase: %s Gamma: %.2f Pitch %.2f Alpha: %.2f Drag: %.2f Load: %.2f Stalled %d Speed_kts: %.1f Alt_ft: %.1f Heading %.1f Roll %.1f Throttle %.1f Tick_interval %.3f",
     fSimL.myObjectState.manoeuvre.phase,
     fSimL.myObjectState.gamma_deg,
     fSimL.myObjectState.pitch,
@@ -1279,7 +1296,11 @@ var monitorValues = func(count, countmax = 500, dt = 0.1) {
     fSimL.myObjectState.n_load,
     fSimL.myObjectState.stalled,
     fSimL.myObjectState.speed,
-    fSimL.myObjectState.alt_ft
+    fSimL.myObjectState.alt_ft,
+    fSimL.myObjectState.hdg,
+    fSimL.myObjectState.roll,
+    fSimL.myObjectState.throttle,
+    fSimL.myObjectState.dTime
     ));
     count += 1;
     if (count < countmax) 
