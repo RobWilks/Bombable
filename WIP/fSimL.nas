@@ -66,6 +66,7 @@ var wrap360 = func(x) {
     return x;
 };
 
+########################## air_density ###########################
 # ISA troposphere density (kg/m^3); a loop changes altitude by thousands of feet
 var air_density = func(alt_m) {
     var h = math.max(alt_m, 0.0);
@@ -83,14 +84,21 @@ var lift_curve = func(a) {
     return cl;
 };
 
-########################## manoeuvre support ###########################
+########################## thrust_available ###########################
+# Thrust available at full throttle at the current altitude (N)
+var thrust_available = func(self) {
+    var rho = air_density(self.alt_ft * 0.3048);
+    return self.perf.max_thrust_N * math.pow(rho / rho0, THRUST_LAPSE);
+};
+
+########################## hold_speed ###########################
 # Throttle to hold a true airspeed (m/s): feed-forward for drag and gravity along the path,
 # plus proportional correction.
 var hold_speed = func(self, v_tgt) {
     var v   = self.speed * kts_to_mps;
     var gam = (self.gamma_deg or 0.0) * D2R;
     var req = ((self.drag_N or 0.0) + weight_N * math.sin(gam)
-               + self.perf.mass_kg * 0.5 * (v_tgt - v)) / self.perf.max_thrust_N;
+               + self.perf.mass_kg * 0.5 * (v_tgt - v)) / thrust_available(self);
     self.throttle = math.clamp(req, 0.0, 1.0);
 };
 
@@ -174,7 +182,19 @@ var update_orientation = func(self, dt) {
 
 
 
-########## update_force_physics ###########################
+########################### update_force_physics ###########################
+#  1. Lift acts perpendicular to the VELOCITY (rotated from body-up about the right wing),
+#     with an explicit induced drag K_IND*CL^2. Thrust and drag still act along the aircraft
+#     axis, as you specified. Before, lift perpendicular to the axis made the lift tilt an
+#     induced drag with an effective k of 1/CL_ALPHA = 0.2 (2-3 times a real Spitfire), about
+#     20 kN at 4 g, which is why the loop top speeds and Immelmann stall margins were thin.
+#  2. Thrust falls with air density: T = T0 * (rho/rho0)^THRUST_LAPSE. Before, level speed
+#     rose with altitude (353 kt at 15,000 ft against max_speed_mps of 300 kt).
+#     Adopt 1 and 2 together: lapse alone makes the Immelmann stall at altitude.
+#  3. Integration uses the measured time between physics ticks (your tNode) and sub-steps of
+#     at most 25 ms, running the whole control + orientation + force loop each sub-step. The
+#     explicit Euler step adds energy in proportion to dt (top speed +5 kt at 0.1 s, +14 kt at
+#     0.25 s, and a variable tick of 0.100-0.117 s changed the dynamics rate by 17 percent).
 
 var update_force_physics = func(self, dt) {
     if (dt <= 0.0) return;
@@ -194,23 +214,36 @@ var update_force_physics = func(self, dt) {
     var sth = math.sin(th);   var cth = math.cos(th);
     var sph = math.sin(phi);  var cph = math.cos(phi);
 
-    # Axis, wings-level lift direction, right wing (all valid for any pitch and roll)
+    # Axis, wings-level body-up, right wing
     var f_e = cth * sps;   var f_n = cth * cps;   var f_u = sth;
-    # Right-wing direction with wings level (horizontal, 90 deg right of heading)
     var r_e = cps;         var r_n = -sps;
-    # Wings-level "up" (lift) direction = r0 x f  (perpendicular to axis, in vertical plane)
     var u_e = -sth * sps;  var u_n = -sth * cps;  var u_u = cth;
 
-    # Banked lift direction
+    # Body-up direction after bank
     var l_e = cph * u_e + sph * r_e;
     var l_n = cph * u_n + sph * r_n;
     var l_u = cph * u_u;
 
-    # Flight-path angle in the plane of flight, signed: valid over the top of a loop
+    # Path angle in the plane of flight (signed, valid over the top) and aircraft-frame alpha
     var v_pl  = ve * sps + vn * cps;
     var gamma = math.atan2(vu, v_pl);                      # (-pi, pi]
-    var alpha = math.atan2(-(ve * l_e + vn * l_n + vu * l_u),
-                                ve * f_e + vn * f_n + vu * f_u);
+    var v_dot_l = ve * l_e + vn * l_n + vu * l_u;
+
+    var alpha = math.atan2(-v_dot_l, ve * f_e + vn * f_n + vu * f_u);
+
+    # Lift direction: body-up with its component along the velocity removed, so lift is
+    # perpendicular to the velocity (standard wind-axes lift).
+    var lp_e = l_e;  var lp_n = l_n;  var lp_u = l_u;
+    if (speed > 1.0) {
+        var d = v_dot_l / speed;
+        var a_e = l_e - d * ve / speed;
+        var a_n = l_n - d * vn / speed;
+        var a_u = l_u - d * vu / speed;
+        var nrm = math.sqrt(a_e*a_e + a_n*a_n + a_u*a_u);
+        if (nrm > 0.01) {
+            lp_e = a_e / nrm;  lp_n = a_n / nrm;  lp_u = a_u / nrm;
+        }
+    }
 
 
     var CL = lift_curve(alpha);
@@ -218,20 +251,20 @@ var update_force_physics = func(self, dt) {
 
     var lift_mag   = qS * CL;
     var drag_mag   = qS * CD;
-    var thrust_mag = self.throttle * self.perf.max_thrust_N;
-    var axial      = thrust_mag - drag_mag;
+    var thrust_mag = self.throttle * thrust_available(self);
+    var axial      = thrust_mag - drag_mag;           # thrust and drag act along the axis
 
-    # Diagnostics for the manoeuvre controllers
+    # Diagnostics for the manoeuvre controllers and monitors
     self.gamma_deg = gamma * R2D;
     self.alpha_deg = alpha * R2D;
     self.drag_N    = drag_mag;
-    self.n_load    = (lift_mag + axial * math.sin(alpha)) / weight_N;
+    self.n_load    = (lift_mag + axial * math.sin(alpha)) / weight_N;   # load normal to the path
     self.stalled   = (alpha > A_STALL_POS or alpha < A_STALL_NEG);
 
     var m  = self.perf.mass_kg;
-    var ax = (axial * f_e + lift_mag * l_e) / m;
-    var ay = (axial * f_n + lift_mag * l_n) / m;
-    var az = (axial * f_u + lift_mag * l_u - weight_N) / m;
+    var ax = (axial * f_e + lift_mag * lp_e) / m;
+    var ay = (axial * f_n + lift_mag * lp_n) / m;
+    var az = (axial * f_u + lift_mag * lp_u - weight_N) / m;
 
     self.v_east  += ax * dt;
     self.v_north += ay * dt;
@@ -241,15 +274,13 @@ var update_force_physics = func(self, dt) {
     var vh2  = math.sqrt(self.v_east*self.v_east + self.v_north*self.v_north);
     self.speed = spd2 / kts_to_mps;
 
-    # Plane heading follows the horizontal velocity, kept continuous: the velocity azimuth
-    # flips by 180 degrees when the path passes over the top, so choose the candidate
-    # (azimuth or azimuth+180) nearest the current heading. Hold when nearly vertical.
+    # Plane heading follows the horizontal velocity, kept continuous through the vertical
     if (spd2 > 1.0 and vh2 > 0.05 * spd2) {
-        var d = wrap180(math.atan2(self.v_east, self.v_north) * R2D - self.hdg);
-        if (d > 90.0) d -= 180.0;
-        else if (d < -90.0) d += 180.0;
-        self.hdg  = wrap360(self.hdg + d);
-        self.dHdg = d / dt;
+        var dh = wrap180(math.atan2(self.v_east, self.v_north) * R2D - self.hdg);
+        if (dh > 90.0) dh -= 180.0;
+        else if (dh < -90.0) dh += 180.0;
+        self.hdg  = wrap360(self.hdg + dh);
+        self.dHdg = dh / dt;
     } else {
         self.dHdg = 0.0;
     }
@@ -286,11 +317,9 @@ var update_force_physics = func(self, dt) {
 #                                 ve * f_e + vn * f_n + vu * f_u);
 #
 # 2. K_IND: because lift acts perpendicular to the AXIS, the tilt of the lift vector from the
-#    flight path is already an induced drag with an effective k of about 1/CL_ALPHA = 0.2.
-#    The extra K_IND term double counts it. Set  var K_IND = 0.0;  (the Immelmann needs the
-#    energy: see the notes in the reply).
+#    flight path creates an induced drag
 #
-# 3. update_pitch_target: use air_density(self.alt_ft * 0.3048) instead of rho0 in qS.
+# 3. Allow for decrease of air_density with altitude.
 #
 # 4. Keep physics_update_interval at 0.1 s or less: a 175 deg/s roll moves 17 degrees per tick.
 
@@ -324,7 +353,7 @@ var v_stall_1g = func(self) {
 # drag component normal to the flight path (using last tick's alpha).
 var alpha_for_load = func(self, n_cmd, qS) {
     var a_prev = (self.alpha_deg or 0.0) * D2R;
-    var axial  = self.throttle * self.perf.max_thrust_N - (self.drag_N or 0.0);
+    var axial  = self.throttle * thrust_available(self) - (self.drag_N or 0.0);
     var CL_req = (n_cmd * weight_N - axial * math.sin(a_prev)) / math.max(qS, 1.0);
     return math.clamp((CL_req - C_L_vmax) / CL_ALPHA, 0.9 * A_STALL_NEG, 0.9 * A_STALL_POS);
 };
@@ -515,7 +544,7 @@ var update_aileron_roll_target = func(self, dt) {
 
 var predict_immelmann_top = func(self, v0, n_bottom) {
     var S = self.perf.wing_area_m2;
-    var T = self.perf.max_thrust_N;
+    var T = thrust_available(self);
     var n_cap = 0.9 * (self.perf.n_max_pos or 6.0);
     var q = g * (n_bottom - 1.0) / v0;
     var dt = 0.05;
@@ -832,7 +861,7 @@ var update_loop_target = func(self, dt) {
 
         # lift needed, allowing for the thrust and drag component normal to the path
         var a_prev = (self.alpha_deg or 0.0) * D2R;
-        var axial  = self.throttle * self.perf.max_thrust_N - (self.drag_N or 0.0);
+        var axial  = self.throttle * thrust_available(self) - (self.drag_N or 0.0);
         var CL_req = (n_cmd * weight_N - axial * math.sin(a_prev)) / math.max(qS, 1.0);
         var a_req  = math.clamp((CL_req - C_L_vmax) / CL_ALPHA, -0.1, 0.9 * A_STALL_POS);
 
@@ -1029,7 +1058,7 @@ var animationManager = {
 
 
 # 1. Performance Profile & Force Coefficients
-var modelName = "/spitfireXVI";
+var modelName = "/fkdr1";
 
 
 ###########################################################
@@ -1155,7 +1184,8 @@ var CL_MAX   = 1.6;    # simple stall clamp (symmetric)
 # CL needed for L = W at max speed, sea level.
 # This is the CL at alpha = 0, i.e. at the attitude where theta == gamma at vmax.
 var C_L_vmax = (2.0 * weight_N) / (rho0 * perf_profile.max_speed_mps * perf_profile.max_speed_mps * perf_profile.wing_area_m2);
-var K_IND = 0.0;                                    # Lift acts perpendicular to the aircraft axis, so its tilt from the flight path is already an induced dra
+var K_IND        = 0.09;     # induced drag factor (real Spitfire about 0.07-0.10)
+var THRUST_LAPSE = 0.6;     # thrust ~ density^0.6 (piston engine and propeller - reduced from 0.75)
 var C_D0  = C_D - K_IND * C_L_vmax * C_L_vmax;      # C_D was derived at max speed, where CL is tiny
 var A_STALL_POS = (CL_MAX - C_L_vmax) / CL_ALPHA;   # rad
 var A_STALL_NEG = -(CL_MAX + C_L_vmax) / CL_ALPHA;  # rad
@@ -1231,7 +1261,7 @@ if (apt != nil and size(apt.runways) > 0) {
     init_lon = first_rwy.lon;
 
     var apt_elev_ft = apt.elevation * 3.28084 or 0.0;
-    init_alt_ft = apt_elev_ft + 15000.0;
+    init_alt_ft = apt_elev_ft + 6000.0;
     print("fly.nas: Initialized position from " ~ airport_id ~ " Runway threshold at Lat: " ~ init_lat ~ ", Lon: " ~ init_lon);
 } else {
     print("fly.nas: Warning - Could not load airport " ~ airport_id ~ ", using default fallback coordinates.");
