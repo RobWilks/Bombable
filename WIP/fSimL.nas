@@ -24,10 +24,47 @@ globals.fSimL = {
         if (state == nil) return;
         print(sprintf("fSimL Current State -> Hdg: %.1f (Tgt: %.1f) | Spd: %.1f kts | Alt: %.1f ft (Tgt: %.1f) | Thr: %.2f", 
             state.hdg, state.tgt_heading, state.speed, state.alt_ft, state.tgt_altitude_ft, state.throttle));
-    }
+    },
+
+    ########################## profiling ###########################
+    # Set prof.enable = 1, run for a while, then call prof.report() from the Nasal console.
+    # systime() is wall-clock seconds with sub-microsecond fraction; max >> mean means GC or
+    # a frame hitch landed inside the timed section.
+
+    prof: {
+        enable: 0,
+        stats: {},
+        add: func(name, sec) {
+            var st = me.stats[name];
+            if (st == nil) {
+                st = { n: 0, sum: 0.0, max: 0.0, over1: 0, over5: 0 };
+                me.stats[name] = st;
+            }
+            st.n += 1;
+            st.sum += sec;
+            if (sec > st.max) st.max = sec;
+            if (sec > 0.001) st.over1 += 1;
+            if (sec > 0.005) st.over5 += 1;
+        },
+        start: func() {
+            me.stats = {};
+            me.t0 = systime();
+            me.enable = 1;
+        },
+        stop: func() {
+            me.enable = 0;
+            me.report();
+        },        
+        report: func() {
+            foreach (var k; keys(me.stats)) {
+                var st = me.stats[k];
+                print(sprintf("%-9s n=%6d  mean=%7.1f us  max=%8.1f us  >1ms: %d  >5ms: %d",
+                            k, st.n, 1.0e6 * st.sum / math.max(st.n, 1), 1.0e6 * st.max, st.over1, st.over5));
+            }
+        },
+        reset: func() { me.stats = {}; },
+    },
 };
-
-
 
 ###########################################################
 # fSimL_force.nas - 4-Force Vector FDM Integrated with fSimL
@@ -191,11 +228,15 @@ var update_orientation = func(self, dt) {
 #  2. Thrust falls with air density: T = T0 * (rho/rho0)^THRUST_LAPSE. Before, level speed
 #     rose with altitude (353 kt at 15,000 ft against max_speed_mps of 300 kt).
 #     Adopt 1 and 2 together: lapse alone makes the Immelmann stall at altitude.
-#  3. Integration uses the measured time between physics ticks (your tNode) and sub-steps of
-#     at most 25 ms, running the whole control + orientation + force loop each sub-step. The
-#     explicit Euler step adds energy in proportion to dt (top speed +5 kt at 0.1 s, +14 kt at
-#     0.25 s, and a variable tick of 0.100-0.117 s changed the dynamics rate by 17 percent).
-
+#  3. Timing: each tick advances the state by the MEASURED elapsed sim time (your tNode), not the
+#     nominal 0.1 s. The timer fires on frame boundaries, so a nominal 0.1 s arrives after 0.1167 s
+#     at 60 fps (7 frames) and 0.100 s at 120 fps: with a nominal dt the dynamics ran 15 percent
+#     slow and lat/lon (integrated by the animation loop in real time) outran the state.
+#     Compute is unchanged: one step per tick. Optional sub-stepping is set by MAX_SUBSTEP.
+#  4. Energy-consistent velocity update (see update_force_physics): removes the explicit-Euler
+#     energy error without sub-stepping.
+#  5. Optional profiling: set prof.enable = 1, run a manoeuvre, then prof.report().
+#
 var update_force_physics = func(self, dt) {
     if (dt <= 0.0) return;
 
@@ -266,9 +307,22 @@ var update_force_physics = func(self, dt) {
     var ay = (axial * f_n + lift_mag * lp_n) / m;
     var az = (axial * f_u + lift_mag * lp_u - weight_N) / m;
 
-    self.v_east  += ax * dt;
-    self.v_north += ay * dt;
-    self.v_up    += az * dt;
+    # Velocity update. A plain Euler step adds speed whenever the force has a component
+    # perpendicular to the velocity (a = 4 g of lift: +5 kt at 0.1 s, +16 kt at 0.25 s at the top
+    # of an Immelmann). Keep the direction from the Euler step but take the speed from the
+    # along-track acceleration alone; error at a 0.117 s step drops to about 1 kt, at no extra cost.
+    var ve1 = ve + ax * dt;
+    var vn1 = vn + ay * dt;
+    var vu1 = vu + az * dt;
+    if (speed > 1.0) {
+        var a_track = (ax * ve + ay * vn + az * vu) / speed;
+        var sp1 = math.sqrt(ve1*ve1 + vn1*vn1 + vu1*vu1);
+        var kc  = (speed + a_track * dt) / math.max(sp1, 0.001);
+        ve1 *= kc;  vn1 *= kc;  vu1 *= kc;
+    }
+    self.v_east  = ve1;
+    self.v_north = vn1;
+    self.v_up    = vu1;
 
     var spd2 = math.sqrt(self.v_east*self.v_east + self.v_north*self.v_north + self.v_up*self.v_up);
     var vh2  = math.sqrt(self.v_east*self.v_east + self.v_north*self.v_north);
@@ -906,31 +960,62 @@ var canonical_euler = func(s) {
     }
     return { hdg: h, pitch: p, roll: r, sgn: sgn };
 };
+
+
+
 ########################## run_flight_physics ###########################
+# One step per tick of the measured elapsed sim time. Late ticks are capped at MAX_DT (after a
+# hitch or pause the state does not try to catch up). MAX_SUBSTEP splits a tick into equal
+# sub-steps of at most that size, running the whole control + orientation + force loop each
+# time; 0.25 means never (one step). With the energy-consistent velocity update this is not
+# needed for accuracy; lower it (0.05) only if profiling shows spare time and you want the
+# controller discretisation error smaller too.
+
+var MAX_SUBSTEP = 0.25;
+var MAX_DT      = 0.25;
 
 var run_flight_physics = func(mName) {
-    var dt = physics_update_interval;
+    var prof = globals.fSimL.prof;
     var state = myObjectState;
-    var timeNow = state.tNode.getValue() or 0.0;
-    var lastTime = state.time;
-    state.dTime = timeNow - lastTime;
-    state.time = timeNow;
+    var now   = state.tNode.getValue() or 0.0;
+    var last  = state.time or now;                  # first call: dt = 0
+    var dt_real = now - last;
+    state.time  = now;
+    state.dTime = dt_real;                          # for the monitor
+    if (dt_real <= 0.0) return;                     # sim paused, or first call
+    dt_real = math.min(dt_real, MAX_DT);
 
-    # 1. Targets: a running manoeuvre owns the targets, otherwise normal holds
+    var t0 = prof.enable ? systime() : 0.0;
+
+    var n = math.ceil(dt_real / MAX_SUBSTEP);
+    var h = dt_real / n;
+    var t_ctl = 0.0;
+    var t_frc = 0.0;
+    for (var i = 0; i < n; i += 1) {
+        var a0 = prof.enable ? systime() : 0.0;
     if (state["manoeuvre"] != nil) {
-        state.manoeuvre.update(state, dt);
+        state.manoeuvre.update(state, h);
     } else {
-        update_roll_target(state, dt);
-        update_pitch_target(state, dt);
+        update_roll_target(state, h);
+        update_pitch_target(state, h);
     }
 
     # 2. Orientation, 3. forces
-    update_orientation(state, dt);
-    update_force_physics(state, dt);
+    update_orientation(state, h);
+    var a1 = prof.enable ? systime() : 0.0;
+    update_force_physics(state, h);
+    if (prof.enable) {
+        t_ctl += a1 - a0;
+        t_frc += systime() - a1;
+    }
+}
+
 
     var throttleFactor = (contains(state.perf, "max_rpm")) ? state.perf.max_rpm : 0.0; 
 
-    # 4. Push to the animation manager
+    var t1 = prof.enable ? systime() : 0.0;
+
+    # Push to the animation manager (rates are per second, from the last step)
     var anim = attributes[mName].controls["animation"];
     if (anim != nil and anim.isActive) {
         var o = canonical_euler(state);
@@ -946,7 +1031,15 @@ var run_flight_physics = func(mName) {
         anim.altNode.setDoubleValue(state.alt_ft);
         anim.speedNode.setDoubleValue(state.speed);
         anim.engineNode.setDoubleValue(state.throttle * throttleFactor);
+        anim.tLast = now;                           # re-base the animation clock: frames integrate from this tick
+    }
 
+    if (prof.enable) {
+        var t2 = systime();
+        prof.add("control", t_ctl);
+        prof.add("force", t_frc);
+        prof.add("push", t2 - t1);
+        prof.add("tick", t2 - t0);
     }
 };
 
@@ -955,6 +1048,15 @@ var run_flight_physics = func(mName) {
 
 ########################## animationManager ###########################
 # Custom Animation Manager integrated into Bombable
+#  1. Each object keeps its own clock (elapsed sim time at its last update) instead of using
+#     /sim/time/delta-sec. delta-sec is only the length of the CURRENT frame, so a skipped
+#     callback silently loses that frame's motion; the elapsed-time difference covers it.
+#  2. run_flight_physics re-bases that clock (anim.tLast = tick time) when it sets the
+#     absolute hdg/pitch/roll/alt values, so the frames after a tick integrate from the tick.
+#  3. Diagnostics: frames run, frames where the update covered more than 1.5 frame-times
+#     (a missed or late callback), and the longest update interval. Call
+#     animationManager.report(myNodeName) to print them.
+#  4. Optional profiling hook (prof.enable and prof are defined in loop_manoeuvre_v2.nas).
 
 var animationManager = {
     register: func(myNodeName) {
@@ -973,10 +1075,13 @@ var animationManager = {
             speedNode: props.globals.getNode(myNodeName ~ "/velocities/true-airspeed-kts", 1),
             engineNode: props.globals.getNode(modelName ~ "/engines/engine[0]/rpm", 1),
 
-            tNode: props.globals.getNode("/sim/time/delta-sec", 1),
+            tNode: props.globals.getNode("/sim/time/delta-sec", 1),         # this frame only
+            clockNode: props.globals.getNode("/sim/time/elapsed-sec", 1),   # running sim time
 
             dLat: 0.0, dLon: 0.0, dAlt: 0.0,
             dHdg: 0.0, dPitch: 0.0, dRoll: 0.0,
+            tLast: nil,
+            frames: 0, missed: 0, maxDt: 0.0,
             timer: nil
         };
 
@@ -987,6 +1092,7 @@ var animationManager = {
     },
 
     updateObject: func(myNodeName) {
+        var prof = globals.fSimL.prof;
         var ats = attributes[myNodeName];
         if (ats == nil or ats.damage == 1) {
             if (ats != nil and ats.damage == 1) me.stopObject(myNodeName);
@@ -996,13 +1102,28 @@ var animationManager = {
         var anim = ats.controls.animation;
         if (anim == nil or !anim.isActive) return;
 
+        var t0 = prof.enable ? systime() : 0.0;
+
+        # Own clock: elapsed sim time since this object was last advanced.
+        var now = anim.clockNode.getValue() or 0.0;
+        var last = anim.tLast;
+        anim.tLast = now;
+        if (last == nil) return;                    # first frame: just start the clock
+        var dt = now - last;
+        if (dt <= 0.0) return;                      # paused
+        if (dt > 0.25) dt = 0.25;                   # after a hitch do not extrapolate far
+
+        anim.frames += 1;
+        if (dt > anim.maxDt) anim.maxDt = dt;
+        var fd = anim.tNode.getValue() or 0.0;
+        if (fd > 0.0 and dt > 1.5 * fd) anim.missed += 1;
+
         var lat = anim.latNode.getValue() or 0.0;
         var lon = anim.lonNode.getValue() or 0.0;
         var alt = anim.altNode.getValue() or 0.0;
         var hdg = anim.hdgNode.getValue() or 0.0;
         var pitch = anim.pitchNode.getValue() or 0.0; # Fetch current pitch
         var roll = anim.rollNode.getValue() or 0.0;   # Fetch current roll
-        var dt = anim.tNode.getValue() or 0.016;
 
         var new_hdg = hdg + anim.dHdg * dt;
         if (new_hdg >= 360.0) new_hdg -= 360.0;
@@ -1020,11 +1141,20 @@ var animationManager = {
         anim.hdgNode.setDoubleValue(new_hdg);
         anim.pitchNode.setDoubleValue(pitch + anim.dPitch * dt);
         anim.rollNode.setDoubleValue(new_roll);        
+
+        if (prof.enable) prof.add("anim", systime() - t0);
+    },
+
+    report: func(myNodeName) {
+        var anim = attributes[myNodeName].controls.animation;
+        print(sprintf("animation %s: %d frames, %d covered more than 1.5 frame-times, longest interval %.1f ms",
+                      myNodeName, anim.frames, anim.missed, 1000.0 * anim.maxDt));
     },
 
     startObject: func(myNodeName) {
         var ats = attributes[myNodeName];
         if (ats != nil and ats.controls != nil and ats.controls.animation != nil) {
+            ats.controls.animation.tLast = nil;     # restart the clock
             ats.controls.animation.isActive = true;
             ats.controls.animation.timer.start();
         }

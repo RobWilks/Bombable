@@ -1319,3 +1319,6 @@ print(
     fSimL.myObjectState.tNode
 );
 
+fSimL.prof.enable = 1;
+
+fSimL.prof.report();
