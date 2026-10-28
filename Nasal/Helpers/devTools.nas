@@ -1196,12 +1196,12 @@ print("\n\n####################\n\n");
 
 io.load_nasal("/home/michael-wilkinson/.fgfs/Nasal/fSim.nas", "fSim");
 
-debug.dump(fSim.myObjectState);
-fSim.myObjectState.tgt_roll = 30;
-fSim.myObjectState.tgt_pitch = 2;
-print(fSim.myObjectState.tgt_pitch);
-print(fSim.myObjectState.tgt_speed);
-var ats = fSim.myObjectState;
+debug.dump(fSim.state);
+fSim.state.tgt_roll = 30;
+fSim.state.tgt_pitch = 2;
+print(fSim.state.tgt_pitch);
+print(fSim.state.tgt_speed);
+var ats = fSim.state;
 ats.tgt_heading = 179.9;
 
 print (ats.tgt_pitch);
@@ -1214,20 +1214,20 @@ print (ats.tgt_roll);
 
 
 # 1. Set a target roll
-fSim.myObjectState.tgt_roll = 30.0;
+fSim.state.tgt_roll = 30.0;
 
 # 2. Manually execute one physics tick
 fSim.run_flight_physics("AI_F15");
 
 # 3. Check what changed in the state object
-print("Current Roll: " ~ fSim.myObjectState.roll);
-print("Target Roll:  " ~ fSim.myObjectState.tgt_roll);
-print("Computed dHdg:" ~ fSim.myObjectState.dHdg);
-print("Current Hdg:  " ~ fSim.myObjectState.hdg);
+print("Current Roll: " ~ fSim.state.roll);
+print("Target Roll:  " ~ fSim.state.tgt_roll);
+print("Computed dHdg:" ~ fSim.state.dHdg);
+print("Current Hdg:  " ~ fSim.state.hdg);
 
 
 # 1. Force a target heading offset so update_roll_target has a reason to bank
-fSim.myObjectState.tgt_heading = 90.0;
+fSim.state.tgt_heading = 90.0;
 
 # 2. Manually step the physics function a few times to let it roll and turn
 fSim.run_flight_physics("AI_F15");
@@ -1235,17 +1235,17 @@ fSim.run_flight_physics("AI_F15");
 fSim.run_flight_physics("AI_F15");
 
 # 3. Check the results
-print("Current Roll:  " ~ fSim.myObjectState.roll);
-print("Target Roll:   " ~ fSim.myObjectState.tgt_roll);
-print("Computed dHdg: " ~ fSim.myObjectState.dHdg);
-print("Current Hdg:   " ~ fSim.myObjectState.hdg);
+print("Current Roll:  " ~ fSim.state.roll);
+print("Target Roll:   " ~ fSim.state.tgt_roll);
+print("Computed dHdg: " ~ fSim.state.dHdg);
+print("Current Hdg:   " ~ fSim.state.hdg);
 
-fSim.myObjectState.tgt_altitude_ft = 3500;
-fSim.myObjectState.tgt_heading = 10;
-fSim.myObjectState.tgt_pitch = 0;
-fSim.myObjectState.tgt_roll = 0;
-fSim.myObjectState.tgt_vs = 0;
-fSim.myObjectState.tgt_speed = 300;
+fSim.state.tgt_altitude_ft = 3500;
+fSim.state.tgt_heading = 10;
+fSim.state.tgt_pitch = 0;
+fSim.state.tgt_roll = 0;
+fSim.state.tgt_vs = 0;
+fSim.state.tgt_speed = 300;
 
 # 2. Manually step the physics function a few times to let it roll and turn
 fSim.run_flight_physics("AI_F15");
@@ -1253,18 +1253,18 @@ fSim.run_flight_physics("AI_F15");
 fSim.run_flight_physics("AI_F15");
 
 # 3. Check the results
-print("Current Pitch:  " ~ fSim.myObjectState.pitch);
-print("Target Pitch:   " ~ fSim.myObjectState.tgt_pitch);
-print("Computed dAlt: " ~ fSim.myObjectState.dAlt);
-print("Current Alt:   " ~ fSim.myObjectState.alt_ft);
+print("Current Pitch:  " ~ fSim.state.pitch);
+print("Target Pitch:   " ~ fSim.state.tgt_pitch);
+print("Computed dAlt: " ~ fSim.state.dAlt);
+print("Current Alt:   " ~ fSim.state.alt_ft);
 
 var monitorValues = func(count) {
     print(sprintf("Current Roll: %.2f deg rollNodeValue: %.2f dRoll: %.2f heading: %.2f tgt-heading: %.2f",
-    fSim.myObjectState.roll,
+    fSim.state.roll,
     getprop("AI_F15/orientation/roll-deg"),
-    fSim.myObjectState.dRoll,
+    fSim.state.dRoll,
     getprop("AI_F15/orientation/true-heading-deg"),
-    fSim.myObjectState.tgt_heading
+    fSim.state.tgt_heading
     ));
     count += 1;
     if (count < 10) 
@@ -1274,23 +1274,24 @@ var monitorValues = func(count) {
 };
 
 # 1. Force a target heading offset so update_roll_target has a reason to bank
-print("Target heading:  " ~ fSim.myObjectState.tgt_heading);
-fSim.myObjectState.tgt_heading -= 20.0;
-print("Target heading:  " ~ fSim.myObjectState.tgt_heading);
+print("Target heading:  " ~ fSim.state.tgt_heading);
+fSim.state.tgt_heading -= 20.0;
+print("Target heading:  " ~ fSim.state.tgt_heading);
 monitorValues(0);
 
 
 # --- Example Console Commands You Can Run Anytime ---
-# 1. Turn to heading 180 deg and climb to 2,000 ft with full military power:
- fSim.set_targets(hdg: 025.0, alt: 4900, thr: 0.99);
+# 1. Turn to heading 25 deg and climb to 4,000 ft with full military power:
+ fSim.fS.set_targets(025.0, 4000.0, 0.95);
+#  hdg = nil, alt = nil, thr = nil
 
 # 2. Check current targets vs actual state:
-fSim.get_state();
+fSim.fS.get_state();
 
-fSimL.start_loop(fSimL.myObjectState);                                   # defaults: 220 m/s, 4 g at the bottom
+fSim.start_loop(fSim.fS.state);                                   # defaults: 220 m/s, 4 g at the bottom
 
 
-fSimL.myObjectState.manoeuvre_opts = {
+fSim.fS.state.manoeuvre_opts = {
     # loop
         entry_speed: 200.0,           # m/s
         n_bottom:    4.0,             # design load factor at the bottom
@@ -1309,16 +1310,251 @@ fSimL.myObjectState.manoeuvre_opts = {
         onset: 6,                     # g/s, default 6
         force: 0,                     # 1 to force manoeuvre even when too close to ground
 };
-debug.dump(fSimL.myObjectState.manoeuvre_opts);
+debug.dump(fSim.fS.state.manoeuvre_opts);
 
-fSimL.myObjectState.manoeuvre = nil;
+fSim.fS.state.manoeuvre = nil;
 
 print(
-    fSimL.myObjectState.time,
-    fSimL.myObjectState.dTime,
-    fSimL.myObjectState.tNode
+    fSim.fS.state.time,
+    fSim.fS.state.dTime,
+    fSim.fS.state.tNode
 );
 
-fSimL.prof.enable = 1;
+fSim.fS.prof.enable = 1;
+fSim.fS.prof.start();
+fSim.fS.prof.stop();
 
-fSimL.prof.report();
+fSim.fS.prof.report();
+
+
+# ==============================================================================
+# FlightGear Nasal Speed Test: getprop() vs Node Handle Lookup
+# ==============================================================================
+
+var run_property_speed_test = func(iterations = 100000) {
+    print(sprintf("\n--- Starting Property Lookup Speed Test (%d iterations) ---", iterations));
+
+    var modelName = "/fkdr1";
+    var path = modelName ~ "/engines/engine[0]/rpm";
+    
+    # --------------------------------------------------------------------------
+    # Test 1: getprop() Lookup
+    # --------------------------------------------------------------------------
+    var start_time = systime();
+    for (var i = 0; i < iterations; i += 1) {
+        var val = getprop(path);
+    }
+    var elapsed_getprop = systime() - start_time;
+    print(sprintf("1. getprop(path) : %.4f seconds", elapsed_getprop));
+
+    # --------------------------------------------------------------------------
+    # Test 2: Node Handle Lookup (.getValue())
+    # --------------------------------------------------------------------------
+    var node = props.globals.getNode(path, 1);
+    
+    start_time = systime();
+    for (var i = 0; i < iterations; i += 1) {
+        var val = node.getValue();
+    }
+    var elapsed_node = systime() - start_time;
+    print(sprintf("2. node.getValue(): %.4f seconds", elapsed_node));
+
+    # --------------------------------------------------------------------------
+    # Summary
+    # --------------------------------------------------------------------------
+    if (elapsed_node > 0) {
+        var ratio = elapsed_getprop / elapsed_node;
+        print(sprintf("--> Cached node access is %.2fx faster than getprop().\n", ratio));
+    }
+};
+
+run_property_speed_test();
+
+
+
+
+# ==============================================================================
+# FlightGear Nasal Speed Test: setprop() vs Node Handle Lookup
+# ==============================================================================
+
+var run_property_speed_test = func(iterations = 100000) {
+    print(sprintf("\n--- Starting Property Lookup Speed Test (%d iterations) ---", iterations));
+
+    var modelName = "/fkdr1";
+    var path = modelName ~ "/engines/engine[0]/rpm";
+    
+    # --------------------------------------------------------------------------
+    # Test 1: setprop() Lookup
+    # --------------------------------------------------------------------------
+    var start_time = systime();
+    for (var i = 0; i < iterations; i += 1) {
+        setprop(path, 1200.0);
+    }
+    var elapsed_getprop = systime() - start_time;
+    print(sprintf("1. setprop(path) : %.4f seconds", elapsed_getprop));
+
+    # --------------------------------------------------------------------------
+    # Test 2: Node Handle Lookup (.setValue())
+    # --------------------------------------------------------------------------
+    var node = props.globals.getNode(path, 1);
+    
+    start_time = systime();
+    for (var i = 0; i < iterations; i += 1) {
+        node.setDoubleValue(1200.0);
+    }
+    var elapsed_node = systime() - start_time;
+    print(sprintf("2. node.setValue(): %.4f seconds", elapsed_node));
+
+    # --------------------------------------------------------------------------
+    # Summary
+    # --------------------------------------------------------------------------
+    if (elapsed_node > 0) {
+        var ratio = elapsed_getprop / elapsed_node;
+        print(sprintf("--> Cached node write is %.2fx faster than setprop().\n", ratio));
+    }
+};
+
+run_property_speed_test();
+
+
+# ==============================================================================
+# FlightGear Nasal Speed Test: scratch node vs FG node
+# ==============================================================================
+
+var run_property_speed_test = func(iterations = 100000) {
+    print(sprintf("\n--- Starting Property Lookup Speed Test (%d iterations) ---", iterations));
+
+    var modelName = "/fkdr1";
+    var path = modelName ~ "/orientation/roll-deg";
+    var scratchPath = modelName ~ "/scratch";
+    
+    # --------------------------------------------------------------------------
+    # Test 1: Node Handle Lookup 
+    # --------------------------------------------------------------------------
+    var node = props.globals.getNode(path, 1);
+    
+    start_time = systime();
+    for (var i = 0; i < iterations; i += 1) {
+        var val = node.getValue();
+    }
+    var elapsed_node = systime() - start_time;
+    print(sprintf("1. node.getValue(): %.4f seconds", elapsed_node));
+    # --------------------------------------------------------------------------
+    # Test 2: Scratch Node Handle Lookup 
+    # --------------------------------------------------------------------------
+    var node = props.globals.getNode(scratchPath, 1);
+    node.setDoubleValue(1e-7);
+
+
+    
+    start_time = systime();
+    for (var i = 0; i < iterations; i += 1) {
+        var val = node.getValue();
+    }
+    var elapsed_scratchNode = systime() - start_time;
+    print(sprintf("2. scratchNode.getValue(): %.4f seconds", elapsed_scratchNode));
+
+    # --------------------------------------------------------------------------
+    # Summary
+    # --------------------------------------------------------------------------
+    if (elapsed_node > 0) {
+        var ratio = elapsed_scratchNode / elapsed_node;
+        print(sprintf("--> time for scratchNode node access is %.2fx time for node access.\n", ratio));
+    }
+};
+
+run_property_speed_test();
+
+var run_property_speed_test = func(iterations = 100000) {
+    print(sprintf("\n--- Starting Property Lookup Speed Test (%d iterations) ---", iterations));
+
+    var modelName = "/fkdr1";
+    # var path = modelName ~ "/orientation/roll-deg";
+    var path = modelName ~ "/engines/engine[0]/rpm";
+
+    var scratchPath = modelName ~ "/scratch";
+    
+    # --------------------------------------------------------------------------
+    # Test 1: Node Handle Write 
+    # --------------------------------------------------------------------------
+    var node = props.globals.getNode(path, 1);
+    
+    start_time = systime();
+    for (var i = 0; i < iterations; i += 1) {
+        node.setDoubleValue(1200);
+    }
+    var elapsed_node = systime() - start_time;
+    print(sprintf("1. node.setValue(): %.4f seconds", elapsed_node));
+    # --------------------------------------------------------------------------
+    # Test 2: Scratch Node Handle Write 
+    # --------------------------------------------------------------------------
+    var node = props.globals.getNode(scratchPath, 1);
+
+
+    
+    start_time = systime();
+    for (var i = 0; i < iterations; i += 1) {
+        node.setDoubleValue(1200);
+    }
+    var elapsed_scratchNode = systime() - start_time;
+    print(sprintf("2. scratchNode.setValue(): %.4f seconds", elapsed_scratchNode));
+
+    # --------------------------------------------------------------------------
+    # Summary
+    # --------------------------------------------------------------------------
+    if (elapsed_node > 0) {
+        var ratio = elapsed_scratchNode / elapsed_node;
+        print(sprintf("--> time for scratchNode node write is %.2fx time for node write.\n", ratio));
+    }
+};
+
+run_property_speed_test();
+
+
+var bench = func(node, n = 3000) {
+    # 'node' is already passed as a parameter, so use it directly
+    var v = node.getValue() or 0.0;
+    
+    var t0 = systime();
+    for (var i = 0; i < n; i += 1) {
+        node.setDoubleValue(v);
+    }
+    var t1 = systime();
+    
+    for (var i = 0; i < n; i += 1) {
+        var x = node.getValue();
+    }
+    var t2 = systime();
+    
+    print(sprintf("%-40s set %.2f us  get %.2f us", node.getPath(), 1e6 * (t1 - t0) / n, 1e6 * (t2 - t1) / n));
+};
+
+var myModelName = "/fkdr1";
+
+var nodes = {
+    latNode:    props.globals.getNode(myModelName ~ "/position/latitude-deg", 1),
+    lonNode:    props.globals.getNode(myModelName ~ "/position/longitude-deg", 1),
+    altNode:    props.globals.getNode(myModelName ~ "/position/altitude-ft", 1),
+    hdgNode:    props.globals.getNode(myModelName ~ "/orientation/true-heading-deg", 1),
+    pitchNode:  props.globals.getNode(myModelName ~ "/orientation/pitch-deg", 1),
+    rollNode:   props.globals.getNode(myModelName ~ "/orientation/roll-deg", 1), # Fixed missing quote
+    speedNode:  props.globals.getNode(myModelName ~ "/velocities/true-airspeed-kts", 1),
+    engineNode: props.globals.getNode(myModelName ~ "/engines/engine[0]/rpm", 1),
+};
+
+foreach (var k; keys(nodes)) {
+    var node = nodes[k];
+    bench(node, 3000);
+}
+
+print(typeof(acrobatics));
+debug.dump(fSim.predict_loop_top(fSim.fS.state, 45.0, 4.5, PI - 0.35));
+
+print(contains(globals, "predict_immelmann_top"));
+print(contains(globals, "acrobatics"));
+print(contains(globals.acrobatics, "predict_immelmann_top"));
+debug.dump(globals.acrobatics);
+
+debug.dump(fSim.fS.state.perf);
+
+print(fSim.v_stall_1g(fSim.fS.state));
