@@ -1556,5 +1556,22 @@ print(contains(globals.acrobatics, "predict_immelmann_top"));
 debug.dump(globals.acrobatics);
 
 debug.dump(fSim.fS.state.perf);
+debug.dump(fSim.fS.state);
 
 print(fSim.v_stall_1g(fSim.fS.state));
+
+fSim.fS.state.manoeuvre = {phase: "climb"};
+
+
+fSim.fS.state.manoeuvre = nil;
+fSim.fS.state.monitor = 1;
+fSim.monitorValues(0);
+
+fSim.fS.state.manoeuvre["phase"] = nil;
+if (fSim.fS.state["manoeuvre"] != nil) var msg = fSim.fS.state.manoeuvre["phase"] else var msg = "";
+print (msg);
+
+var self = fSim.fS.state;
+print("CLIMB_K_GAMMA = ", fSim.CLIMB_K_GAMMA, " CLIMB_A_MAX = ", fSim.CLIMB_A_MAX, " CLIMB_K_SPEED = ", fSim.CLIMB_K_SPEED);
+print("climb speed = ", fSim.climb_speed(self), " stall speed = ", fSim.v_stall_1g(self));
+debug.dump(self.climb_cache);

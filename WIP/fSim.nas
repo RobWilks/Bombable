@@ -184,36 +184,108 @@ var update_roll_target = func(self, dt) {
     self.tgt_roll = math.clamp(phi, -self.perf.max_bank_angle, self.perf.max_bank_angle);
 };
 
+########################## best_climb_speed ###########################
+# Needs:
+#   command_path, v_stall_1g, thrust_available, air_density, K_IND, C_D0, CL_MAX, weight_N, g, D2R
+#
+# Why the old law stalls in a long climb
+#   1. It converts a climb RATE (up to perf.climb_rate) into a path angle by dividing by the speed,
+#      so as the aircraft slows the commanded angle grows: slower -> steeper -> slower.
+#   2. It commands pitch = commanded path angle + alpha, using the commanded angle rather than the
+#      measured one. When the aircraft cannot follow, alpha = pitch - actual path angle is unbounded
+#      (25-30 degrees of pitch gave an alpha of nearly 50 degrees on the fkdr1).
+#   3. Nothing compares the demand with what the thrust can sustain (about 600 ft/min at best
+#      climb speed for the fkdr1 at 3000 ft; the demand was up to perf.climb_rate).
+#
+# The new law has three steps; pitch itself is never capped (acrobatics need +/-180), the angle
+# of attack is:
+#   1. altitude error -> wanted path angle (as before)
+#   2. a climb is limited to the path angle the excess thrust can sustain while the speed is held
+#      near the best-climb speed:  sin(gamma_max) = (T - D)/W - a_des/g,  a_des = K (v_ref - v)
+#      (when slow, a_des > 0 and the climb flattens; when fast, speed may be traded for height)
+#   3. fly the path angle: path curvature -> load factor -> angle of attack -> pitch target
+#      (command_path), which clamps alpha to 0.9 x the stall angle and the load factor to the
+#      structural and stall limits, using the MEASURED path angle.
+#
+# Optional perf entry: v_climb (m/s) overrides the best-climb speed computed from the model.
+
+var CLIMB_K_SPEED = 0.5;     # 1/s   speed error -> desired acceleration
+var CLIMB_A_MAX   = 1.5;     # m/s^2 limit on that acceleration
+var CLIMB_K_GAMMA = 0.8;     # 1/s   path-angle error -> path curvature rate
+
+# Speed that maximises the climb power (T - D) * v for level-ish flight at the current altitude,
+# searched on a 24-step grid with a parabolic refinement of the best point.
+var best_climb_speed = func(self) {
+    var vs1  = v_stall_1g(self);
+    var rho  = air_density(self.alt_ft * 0.3048);
+    var T    = thrust_available(self);
+    var S    = self.perf.wing_area_m2;
+    var v_lo = 1.15 * vs1;
+    var v_hi = 1.1 * self.perf.max_speed_mps;
+    var n    = 24;
+    var h    = (v_hi - v_lo) / n;
+    var r    = [];
+    var best = 0;
+    for (var i = 0; i <= n; i += 1) {
+        var v    = v_lo + h * i;
+        var qS   = 0.5 * rho * v * v * S;
+        var CL   = weight_N / qS;
+        var rate = -1.0e9;
+        if (CL <= 0.9 * CL_MAX) rate = (T - qS * (C_D0 + K_IND * CL * CL)) * v;
+        append(r, rate);
+        if (rate > r[best]) best = i;
+    }
+    var v_best = v_lo + h * best;
+    if (best > 0 and best < n and r[best - 1] > -1.0e8) {
+        var den = r[best - 1] - 2.0 * r[best] + r[best + 1];
+        if (den < 0.0) v_best += 0.5 * h * (r[best - 1] - r[best + 1]) / den;
+    }
+    return v_best;
+};
+
+########################## climb_speed ###########################
+# Reference climb speed, recomputed only when the altitude has changed by 500 ft, never below
+# 1.2 x the 1 g stall speed.
+var climb_speed = func(self) {
+    var vs1 = v_stall_1g(self);
+    var pv = self.perf.v_climb;
+    if (pv != nil) return math.max(pv, 1.2 * vs1);
+    var c = self.climb_cache;
+    if (c == nil or math.abs(self.alt_ft - c.alt_ft) > 500.0) {
+        c = { alt_ft: self.alt_ft, v: best_climb_speed(self) };
+        self.climb_cache = c;
+    }
+    return math.max(c.v, 1.2 * vs1);
+};
+
 ########################## update_pitch_target ###########################
-# Altitude error -> vertical speed -> flight-path angle (gamma).
-# Pitch attitude = gamma + alpha_required, where alpha_required is the angle of attack
-# that makes lift = W*cos(gamma)/cos(roll) at the current speed (includes bank compensation).
-
 var update_pitch_target = func(self, dt) {
-    var v_h   = math.sqrt(self.v_east*self.v_east + self.v_north*self.v_north);
-    var speed = math.sqrt(v_h*v_h + self.v_up*self.v_up);
-    if (speed < 20.0) speed = 20.0;   # guard only the controller, not the physics
+    var v_h   = math.sqrt(self.v_east * self.v_east + self.v_north * self.v_north);
+    var speed = math.sqrt(v_h * v_h + self.v_up * self.v_up);
+    var vs1   = v_stall_1g(self);
+    var v     = math.max(speed, 0.5 * vs1);       # floor scales with the aircraft, not a fixed 20 m/s
 
+    # 1. path angle wanted for the altitude error
     var alt_err_m = (self.tgt_altitude_ft - self.alt_ft) / 3.28084;
-    var vs_cmd = alt_err_m * 0.1;                       # m/s per metre of error
-    var vs_max =  self.perf.climb_rate   * 0.00508;     # ft/min -> m/s
-    var vs_min = -self.perf.descent_rate * 0.00508;
-    if (vs_cmd > vs_max) vs_cmd = vs_max;
-    if (vs_cmd < vs_min) vs_cmd = vs_min;
-
+    var vs_cmd = math.clamp(alt_err_m * 0.1,
+                            -self.perf.descent_rate * 0.00508,
+                             self.perf.climb_rate   * 0.00508);
     var gamma_cmd = math.atan2(vs_cmd, math.max(v_h, 1.0));
 
-    var qS = 0.5 * air_density(self.alt_ft * 0.3048) * speed * speed * self.perf.wing_area_m2;
-    var cphi = math.cos(self.roll * D2R);
-    if (cphi < 0.3) cphi = 0.3;
+    # 2. climb (or level) no steeper than the thrust can sustain at the speed we want to hold
+    if (gamma_cmd >= 0.0) {
+        var v_ref  = climb_speed(self);
+        var excess = (thrust_available(self) - (self.drag_N or 0.0)) / weight_N;
+        var a_des  = math.clamp(CLIMB_K_SPEED * (v_ref - v), -CLIMB_A_MAX, CLIMB_A_MAX);
+        var s      = math.clamp(excess - a_des / g, -0.95, 0.95);
+        gamma_cmd  = math.min(gamma_cmd, math.atan2(s, math.sqrt(1.0 - s * s)));
+    }
 
-    var CL_req = weight_N * math.cos(gamma_cmd) / (qS * cphi);
-    var alpha_req = (CL_req - C_L_vmax) / CL_ALPHA;
-    alpha_req = math.clamp(alpha_req, -0.2, 0.2);       # +/- ~11 deg
-
-    var tgt = (gamma_cmd + alpha_req) * R2D;
-    self.tgt_pitch = math.clamp(tgt, -self.perf.max_pitch_angle, self.perf.max_pitch_angle);
+    # 3. fly the path angle with the angle of attack limited (command_path sets tgt_pitch)
+    var gdot = math.clamp(CLIMB_K_GAMMA * (gamma_cmd - (self.gamma_deg or 0.0) * D2R), -0.5, 0.5);
+    command_path(self, v, gdot, 0, dt);
 };
+
 
 ########################## update_orientation ###########################
 # Wrap-aware, rate-limited approach to tgt_pitch / tgt_roll over the full +/-180 range.
@@ -1058,7 +1130,7 @@ var run_flight_physics = func(mName) {
     var t_frc = 0.0;
     for (var i = 0; i < n; i += 1) {
         var a0 = prof.enable ? systime() : 0.0;
-        if (state["manoeuvre"] != nil) {
+        if (state.manoeuvre != nil) {
             state.manoeuvre.update(state, h);
         } else {
             update_roll_target(state, h);
@@ -1263,12 +1335,13 @@ var modelName = "/fkdr1";
 if (modelName == "/F15") {
     var modelPath = "/home/michael-wilkinson/.fgfs/fgdata_2024_1/AI/Aircraft/F-15/Models/F-15.xml";
     var perf_profile = {
-        climb_rate: 40000.0, # ft per min
-        descent_rate: 30000.0, #ft per min
-        max_bank_angle: 90.0, #deg
-        max_roll_rate: 175.0, #deg/sec
-        max_pitch_angle: 90.0, #deg
-        max_pitch_rate: 20.0, #deg/sec
+        v_climb: 20000.0,               # ft per min normal climb rate
+        climb_rate: 40000.0,            # ft per min
+        descent_rate: 30000.0,          # ft per min
+        max_bank_angle: 90.0,           # deg
+        max_roll_rate: 175.0,           # deg/sec
+        max_pitch_angle: 90.0,          # deg
+        max_pitch_rate: 20.0,           # deg/sec
         
         # Force-Vector Parameters
         mass_kg: 18800.0,
@@ -1291,6 +1364,7 @@ if (modelName == "/F15") {
 elsif (modelName == "/spitfire") {
     var modelPath = "/home/michael-wilkinson/Desktop/Bombable 5.0/Bombable/FGData/AI/Aircraft/spitfireIIa-Bombable/Models/spitfire_model.xml";
     var perf_profile = {
+        v_climb: 2500.0,               # ft per min normal climb rate
         climb_rate: 4000.0,            # ft per min (~66.7 ft/sec, ~4,000 ft/min combat climb)
         descent_rate: 3000.0,          # ft per min (~500.0 ft/sec)
         max_bank_angle: 90.0,          # deg (Fully aerobatic fighter agility)
@@ -1319,6 +1393,7 @@ elsif (modelName == "/spitfire") {
 elsif (modelName == "/spitfireXVI") {
     var modelPath = "/home/michael-wilkinson/Desktop/Bombable 5.0/Bombable/FGData/AI/Aircraft/spitfireIIa-Bombable/Models/spitfire_model.xml";
     var perf_profile = {
+        v_climb: 2500.0,               # ft per min normal climb rate
         climb_rate: 4745.0,            # ft per min (Max rate of climb at ~10,000 ft)
         descent_rate: 5000.0,          # ft per min (Standard steep tactical descent; max dive limit went much higher)
         max_bank_angle: 180.0,         # deg (Fully aerobatic fighter capable of sustained inverted flight)
@@ -1344,7 +1419,8 @@ elsif (modelName == "/spitfireXVI") {
 elsif (modelName == "/fkdr1") {
     var modelPath = "/home/michael-wilkinson/Desktop/Bombable 5.0/Bombable/FGData/AI/Aircraft/fkdr1-Bombable/Models/dr1.xml";
     var perf_profile = {
-        climb_rate: 661.0,             # ft per min (Max rate of climb ~3.4 m/s)
+        v_climb: ,                     # ft per min normal climb rate
+        climb_rate: 1122.0,            # ft per min (Max rate of climb ~5.7 m/s)
         descent_rate: 3500.0,          # ft per min (Typical WWI combat dive limit)
         max_bank_angle: 180.0,         # deg (Fully aerobatic maneuverability)
         max_roll_rate: 90.0,           # deg/sec (Moderate aileron authority via interplane struts/warp characteristics)
@@ -1403,6 +1479,8 @@ var create_aircraft_state = func(callsign, initial_lat, initial_lon, initial_alt
         hdg: initial_hdg,
         pitch: 0.0,
         roll: 0.0,
+        gamma_deg: ,
+        alpha_deg: ,
         
         # Speeds & 3D Velocity Vector (East, North, Up in m/s)
         speed: initial_speed_kts,
@@ -1417,6 +1495,10 @@ var create_aircraft_state = func(callsign, initial_lat, initial_lon, initial_alt
         tgt_roll: 0.0,
         tgt_pitch: 0.0,
         throttle: initial_throttle,
+
+        # climb rate control (internal)
+        climb_cache: ,
+        drag_N: ,
         
         # Rates for animationManager compatibility (per second)
         dLat: 0.0,
@@ -1428,6 +1510,8 @@ var create_aircraft_state = func(callsign, initial_lat, initial_lon, initial_alt
 
         aerobatic: 0, # flag to enable aerobgatic performance
         manoeuvre: nil,
+        monitor: nil,
+        n_load: ,        
 
         perf: perf_profile,
 
@@ -1456,7 +1540,7 @@ if (apt != nil and size(apt.runways) > 0) {
     init_lon = first_rwy.lon;
 
     var apt_elev_ft = apt.elevation * 3.28084 or 0.0;
-    init_alt_ft = apt_elev_ft + 6000.0;
+    init_alt_ft = apt_elev_ft + 555.0;
     print("fly.nas: Initialized position from " ~ airport_id ~ " Runway threshold at Lat: " ~ init_lat ~ ", Lon: " ~ init_lon);
 } else {
     print("fly.nas: Warning - Could not load airport " ~ airport_id ~ ", using default fallback coordinates.");
@@ -1464,7 +1548,7 @@ if (apt != nil and size(apt.runways) > 0) {
 
 # Initial flight parameters for level flight northwards (Heading 0°, Speed 250 kts)
 var init_hdg = 0.0;
-var init_speed = 400.0;
+var init_speed = 64.0; # knots
 var init_throttle = 0.7;
 var init_rpm = 1000;
 
@@ -1510,27 +1594,34 @@ print("fSim.nas: Spawned model from " ~ modelPath);
 
 ########################## monitorValues ###########################
 
-var monitorValues = func(count, countmax = 500, dt = 0.1) {
-    if (fS.state.manoeuvre == nil) return;
-    print(sprintf("Phase: %s Gamma: %.2f Pitch %.2f Alpha: %.2f Drag: %.2f Load: %.2f Stalled %d Speed_kts: %.1f Alt_ft: %.1f Heading %.1f Roll %.1f Throttle %.1f Tick_interval %.3f",
-    fS.state.manoeuvre.phase,
+var monitorValues = func(count = 0, countmax = 500, dt = 1) {
+    if (fS.state.monitor == nil) return;
+    if (fS.state["manoeuvre"] != nil) var mPhase = fS.state.manoeuvre["phase"] else var mPhase = "";
+    # print(sprintf("Phase: %s Gamma: %.2f Pitch %.2f Alpha: %.2f Drag: %.2f Load: %.2f Stalled %d Speed_kts: %.1f Alt_ft: %.1f Heading %.1f Roll %.1f Throttle %.1f Tick_interval %.3f",
+    print(sprintf("Phase: %s Gamma: %.2f Pitch %.2f Alpha: %.2f Drag: %.2f Load: %.2f v_stall_1g %.1f Speed_kts: %.1f Alt_ft: %.1f v_up %.1f best_climb_speed %.1f Throttle %.1f Tick_interval %.3f",
+    mPhase,
     fS.state.gamma_deg,
     fS.state.pitch,
     fS.state.alpha_deg,
     fS.state.drag_N,
     fS.state.n_load,
-    fS.state.stalled,
-    fS.state.speed,
+    # fS.state.stalled,
+    v_stall_1g(fS.state),
+    fS.state.speed * kts_to_mps,
     fS.state.alt_ft,
-    fS.state.hdg,
-    fS.state.roll,
+    # fS.state.hdg,
+    fS.state.v_up,
+    # fS.state.roll,
+    fS.state.climb_cache.v,
     fS.state.throttle,
     fS.state.dTime
     ));
     count += 1;
-    if (count < countmax) 
-    {
+    if (count < countmax) {
         settimer(func { monitorValues(count, countmax, dt); }, dt);
+    }
+    else {
+        fS.state.monitor = nil;        
     }
 };
 ########################## Start flying ###########################
