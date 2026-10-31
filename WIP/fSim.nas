@@ -143,11 +143,31 @@ var lift_curve = func(a) {
     return cl;
 };
 
+
+########################## thrust_at ###########################
+# Thrust at full throttle for air density rho and speed v (m/s).
+# perf.max_thrust_N is the thrust at max_speed_mps (where thrust = drag), so it is the LOW end of
+# what a propeller gives. A propeller's thrust falls with speed, roughly T ~ 1/V^p with p between
+# 0 (constant thrust, a jet-like model) and 1 (constant power). perf.thrust_speed_exp sets p
+# (default 0 = unchanged behaviour; 0.53 reproduces the published 5.7 m/s sea-level climb of the
+# fkdr1). Below 0.4 x max speed the thrust is held at its 0.4 x max speed value (static thrust).
+var thrust_at = func(self, v, rho) {
+    var T = self.perf.max_thrust_N * math.pow(rho / rho0, THRUST_LAPSE);
+    var p = self.perf.thrust_speed_exp or 0.0;
+    if (p > 0.0) {
+        var vmax = self.perf.max_speed_mps;
+        T *= math.pow(vmax / math.max(v, 0.4 * vmax), p);
+    }
+    return T;
+};
+
+
+
+
 ########################## thrust_available ###########################
-# Thrust available at full throttle at the current altitude (N)
+# Thrust available at full throttle at the current speed and altitude (N)
 var thrust_available = func(self) {
-    var rho = air_density(self.alt_ft * 0.3048);
-    return self.perf.max_thrust_N * math.pow(rho / rho0, THRUST_LAPSE);
+    return thrust_at(self, self.speed * kts_to_mps, air_density(self.alt_ft * 0.3048));
 };
 
 ########################## hold_speed ###########################
@@ -184,41 +204,32 @@ var update_roll_target = func(self, dt) {
     self.tgt_roll = math.clamp(phi, -self.perf.max_bank_angle, self.perf.max_bank_angle);
 };
 
-########################## best_climb_speed ###########################
-# Needs:
-#   command_path, v_stall_1g, thrust_available, air_density, K_IND, C_D0, CL_MAX, weight_N, g, D2R
-#
-# Why the old law stalls in a long climb
-#   1. It converts a climb RATE (up to perf.climb_rate) into a path angle by dividing by the speed,
-#      so as the aircraft slows the commanded angle grows: slower -> steeper -> slower.
-#   2. It commands pitch = commanded path angle + alpha, using the commanded angle rather than the
-#      measured one. When the aircraft cannot follow, alpha = pitch - actual path angle is unbounded
-#      (25-30 degrees of pitch gave an alpha of nearly 50 degrees on the fkdr1).
-#   3. Nothing compares the demand with what the thrust can sustain (about 600 ft/min at best
-#      climb speed for the fkdr1 at 3000 ft; the demand was up to perf.climb_rate).
-#
-# The new law has three steps; pitch itself is never capped (acrobatics need +/-180), the angle
-# of attack is:
-#   1. altitude error -> wanted path angle (as before)
-#   2. a climb is limited to the path angle the excess thrust can sustain while the speed is held
-#      near the best-climb speed:  sin(gamma_max) = (T - D)/W - a_des/g,  a_des = K (v_ref - v)
-#      (when slow, a_des > 0 and the climb flattens; when fast, speed may be traded for height)
-#   3. fly the path angle: path curvature -> load factor -> angle of attack -> pitch target
-#      (command_path), which clamps alpha to 0.9 x the stall angle and the load factor to the
-#      structural and stall limits, using the MEASURED path angle.
-#
-# Optional perf entry: v_climb (m/s) overrides the best-climb speed computed from the model.
+########################## climb control parameters ###########################
 
 var CLIMB_K_SPEED = 0.5;     # 1/s   speed error -> desired acceleration
 var CLIMB_A_MAX   = 1.5;     # m/s^2 limit on that acceleration
 var CLIMB_K_GAMMA = 0.8;     # 1/s   path-angle error -> path curvature rate
+var CLIMB_TAU     = 0.3;     # s     time constant of the low-pass filter on the commanded path angle
 
+########################## steady_drag ###########################
+# Drag in steady flight at speed v and 1 g (lift = weight * cos(path angle)). The climb limit
+# must use this, not the measured drag: measured drag includes the induced drag of the load being
+# flown RIGHT NOW (about 16 kN at 4 g against 11.8 kN of thrust for the Spitfire), so a high
+# load collapses the allowed climb angle on the next tick, which lowers the load, which reopens
+# the limit: a two-tick limit cycle in pitch.
+var steady_drag = func(self, v) {
+    var rho = air_density(self.alt_ft * 0.3048);
+    var qS  = 0.5 * rho * v * v * self.perf.wing_area_m2;
+    var CL  = weight_N * math.cos((self.gamma_deg or 0.0) * D2R) / math.max(qS, 1.0);
+    return qS * (C_D0 + K_IND * CL * CL);
+};
+
+########################## best_climb_speed ###########################
 # Speed that maximises the climb power (T - D) * v for level-ish flight at the current altitude,
 # searched on a 24-step grid with a parabolic refinement of the best point.
 var best_climb_speed = func(self) {
     var vs1  = v_stall_1g(self);
     var rho  = air_density(self.alt_ft * 0.3048);
-    var T    = thrust_available(self);
     var S    = self.perf.wing_area_m2;
     var v_lo = 1.15 * vs1;
     var v_hi = 1.1 * self.perf.max_speed_mps;
@@ -231,7 +242,7 @@ var best_climb_speed = func(self) {
         var qS   = 0.5 * rho * v * v * S;
         var CL   = weight_N / qS;
         var rate = -1.0e9;
-        if (CL <= 0.9 * CL_MAX) rate = (T - qS * (C_D0 + K_IND * CL * CL)) * v;
+        if (CL <= 0.9 * CL_MAX) rate = (thrust_at(self, v, rho) - qS * (C_D0 + K_IND * CL * CL)) * v;
         append(r, rate);
         if (rate > r[best]) best = i;
     }
@@ -244,7 +255,7 @@ var best_climb_speed = func(self) {
 };
 
 ########################## climb_speed ###########################
-# Reference climb speed, recomputed only when the altitude has changed by 500 ft, never below
+# Reference climb speed in metres per sec, recomputed only when the altitude has changed by 500 ft, never below
 # 1.2 x the 1 g stall speed.
 var climb_speed = func(self) {
     var vs1 = v_stall_1g(self);
@@ -259,6 +270,21 @@ var climb_speed = func(self) {
 };
 
 ########################## update_pitch_target ###########################
+# Needs:
+#   command_path, v_stall_1g, thrust_available, thrust_at, air_density, K_IND, C_D0, CL_MAX, weight_N, g, D2R
+#
+# The method for setting pitch has three steps; pitch itself is not capped (acrobatics need +/-180), the angle
+# of attack is:
+#   1. altitude error -> wanted path angle (as before)
+#   2. a climb is limited to the path angle the excess thrust can sustain while the speed is held
+#      near the best-climb speed:  sin(gamma_max) = (T - D)/W - a_des/g,  a_des = K (v_ref - v)
+#      (when slow, a_des > 0 and the climb flattens; when fast, speed may be traded for height)
+#   3. fly the path angle: path curvature -> load factor -> angle of attack -> pitch target
+#      (command_path), which clamps alpha to 0.9 x the stall angle and the load factor to the
+#      structural and stall limits, using the MEASURED path angle.
+#
+# Optional perf entry: v_climb (m/s) overrides the best-climb speed computed from the model.
+
 var update_pitch_target = func(self, dt) {
     var v_h   = math.sqrt(self.v_east * self.v_east + self.v_north * self.v_north);
     var speed = math.sqrt(v_h * v_h + self.v_up * self.v_up);
@@ -275,15 +301,33 @@ var update_pitch_target = func(self, dt) {
     # 2. climb (or level) no steeper than the thrust can sustain at the speed we want to hold
     if (gamma_cmd >= 0.0) {
         var v_ref  = climb_speed(self);
-        var excess = (thrust_available(self) - (self.drag_N or 0.0)) / weight_N;
+        var excess = (thrust_available(self) - steady_drag(self, v)) / weight_N;
         var a_des  = math.clamp(CLIMB_K_SPEED * (v_ref - v), -CLIMB_A_MAX, CLIMB_A_MAX);
         var s      = math.clamp(excess - a_des / g, -0.95, 0.95);
         gamma_cmd  = math.min(gamma_cmd, math.atan2(s, math.sqrt(1.0 - s * s)));
     }
 
+    # Low-pass the COMMANDED path angle (outside the feedback loop, so it adds no lag to the
+    # control itself). The coefficient follows the time step, so the smoothing is the same
+    # whether the physics ticks at 6 Hz or 20 Hz. Restart the filter after a gap, e.g. when a
+    # manoeuvre has been running instead of this law.
+    var now = self.time or 0.0;
+    if (self.gamma_cmd_f == nil or now - (self.gamma_cmd_t or 0.0) > 1.0) {
+        self.gamma_cmd_f = gamma_cmd;
+    } else {
+        var kf = 1.0 - math.exp(-dt / CLIMB_TAU);
+        self.gamma_cmd_f += kf * (gamma_cmd - self.gamma_cmd_f);
+    }
+    self.gamma_cmd_t = now;
+    gamma_cmd = self.gamma_cmd_f;
+
+
     # 3. fly the path angle with the angle of attack limited (command_path sets tgt_pitch)
+
+    # No pitch-rate lead term here: it is meant for a steadily rotating path (loops), and at a
+    # step in the altitude demand it adds a spurious +1 g kick.
     var gdot = math.clamp(CLIMB_K_GAMMA * (gamma_cmd - (self.gamma_deg or 0.0) * D2R), -0.5, 0.5);
-    command_path(self, v, gdot, 0, dt);
+    command_path(self, v, gdot, 0, dt, 0);
 };
 
 
@@ -485,13 +529,15 @@ var normalise_attitude = func(self) {
     self.tgt_roll  = self.roll;
 };
 
-# For manoeuvres that reverse heading: normalise, then hold the new heading and altitude.
-var finish_reversal = func(self) {
+# For manoeuvres that reverse heading: normalise, then steer to the exact reversed heading
+# (entry heading + 180; the roll leaves the path 1-4 degrees off) and hold the new altitude.
+var finish_reversal = func(self, hdg_target) {
     normalise_attitude(self);
-    self.tgt_heading     = self.hdg;
+    self.tgt_heading     = hdg_target;
     self.tgt_altitude_ft = self.alt_ft;
 };
 
+########################## v_stall_1g ###########################
 var v_stall_1g = func(self) {
     var rho = air_density(self.alt_ft * 0.3048);
     return math.sqrt(2.0 * weight_N / (rho * self.perf.wing_area_m2 * CL_MAX)); # in mps
@@ -534,7 +580,7 @@ var command_load = func(self, v, n_cmd, lead_deg) {
 #   steady (roll 0 or 180): n = X / cos(roll)
 #   rolling:                n = 2 cos(roll) X   (barrel schedule: net vertical impulse over the
 #                                                roll equals that of 1 g steady flight)
-var command_path = func(self, v, gdot, rolling, dt) {
+var command_path = func(self, v, gdot, rolling, dt, use_lead = 1) {
     var c = math.cos(self.roll * D2R);
     var X = v * gdot / g + math.cos((self.gamma_deg or 0.0) * D2R);
     var n = 0.0;
@@ -544,7 +590,7 @@ var command_path = func(self, v, gdot, rolling, dt) {
         if (math.abs(c) < 0.3) c = (c < 0.0) ? -0.3 : 0.3;
         n = X / c;
     }
-    return command_load(self, v, n, gdot * dt * R2D);
+    return command_load(self, v, n, use_lead ? gdot * dt * R2D : 0.0);
 };
 
 # Normal flight until the entry conditions are met. Returns 1 ready, 0 waiting, -1 timed out.
@@ -684,15 +730,6 @@ var update_aileron_roll_target = func(self, dt) {
 # reversed and the height gained. Phases: entry -> pull -> roll -> recover.
 #
 # The roll is made at the top, near stall speed, so energy decides feasibility. start_immelmann
-# predicts the top speed and refuses if it would be below the 1 g stall speed there
-# (opts.force = 1 overrides).
-#
-# opts: entry_speed (m/s, default 0.97*max_speed), n_bottom (default min(5, 0.9*n_max_pos):
-#       a tighter loop reaches the top with more speed), roll_lead_deg (default 20),
-#       direction ("right"/"left"), roll_rate, force
-
-########################### predict_loop_top ###########################
-# The roll is made at the top, near stall speed, so energy decides feasibility. start_immelmann
 # predicts the top speed (within about 5 kt against the logs) and refuses if it would be below
 # 1.1 x the 1 g stall speed there (opts.force = 1 overrides).
 #
@@ -700,6 +737,7 @@ var update_aileron_roll_target = func(self, dt) {
 #       a tighter loop reaches the top with more speed), roll_lead_deg (default 20),
 #       direction ("right"/"left"), roll_rate, force
 
+########################### predict_loop_top ###########################
 # Predicts the top-of-loop state of the constant-pitch-rate half loop (same law and force model
 # as the manoeuvre). Returns { v, h, ok }: speed (m/s) and height gain (m) where the path angle
 # reaches gm_end (default 160 degrees, the Immelmann roll point; pass PI for the top of a full
@@ -723,7 +761,7 @@ var predict_loop_top = func(self, v0, n_bottom, gm_end = nil) {
         var CL  = n * weight_N / math.max(qS, 1.0);
         var al  = (CL - C_L_vmax) / CL_ALPHA;
         var D   = qS * (C_D0 + K_IND * CL * CL);
-        var Ta  = T * math.pow(rho / rho0, THRUST_LAPSE);
+        var Ta  = thrust_at(self, v, rho);
         # lift is perpendicular to the velocity (physics v2): only drag and thrust act along it
         v += ((Ta - D) * math.cos(al) / self.perf.mass_kg - g * math.sin(gm)) * dt;
         if (v < v_floor) {
@@ -754,7 +792,12 @@ var start_immelmann = func(self, opts = nil) {
         var probe = { alt_ft: self.alt_ft + pr.h / 0.3048, perf: self.perf };
         var vs    = v_stall_1g(probe);
         if (!pr.ok) {
-            print(sprintf("Immelmann refused: predicted top speed %.0f kt is below the %.0f kt stall speed there",
+            print(sprintf("Immelmann refused: the predicted half loop stalls before the top (speed falls to %.0f kt)",
+                          pr.v / kts_to_mps));
+            return nil;
+        }
+        if (pr.v < 1.1 * vs) {
+            print(sprintf("Immelmann refused: predicted top speed %.0f kt is below 1.1 x the %.0f kt stall speed there",
                           pr.v / kts_to_mps, vs / kts_to_mps));
             return nil;
         }
@@ -766,7 +809,7 @@ var start_immelmann = func(self, opts = nil) {
         roll_lead_deg: opts["roll_lead_deg"] or 20.0,
         dir: (opts["direction"] == "left") ? -1.0 : 1.0,
         roll_rate: opts["roll_rate"] or (self.perf.max_roll_rate_aero or 90.0),
-        swept: 0.0, gamma_prev: 0.0, q_loop: 0.0,
+        swept: 0.0, gamma_prev: 0.0, q_loop: 0.0, hdg0: self.hdg,
         roll_swept: 0.0, roll_prev: 0.0, stall_t: 0.0,
         update: update_immelmann_target
     };
@@ -782,6 +825,7 @@ var update_immelmann_target = func(self, dt) {
         var r = run_entry(self, m, dt);
         if (r == 1) {
             m.phase = "pull";  m.t = 0.0;
+            m.hdg0 = self.hdg;
             m.swept = 0.0;  m.gamma_prev = self.gamma_deg;
             m.q_loop = g * (m.n_bottom - 1.0) / v;                 # rad/s, held constant
             self.aerobatic = 1;
@@ -812,7 +856,7 @@ var update_immelmann_target = func(self, dt) {
         command_path(self, v, gdot, 1, dt);
         var remaining = step_roll_to(self, m, dt, 180.0);
         if (remaining <= 1.0 or m.t > 30.0) {
-            finish_reversal(self);
+            finish_reversal(self, wrap360(m.hdg0 + 180.0));
             m.phase = "recover";
             m.t = 0.0;
         }
@@ -857,11 +901,10 @@ var predict_split_s_loss = func(self, v0, n_pull) {
         var CL  = n * weight_N / math.max(qS, 1.0);
         var al  = (CL - C_L_vmax) / CL_ALPHA;
         var D   = qS * (C_D0 + K_IND * CL * CL);
-        var L   = qS * CL;
         gp   += g * (n + math.cos(gp)) / math.max(v, 20.0) * dt;
         # drag acts along the axis, lift is normal to the axis: the tilt of lift from the
         # flight path is the model's main induced drag (about 20 kN at 4 g for the Spitfire)
-        v    += ((-D * math.cos(al) - L * math.sin(al)) / m + g * math.sin(gp)) * dt;
+        v    += (-D * math.cos(al) / m + g * math.sin(gp)) * dt;       # idle thrust in the dive
         loss += v * math.sin(gp) * dt;
         t += dt;
     }
@@ -900,7 +943,7 @@ var start_split_s = func(self, opts = nil) {
         dir: dir,
         roll_rate: opts["roll_rate"] or (self.perf.max_roll_rate_aero or 90.0),
         roll_swept: 0.0, roll_prev: self.roll,
-        swept: 0.0, gamma_prev: 0.0, stall_t: 0.0,
+        swept: 0.0, gamma_prev: 0.0, stall_t: 0.0, hdg0: self.hdg,
         update: update_split_s_target
     };
     if (imm) self.aerobatic = 1;
@@ -918,6 +961,7 @@ var update_split_s_target = func(self, dt) {
         var r = run_entry(self, m, dt);
         if (r == 1) {
             m.phase = "roll";  m.t = 0.0;
+            m.hdg0 = self.hdg;
             m.roll_swept = 0.0;  m.roll_prev = self.roll;
             self.aerobatic = 1;
         } else if (r < 0) {
@@ -954,7 +998,7 @@ var update_split_s_target = func(self, dt) {
         m.swept += wrap180(m.gamma_prev - self.gamma_deg);       # path angle decreasing
         m.gamma_prev = self.gamma_deg;
         if (180.0 - m.swept <= m.exit_deg or m.t > 60.0) {
-            finish_reversal(self);
+            finish_reversal(self, wrap360(m.hdg0 + 180.0));
             m.phase = "recover";
             m.t = 0.0;
         }
@@ -1325,7 +1369,7 @@ var animationManager = {
 
 
 # 1. Performance Profile & Force Coefficients
-var modelName = "/fkdr1";
+var modelName = "/a6m5";
 
 
 ###########################################################
@@ -1335,7 +1379,7 @@ var modelName = "/fkdr1";
 if (modelName == "/F15") {
     var modelPath = "/home/michael-wilkinson/.fgfs/fgdata_2024_1/AI/Aircraft/F-15/Models/F-15.xml";
     var perf_profile = {
-        v_climb: 20000.0,               # ft per min normal climb rate
+        v_climb: ,                      # (Standard cruise/sustained economic climb rate)
         climb_rate: 40000.0,            # ft per min
         descent_rate: 30000.0,          # ft per min
         max_bank_angle: 90.0,           # deg
@@ -1348,6 +1392,7 @@ if (modelName == "/F15") {
         wing_area_m2: 56.5,
         max_thrust_N: 58000.0 * lbf_to_N, # 2x Upgraded -229/GE engines
         max_speed_mps: 790.0 * kts_to_mps,
+        thrust_speed_exp: ,
 
         max_pitch_rate_aero: 30.0, # 30 deg/s
         max_roll_rate_aero:  90.0, # deg/s
@@ -1364,7 +1409,7 @@ if (modelName == "/F15") {
 elsif (modelName == "/spitfire") {
     var modelPath = "/home/michael-wilkinson/Desktop/Bombable 5.0/Bombable/FGData/AI/Aircraft/spitfireIIa-Bombable/Models/spitfire_model.xml";
     var perf_profile = {
-        v_climb: 2500.0,               # ft per min normal climb rate
+        v_climb: ,                     # (Standard cruise/sustained economic climb rate at ~130 mps)
         climb_rate: 4000.0,            # ft per min (~66.7 ft/sec, ~4,000 ft/min combat climb)
         descent_rate: 3000.0,          # ft per min (~500.0 ft/sec)
         max_bank_angle: 90.0,          # deg (Fully aerobatic fighter agility)
@@ -1377,6 +1422,7 @@ elsif (modelName == "/spitfire") {
         wing_area_m2: 24.2,            # m^2 (Elliptical wing planform area)
         max_thrust_N: 2800.0 * lbf_to_N,         # Equivalent propeller thrust (~12,000 N at combat speed)
         max_speed_mps: 300.0 * kts_to_mps, # Maximum low-altitude TAS (~300 kts at sea level / 500 ft ASL)
+        thrust_speed_exp: ,
 
         max_pitch_rate_aero: 30.0, # 30 deg/s
         max_roll_rate_aero:  90.0, # deg/s
@@ -1387,13 +1433,13 @@ elsif (modelName == "/spitfire") {
     };
 }
 ###########################################################
-# Supermarine Spitfire Mk IX Performance Profile (Clean, Full Internal Fuel)
+# Supermarine Spitfire Mk XVI Performance Profile (Clean, Full Internal Fuel)
 ###########################################################
 
 elsif (modelName == "/spitfireXVI") {
     var modelPath = "/home/michael-wilkinson/Desktop/Bombable 5.0/Bombable/FGData/AI/Aircraft/spitfireIIa-Bombable/Models/spitfire_model.xml";
     var perf_profile = {
-        v_climb: 2500.0,               # ft per min normal climb rate
+        v_climb: ,                     # m/s (Standard cruise/sustained economic climb rate at ~130 mps)
         climb_rate: 4745.0,            # ft per min (Max rate of climb at ~10,000 ft)
         descent_rate: 5000.0,          # ft per min (Standard steep tactical descent; max dive limit went much higher)
         max_bank_angle: 180.0,         # deg (Fully aerobatic fighter capable of sustained inverted flight)
@@ -1406,6 +1452,7 @@ elsif (modelName == "/spitfireXVI") {
         wing_area_m2: 21.46,           # m^2 (231 sq ft due to the clipped wing tips, down from the standard 22.48 m²)
         max_thrust_N: 12000.0,         # N (Peak propeller thrust derived from the 1,720 hp Packard Merlin 266 engine)
         max_speed_mps: 154.2,          # m/s (Maximum level speed at sea level, equal to ~345 mph / 300 knots)
+        thrust_speed_exp: ,
 
         max_pitch_rate_aero: 35.0,     # deg/s (Maximum transient pitch rate before high-speed stall or G-lock limit)
         max_roll_rate_aero:  175.0,    # deg/s (Aerodynamic maximum roll rate achieved under optimal speed/airspeed pressures)
@@ -1419,8 +1466,9 @@ elsif (modelName == "/spitfireXVI") {
 elsif (modelName == "/fkdr1") {
     var modelPath = "/home/michael-wilkinson/Desktop/Bombable 5.0/Bombable/FGData/AI/Aircraft/fkdr1-Bombable/Models/dr1.xml";
     var perf_profile = {
-        v_climb: ,                     # ft per min normal climb rate
-        climb_rate: 1122.0,            # ft per min (Max rate of climb ~5.7 m/s)
+        # https://www.gruppofalchi.com/files/Profile-Publications-Aircraft-055---Fokker-DR-1.pdf
+        v_climb: ,                     # m/s (Standard cruise/sustained economic climb rate at ~45 mps)
+        climb_rate: 1078.4,            # ft per min (Max rate of climb ~5.7 m/s)
         descent_rate: 3500.0,          # ft per min (Typical WWI combat dive limit)
         max_bank_angle: 180.0,         # deg (Fully aerobatic maneuverability)
         max_roll_rate: 90.0,           # deg/sec (Moderate aileron authority via interplane struts/warp characteristics)
@@ -1428,17 +1476,52 @@ elsif (modelName == "/fkdr1") {
         max_pitch_rate: 20.0,          # deg/sec (Highly responsive pitch control due to short tail moment)
         
         # Force-Vector Parameters
-        mass_kg: 586.0,                # kg (Standard operational gross weight)
-        wing_area_m2: 18.7,            # m^2 (Combined area across all three wings, ~201 sq ft)
-        max_thrust_N: 1400.0,          # N (Approximate static thrust derived from the 110 hp Oberursel Ur.II rotary engine)
-        max_speed_mps: 50.0,           # m/s (Maximum level speed, ~110–115 mph / 97–100 knots)
+        mass_kg: 586.0,                # kg (Standard operational gross weight, pilot, fuel, military load)
+        wing_area_m2: 17.48,           # m^2 (Combined area across all three wings, ~201 sq ft)
+        max_thrust_N: 1900.0,          # N (Climb Thrust ~60–70 mph / 100–110 km/h, full throttle for the 110 hp Oberursel Ur.II rotary engine)
+        max_speed_mps: 51.4,           # m/s (Maximum level speed, ~110–115 mph / 97–100 knots)
+        thrust_speed_exp: ,
 
         max_pitch_rate_aero: 25.0,     # deg/s (Transient aerodynamic pitch limit)
         max_roll_rate_aero:  90.0,     # deg/s (Maximum aerodynamic roll rate)
         n_max_pos: 5.0,                # g factor (WWI structural design limit load factor)
-        n_max_neg: -2.5,
+        n_max_neg: 2.5,
         max_rpm: 1200,                 # engine (Typical maximum RPM for the Oberursel Ur.II rotary engine)
                     
+    };
+}
+
+elsif (modelName == "/a6m5") {
+    # The A6M5b (Model 52b Otsu) presents a contrast to the late-mark Spitfire XVI. 
+    # Where the Spitfire rely on sheer power (1,700+ hp Rolls-Royce Merlin 66) and high-speed elevator authority, 
+    # the A6M5b relies on low wing loading, a light airframe, and lower power (~1,130 hp Nakajima Sakae 21 engine).
+    # The key aerodynamic hallmark of the Zero—its extreme low-speed roll authority and high-speed aileron stiffening—
+    # needs careful representation in your flight dynamics model. 
+    # At airspeeds above ~200 kts (100 m/s), the Zero’s mechanical ailerons stiffened drastically, 
+    # dropping its roll rate from top-tier agility to a sluggish rate.
+
+    var modelPath = "/home/michael-wilkinson/Desktop/Bombable 5.0/Bombable/FGData/AI/Aircraft/A6M5-Bombable/Models/a6m5b-green-fSim.xml";
+    var perf_profile = {
+        v_climb: ,                    # m/s (Standard cruise/sustained economic climb rate at ~130 kts)
+        climb_rate: 3100.0,           # ft/min (Max initial rate of climb near sea level; ~15.7 m/s)
+        descent_rate: 4500.0,         # ft/min (Standard operational descent; max dive IAS limit was 740 km/h / 400 kts)
+        max_bank_angle: 180.0,        # deg (Fully aerobatic, though inverted fuel supply limits sustained inverted flight)
+        max_roll_rate: 135.0,         # deg/sec (Peak roll rate at low IAS (~130–150 kts); stiffens severely above 200 kts)
+        max_pitch_angle: 180.0,       # deg (Full vertical loop capability)
+        max_pitch_rate: 22.0,         # deg/sec (Light, highly responsive elevator at low/medium speeds)
+        
+        # Force-Vector Parameters
+        mass_kg: 2730.0,              # kg (Normal combat loaded weight; significantly lighter than Spitfire's 3,400 kg)
+        wing_area_m2: 21.30,          # m^2 (Redesigned non-folding clipped wing for the Model 52 series)
+        max_thrust_N: 9500.0,         # N (Peak propeller static thrust from the 1,130 hp Nakajima Sakae 21 engine)
+        max_speed_mps: 156.9,         # m/s (565 km/h / 305 kts max level speed at rated altitude of 6,000 m / 19,680 ft)
+        thrust_speed_exp: ,       # Exponent for propeller thrust decay with forward velocity (typical fixed-pitch/constant-speed prop curve)
+
+        max_pitch_rate_aero: 30.0,    # deg/s (Instantaneous pitch rate at low IAS before accelerated stall)
+        max_roll_rate_aero: 135.0,    # deg/s (Peak aerodynamic roll rate; note severe aeroelastic/stiffening penalty at VNE)
+        n_max_pos: 7.0,               # g factor (A6M5 reinforced wing skin increased safe load factor over early A6M2)
+        n_max_neg: 3.5,               # g factor
+        max_rpm: 2750,                # RPM (Redline for the Sakae 21 two-stage supercharged radial engine)
     };
 }
 
@@ -1499,6 +1582,8 @@ var create_aircraft_state = func(callsign, initial_lat, initial_lon, initial_alt
         # climb rate control (internal)
         climb_cache: ,
         drag_N: ,
+        gamma_cmd_f: ,
+        gamma_cmd_t: ,
         
         # Rates for animationManager compatibility (per second)
         dLat: 0.0,
@@ -1548,9 +1633,9 @@ if (apt != nil and size(apt.runways) > 0) {
 
 # Initial flight parameters for level flight northwards (Heading 0°, Speed 250 kts)
 var init_hdg = 0.0;
-var init_speed = 64.0; # knots
+var init_speed = 200.0; # knots
 var init_throttle = 0.7;
-var init_rpm = 1000;
+var init_rpm = 2000;
 
 ########################## Initialize model ###########################
 
@@ -1597,8 +1682,8 @@ print("fSim.nas: Spawned model from " ~ modelPath);
 var monitorValues = func(count = 0, countmax = 500, dt = 1) {
     if (fS.state.monitor == nil) return;
     if (fS.state["manoeuvre"] != nil) var mPhase = fS.state.manoeuvre["phase"] else var mPhase = "";
-    # print(sprintf("Phase: %s Gamma: %.2f Pitch %.2f Alpha: %.2f Drag: %.2f Load: %.2f Stalled %d Speed_kts: %.1f Alt_ft: %.1f Heading %.1f Roll %.1f Throttle %.1f Tick_interval %.3f",
-    print(sprintf("Phase: %s Gamma: %.2f Pitch %.2f Alpha: %.2f Drag: %.2f Load: %.2f v_stall_1g %.1f Speed_kts: %.1f Alt_ft: %.1f v_up %.1f best_climb_speed %.1f Throttle %.1f Tick_interval %.3f",
+    # print(sprintf("Phase: %s Gamma: %.2f Pitch %.2f Alpha: %.2f Drag: %.2f Load: %.2f Stalled %d Speed_mps: %.1f Alt_ft: %.1f Heading %.1f Roll %.1f Throttle %.1f Tick_interval %.3f",
+    print(sprintf("Phase: %s Gamma: %.2f Pitch %.2f Alpha: %.2f Drag: %.2f Load: %.2f v_stall_1g %.1f Speed_mps: %.1f Alt_ft: %.1f v_up %.1f best_climb_speed %.1f Throttle %.1f Tick_interval %.3f",
     mPhase,
     fS.state.gamma_deg,
     fS.state.pitch,
@@ -1641,7 +1726,7 @@ animationManager.register(modelName);
 
 
 # Main Physics Tick Function (Runs at a slower interval, e.g., 10 Hz / 0.1s)
-var physics_update_interval = 0.1; 
+var physics_update_interval = 0.16; 
 
 # 2. Wrap it in a closure for maketimer so it evaluates per tick with modelName
 var physics_timer = maketimer(physics_update_interval, func { run_flight_physics(modelName); });
@@ -1662,7 +1747,7 @@ var setup_fSim_chase_view = func(slot_idx, mName) {
     setprop(raw_slot_prop, mName);
 
     setprop("/sim/view[" ~ slot_idx ~ "]/config/x-offset-m", 0);
-    setprop("/sim/view[" ~ slot_idx ~ "]/config/y-offset-m", -5);
+    setprop("/sim/view[" ~ slot_idx ~ "]/config/y-offset-m", -10);
     setprop("/sim/view[" ~ slot_idx ~ "]/config/z-offset-m", -35);
 
     setprop("/sim/view[" ~ slot_idx ~ "]/config/eye-lat-deg", 0);

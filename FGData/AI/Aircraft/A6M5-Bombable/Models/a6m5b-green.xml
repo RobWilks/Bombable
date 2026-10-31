@@ -2,7 +2,7 @@
 
   <path>a6m5b.ac</path>
 
-<animation>
+<!-- <animation>
   <type>select</type>
   <object-name>pilot</object-name>
   <condition>
@@ -11,7 +11,9 @@
     <value>0</value>
    </greater-than>
   </condition>
- </animation>
+ </animation> -->
+
+
 <animation>
   <type>select</type>
   <object-name>propdisc</object-name>
@@ -51,58 +53,58 @@
   </condition>
  </animation>
 
-  <animation>
-    <type>spin</type>
-    <object-name>propeller</object-name>
-    <property>engines/engine/rpm</property>
-    <center>
-      <x-m>-2.391</x-m>
-      <y-m>0.0</y-m>
-      <z-m>-0.031</z-m>
-    </center>
-    <axis>
-      <x>-1.0</x>
-      <y>0.0</y>
-      <z>0.0</z>
-    </axis>
-  </animation>
+<animation>
+  <type>spin</type>
+  <object-name>propeller</object-name>
+  <property>engines/engine/rpm</property>
+  <center>
+    <x-m>-2.391</x-m>
+    <y-m>0.0</y-m>
+    <z-m>-0.031</z-m>
+  </center>
+  <axis>
+    <x>-1.0</x>
+    <y>0.0</y>
+    <z>0.0</z>
+  </axis>
+</animation>
   
-  <animation>
-    <type>spin</type>
-    <object-name>propblur</object-name>
-    <property>engines/engine/rpm</property>
-    <center>
-      <x-m>-2.391</x-m>
-      <y-m>0.0</y-m>
-      <z-m>-0.031</z-m>
-    </center>
-    <axis>
-      <x>-1.0</x>
-      <y>0.0</y>
-      <z>0.0</z>
-    </axis>
-  </animation>
+<animation>
+  <type>spin</type>
+  <object-name>propblur</object-name>
+  <property>engines/engine/rpm</property>
+  <center>
+    <x-m>-2.391</x-m>
+    <y-m>0.0</y-m>
+    <z-m>-0.031</z-m>
+  </center>
+  <axis>
+    <x>-1.0</x>
+    <y>0.0</y>
+    <z>0.0</z>
+  </axis>
+</animation>
 
-  <animation>
-    <type>spin</type>
-    <object-name>propdisc</object-name>
-    <property>engines/engine/rpm</property>
-    <factor>0.25</factor>
-    <center>
-      <x-m>-2.391</x-m>
-      <y-m>0.0</y-m>
-      <z-m>-0.031</z-m>
-    </center>
-    <axis>
-      <x>-1.0</x>
-      <y>0.0</y>
-      <z>0.0</z>
-    </axis>
-  </animation>
+<animation>
+  <type>spin</type>
+  <object-name>propdisc</object-name>
+  <property>engines/engine/rpm</property>
+  <factor>0.25</factor>
+  <center>
+    <x-m>-2.391</x-m>
+    <y-m>0.0</y-m>
+    <z-m>-0.031</z-m>
+  </center>
+  <axis>
+    <x>-1.0</x>
+    <y>0.0</y>
+    <z>0.0</z>
+  </axis>
+</animation>
 
   <!-- CONTROL SURFACES -->
-
-   <animation>
+<!-- 
+<animation>
   <type>translate</type>
   <object-name>glass</object-name>
   <object-name>canopy</object-name>
@@ -113,7 +115,7 @@
    <y>0.0</y>
    <z>0.0</z>
   </axis>
- </animation>
+</animation>
 
   <animation>
     <type>rotate</type>
@@ -275,7 +277,7 @@
    <y>1.0</y>
    <z>0.0</z>
   </axis>
- </animation>
+ </animation> -->
 
 
   <!--  Gear -->

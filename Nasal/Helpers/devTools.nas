@@ -1575,3 +1575,13 @@ var self = fSim.fS.state;
 print("CLIMB_K_GAMMA = ", fSim.CLIMB_K_GAMMA, " CLIMB_A_MAX = ", fSim.CLIMB_A_MAX, " CLIMB_K_SPEED = ", fSim.CLIMB_K_SPEED);
 print("climb speed = ", fSim.climb_speed(self), " stall speed = ", fSim.v_stall_1g(self));
 debug.dump(self.climb_cache);
+
+var self = fSim.fS.state;
+self.perf.v_climb = 80;
+# --- Example Console Commands You Can Run Anytime ---
+# 1. Turn to heading 50 deg and climb to 4,000 ft with full military power:
+ fSim.fS.set_targets(130.0, 2950.0, 1);
+#  hdg = nil, alt = nil, thr = nil
+
+# 2. Check current targets vs actual state:
+fSim.fS.get_state();
