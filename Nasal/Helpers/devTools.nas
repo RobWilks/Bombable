@@ -1585,3 +1585,5 @@ self.perf.v_climb = 80;
 
 # 2. Check current targets vs actual state:
 fSim.fS.get_state();
+
+debug.dump(fSim.fS.state);

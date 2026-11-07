@@ -6,6 +6,7 @@ var fS = {
     state: nil,
 
     # note roll and pitch targets are not set here.  They are outputs, calculated by functions to update altitude and heading
+    # The rule is that manoeuvres don’t touch the user targets below until their documented hand-back.
     set_targets: func(hdg = nil, alt = nil, thr = nil) {
         if (me.state == nil) {
             print("Error: fS.state is not initialized.");
@@ -204,12 +205,6 @@ var update_roll_target = func(self, dt) {
     self.tgt_roll = math.clamp(phi, -self.perf.max_bank_angle, self.perf.max_bank_angle);
 };
 
-########################## climb control parameters ###########################
-
-var CLIMB_K_SPEED = 0.5;     # 1/s   speed error -> desired acceleration
-var CLIMB_A_MAX   = 1.5;     # m/s^2 limit on that acceleration
-var CLIMB_K_GAMMA = 0.8;     # 1/s   path-angle error -> path curvature rate
-var CLIMB_TAU     = 0.3;     # s     time constant of the low-pass filter on the commanded path angle
 
 ########################## steady_drag ###########################
 # Drag in steady flight at speed v and 1 g (lift = weight * cos(path angle)). The climb limit
@@ -269,6 +264,17 @@ var climb_speed = func(self) {
     return math.max(c.v, 1.2 * vs1);
 };
 
+########################## climb control parameters ###########################
+
+var CLIMB_K_SPEED = 0.5;     # 1/s   speed error -> desired acceleration
+var CLIMB_A_MAX   = 1.5;     # m/s^2 limit on that acceleration
+var CLIMB_K_GAMMA = 0.8;     # 1/s   path-angle error -> path curvature rate
+var CLIMB_TAU     = 0.3;     # s     time constant of the low-pass filter on the commanded path angle
+
+# Filter state. This is anything a function remembers between ticks. 
+# In update_pitch_target, for example, gamma_cmd_f holds the smoothed climb angle. 
+# Any filter state remembered carries a timestamp or is reset when its mode starts.
+
 ########################## update_pitch_target ###########################
 # Needs:
 #   command_path, v_stall_1g, thrust_available, thrust_at, air_density, K_IND, C_D0, CL_MAX, weight_N, g, D2R
@@ -284,6 +290,7 @@ var climb_speed = func(self) {
 #      structural and stall limits, using the MEASURED path angle.
 #
 # Optional perf entry: v_climb (m/s) overrides the best-climb speed computed from the model.
+# vs is vertical speed in m/s, v_h is horizontal speed in m/s, speed is total speed in m/s.
 
 var update_pitch_target = func(self, dt) {
     var v_h   = math.sqrt(self.v_east * self.v_east + self.v_north * self.v_north);
@@ -301,8 +308,8 @@ var update_pitch_target = func(self, dt) {
     # 2. climb (or level) no steeper than the thrust can sustain at the speed we want to hold
     if (gamma_cmd >= 0.0) {
         var v_ref  = climb_speed(self);
-        var excess = (thrust_available(self) - steady_drag(self, v)) / weight_N;
-        var a_des  = math.clamp(CLIMB_K_SPEED * (v_ref - v), -CLIMB_A_MAX, CLIMB_A_MAX);
+        var excess = (thrust_available(self) - steady_drag(self, v)) / weight_N; # excess force - dimensionless
+        var a_des  = math.clamp(CLIMB_K_SPEED * (v_ref - v), -CLIMB_A_MAX, CLIMB_A_MAX); # calculate the desired acceleration from the speed error
         var s      = math.clamp(excess - a_des / g, -0.95, 0.95);
         gamma_cmd  = math.min(gamma_cmd, math.atan2(s, math.sqrt(1.0 - s * s)));
     }
@@ -326,7 +333,7 @@ var update_pitch_target = func(self, dt) {
 
     # No pitch-rate lead term here: it is meant for a steadily rotating path (loops), and at a
     # step in the altitude demand it adds a spurious +1 g kick.
-    var gdot = math.clamp(CLIMB_K_GAMMA * (gamma_cmd - (self.gamma_deg or 0.0) * D2R), -0.5, 0.5);
+    var gdot = math.clamp(CLIMB_K_GAMMA * (gamma_cmd - (self.gamma_deg or 0.0) * D2R), -0.5, 0.5); # gdot is change in gamma per second, limited to 0.5 rad/s
     command_path(self, v, gdot, 0, dt, 0);
 };
 
@@ -1369,7 +1376,7 @@ var animationManager = {
 
 
 # 1. Performance Profile & Force Coefficients
-var modelName = "/a6m5";
+var modelName = "/spitfireXVI";
 
 
 ###########################################################
@@ -1502,7 +1509,7 @@ elsif (modelName == "/a6m5") {
 
     var modelPath = "/home/michael-wilkinson/Desktop/Bombable 5.0/Bombable/FGData/AI/Aircraft/A6M5-Bombable/Models/a6m5b-green-fSim.xml";
     var perf_profile = {
-        v_climb: ,                    # m/s (Standard cruise/sustained economic climb rate at ~130 kts)
+        v_climb: 12.7,                    # m/s (Standard cruise/sustained economic climb rate at ~130 kts)
         climb_rate: 3100.0,           # ft/min (Max initial rate of climb near sea level; ~15.7 m/s)
         descent_rate: 4500.0,         # ft/min (Standard operational descent; max dive IAS limit was 740 km/h / 400 kts)
         max_bank_angle: 180.0,        # deg (Fully aerobatic, though inverted fuel supply limits sustained inverted flight)
@@ -1515,7 +1522,7 @@ elsif (modelName == "/a6m5") {
         wing_area_m2: 21.30,          # m^2 (Redesigned non-folding clipped wing for the Model 52 series)
         max_thrust_N: 9500.0,         # N (Peak propeller static thrust from the 1,130 hp Nakajima Sakae 21 engine)
         max_speed_mps: 156.9,         # m/s (565 km/h / 305 kts max level speed at rated altitude of 6,000 m / 19,680 ft)
-        thrust_speed_exp: ,       # Exponent for propeller thrust decay with forward velocity (typical fixed-pitch/constant-speed prop curve)
+        thrust_speed_exp: 0.85,       # Exponent for propeller thrust decay with forward velocity (typical fixed-pitch/constant-speed prop curve)
 
         max_pitch_rate_aero: 30.0,    # deg/s (Instantaneous pitch rate at low IAS before accelerated stall)
         max_roll_rate_aero: 135.0,    # deg/s (Peak aerodynamic roll rate; note severe aeroelastic/stiffening penalty at VNE)
@@ -1525,6 +1532,32 @@ elsif (modelName == "/a6m5") {
     };
 }
 
+elsif (modelName == "/ju87") {
+
+    var modelPath = "/home/michael-wilkinson/Desktop/Bombable 5.0/Bombable/FGData/AI/Aircraft/Ju87/Models/ju87.xml";
+    var perf_profile = {
+        v_climb: 9.5,                 # m/s (Economic climb rate at ~120-130 kts)
+        climb_rate: 1450.0,           # ft/min (Max initial rate of climb near sea level; ~7.4 m/s)
+        descent_rate: 5500.0,         # ft/min (Steep dive operational descent; terminal dive velocity ~550-600 km/h with dive brakes)
+        max_bank_angle: 180.0,        # deg (Fully aerobatic within structural and fuel feed limits)
+        max_roll_rate: 75.0,          # deg/sec (Sluggish roll rate due to high span and heavy fabric-covered ailerons)
+        max_pitch_angle: 180.0,       # deg (Full vertical loop capability)
+        max_pitch_rate: 18.0,         # deg/sec (Responsive elevator at low/medium speeds, stiffening in high-speed dives)
+        
+        # Force-Vector Parameters
+        mass_kg: 4320.0,              # kg (Normal combat loaded weight for Ju 87B-2 with a 250 kg/500 kg bomb load)
+        wing_area_m2: 31.90,          # m^2 (Large inverted gull wing providing low wing loading and stable low-speed handling)
+        max_thrust_N: 5200.0,         # N (Static thrust from the Junkers Jumo 211D liquid-cooled V12 engine, ~1,200 PS)
+        max_speed_mps: 108.3,         # m/s (390 km/h / 210 kts max level speed at rated altitude of 4,400 m / 14,400 ft)
+        thrust_speed_exp: 0.85,       # Exponent for propeller thrust decay with forward velocity
+
+        max_pitch_rate_aero: 22.0,    # deg/s (Instantaneous pitch rate before G-limiting during dive recovery)
+        max_roll_rate_aero: 75.0,     # deg/s (Aerodynamic roll rate; limited by heavy wing inertia and aileron control forces)
+        n_max_pos: 7.0,               # g factor (Robust structural limit designed to handle violent 6g–7g dive pullouts)
+        n_max_neg: 3.0,               # g factor
+        max_rpm: 2400,                # RPM (Rated combat redline for the Jumo 211 inverted V12 engine)
+    };
+}
 print(modelName ~ " initialised");
 
 ########################## aerodynamics ###########################
@@ -1625,7 +1658,7 @@ if (apt != nil and size(apt.runways) > 0) {
     init_lon = first_rwy.lon;
 
     var apt_elev_ft = apt.elevation * 3.28084 or 0.0;
-    init_alt_ft = apt_elev_ft + 555.0;
+    init_alt_ft = apt_elev_ft + 10000.0;
     print("fly.nas: Initialized position from " ~ airport_id ~ " Runway threshold at Lat: " ~ init_lat ~ ", Lon: " ~ init_lon);
 } else {
     print("fly.nas: Warning - Could not load airport " ~ airport_id ~ ", using default fallback coordinates.");
@@ -1697,7 +1730,7 @@ var monitorValues = func(count = 0, countmax = 500, dt = 1) {
     # fS.state.hdg,
     fS.state.v_up,
     # fS.state.roll,
-    fS.state.climb_cache.v,
+    (fS.state.climb_cache != nil) ? fS.state.climb_cache.v : 0,
     fS.state.throttle,
     fS.state.dTime
     ));

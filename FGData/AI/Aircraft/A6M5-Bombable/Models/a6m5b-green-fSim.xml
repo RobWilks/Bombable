@@ -1,6 +1,8 @@
 <PropertyList>
 
-  <path>a6m5b.ac</path>
+<!-- <path>a6m5b.ac</path> -->
+<!-- <path>/home/michael-wilkinson/Desktop/Bombable 5.0/Bombable/FGData/AI/Aircraft/Ju87/junkers-ju-87/Blender/JU87 no cockpit.ac</path> -->
+<path>/home/michael-wilkinson/Desktop/Bombable 5.0/Bombable/FGData/AI/Aircraft/BF109G14_late_war/bf109g14_late_war_v3.ac</path>
 
 <!-- <animation>
   <type>select</type>

@@ -1,0 +1,94 @@
+<PropertyList>
+
+<path>/home/michael-wilkinson/Desktop/Bombable 5.0/Bombable/FGData/AI/Aircraft/Ju87/Models/JU87 no cockpit v3.ac</path>
+
+<!-- ***** Propeller ***** -->
+<animation>
+  <type>select</type>
+  <object-name>PropellerDisk</object-name>
+  <condition>
+   <greater-than>
+    <property>/ju87/engines/engine[0]/rpm</property>
+    <value>1500.000</value>
+   </greater-than>
+  </condition>
+ </animation>
+
+<animation>
+  <type>select</type>
+  <object-name>PropBlur</object-name>
+  <condition>
+  <and>
+   <greater-than>
+    <property>/ju87/engines/engine[0]/rpm</property>
+    <value>600.000</value>
+   </greater-than>
+   <less-than>
+    <property>/ju87/engines/engine[0]/rpm</property>
+    <value>1500.001</value>
+   </less-than>
+   </and>
+  </condition>
+ </animation>
+
+ <animation>
+  <type>select</type>
+  <object-name>Propeller</object-name>
+  <condition>
+   <less-than>
+    <property>/ju87/engines/engine[0]/rpm</property>
+    <value>600.001</value>
+   </less-than>
+  </condition>
+ </animation>
+
+<animation>
+  <type>spin</type>
+  <object-name>Propeller</object-name>
+  <property>/ju87/engines/engine[0]/rpm</property>
+  <center>
+    <x-m>-5</x-m>
+    <y-m>-0.008</y-m>
+    <z-m>0.244948</z-m>
+  </center>
+  <axis>
+    <x>-1.0</x>
+    <y>0.0</y>
+    <z>0.0</z>
+  </axis>
+</animation>
+  
+<animation>
+  <type>spin</type>
+  <object-name>PropBlur</object-name>
+  <property>/ju87/engines/engine[0]/rpm</property>
+  <center>
+    <x-m>-5</x-m>
+    <y-m>-0.008</y-m>
+    <z-m>0.244948</z-m>
+  </center>
+  <axis>
+    <x>-1.0</x>
+    <y>0.0</y>
+    <z>0.0</z>
+  </axis>
+</animation>
+
+<animation>
+  <type>spin</type>
+  <object-name>PropellerDisk</object-name>
+  <property>/ju87/engines/engine[0]/rpm</property>
+  <factor>0.25</factor>
+  <center>
+    <x-m>-5</x-m>
+    <y-m>-0.008</y-m>
+    <z-m>0.244948</z-m>
+  </center>
+  <axis>
+    <x>-1.0</x>
+    <y>0.0</y>
+    <z>0.0</z>
+  </axis>
+</animation>
+
+</PropertyList>
