@@ -12018,7 +12018,7 @@ var waitForAIModels = func(lastCount = -1, stableCountFrames = 0) {
 
     # Require count stability over 3 consecutive checks (1.5s total)
     if (stableCountFrames < 3) {
-        if (defined("debprint")) debprint("Waiting for AI scenario models to stabilize...");
+        debprint("Waiting for AI scenario models to stabilize...");
         
         # Corrected settimer wrapper pass:
         settimer(func { waitForAIModels(lastCount, stableCountFrames); }, 0.5);
@@ -12190,7 +12190,7 @@ settimer (func { waitForAIModels() }, 5); #wait till AI models loaded
 # Initialise bombable parameters for main AC
 
 var bombableInit = func {
-	debprint("Initializing variables.");
+	print("Initializing variables.");
 	screenHProp = props.globals.getNode("/sim/startup/ysize");
 	tipArgTarget = props.Node.new({ "dialog-name" : "PopTipTarget" });
 	tipArgSelf = props.Node.new({ "dialog-name" : "PopTipSelf" });
@@ -12342,7 +12342,7 @@ var bombableInit = func {
 var fdm_init_listener = _setlistener("/sim/signals/fdm-initialized", func {
 	removelistener(fdm_init_listener);
 	bombableInit();
-	print("Bombable initalized");
+	print("Bombable initialized");
 
 });
 

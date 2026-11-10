@@ -1,8 +1,35 @@
 ###########################################################
 # fSim.nas - 4-Force Vector FDM Integrated
 ###########################################################
+# Change log (newest first):
+#   0.2.0  cleanup of items 1-7 agreed in discussion: start_loop defaults now match its guard; speed floors scale with stall speed;
+#          monitor no longer reads a nil climb_cache; unknown model name stops with a clear message; unused variable removed;
+#          optional perf keys read with perf["key"] so a profile can omit them; stale comments tagged; version number added
+#   0.1.0  baseline as uploaded (fSim_1.nas)
+# 
+# 
+# 
+#  1. Lift acts perpendicular to the VELOCITY (rotated from body-up about the right wing),
+#     with an explicit induced drag K_IND*CL^2. Thrust and drag act along the aircraft
+#     axis. 
+#  2. Thrust falls with air density: T = T0 * (rho/rho0)^THRUST_LAPSE. Before, level speed
+#     rose with altitude (353 kt at 15,000 ft against max_speed_mps of 300 kt).
+#     Adopt 1 and 2 together: lapse alone makes the Immelmann stall at altitude.
+#  3. Timing: each tick advances the state by the MEASURED elapsed sim time (your tNode), not the
+#     nominal 0.1 s. The timer fires on frame boundaries, so a nominal 0.1 s arrives after 0.1167 s
+#     at 60 fps (7 frames) and 0.100 s at 120 fps: with a nominal dt the dynamics ran 15 percent
+#     slow and lat/lon (integrated by the animation loop in real time) outran the state.
+#     Compute is unchanged: one step per tick. Optional sub-stepping is set by MAX_SUBSTEP.
+#  4. Energy-consistent velocity update (see update_force_physics): removes the explicit-Euler
+#     energy error without sub-stepping.
+#  5. Optional profiling: run prof.start(), run a manoeuvre, then prof.stop() and prof.report().
+#  6. Keep physics_update_interval at 0.1 s or less: a 175 deg/s roll moves 17 degrees per tick.
+
+
+var FSIM_VERSION = "0.2.0";
 # Explicitly define fS
 var fS = {
+    version: FSIM_VERSION,
     state: nil,
 
     # note roll and pitch targets are not set here.  They are outputs, calculated by functions to update altitude and heading
@@ -154,7 +181,7 @@ var lift_curve = func(a) {
 # fkdr1). Below 0.4 x max speed the thrust is held at its 0.4 x max speed value (static thrust).
 var thrust_at = func(self, v, rho) {
     var T = self.perf.max_thrust_N * math.pow(rho / rho0, THRUST_LAPSE);
-    var p = self.perf.thrust_speed_exp or 0.0;
+    var p = self.perf["thrust_speed_exp"] or 0.0;
     if (p > 0.0) {
         var vmax = self.perf.max_speed_mps;
         T *= math.pow(vmax / math.max(v, 0.4 * vmax), p);
@@ -254,7 +281,7 @@ var best_climb_speed = func(self) {
 # 1.2 x the 1 g stall speed.
 var climb_speed = func(self) {
     var vs1 = v_stall_1g(self);
-    var pv = self.perf.v_climb;
+    var pv = self.perf["v_climb"];
     if (pv != nil) return math.max(pv, 1.2 * vs1);
     var c = self.climb_cache;
     if (c == nil or math.abs(self.alt_ft - c.alt_ft) > 500.0) {
@@ -365,22 +392,6 @@ var update_orientation = func(self, dt) {
 
 
 ########################### update_force_physics ###########################
-#  1. Lift acts perpendicular to the VELOCITY (rotated from body-up about the right wing),
-#     with an explicit induced drag K_IND*CL^2. Thrust and drag still act along the aircraft
-#     axis, as you specified. Before, lift perpendicular to the axis made the lift tilt an
-#     induced drag with an effective k of 1/CL_ALPHA = 0.2 (2-3 times a real Spitfire), about
-#     20 kN at 4 g, which is why the loop top speeds and Immelmann stall margins were thin.
-#  2. Thrust falls with air density: T = T0 * (rho/rho0)^THRUST_LAPSE. Before, level speed
-#     rose with altitude (353 kt at 15,000 ft against max_speed_mps of 300 kt).
-#     Adopt 1 and 2 together: lapse alone makes the Immelmann stall at altitude.
-#  3. Timing: each tick advances the state by the MEASURED elapsed sim time (your tNode), not the
-#     nominal 0.1 s. The timer fires on frame boundaries, so a nominal 0.1 s arrives after 0.1167 s
-#     at 60 fps (7 frames) and 0.100 s at 120 fps: with a nominal dt the dynamics ran 15 percent
-#     slow and lat/lon (integrated by the animation loop in real time) outran the state.
-#     Compute is unchanged: one step per tick. Optional sub-stepping is set by MAX_SUBSTEP.
-#  4. Energy-consistent velocity update (see update_force_physics): removes the explicit-Euler
-#     energy error without sub-stepping.
-#  5. Optional profiling: run prof.start(), run a manoeuvre, then prof.stop() and prof.report().
 #
 var update_force_physics = func(self, dt) {
     if (dt <= 0.0) return;
@@ -500,27 +511,7 @@ var update_force_physics = func(self, dt) {
 # Only small primitives are shared (load-factor -> attitude target, roll stepper, entry and
 # recovery helpers); no manoeuvre is built by chaining another.
 #
-# Load after loop_manoeuvre.nas and loop_control.nas. Uses from them:
-#   wrap180, wrap360, air_density, hold_speed, lift_curve constants (C_L_vmax, CL_ALPHA, CL_MAX,
-#   A_STALL_POS, A_STALL_NEG, K_IND, C_D0), weight_N, g, D2R, R2D, kts_to_mps,
-#   update_roll_target, start_loop.
 #
-# ---- REQUIRED CHANGES TO EXISTING CODE ------------------------------------------------------
-#
-# 1. update_force_physics: angle of attack must be measured in the aircraft frame, not as
-#    (pitch - path angle). They are identical while roll = 0 (so the loop is unchanged) but the
-#    old form is wrong for any rolled or inverted attitude. Replace
-#        var alpha = wrap180((th - gamma) * R2D) * D2R;
-#    with (it must come after l_e, l_n, l_u and f_e, f_n, f_u are defined):
-#        var alpha = math.atan2(-(ve * l_e + vn * l_n + vu * l_u),
-#                                 ve * f_e + vn * f_n + vu * f_u);
-#
-# 2. K_IND: because lift acts perpendicular to the AXIS, the tilt of the lift vector from the
-#    flight path creates an induced drag
-#
-# 3. Allow for decrease of air_density with altitude.
-#
-# 4. Keep physics_update_interval at 0.1 s or less: a 175 deg/s roll moves 17 degrees per tick.
 
 ########################## shared primitives ###########################
 
@@ -572,8 +563,8 @@ var command_load = func(self, v, n_cmd, lead_deg) {
     var rho = air_density(self.alt_ft * 0.3048);
     var qS  = 0.5 * rho * v * v * self.perf.wing_area_m2;
     var n_stall = 0.85 * qS * CL_MAX / weight_N;
-    var n_pos = math.min(0.9 * (self.perf.n_max_pos or 6.0), n_stall);
-    var n_neg = math.min(0.9 * math.abs(self.perf.n_max_neg or 3.0), n_stall);
+    var n_pos = math.min(0.9 * (self.perf["n_max_pos"] or 6.0), n_stall);
+    var n_neg = math.min(0.9 * math.abs(self.perf["n_max_neg"] or 3.0), n_stall);
     n_cmd = math.clamp(n_cmd, -n_neg, n_pos);
 
     var a_req = alpha_for_load(self, n_cmd, qS);
@@ -623,7 +614,7 @@ var run_entry = func(self, m, dt) {
 var recover_level = func(self, dt, v_hold) {
     update_roll_target(self, dt);
     hold_speed(self, v_hold);
-    var v   = math.max(self.speed * kts_to_mps, 20.0);
+    var v   = math.max(self.speed * kts_to_mps, 0.5 * v_stall_1g(self));
     var v_h = math.sqrt(self.v_east * self.v_east + self.v_north * self.v_north);
     var vs  = (self.tgt_altitude_ft - self.alt_ft) / 3.28084 * 0.1;
     vs = math.clamp(vs, -self.perf.descent_rate * 0.00508, self.perf.climb_rate * 0.00508);
@@ -646,7 +637,7 @@ var step_roll = func(self, m, dt, total) {
     m.roll_swept += m.dir * wrap180(self.roll - m.roll_prev);
     m.roll_prev = self.roll;
     var remaining = total - m.roll_swept;
-    var rr   = self.aerobatic ? (self.perf.max_roll_rate_aero or 90.0) : self.perf.max_roll_rate;
+    var rr   = self.aerobatic ? (self.perf["max_roll_rate_aero"] or 90.0) : self.perf.max_roll_rate;
     var step = math.min(math.min(m.roll_rate, rr) * dt, math.max(remaining, 0.0));
     self.tgt_roll = wrap180(self.roll + m.dir * step);
     return remaining;
@@ -657,7 +648,7 @@ var step_roll = func(self, m, dt, total) {
 var step_roll_to = func(self, m, dt, target) {
     var remaining = wrap360(m.dir * (target - self.roll));
     if (remaining > 350.0) remaining = 0.0;
-    var rr   = self.aerobatic ? (self.perf.max_roll_rate_aero or 90.0) : self.perf.max_roll_rate;
+    var rr   = self.aerobatic ? (self.perf["max_roll_rate_aero"] or 90.0) : self.perf.max_roll_rate;
     var step = math.min(math.min(m.roll_rate, rr) * dt, remaining);
     self.tgt_roll = wrap180(self.roll + m.dir * step);
     return remaining;
@@ -680,7 +671,7 @@ var start_aileron_roll = func(self, opts = nil) {
         name: "aileron_roll", phase: imm ? "roll" : "entry", t: 0.0,
         entry_speed: opts["entry_speed"] or v,
         dir: (opts["direction"] == "left") ? -1.0 : 1.0,
-        roll_rate: opts["roll_rate"] or (self.perf.max_roll_rate_aero or 90.0),
+        roll_rate: opts["roll_rate"] or (self.perf["max_roll_rate_aero"] or 90.0),
         roll_swept: 0.0, roll_prev: self.roll, stall_t: 0.0,
         update: update_aileron_roll_target
     };
@@ -753,8 +744,7 @@ var update_aileron_roll_target = func(self, dt) {
 
 var predict_loop_top = func(self, v0, n_bottom, gm_end = nil) {
     var S = self.perf.wing_area_m2;
-    var T = self.perf.max_thrust_N;
-    var n_cap = 0.9 * (self.perf.n_max_pos or 6.0);
+    var n_cap = 0.9 * (self.perf["n_max_pos"] or 6.0);
     var q = g * (n_bottom - 1.0) / v0;
     var goal = gm_end or (PI - 0.35);
     var v_floor = 0.5 * v_stall_1g(self);
@@ -792,7 +782,7 @@ var predict_loop_top = func(self, v0, n_bottom, gm_end = nil) {
 var start_immelmann = func(self, opts = nil) {
     opts = opts or {};
     var v_e = opts["entry_speed"] or (0.97 * self.perf.max_speed_mps);
-    var n_b = opts["n_bottom"] or math.min(5.0, 0.9 * (self.perf.n_max_pos or 6.0));
+    var n_b = opts["n_bottom"] or math.min(5.0, 0.9 * (self.perf["n_max_pos"] or 6.0));
 
     if (!opts["force"]) {
         var pr    = predict_loop_top(self, v_e, n_b, PI - 0.35);
@@ -815,7 +805,7 @@ var start_immelmann = func(self, opts = nil) {
         entry_speed: v_e, n_bottom: n_b,
         roll_lead_deg: opts["roll_lead_deg"] or 20.0,
         dir: (opts["direction"] == "left") ? -1.0 : 1.0,
-        roll_rate: opts["roll_rate"] or (self.perf.max_roll_rate_aero or 90.0),
+        roll_rate: opts["roll_rate"] or (self.perf["max_roll_rate_aero"] or 90.0),
         swept: 0.0, gamma_prev: 0.0, q_loop: 0.0, hdg0: self.hdg,
         roll_swept: 0.0, roll_prev: 0.0, stall_t: 0.0,
         update: update_immelmann_target
@@ -898,8 +888,9 @@ var update_immelmann_target = func(self, dt) {
 var predict_split_s_loss = func(self, v0, n_pull) {
     var S = self.perf.wing_area_m2;
     var m = self.perf.mass_kg;
-    var n_cap = 0.9 * (self.perf.n_max_pos or 6.0);
+    var n_cap = 0.9 * (self.perf["n_max_pos"] or 6.0);
     var dt = 0.05;
+    var v_floor = 0.5 * v_stall_1g(self);
     var v = v0;  var gp = 0.0;  var loss = 0.0;  var t = 0.0;
     while (gp < PI - 0.05 and t < 90.0) {
         var rho = air_density(self.alt_ft * 0.3048 - loss);
@@ -908,14 +899,12 @@ var predict_split_s_loss = func(self, v0, n_pull) {
         var CL  = n * weight_N / math.max(qS, 1.0);
         var al  = (CL - C_L_vmax) / CL_ALPHA;
         var D   = qS * (C_D0 + K_IND * CL * CL);
-        gp   += g * (n + math.cos(gp)) / math.max(v, 20.0) * dt;
-        # drag acts along the axis, lift is normal to the axis: the tilt of lift from the
-        # flight path is the model's main induced drag (about 20 kN at 4 g for the Spitfire)
+        gp   += g * (n + math.cos(gp)) / math.max(v, v_floor) * dt;
         v    += (-D * math.cos(al) / m + g * math.sin(gp)) * dt;       # idle thrust in the dive
         loss += v * math.sin(gp) * dt;
         t += dt;
     }
-    var rr = self.perf.max_roll_rate_aero or 90.0;
+    var rr = self.perf["max_roll_rate_aero"] or 90.0;
     return 1.2 * loss + 0.25 * g * (180.0 / rr) * (180.0 / rr);     # margin + half-roll sink
 };
 
@@ -948,7 +937,7 @@ var start_split_s = func(self, opts = nil) {
         exit_deg: 3.0, k_capture: 1.2,
         floor_ft: ground_ft + clearance_ft,
         dir: dir,
-        roll_rate: opts["roll_rate"] or (self.perf.max_roll_rate_aero or 90.0),
+        roll_rate: opts["roll_rate"] or (self.perf["max_roll_rate_aero"] or 90.0),
         roll_swept: 0.0, roll_prev: self.roll,
         swept: 0.0, gamma_prev: 0.0, stall_t: 0.0, hdg0: self.hdg,
         update: update_split_s_target
@@ -998,7 +987,7 @@ var update_split_s_target = func(self, dt) {
         var n_t  = math.min(m.n_pull, -1.0 + m.onset * m.t);
         if (self.alt_ft < m.floor_ft) n_t = 99.0;                # low: pull as hard as allowed
         # path rotation rate that gives n_t (negative: path rotating downward), captured smoothly
-        var gdot = g * (n_t * c - math.cos(gam)) / math.max(v, 20.0);
+        var gdot = g * (n_t * c - math.cos(gam)) / math.max(v, 0.5 * v_stall_1g(self));
         gdot = math.max(gdot, -m.k_capture * rem);
         command_path(self, v, gdot, 0, dt);
 
@@ -1036,7 +1025,7 @@ var update_split_s_target = func(self, dt) {
 var start_loop = func(self, opts = nil) {
     opts = opts or {};
     var v_e = opts["entry_speed"] or (0.97 * self.perf.max_speed_mps);
-    var n_b = opts["n_bottom"] or math.min(5.0, 0.9 * (self.perf.n_max_pos or 6.0));
+    var n_b = opts["n_bottom"] or math.min(5.0, 0.9 * (self.perf["n_max_pos"] or 6.0));
 
     if (!opts["force"]) {
         var pr    = predict_loop_top(self, v_e, n_b, PI);
@@ -1051,10 +1040,10 @@ var start_loop = func(self, opts = nil) {
 
     self.manoeuvre = {
         name: "loop", phase: "entry", t: 0.0,
-        entry_speed: opts["entry_speed"] or 220.0,           # m/s
-        n_bottom:    opts["n_bottom"]    or 4.0,             # design load factor at the bottom
-        exit_deg:    opts["exit_deg"]    or 3.0,             # hand back to normal control this far from 360
-        floor_ft:    opts["floor_ft"]    or (self.alt_ft - 1000.0),
+        entry_speed: v_e,                                    # m/s
+        n_bottom:    n_b,                                    # design load factor at the bottom
+        exit_deg:    opts["exit_deg"] or 3.0,             # hand back to normal control this far from 360
+        floor_ft:    opts["floor_ft"] or (self.alt_ft - 1000.0),
         swept: 0.0, gamma_prev: 0.0, stall_t: 0.0, q_loop: 0.0,
         update: update_loop_target
     };
@@ -1095,7 +1084,7 @@ var update_loop_target = func(self, dt) {
         var rho = air_density(self.alt_ft * 0.3048);
         var qS  = 0.5 * rho * v * v * self.perf.wing_area_m2;
         var n_stall = 0.85 * qS * CL_MAX / weight_N;
-        var n_allow = math.min(0.9 * (self.perf.n_max_pos or 6.0), n_stall);
+        var n_allow = math.min(0.9 * (self.perf["n_max_pos"] or 6.0), n_stall);
 
         var n_cmd = v * m.q_loop / g + math.cos(gam);
         n_cmd = math.min(n_cmd, n_allow);
@@ -1236,15 +1225,6 @@ var run_flight_physics = func(mName) {
 
 ########################## animationManager ###########################
 # Custom Animation Manager integrated into Bombable
-#  1. Each object keeps its own clock (elapsed sim time at its last update) instead of using
-#     /sim/time/delta-sec. delta-sec is only the length of the CURRENT frame, so a skipped
-#     callback silently loses that frame's motion; the elapsed-time difference covers it.
-#  2. run_flight_physics re-bases that clock (anim.tLast = tick time) when it sets the
-#     absolute hdg/pitch/roll/alt values, so the frames after a tick integrate from the tick.
-#  3. Diagnostics: frames run, frames where the update covered more than 1.5 frame-times
-#     (a missed or late callback), and the longest update interval. Call
-#     animationManager.report(myNodeName) to print them.
-#  4. Optional profiling hook (prof.enable and prof are defined in loop_manoeuvre_v2.nas).
 
 var animationManager = {
     register: func(myNodeName) {
@@ -1376,7 +1356,7 @@ var animationManager = {
 
 
 # 1. Performance Profile & Force Coefficients
-var modelName = "/spitfireXVI";
+var modelName = "/bf109g14";
 
 
 ###########################################################
@@ -1558,7 +1538,40 @@ elsif (modelName == "/ju87") {
         max_rpm: 2400,                # RPM (Rated combat redline for the Jumo 211 inverted V12 engine)
     };
 }
+
+elsif (modelName == "/bf109g14") {
+
+    var modelPath = "/home/michael-wilkinson/Desktop/Bombable 5.0/Bombable/FGData/AI/Aircraft/BF109G14_late_war/Models/bf109g14.xml";
+    var perf_profile = {
+        v_climb: 19.2,                 # m/s (Economic climb rate at ~140 kts IAS; peak rate near sea level with MW-50 boost)
+        climb_rate: 3770.0,            # ft per min (~19.2 m/s max initial rate of climb near sea level under emergency boost)
+        descent_rate: 6000.0,          # ft per min (High-speed tactical push-over; VNE dive limit reached rapidly up to 850 km/h IAS)
+        max_bank_angle: 180.0,         # deg (Fully aerobatic, though inverted fuel supply/carburetor float limits negative-G maneuvers)
+        max_roll_rate: 120.0,          # deg/sec (Good low-to-medium speed roll authority via Frise ailerons, but stiffens severely at high IAS)
+        max_pitch_angle: 180.0,        # deg (Full vertical loop capability, excels in vertical energy retention/zoom climbs)
+        max_pitch_rate: 22.0,          # deg/sec (Heavier elevator control forces at high speeds due to rigid stabilizer linkage)
+        
+        # Force-Vector Parameters
+        mass_kg: 3266.0,               # kg (Standard operational combat weight with full internal fuel and MW-50 system)
+        wing_area_m2: 16.10,           # m^2 (Compact, highly loaded wing area yielding ~173 sq ft)
+        max_thrust_N: 11500.0,         # N (Peak static propeller thrust derived from the 1,800 hp DB 605AM emergency power rating)
+        max_speed_mps: 185.5,          # m/s (Maximum true air speed at altitude, equal to ~668 km/h / 360 knots at ~5,500 m with MW-50)
+        thrust_speed_exp: 0.82,        # Exponent for Daimler-Benz constant-speed variable pitch propeller efficiency curve
+
+        max_pitch_rate_aero: 28.0,     # deg/s (Transient pitch rate limit before compressibility or high elevator hinge moments)
+        max_roll_rate_aero:  120.0,    # deg/s (Aerodynamic maximum roll rate achieved under optimal dynamic pressure windows)
+        n_max_pos: 7.0,                # g factor (Sturdy structural design load factor favored by German operational criteria)
+        n_max_neg: 3.0,                # g factor
+        max_rpm: 2800,                 # RPM (Redline for the DB 605AM engine under 1.7 ata emergency MW-50 boost)
+    };
+}
+
+
+else {
+    die("fSim: no performance profile for model " ~ modelName);   # call error instead of an undefined perf_profile at load
+}
 print(modelName ~ " initialised");
+print("fSim version " ~ FSIM_VERSION ~ " loaded");
 
 ########################## aerodynamics ###########################
 # Derive aerodynamic coefficients from performance limits
@@ -1643,7 +1656,7 @@ var create_aircraft_state = func(callsign, initial_lat, initial_lon, initial_alt
 ########################## Initialize location ###########################
 # 3. Initialize Airport & Runway Position Data
 # Using EGOD as default reference airport (or change to your preferred airport ID e.g. "EGLL")
-var airport_id = "EGOD"; 
+var airport_id = "LFML"; 
 var apt = airportinfo(airport_id);
 
 var init_lat = 37.61899; # Fallback latitude
@@ -1730,7 +1743,7 @@ var monitorValues = func(count = 0, countmax = 500, dt = 1) {
     # fS.state.hdg,
     fS.state.v_up,
     # fS.state.roll,
-    (fS.state.climb_cache != nil) ? fS.state.climb_cache.v : 0,
+    (fS.state.climb_cache != nil) ? fS.state.climb_cache["v"] : 0.0,
     fS.state.throttle,
     fS.state.dTime
     ));
