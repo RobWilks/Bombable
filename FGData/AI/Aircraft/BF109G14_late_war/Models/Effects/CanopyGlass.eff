@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PropertyList>
+
+    <name>AI/Aircraft/BF109G14_late_war/Models/Effects/CanopyGlass</name>
+
+    <inherits-from>Effects/model-combined-transparent</inherits-from>
+
+    <parameters>
+        <rendering-hint>transparent</rendering-hint>
+        <transparent>true</transparent>
+
+        <render-bin>
+            <bin-number>10</bin-number>
+            <bin-name>DepthSortedBin</bin-name>
+        </render-bin>
+    </parameters>
+
+</PropertyList>
+
+

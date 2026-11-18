@@ -1,0 +1,129 @@
+<PropertyList>
+
+<path>/home/michael-wilkinson/Desktop/Bombable 5.0/Bombable/FGData/AI/Aircraft/BF109G14_late_war/Models/bf109g14_late_war_v7.ac</path>
+
+
+<!-- ***** Canopy ***** -->
+
+<effect>
+    <inherits-from>AI/Aircraft/BF109G14_late_war/Models/Effects/exterior-glass-reflection</inherits-from>
+    <object-name>Object_4</object-name>
+</effect>
+
+<effect>
+    <inherits-from>AI/Aircraft/BF109G14_late_war/Models/Effects/dirt-fuselage</inherits-from>
+    <object-name>Object_2</object-name>
+    <object-name>Object_3</object-name>
+</effect>
+
+
+<!-- Specularity fix -->
+<animation>
+    <type>material</type>
+    <object-name>Object_2</object-name>
+    <object-name>Object_3</object-name>
+    <shininess>116</shininess>
+    <specular>
+        <r>1</r>
+        <g>1</g>
+        <b>1</b>
+    </specular>
+    <ambient>
+        <r>1</r>
+        <g>1</g>
+        <b>1</b>
+    </ambient>
+</animation>
+
+
+
+<!-- ***** Propeller ***** -->
+<animation>
+  <type>select</type>
+  <object-name>PropellerDisk</object-name>
+  <condition>
+   <greater-than>
+    <property>/bf109g14/engines/engine[0]/rpm</property>
+    <value>1500.000</value>
+   </greater-than>
+  </condition>
+ </animation>
+
+<animation>
+  <type>select</type>
+  <object-name>propblur</object-name>
+  <condition>
+  <and>
+   <greater-than>
+    <property>/bf109g14/engines/engine[0]/rpm</property>
+    <value>600.000</value>
+   </greater-than>
+   <less-than>
+    <property>/bf109g14/engines/engine[0]/rpm</property>
+    <value>1500.001</value>
+   </less-than>
+   </and>
+  </condition>
+ </animation>
+
+ <animation>
+  <type>select</type>
+  <object-name>Propeller</object-name>
+  <condition>
+   <less-than>
+    <property>/bf109g14/engines/engine[0]/rpm</property>
+    <value>600.001</value>
+   </less-than>
+  </condition>
+ </animation>
+
+<animation>
+  <type>spin</type>
+  <object-name>Propeller</object-name>
+  <property>/bf109g14/engines/engine[0]/rpm</property>
+  <center>
+    <x-m>-2.16779</x-m>
+    <y-m>0.004617</y-m>
+    <z-m>-0.004034</z-m>
+  </center>
+  <axis>
+    <x>-1.0</x>
+    <y>0.0</y>
+    <z>0.0</z>
+  </axis>
+</animation>
+  
+<animation>
+  <type>spin</type>
+  <object-name>propblur</object-name>
+  <property>/bf109g14/engines/engine[0]/rpm</property>
+  <center>
+    <x-m>-2.16779</x-m>
+    <y-m>0.004617</y-m>
+    <z-m>-0.004034</z-m>
+  </center>
+  <axis>
+    <x>-1.0</x>
+    <y>0.0</y>
+    <z>0.0</z>
+  </axis>
+</animation>
+
+<animation>
+  <type>spin</type>
+  <object-name>PropellerDisk</object-name>
+  <property>/bf109g14/engines/engine[0]/rpm</property>
+  <factor>0.25</factor>
+  <center>
+    <x-m>-2.16779</x-m>
+    <y-m>0.004617</y-m>
+    <z-m>-0.004034</z-m>
+  </center>
+  <axis>
+    <x>-1.0</x>
+    <y>0.0</y>
+    <z>0.0</z>
+  </axis>
+</animation>
+
+</PropertyList>

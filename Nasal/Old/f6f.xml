@@ -1,0 +1,413 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<PropertyList>
+
+  <!-- Base 3D Mesh Reference -->
+  <path>f6f.ac</path>
+
+  <!-- =================================================================== -->
+  <!-- SUBMODELS (Disabled for AI/Bombable compatibility)                  -->
+  <!-- =================================================================== -->
+  <!--
+  <submodels>
+    <path>Aircraft/f6f/Models/f6f-submodels.xml</path>
+  </submodels>
+  -->
+
+  <!-- =================================================================== -->
+  <!-- MODEL DISTANCE / LOD OPTIMIZATION                                   -->
+  <!-- =================================================================== -->
+  <range-m>5000</range-m>
+
+  <!-- =================================================================== -->
+  <!-- MATERIAL & TEXTURE ANIMATIONS                                      -->
+  <!-- =================================================================== -->
+  <!-- Kept intact to preserve correct surface shading and livery rendering -->
+  <animation>
+    <type>material</type>
+    <object-name>fuselage</object-name>
+    <object-name>aileG</object-name>
+    <object-name>aileD</object-name>
+    <object-name>profondeurG</object-name>
+    <object-name>profondeurD</object-name>
+    <object-name>direction</object-name>
+    <object-name>aileronG</object-name>
+    <object-name>aileronD</object-name>
+    <object-name>voletG1</object-name>
+    <object-name>voletG2</object-name>
+    <object-name>voletD1</object-name>
+    <object-name>voletD2</object-name>
+    <object-name>axeG</object-name>
+    <object-name>axeD</object-name>
+    <object-name>roueG</object-name>
+    <object-name>roueD</object-name>
+    <object-name>roueA</object-name>
+    <object-name>porteGA</object-name>
+    <object-name>porteGB</object-name>
+    <object-name>porteDA</object-name>
+    <object-name>porteDB</object-name>
+    <object-name>ailetteG1</object-name>
+    <object-name>ailetteG2</object-name>
+    <object-name>ailetteD1</object-name>
+    <object-name>ailetteD2</object-name>
+    <object-name>tourverriere</object-name>
+    <object-name>hook</object-name>
+    <property-base>sim/model/livery</property-base>
+    <texture-prop>texture</texture-prop>
+    <texture>f6f.png</texture>
+  </animation>
+
+  <!-- Glass material definitions -->
+  <animation>
+    <type>material</type>
+    <object-name>verriere</object-name>
+    <object-name>Canopy</object-name>
+    <property-base>sim/model/livery</property-base>
+    <texture-prop>texture-glass</texture-prop>
+    <texture>glass.png</texture>
+  </animation>
+
+  <!-- =================================================================== -->
+  <!-- PROPELLER & ENGINE ANIMATIONS (KEPT ACTIVE)                         -->
+  <!-- =================================================================== -->
+
+  <!-- Static Propeller (Visible when engine is stopped or idle) -->
+  <animation>
+    <type>select</type>
+    <object-name>helice</object-name>
+    <condition>
+      <less-than>
+        <property>engines/engine[0]/rpm</property>
+        <value>1000.0</value>
+      </less-than>
+    </condition>
+  </animation>
+
+  <!-- Propeller & Spinner Rotation -->
+  <animation>
+    <type>spin</type>
+    <object-name>helice</object-name>
+    <object-name>bol</object-name>
+    <property>engines/engine[0]/rpm</property>
+    <factor>1.0</factor>
+    <center>
+      <x-m>-2.60</x-m>
+      <y-m>0.00</y-m>
+      <z-m>0.00</z-m>
+    </center>
+    <axis>
+      <x>-1.0</x>
+      <y>0.0</y>
+      <z>0.0</z>
+    </axis>
+  </animation>
+
+  <!-- Medium RPM Blur Disc -->
+  <animation>
+    <type>select</type>
+    <object-name>propblur</object-name>
+    <condition>
+      <and>
+        <greater-than>
+          <property>engines/engine[0]/rpm</property>
+          <value>600.0</value>
+        </greater-than>
+        <less-than>
+          <property>engines/engine[0]/rpm</property>
+          <value>1500.0</value>
+        </less-than>
+      </and>
+    </condition>
+  </animation>
+
+  <!-- High RPM Fast Disc -->
+  <animation>
+    <type>select</type>
+    <object-name>propdisc</object-name>
+    <condition>
+      <greater-than>
+        <property>engines/engine[0]/rpm</property>
+        <value>1400.0</value>
+      </greater-than>
+    </condition>
+  </animation>
+
+  <!-- =================================================================== -->
+  <!-- COMMENTED OUT MECHANICAL ANIMATIONS                                -->
+  <!-- =================================================================== -->
+
+  <!-- CONTROL SURFACES (Elevators, Rudder, Ailerons) -->
+  <!--
+  <animation>
+    <type>rotate</type>
+    <object-name>direction</object-name>
+    <property>surface-positions/rudder-pos-norm</property>
+    <factor>25.0</factor>
+    <axis>
+      <x1-m>2.65</x1-m>
+      <y1-m>0.00</y1-m>
+      <z1-m>0.35</z1-m>
+      <x2-m>3.40</x2-m>
+      <y2-m>0.00</y2-m>
+      <z2-m>1.70</z2-m>
+    </axis>
+  </animation>
+
+  <animation>
+    <type>rotate</type>
+    <object-name>profondeurG</object-name>
+    <property>surface-positions/elevator-pos-norm</property>
+    <factor>20.0</factor>
+    <axis>
+      <x1-m>3.10</x1-m>
+      <y1-m>-2.20</y1-m>
+      <z1-m>0.40</z1-m>
+      <x2-m>3.10</x2-m>
+      <y2-m>0.00</y2-m>
+      <z2-m>0.40</z2-m>
+    </axis>
+  </animation>
+
+  <animation>
+    <type>rotate</type>
+    <object-name>profondeurD</object-name>
+    <property>surface-positions/elevator-pos-norm</property>
+    <factor>20.0</factor>
+    <axis>
+      <x1-m>3.10</x1-m>
+      <y1-m>0.00</y1-m>
+      <z1-m>0.40</z1-m>
+      <x2-m>3.10</x2-m>
+      <y2-m>2.20</y2-m>
+      <z2-m>0.40</z2-m>
+    </axis>
+  </animation>
+
+  <animation>
+    <type>rotate</type>
+    <object-name>aileronG</object-name>
+    <property>surface-positions/left-aileron-pos-norm</property>
+    <factor>20.0</factor>
+    <axis>
+      <x1-m>0.15</x1-m>
+      <y1-m>-5.70</y1-m>
+      <z1-m>-0.30</z1-m>
+      <x2-m>0.65</x2-m>
+      <y2-m>-3.10</y2-m>
+      <z2-m>-0.55</z2-m>
+    </axis>
+  </animation>
+
+  <animation>
+    <type>rotate</type>
+    <object-name>aileronD</object-name>
+    <property>surface-positions/right-aileron-pos-norm</property>
+    <factor>20.0</factor>
+    <axis>
+      <x1-m>0.65</x1-m>
+      <y1-m>3.10</y1-m>
+      <z1-m>-0.55</z1-m>
+      <x2-m>0.15</x2-m>
+      <y2-m>5.70</y2-m>
+      <z2-m>-0.30</z2-m>
+    </axis>
+  </animation>
+  -->
+
+  <!-- FLAPS & WING FOLD -->
+  <!--
+  <animation>
+    <type>rotate</type>
+    <object-name>voletG1</object-name>
+    <object-name>voletG2</object-name>
+    <property>surface-positions/flaps-pos-norm</property>
+    <factor>50.0</factor>
+    <axis>
+      <x1-m>0.65</x1-m>
+      <y1-m>-3.10</y1-m>
+      <z1-m>-0.55</z1-m>
+      <x2-m>0.90</x2-m>
+      <y2-m>-0.80</y2-m>
+      <z2-m>-0.70</z2-m>
+    </axis>
+  </animation>
+
+  <animation>
+    <type>rotate</type>
+    <object-name>voletD1</object-name>
+    <object-name>voletD2</object-name>
+    <property>surface-positions/flaps-pos-norm</property>
+    <factor>50.0</factor>
+    <axis>
+      <x1-m>0.90</x1-m>
+      <y1-m>0.80</y1-m>
+      <z1-m>-0.70</z1-m>
+      <x2-m>0.65</x2-m>
+      <y2-m>3.10</y2-m>
+      <z2-m>-0.55</z2-m>
+    </axis>
+  </animation>
+
+  <animation>
+    <type>rotate</type>
+    <object-name>aileG</object-name>
+    <property>geometry/wings/fold-wing-pos-norm</property>
+    <factor>90.0</factor>
+    <axis>
+      <x1-m>-0.10</x1-m>
+      <y1-m>-1.40</y1-m>
+      <z1-m>-0.60</z1-m>
+      <x2-m>0.80</x2-m>
+      <y2-m>-1.40</y2-m>
+      <z2-m>0.30</z2-m>
+    </axis>
+  </animation>
+
+  <animation>
+    <type>rotate</type>
+    <object-name>aileD</object-name>
+    <property>geometry/wings/fold-wing-pos-norm</property>
+    <factor>-90.0</factor>
+    <axis>
+      <x1-m>-0.10</x1-m>
+      <y1-m>1.40</y1-m>
+      <z1-m>-0.60</z1-m>
+      <x2-m>0.80</x2-m>
+      <y2-m>1.40</y2-m>
+      <z2-m>0.30</z2-m>
+    </axis>
+  </animation>
+  -->
+
+  <!-- LANDING GEAR, WHEELS & DOORS -->
+  <!--
+  <animation>
+    <type>rotate</type>
+    <object-name>axeG</object-name>
+    <object-name>roueG</object-name>
+    <object-name>porteGA</object-name>
+    <object-name>porteGB</object-name>
+    <property>gear/gear[0]/position-norm</property>
+    <interpolation>
+      <entry><ind>0.0</ind><dep>90.0</dep></entry>
+      <entry><ind>1.0</ind><dep>0.0</dep></entry>
+    </interpolation>
+    <axis>
+      <x1-m>-0.50</x1-m>
+      <y1-m>-1.35</y1-m>
+      <z1-m>-0.65</z1-m>
+      <x2-m>0.30</x2-m>
+      <y2-m>-1.35</y2-m>
+      <z2-m>-0.65</z2-m>
+    </axis>
+  </animation>
+
+  <animation>
+    <type>rotate</type>
+    <object-name>axeD</object-name>
+    <object-name>roueD</object-name>
+    <object-name>porteDA</object-name>
+    <object-name>porteDB</object-name>
+    <property>gear/gear[1]/position-norm</property>
+    <interpolation>
+      <entry><ind>0.0</ind><dep>-90.0</dep></entry>
+      <entry><ind>1.0</ind><dep>0.0</dep></entry>
+    </interpolation>
+    <axis>
+      <x1-m>-0.50</x1-m>
+      <y1-m>1.35</y1-m>
+      <z1-m>-0.65</z1-m>
+      <x2-m>0.30</x2-m>
+      <y2-m>1.35</y2-m>
+      <z2-m>-0.65</z2-m>
+    </axis>
+  </animation>
+
+  <animation>
+    <type>spin</type>
+    <object-name>roueG</object-name>
+    <property>gear/gear[0]/roll-speed-fps</property>
+    <factor>1.5</factor>
+    <center>
+      <x-m>-0.10</x-m>
+      <y-m>-1.35</y-m>
+      <z-m>-1.65</z-m>
+    </center>
+    <axis>
+      <x>0.0</x>
+      <y>-1.0</y>
+      <z>0.0</z>
+    </axis>
+  </animation>
+
+  <animation>
+    <type>spin</type>
+    <object-name>roueD</object-name>
+    <property>gear/gear[1]/roll-speed-fps</property>
+    <factor>1.5</factor>
+    <center>
+      <x-m>-0.10</x-m>
+      <y-m>1.35</y-m>
+      <z-m>-1.65</z-m>
+    </center>
+    <axis>
+      <x>0.0</x>
+      <y>-1.0</y>
+      <z>0.0</z>
+    </axis>
+  </animation>
+  -->
+
+  <!-- COWL FLAPS, CANOPY & TAILHOOK -->
+  <!--
+  <animation>
+    <type>rotate</type>
+    <object-name>ailetteG1</object-name>
+    <object-name>ailetteG2</object-name>
+    <object-name>ailetteD1</object-name>
+    <object-name>ailetteD2</object-name>
+    <property>engines/engine[0]/cowl-flaps-norm</property>
+    <factor>15.0</factor>
+    <axis>
+      <x1-m>-1.20</x1-m>
+      <y1-m>-0.70</y1-m>
+      <z1-m>0.00</z1-m>
+      <x2-m>-1.20</x2-m>
+      <y2-m>0.70</y2-m>
+      <z2-m>0.00</z2-m>
+    </axis>
+  </animation>
+
+  <animation>
+    <type>translate</type>
+    <object-name>tourverriere</object-name>
+    <object-name>verriere</object-name>
+    <object-name>Canopy</object-name>
+    <property>canopy/position-norm</property>
+    <factor>0.75</factor>
+    <axis>
+      <x>1.0</x>
+      <y>0.0</y>
+      <z>0.0</z>
+    </axis>
+  </animation>
+
+  <animation>
+    <type>rotate</type>
+    <object-name>hook</object-name>
+    <property>gear/tailhook/position-norm</property>
+    <factor>45.0</factor>
+    <center>
+      <x-m>2.10</x-m>
+      <y-m>0.00</y-m>
+      <z-m>-0.45</z-m>
+    </center>
+    <axis>
+      <x>0.0</x>
+      <y>1.0</y>
+      <z>0.0</z>
+    </axis>
+  </animation>
+  -->
+
+</PropertyList>

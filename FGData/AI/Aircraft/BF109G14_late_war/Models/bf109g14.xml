@@ -17,8 +17,13 @@
   </parameters>
 </fx> -->
 
-<effect>
+<!-- <effect>
     <inherits-from>Effects/model-combined-transparent</inherits-from>
+    <object-name>Object_4</object-name>
+</effect> -->
+
+<effect>
+    <inherits-from>AI/Aircraft/BF109G14_late_war/Models/Effects/CanopyGlass</inherits-from>
     <object-name>Object_4</object-name>
 </effect>
 

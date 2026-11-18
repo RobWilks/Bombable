@@ -1541,7 +1541,7 @@ elsif (modelName == "/ju87") {
 
 elsif (modelName == "/bf109g14") {
 
-    var modelPath = "/home/michael-wilkinson/Desktop/Bombable 5.0/Bombable/FGData/AI/Aircraft/BF109G14_late_war/Models/bf109g14.xml";
+    var modelPath = "/home/michael-wilkinson/Desktop/Bombable 5.0/Bombable/FGData/AI/Aircraft/BF109G14_late_war/Models/bf109g14_new.xml";
     var perf_profile = {
         v_climb: 19.2,                 # m/s (Economic climb rate at ~140 kts IAS; peak rate near sea level with MW-50 boost)
         climb_rate: 3770.0,            # ft per min (~19.2 m/s max initial rate of climb near sea level under emergency boost)
@@ -1672,9 +1672,9 @@ if (apt != nil and size(apt.runways) > 0) {
 
     var apt_elev_ft = apt.elevation * 3.28084 or 0.0;
     init_alt_ft = apt_elev_ft + 10000.0;
-    print("fly.nas: Initialized position from " ~ airport_id ~ " Runway threshold at Lat: " ~ init_lat ~ ", Lon: " ~ init_lon);
+    print("fSim.nas: Initialized position from " ~ airport_id ~ " Runway threshold at Lat: " ~ init_lat ~ ", Lon: " ~ init_lon);
 } else {
-    print("fly.nas: Warning - Could not load airport " ~ airport_id ~ ", using default fallback coordinates.");
+    print("fSim.nas: Warning - Could not load airport " ~ airport_id ~ ", using default fallback coordinates.");
 }
 
 # Initial flight parameters for level flight northwards (Heading 0°, Speed 250 kts)
@@ -1792,9 +1792,9 @@ var setup_fSim_chase_view = func(slot_idx, mName) {
 
     setprop(raw_slot_prop, mName);
 
-    setprop("/sim/view[" ~ slot_idx ~ "]/config/x-offset-m", 0);
-    setprop("/sim/view[" ~ slot_idx ~ "]/config/y-offset-m", -10);
-    setprop("/sim/view[" ~ slot_idx ~ "]/config/z-offset-m", -35);
+    setprop("/sim/view[" ~ slot_idx ~ "]/config/x-offset-m", 4);
+    setprop("/sim/view[" ~ slot_idx ~ "]/config/y-offset-m", -2);
+    setprop("/sim/view[" ~ slot_idx ~ "]/config/z-offset-m", 0);
 
     setprop("/sim/view[" ~ slot_idx ~ "]/config/eye-lat-deg", 0);
     setprop("/sim/view[" ~ slot_idx ~ "]/config/eye-lon-deg", 0);
@@ -1813,6 +1813,29 @@ var setup_fSim_chase_view = func(slot_idx, mName) {
 };
 
 setup_fSim_chase_view(101, modelName);
+
+# Automatically load a nasal console
+settimer(func {
+    fgcommand("dialog-show", props.Node.new({"dialog-name": "nasal-console"}));
+
+# Open multiple property browsers at specific paths
+var paths = [
+    "/bf109g14/position",
+    "/bf109g14/orientation",
+    "/bf109g14/velocities",
+    "/bf109g14/controls/manoeuvres",
+];
+
+foreach (var path; paths) {
+    # Fetch the Property Node object for the given path
+    var node = props.globals.getNode(path);
+    
+    if (node != nil) {
+        # Opens a new property browser dialog focused on the specified node
+        gui.property_browser(node);
+        }
+    }
+}, 10);
 
 ########################## register_manoeuvre_listeners ###########################
 # Example listener registration (adapt the node path to your controls node):

@@ -16,9 +16,10 @@ var main = func( addon ) {
 
     # Scripts to load: [filename, namespace]
     var scripts = [
-        ["fast_trig.nas",     "fast_trig"],
-        ["gui_ai_views.nas",  "gui_ai_views"],
-        ["bombable.nas",      "bombable"]
+        # ["fast_trig.nas",     "fast_trig"],
+        # ["gui_ai_views.nas",  "gui_ai_views"],
+        # ["bombable.nas",      "bombable"],
+        ["fSim.nas",          "fSim"],
     ];
 
     # Load scripts sequentially on addon init
