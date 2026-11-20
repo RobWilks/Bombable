@@ -26,7 +26,19 @@
 #  6. Keep physics_update_interval at 0.1 s or less: a 175 deg/s roll moves 17 degrees per tick.
 
 
-var FSIM_VERSION = "0.2.0";
+#CLAUDE+ Change log (newest first):
+#CLAUDE+   0.5.0  set_targets starts a climb (start_climb) when the new altitude needs one, optional fifth argument sched
+#CLAUDE+          (max_rate default, max_angle, economy); start_climb stays quiet for descents
+#CLAUDE+   0.4.0  new climb mode: start_climb(opts) with schedule max_rate (Vy), max_angle (Vx) or economy (max (T-D)/T); it reverts
+#CLAUDE+          to cruise when cruise can handle the altitude change; best_climb_speed(self, mode) with a per-mode cache;
+#CLAUDE+          update_pitch_target is altitude capture plus protection (reference speed 1.2 x stall unless the caller passes one);
+#CLAUDE+          v_climb perf key and its override deleted
+#CLAUDE+   0.3.0  loop guard also refuses when the predicted top speed is below LOOP_MIN_TOP_RATIO x the stall speed; per-aircraft loop defaults
+#CLAUDE+          (perf loop_entry_speed_mps, loop_n_bottom, loop_min_top_ratio); new cruise() base mode (heading, altitude and, with
+#CLAUDE+          auto_throttle, speed hold) runs after every manoeuvre and restores the pre-manoeuvre throttle mode; set_targets gains spd
+#CLAUDE+   0.2.0  cleanup of start_loop defaults, speed floors, monitor nil guard, unknown-model message, optional perf keys, version number
+#CLAUDE+   0.1.0  baseline as uploaded
+var FSIM_VERSION = "0.5.0";
 # Explicitly define fS
 var fS = {
     version: FSIM_VERSION,
@@ -34,14 +46,27 @@ var fS = {
 
     # note roll and pitch targets are not set here.  They are outputs, calculated by functions to update altitude and heading
     # The rule is that manoeuvres don’t touch the user targets below until their documented hand-back.
-    set_targets: func(hdg = nil, alt = nil, thr = nil) {
+    set_targets: func(hdg = nil, alt = nil, thr = nil, spd = nil, sched = nil) {   #CLAUDE~ 0.5.0: sched = climb schedule   #CLAUDE~ 0.3.0: spd added (target speed, kts)
         if (me.state == nil) {
             print("Error: fS.state is not initialized.");
             return;
         }
         if (hdg != nil)   me.state.tgt_heading = hdg;
         if (alt != nil)   me.state.tgt_altitude_ft = alt;
-        if (thr != nil)   me.state.throttle = thr;
+        if (thr != nil) {   #CLAUDE~ 0.3.0: a throttle set by hand turns the cruise auto throttle off
+            me.state.throttle = thr;
+            me.state.auto_throttle = 0;
+        }
+        if (spd != nil) {   #CLAUDE~ 0.3.0: a target speed turns it on: cruise then holds tgt_speed with the throttle (if both are given, spd wins)
+            me.state.tgt_speed = spd;
+            me.state.auto_throttle = 1;
+        }
+        #CLAUDE+ 0.5.0: a new altitude is handed to start_climb, which decides whether cruise can fly it. Not while a manoeuvre is
+        #CLAUDE+ running: the target is stored and the manoeuvre hands back to cruise (or the running climb flies to it).
+        if (alt != nil and me.state.manoeuvre == nil) {
+            if (start_climb(me.state, { schedule: sched or "max_rate" }) != nil)
+                me.state.pre_manoeuvre = { auto: me.state.auto_throttle, thr: me.state.throttle };
+        }
         
         print(sprintf("fSim: Target Update -> Hdg: %.1f° | Alt: %.1f ft | Thr: %.2f", 
             me.state.tgt_heading, me.state.tgt_altitude_ft, me.state.throttle));
@@ -249,7 +274,11 @@ var steady_drag = func(self, v) {
 ########################## best_climb_speed ###########################
 # Speed that maximises the climb power (T - D) * v for level-ish flight at the current altitude,
 # searched on a 24-step grid with a parabolic refinement of the best point.
-var best_climb_speed = func(self) {
+#CLAUDE+ 0.4.0: mode selects the score maximised over speed:
+#CLAUDE+   "rate"    (T - D) * v   best rate of climb, Vy
+#CLAUDE+   "angle"   (T - D)       best angle of climb, Vx (the rate score without its final * v)
+#CLAUDE+   "economy" (T - D) / T   least mechanical work per unit height (work = W * T / (T - D))
+var best_climb_speed = func(self, mode = "rate") {
     var vs1  = v_stall_1g(self);
     var rho  = air_density(self.alt_ft * 0.3048);
     var S    = self.perf.wing_area_m2;
@@ -264,7 +293,13 @@ var best_climb_speed = func(self) {
         var qS   = 0.5 * rho * v * v * S;
         var CL   = weight_N / qS;
         var rate = -1.0e9;
-        if (CL <= 0.9 * CL_MAX) rate = (thrust_at(self, v, rho) - qS * (C_D0 + K_IND * CL * CL)) * v;
+        if (CL <= 0.9 * CL_MAX) {
+            var T  = thrust_at(self, v, rho);
+            var ex = T - qS * (C_D0 + K_IND * CL * CL);
+            if (mode == "angle")        rate = ex;
+            else if (mode == "economy") rate = ex / math.max(T, 1.0);
+            else                        rate = ex * v;
+        }
         append(r, rate);
         if (rate > r[best]) best = i;
     }
@@ -279,16 +314,19 @@ var best_climb_speed = func(self) {
 ########################## climb_speed ###########################
 # Reference climb speed in metres per sec, recomputed only when the altitude has changed by 500 ft, never below
 # 1.2 x the 1 g stall speed.
-var climb_speed = func(self) {
+#CLAUDE~ 0.4.0: mode argument; one cache entry per mode (c[mode] = {alt_ft, v}); c["v"] is the last speed returned (read by monitorValues)
+var climb_speed = func(self, mode = "rate") {
     var vs1 = v_stall_1g(self);
-    var pv = self.perf["v_climb"];
-    if (pv != nil) return math.max(pv, 1.2 * vs1);
     var c = self.climb_cache;
-    if (c == nil or math.abs(self.alt_ft - c.alt_ft) > 500.0) {
-        c = { alt_ft: self.alt_ft, v: best_climb_speed(self) };
-        self.climb_cache = c;
+    if (c == nil) c = {};
+    var e = c[mode];
+    if (e == nil or math.abs(self.alt_ft - e.alt_ft) > 500.0) {
+        e = { alt_ft: self.alt_ft, v: best_climb_speed(self, mode) };
+        c[mode] = e;
     }
-    return math.max(c.v, 1.2 * vs1);
+    c["v"] = math.max(e.v, 1.2 * vs1);
+    self.climb_cache = c;
+    return c["v"];
 };
 
 ########################## climb control parameters ###########################
@@ -316,14 +354,16 @@ var CLIMB_TAU     = 0.3;     # s     time constant of the low-pass filter on the
 #      (command_path), which clamps alpha to 0.9 x the stall angle and the load factor to the
 #      structural and stall limits, using the MEASURED path angle.
 #
-# Optional perf entry: v_climb (m/s) overrides the best-climb speed computed from the model.
+#CLAUDE+ 0.4.0: v_ref (m/s) is the speed the climb limit in step 2 tries to hold. Default 1.2 x the 1 g stall speed, which makes this
+#CLAUDE+ function altitude capture plus protection. update_climb_target passes the schedule speed instead.
 # vs is vertical speed in m/s, v_h is horizontal speed in m/s, speed is total speed in m/s.
 
-var update_pitch_target = func(self, dt) {
+var update_pitch_target = func(self, dt, v_ref = nil) {
     var v_h   = math.sqrt(self.v_east * self.v_east + self.v_north * self.v_north);
     var speed = math.sqrt(v_h * v_h + self.v_up * self.v_up);
     var vs1   = v_stall_1g(self);
     var v     = math.max(speed, 0.5 * vs1);       # floor scales with the aircraft, not a fixed 20 m/s
+    if (v_ref == nil) v_ref = 1.2 * vs1;              #CLAUDE+ 0.4.0
 
     # 1. path angle wanted for the altitude error
     var alt_err_m = (self.tgt_altitude_ft - self.alt_ft) / 3.28084;
@@ -334,7 +374,7 @@ var update_pitch_target = func(self, dt) {
 
     # 2. climb (or level) no steeper than the thrust can sustain at the speed we want to hold
     if (gamma_cmd >= 0.0) {
-        var v_ref  = climb_speed(self);
+        #CLAUDE- var v_ref  = climb_speed(self);
         var excess = (thrust_available(self) - steady_drag(self, v)) / weight_N; # excess force - dimensionless
         var a_des  = math.clamp(CLIMB_K_SPEED * (v_ref - v), -CLIMB_A_MAX, CLIMB_A_MAX); # calculate the desired acceleration from the speed error
         var s      = math.clamp(excess - a_des / g, -0.95, 0.95);
@@ -1022,10 +1062,24 @@ var update_split_s_target = func(self, dt) {
 #     pitch_target = gamma + alpha_required
 # so attitude follows the flight path rather than running ahead of it.
 
+#CLAUDE~ 0.3.0: new. Loop entry speed (m/s) and design load factor at the bottom: the aircraft profile if it sets
+#CLAUDE+ loop_entry_speed_mps / loop_n_bottom, otherwise 0.97 x max speed and min(5, 0.9 x n_max_pos).
+var loop_defaults = func(self) {
+    return {
+        v: self.perf["loop_entry_speed_mps"] or (0.97 * self.perf.max_speed_mps),
+        n: self.perf["loop_n_bottom"] or math.min(5.0, 0.9 * (self.perf["n_max_pos"] or 6.0))
+    };
+};
+
+#CLAUDE~ 0.3.0: new. A loop passes the top at low g, so its top speed may be below the 1 g stall speed (Spitfire loop: 0.86 x, fine);
+#CLAUDE+ well below that the aircraft stalls out (fkdr1 loop: 0.19 x, tail slide). A profile can override with loop_min_top_ratio.
+var LOOP_MIN_TOP_RATIO = 0.7;
+
 var start_loop = func(self, opts = nil) {
     opts = opts or {};
-    var v_e = opts["entry_speed"] or (0.97 * self.perf.max_speed_mps);
-    var n_b = opts["n_bottom"] or math.min(5.0, 0.9 * (self.perf["n_max_pos"] or 6.0));
+    var d   = loop_defaults(self);   #CLAUDE~ 0.3.0: profile defaults, see loop_defaults
+    var v_e = opts["entry_speed"] or d.v;
+    var n_b = opts["n_bottom"] or d.n;
 
     if (!opts["force"]) {
         var pr    = predict_loop_top(self, v_e, n_b, PI);
@@ -1034,6 +1088,12 @@ var start_loop = func(self, opts = nil) {
         if (!pr.ok) {
             print(sprintf("Loop refused: predicted top speed %.0f kt is below the %.0f kt stall speed there",
                           pr.v / kts_to_mps, vs / kts_to_mps));
+            return nil;
+        }
+        var min_ratio = self.perf["loop_min_top_ratio"] or LOOP_MIN_TOP_RATIO;   #CLAUDE~ 0.3.0: a profile can override the default
+        if (pr.v < min_ratio * vs) {   #CLAUDE~ 0.3.0: new rule
+            print(sprintf("Loop refused: predicted top speed %.0f kt is below %.2f x the %.0f kt stall speed there",
+                          pr.v / kts_to_mps, min_ratio, vs / kts_to_mps));
             return nil;
         }
     }
@@ -1151,6 +1211,74 @@ var canonical_euler = func(s) {
 var MAX_SUBSTEP = 0.25;
 var MAX_DT      = 0.25;
 
+########################## climb mode (0.4.0) ###########################
+#CLAUDE+ start_climb(self, opts): opts = { schedule: "max_rate" | "max_angle" | "economy" (default max_rate),
+#CLAUDE+                                   alt_ft: target altitude (default tgt_altitude_ft) }
+#CLAUDE+ Sets tgt_altitude_ft. If cruise can handle the altitude change (the path angle it needs is at most CLIMB_CRUISE_FRACTION of
+#CLAUDE+ the angle the excess thrust can sustain at the current speed) nothing is started and cruise does the climb. Otherwise the
+#CLAUDE+ climb runs at full throttle on the schedule speed until the altitude error is small, then hands over to cruise, which
+#CLAUDE+ captures the altitude and restores the pre-manoeuvre throttle mode.
+var CLIMB_SCHEDULES       = { max_rate: "rate", max_angle: "angle", economy: "economy" };
+var CLIMB_CRUISE_FRACTION = 0.5;
+var CLIMB_CAPTURE_MIN_M   = 20.0;
+
+var cruise_can_climb = func(self, dh_m) {
+    var vs1 = v_stall_1g(self);
+    var v   = math.max(self.speed * kts_to_mps, 0.5 * vs1);
+    var v_h = math.sqrt(self.v_east * self.v_east + self.v_north * self.v_north);
+    var vs  = math.clamp(dh_m * 0.1, 0.0, self.perf.climb_rate * 0.00508);
+    var g_req = math.atan2(vs, math.max(v_h, 1.0));
+    var s = math.clamp((thrust_available(self) - steady_drag(self, v)) / weight_N, -0.95, 0.95);
+    var g_av = math.atan2(s, math.sqrt(1.0 - s * s));
+    return (v >= 1.2 * vs1 and g_av > 0.0 and g_req <= CLIMB_CRUISE_FRACTION * g_av);
+};
+
+var start_climb = func(self, opts = nil) {
+    opts = opts or {};
+    var sched = opts["schedule"] or "max_rate";
+    var mode  = CLIMB_SCHEDULES[sched];
+    if (mode == nil) {
+        print("Unknown climb schedule: " ~ sched ~ " (use max_rate, max_angle or economy), using max_rate");   #CLAUDE~ 0.5.0: was: refuse
+        sched = "max_rate";  mode = "rate";
+    }
+    if (opts["alt_ft"] != nil) self.tgt_altitude_ft = opts["alt_ft"];
+    var dh = (self.tgt_altitude_ft - self.alt_ft) / 3.28084;
+    if (dh <= CLIMB_CAPTURE_MIN_M or cruise_can_climb(self, dh)) {
+        if (dh > CLIMB_CAPTURE_MIN_M) print(sprintf("climb: %.0f m to go, cruise handles it", dh));   #CLAUDE~ 0.5.0: quiet for descents and small changes
+        return nil;
+    }
+    self.manoeuvre = { name: "climb", phase: "climb", t: 0.0, schedule: sched, mode: mode, update: update_climb_target };
+    return self.manoeuvre;
+};
+
+var update_climb_target = func(self, dt) {
+    var m = self.manoeuvre;
+    m.t += dt;
+    var alt_err_m = (self.tgt_altitude_ft - self.alt_ft) / 3.28084;
+    if (alt_err_m < math.max(CLIMB_CAPTURE_MIN_M, 10.0 * self.v_up) or m.t > 3600.0) {
+        self.manoeuvre = nil;
+        cruise(self, dt);          # hand over now: altitude capture, throttle restored
+        return;
+    }
+    update_roll_target(self, dt);
+    self.throttle = 1.0;
+    update_pitch_target(self, dt, climb_speed(self, m.mode));
+};
+
+#CLAUDE~ 0.3.0: new. The base mode, run whenever no manoeuvre is active: heading hold, altitude hold and, if auto_throttle is on,
+#CLAUDE+ speed hold. On the first tick after a manoeuvre it hands back the throttle: auto mode carries on holding tgt_speed;
+#CLAUDE+ in manual mode the throttle the pilot had before the manoeuvre is restored (a manoeuvre can leave it at 0, e.g. after a dive).
+var cruise = func(self, dt) {
+    var pre = self.pre_manoeuvre;
+    if (pre != nil) {
+        if (!pre["auto"]) self.throttle = pre["thr"];
+        self.pre_manoeuvre = nil;
+    }
+    update_roll_target(self, dt);
+    update_pitch_target(self, dt);
+    if (self.auto_throttle) hold_speed(self, self.tgt_speed * kts_to_mps);
+};
+
 var run_flight_physics = func(mName) {
     var prof = fS.prof;
     var state = fS.state;
@@ -1173,8 +1301,7 @@ var run_flight_physics = func(mName) {
         if (state.manoeuvre != nil) {
             state.manoeuvre.update(state, h);
         } else {
-            update_roll_target(state, h);
-            update_pitch_target(state, h);
+            cruise(state, h);   #CLAUDE~ 0.3.0: was update_roll_target(state, h); update_pitch_target(state, h);
         }
 
         # 2. Orientation, 3. forces
@@ -1356,7 +1483,7 @@ var animationManager = {
 
 
 # 1. Performance Profile & Force Coefficients
-var modelName = "/bf109g14";
+var modelName = "/spitfireXVI";
 
 
 ###########################################################
@@ -1366,7 +1493,6 @@ var modelName = "/bf109g14";
 if (modelName == "/F15") {
     var modelPath = "/home/michael-wilkinson/.fgfs/fgdata_2024_1/AI/Aircraft/F-15/Models/F-15.xml";
     var perf_profile = {
-        v_climb: ,                      # (Standard cruise/sustained economic climb rate)
         climb_rate: 40000.0,            # ft per min
         descent_rate: 30000.0,          # ft per min
         max_bank_angle: 90.0,           # deg
@@ -1385,6 +1511,9 @@ if (modelName == "/F15") {
         max_roll_rate_aero:  90.0, # deg/s
         n_max_pos: 6.0, # g factor
         n_max_neg: 3.5, 
+        loop_entry_speed_mps: 220.0,   # m/s  entry speed for a loop (blank = 0.97 x max_speed_mps)   #CLAUDE~ 0.3.0: keeps the F-15 default it had before
+        loop_n_bottom: 4.0,            # g    design load factor at the bottom of a loop (blank = min(5, 0.9 x n_max_pos))
+        loop_min_top_ratio: ,         #      predicted loop top speed / 1 g stall speed below which a loop is refused (blank = 0.7)   #CLAUDE+ new optional key
 
     };
 }
@@ -1396,7 +1525,6 @@ if (modelName == "/F15") {
 elsif (modelName == "/spitfire") {
     var modelPath = "/home/michael-wilkinson/Desktop/Bombable 5.0/Bombable/FGData/AI/Aircraft/spitfireIIa-Bombable/Models/spitfire_model.xml";
     var perf_profile = {
-        v_climb: ,                     # (Standard cruise/sustained economic climb rate at ~130 mps)
         climb_rate: 4000.0,            # ft per min (~66.7 ft/sec, ~4,000 ft/min combat climb)
         descent_rate: 3000.0,          # ft per min (~500.0 ft/sec)
         max_bank_angle: 90.0,          # deg (Fully aerobatic fighter agility)
@@ -1415,6 +1543,9 @@ elsif (modelName == "/spitfire") {
         max_roll_rate_aero:  90.0, # deg/s
         n_max_pos: 6.0, # g factor
         n_max_neg: 3.5,    
+        loop_entry_speed_mps: ,        # m/s  entry speed for a loop (blank = 0.97 x max_speed_mps)   #CLAUDE+ new optional key
+        loop_n_bottom: ,               # g    design load factor at the bottom of a loop (blank = min(5, 0.9 x n_max_pos))
+        loop_min_top_ratio: ,         #      predicted loop top speed / 1 g stall speed below which a loop is refused (blank = 0.7)   #CLAUDE+ new optional key
         max_rpm: 3500,              # Merlin engine            
 
     };
@@ -1426,7 +1557,6 @@ elsif (modelName == "/spitfire") {
 elsif (modelName == "/spitfireXVI") {
     var modelPath = "/home/michael-wilkinson/Desktop/Bombable 5.0/Bombable/FGData/AI/Aircraft/spitfireIIa-Bombable/Models/spitfire_model.xml";
     var perf_profile = {
-        v_climb: ,                     # m/s (Standard cruise/sustained economic climb rate at ~130 mps)
         climb_rate: 4745.0,            # ft per min (Max rate of climb at ~10,000 ft)
         descent_rate: 5000.0,          # ft per min (Standard steep tactical descent; max dive limit went much higher)
         max_bank_angle: 180.0,         # deg (Fully aerobatic fighter capable of sustained inverted flight)
@@ -1445,6 +1575,9 @@ elsif (modelName == "/spitfireXVI") {
         max_roll_rate_aero:  175.0,    # deg/s (Aerodynamic maximum roll rate achieved under optimal speed/airspeed pressures)
         n_max_pos: 6.0,                # g factor (Official design limit load factor for structural airframe integrity)
         n_max_neg: 3.5,
+        loop_entry_speed_mps: ,        # m/s  entry speed for a loop (blank = 0.97 x max_speed_mps)   #CLAUDE+ new optional key
+        loop_n_bottom: ,               # g    design load factor at the bottom of a loop (blank = min(5, 0.9 x n_max_pos))
+        loop_min_top_ratio: ,         #      predicted loop top speed / 1 g stall speed below which a loop is refused (blank = 0.7)   #CLAUDE+ new optional key
         max_rpm: 3500,              # Merlin engine            
                 
     };
@@ -1454,7 +1587,6 @@ elsif (modelName == "/fkdr1") {
     var modelPath = "/home/michael-wilkinson/Desktop/Bombable 5.0/Bombable/FGData/AI/Aircraft/fkdr1-Bombable/Models/dr1.xml";
     var perf_profile = {
         # https://www.gruppofalchi.com/files/Profile-Publications-Aircraft-055---Fokker-DR-1.pdf
-        v_climb: ,                     # m/s (Standard cruise/sustained economic climb rate at ~45 mps)
         climb_rate: 1078.4,            # ft per min (Max rate of climb ~5.7 m/s)
         descent_rate: 3500.0,          # ft per min (Typical WWI combat dive limit)
         max_bank_angle: 180.0,         # deg (Fully aerobatic maneuverability)
@@ -1473,6 +1605,9 @@ elsif (modelName == "/fkdr1") {
         max_roll_rate_aero:  90.0,     # deg/s (Maximum aerodynamic roll rate)
         n_max_pos: 5.0,                # g factor (WWI structural design limit load factor)
         n_max_neg: 2.5,
+        loop_entry_speed_mps: ,        # m/s  entry speed for a loop (blank = 0.97 x max_speed_mps)   #CLAUDE+ new optional key
+        loop_n_bottom: ,               # g    design load factor at the bottom of a loop (blank = min(5, 0.9 x n_max_pos))
+        loop_min_top_ratio: ,         #      predicted loop top speed / 1 g stall speed below which a loop is refused (blank = 0.7)   #CLAUDE+ new optional key
         max_rpm: 1200,                 # engine (Typical maximum RPM for the Oberursel Ur.II rotary engine)
                     
     };
@@ -1489,7 +1624,6 @@ elsif (modelName == "/a6m5") {
 
     var modelPath = "/home/michael-wilkinson/Desktop/Bombable 5.0/Bombable/FGData/AI/Aircraft/A6M5-Bombable/Models/a6m5b-green-fSim.xml";
     var perf_profile = {
-        v_climb: 12.7,                    # m/s (Standard cruise/sustained economic climb rate at ~130 kts)
         climb_rate: 3100.0,           # ft/min (Max initial rate of climb near sea level; ~15.7 m/s)
         descent_rate: 4500.0,         # ft/min (Standard operational descent; max dive IAS limit was 740 km/h / 400 kts)
         max_bank_angle: 180.0,        # deg (Fully aerobatic, though inverted fuel supply limits sustained inverted flight)
@@ -1508,6 +1642,9 @@ elsif (modelName == "/a6m5") {
         max_roll_rate_aero: 135.0,    # deg/s (Peak aerodynamic roll rate; note severe aeroelastic/stiffening penalty at VNE)
         n_max_pos: 7.0,               # g factor (A6M5 reinforced wing skin increased safe load factor over early A6M2)
         n_max_neg: 3.5,               # g factor
+        loop_entry_speed_mps: ,        # m/s  entry speed for a loop (blank = 0.97 x max_speed_mps)   #CLAUDE+ new optional key
+        loop_n_bottom: ,               # g    design load factor at the bottom of a loop (blank = min(5, 0.9 x n_max_pos))
+        loop_min_top_ratio: ,         #      predicted loop top speed / 1 g stall speed below which a loop is refused (blank = 0.7)   #CLAUDE+ new optional key
         max_rpm: 2750,                # RPM (Redline for the Sakae 21 two-stage supercharged radial engine)
     };
 }
@@ -1516,7 +1653,6 @@ elsif (modelName == "/ju87") {
 
     var modelPath = "/home/michael-wilkinson/Desktop/Bombable 5.0/Bombable/FGData/AI/Aircraft/Ju87/Models/ju87.xml";
     var perf_profile = {
-        v_climb: 9.5,                 # m/s (Economic climb rate at ~120-130 kts)
         climb_rate: 1450.0,           # ft/min (Max initial rate of climb near sea level; ~7.4 m/s)
         descent_rate: 5500.0,         # ft/min (Steep dive operational descent; terminal dive velocity ~550-600 km/h with dive brakes)
         max_bank_angle: 180.0,        # deg (Fully aerobatic within structural and fuel feed limits)
@@ -1535,6 +1671,9 @@ elsif (modelName == "/ju87") {
         max_roll_rate_aero: 75.0,     # deg/s (Aerodynamic roll rate; limited by heavy wing inertia and aileron control forces)
         n_max_pos: 7.0,               # g factor (Robust structural limit designed to handle violent 6g–7g dive pullouts)
         n_max_neg: 3.0,               # g factor
+        loop_entry_speed_mps: ,       # m/s  entry speed for a loop (blank = 0.97 x max_speed_mps)   #CLAUDE+ new optional key
+        loop_n_bottom: ,              # g    design load factor at the bottom of a loop (blank = min(5, 0.9 x n_max_pos))
+        loop_min_top_ratio: 0.5,      # predicted loop top speed / 1 g stall speed below which a loop is refused (blank = 0.7)   #CLAUDE+ new optional key
         max_rpm: 2400,                # RPM (Rated combat redline for the Jumo 211 inverted V12 engine)
     };
 }
@@ -1543,7 +1682,6 @@ elsif (modelName == "/bf109g14") {
 
     var modelPath = "/home/michael-wilkinson/Desktop/Bombable 5.0/Bombable/FGData/AI/Aircraft/BF109G14_late_war/Models/bf109g14_new.xml";
     var perf_profile = {
-        v_climb: 19.2,                 # m/s (Economic climb rate at ~140 kts IAS; peak rate near sea level with MW-50 boost)
         climb_rate: 3770.0,            # ft per min (~19.2 m/s max initial rate of climb near sea level under emergency boost)
         descent_rate: 6000.0,          # ft per min (High-speed tactical push-over; VNE dive limit reached rapidly up to 850 km/h IAS)
         max_bank_angle: 180.0,         # deg (Fully aerobatic, though inverted fuel supply/carburetor float limits negative-G maneuvers)
@@ -1562,6 +1700,9 @@ elsif (modelName == "/bf109g14") {
         max_roll_rate_aero:  120.0,    # deg/s (Aerodynamic maximum roll rate achieved under optimal dynamic pressure windows)
         n_max_pos: 7.0,                # g factor (Sturdy structural design load factor favored by German operational criteria)
         n_max_neg: 3.0,                # g factor
+        loop_entry_speed_mps: ,        # m/s  entry speed for a loop (blank = 0.97 x max_speed_mps)   #CLAUDE+ new optional key
+        loop_n_bottom: ,               # g    design load factor at the bottom of a loop (blank = min(5, 0.9 x n_max_pos))
+        loop_min_top_ratio: ,         #      predicted loop top speed / 1 g stall speed below which a loop is refused (blank = 0.7)   #CLAUDE+ new optional key
         max_rpm: 2800,                 # RPM (Redline for the DB 605AM engine under 1.7 ata emergency MW-50 boost)
     };
 }
@@ -1620,6 +1761,8 @@ var create_aircraft_state = func(callsign, initial_lat, initial_lon, initial_alt
         # Target controls
         tgt_heading: initial_hdg,
         tgt_speed: initial_speed_kts,
+        auto_throttle: 0,   #CLAUDE~ 0.3.0: 1 = cruise holds tgt_speed with the throttle, 0 = throttle set by hand
+        pre_manoeuvre: ,   #CLAUDE~ 0.3.0: throttle mode saved when a manoeuvre starts, applied by cruise() when it ends
         tgt_altitude_ft: initial_alt_ft,
         tgt_roll: 0.0,
         tgt_pitch: 0.0,
@@ -1820,15 +1963,15 @@ settimer(func {
 
 # Open multiple property browsers at specific paths
 var paths = [
-    "/bf109g14/position",
-    "/bf109g14/orientation",
-    "/bf109g14/velocities",
-    "/bf109g14/controls/manoeuvres",
+    "/position",
+    "/orientation",
+    "/velocities",
+    "/controls/manoeuvres",
 ];
 
 foreach (var path; paths) {
     # Fetch the Property Node object for the given path
-    var node = props.globals.getNode(path);
+    var node = props.globals.getNode(modelName ~ path);
     
     if (node != nil) {
         # Opens a new property browser dialog focused on the specified node
@@ -1841,7 +1984,7 @@ foreach (var path; paths) {
 # Example listener registration (adapt the node path to your controls node):
 
   var register_manoeuvre_listeners = func(mName, self) {
-      foreach (var name; ["loop", "immelmann", "aileron_roll", "split_s"]) {
+      foreach (var name; ["loop", "immelmann", "aileron_roll", "split_s", "climb"]) {
           (func(name) {
               var node = props.globals.getNode(mName ~ "/controls/manoeuvres/" ~ name, 1);
               node.setBoolValue(0);
@@ -1871,11 +2014,13 @@ var start_manoeuvre = func(mname, self, name, opts = nil) {
     else if (name == "immelmann")    ret = start_immelmann(self, opts);
     else if (name == "aileron_roll") ret = start_aileron_roll(self, opts);
     else if (name == "split_s")      ret = start_split_s(self, opts);
+    else if (name == "climb")        ret = start_climb(self, opts);   #CLAUDE+ 0.4.0
     else {
         print("Unknown manoeuvre: " ~ name);
         return nil;
     }
     if (ret == nil) return ret;
+    self.pre_manoeuvre = { auto: self.auto_throttle, thr: self.throttle };   #CLAUDE~ 0.3.0: cruise() restores this when the manoeuvre ends
     print("Starting ", name, " for ", mname, " manoeuvre options ...");
     if (opts != nil) debug.dump(opts) else print("No options defined using defaults");
     print("Dumping aircraft performance parameters ...");

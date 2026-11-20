@@ -7,7 +7,7 @@ MATERIAL "DefaultWhite_panel.png.001" rgb 0.800 0.800 0.800  amb 0.800 0.800 0.8
 MATERIAL "nospec" rgb 1.000 1.000 1.000  amb 1.000 1.000 1.000  emis 0.000 0.000 0.000  spec 0.000 0.000 0.000  shi 0 trans 0.500
 MATERIAL "ac3dmat1.037" rgb 1.000 1.000 1.000  amb 1.000 1.000 1.000  emis 0.000 0.000 0.000  spec 0.000 0.000 0.000  shi 10 trans 0.000
 MATERIAL "DefaultWhite_metal.png" rgb 0.800 0.800 0.800  amb 0.800 0.800 0.800  emis 0.000 0.000 0.000  spec 0.500 0.500 0.500  shi 40 trans 0.000
-MATERIAL "ac3dmat1.038" rgb 0.502 0.502 0.502  amb 0.502 0.502 0.502  emis 0.000 0.000 0.000  spec 0.000 0.000 0.000  shi 10 trans 0.251
+MATERIAL "ac3dmat1.038" rgb 0.502 0.502 0.502  amb 0.502 0.502 0.8  emis 0.000 0.000 0.000  spec 0.000 0.000 0.000  shi 10 trans 0.5
 OBJECT world
 name "Blender_exporter_v5.1__JU87 no cockpit v3.ac"
 kids 46
@@ -175876,7 +175876,6 @@ name "verrieretransp_verrieretransp.mesh"
 data 34
 verrieretransp_verrieretransp.mesh
 crease 30.0
-texture "waterdrops.png"
 numvert 178
 -1.24558 1.29009 -0.11633
 -1.24549 1.2329 -0.21353
@@ -176733,7 +176732,6 @@ name "vitres_vitres.mesh"
 data 18
 vitres_vitres.mesh
 crease 30.0
-texture "waterdrops.png"
 numvert 337
 -2.18239 0.96247 0.16879
 -2.17025 0.93978 0.2134

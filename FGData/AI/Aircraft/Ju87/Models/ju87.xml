@@ -2,6 +2,63 @@
 
 <path>/home/michael-wilkinson/Desktop/Bombable 5.0/Bombable/FGData/AI/Aircraft/Ju87/Models/JU87 no cockpit v3.ac</path>
 
+<!-- ***** Canopy ***** -->
+
+<effect>
+    <inherits-from>AI/Aircraft/Ju87/Models/Effects/exterior-glass-reflection</inherits-from>
+    <object-name>vitres_vitres.mesh</object-name>
+    <object-name>verrieretransp_verrieretransp.mesh</object-name>
+</effect>
+
+<effect>
+    <inherits-from>AI/Aircraft/Ju87/Models/Effects/dirt-fuselage</inherits-from>
+    <object-name>ailes_ailes.mesh</object-name>
+    <object-name>derive_derive.mesh</object-name>
+    <object-name>fuselage_fuselage.mesh</object-name>
+    <object-name>direction_direction.mesh</object-name>
+    <object-name>aileronG_aileronG.mesh</object-name>
+    <object-name>aileronD_aileronD.mesh</object-name>
+    <object-name>voletG2_voletG2.mesh</object-name>
+    <object-name>voletD2_voletD2.mesh</object-name>
+    <object-name>voletG1_voletG1.mesh</object-name>
+    <object-name>voletD1_voletD1.mesh</object-name>
+    <object-name>cacheG_cacheG.mesh</object-name>
+    <object-name>cacheD_cacheD.mesh</object-name>
+    <object-name>profondeur_profondeur.mesh</object-name>
+    <object-name>verriere_verriere.mesh</object-name>
+</effect>
+
+
+<!-- Specularity fix -->
+<animation>
+    <type>material</type>
+    <object-name>ailes_ailes.mesh</object-name>
+    <object-name>derive_derive.mesh</object-name>
+    <object-name>fuselage_fuselage.mesh</object-name>
+    <object-name>direction_direction.mesh</object-name>
+    <object-name>aileronG_aileronG.mesh</object-name>
+    <object-name>aileronD_aileronD.mesh</object-name>
+    <object-name>voletG2_voletG2.mesh</object-name>
+    <object-name>voletD2_voletD2.mesh</object-name>
+    <object-name>voletG1_voletG1.mesh</object-name>
+    <object-name>voletD1_voletD1.mesh</object-name>
+    <object-name>cacheG_cacheG.mesh</object-name>
+    <object-name>cacheD_cacheD.mesh</object-name>
+    <object-name>profondeur_profondeur.mesh</object-name>
+    <object-name>verriere_verriere.mesh</object-name>
+    <shininess>116</shininess>
+    <specular>
+        <r>1</r>
+        <g>1</g>
+        <b>1</b>
+    </specular>
+    <ambient>
+        <r>1</r>
+        <g>1</g>
+        <b>1</b>
+    </ambient>
+</animation>
+
 <!-- ***** Propeller ***** -->
 <animation>
   <type>select</type>

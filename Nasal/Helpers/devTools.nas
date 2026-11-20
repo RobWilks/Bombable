@@ -1587,3 +1587,9 @@ self.perf.v_climb = 80;
 fSim.fS.get_state();
 
 debug.dump(fSim.fS.state);
+
+fSim.start_climb(fSim.fS.state, 
+    { 
+        schedule: "max_rate",
+        alt_ft: 13500.0,
+    });
