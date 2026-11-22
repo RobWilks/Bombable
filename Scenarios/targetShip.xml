@@ -1,0 +1,24 @@
+<?xml version="1.0"?>
+<PropertyList>
+  <scenario>
+    <name>Target Container Ship for bombing practice near Marseille</name>
+    <description>For integration with fSim.nas
+
+		</description>
+    <entry>
+      <search-order>PREFER_AI</search-order>
+      <type>ship</type>
+      <callsign>Xao_Lu</callsign>
+      <name>Xao_Lu</name>
+      <model type="string">Aircraft/container_ship/ContainerShip.xml</model>
+      <!-- <model type="string">Aircraft/LHA1/LHA1.xml</model> -->
+      <latitude type="double">43.328660</latitude>
+      <longitude type="double">5.2125</longitude>
+      <altitude>-3</altitude>
+      <speed>25.0</speed>
+      <rudder type="double">-40</rudder>
+      <bank type="double">-40</bank>
+      <heading type="double">180</heading>
+    </entry>
+  </scenario>
+</PropertyList>

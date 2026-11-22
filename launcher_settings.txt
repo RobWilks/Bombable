@@ -19,6 +19,7 @@ Options set in the launcher:
 --in-air
 --altitude=4000
 Options set as additional arguments:
+--disable-ai-traffic
 --log-level=debug
 --prop:string:/sim/ai/scenario[0]=BOMB-OkinawaOneA6M5OneB17OneShipOneJeepFlak
 --prop:/sim/terrasync/http-server=https://terrasync.b-cdn.net/

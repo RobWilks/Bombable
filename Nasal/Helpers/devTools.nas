@@ -1565,7 +1565,7 @@ fSim.fS.state.manoeuvre = {phase: "climb"};
 
 fSim.fS.state.manoeuvre = nil;
 fSim.fS.state.monitor = 1;
-fSim.monitorValues(0);
+fSim.monitorValues(0, 0.5, 500);
 
 fSim.fS.state.manoeuvre["phase"] = nil;
 if (fSim.fS.state["manoeuvre"] != nil) var msg = fSim.fS.state.manoeuvre["phase"] else var msg = "";
@@ -1593,3 +1593,18 @@ fSim.start_climb(fSim.fS.state,
         schedule: "max_rate",
         alt_ft: 13500.0,
     });
+
+
+fSim.fS.state.manoeuvre_opts = {pullout_agl_ft: 4000, ground_ft: 0};
+setprop("/ju87/controls/manoeuvres/dive", 1);
+
+var targetHash = {
+lat: 43.436, 
+lon: 5.217, 
+alt_ft: 74, 
+hdg: 0, 
+spd_kt: 0,
+};
+
+fSim.release_projectile(fSim.fS.state, nil, fSim.make_target(targetHash));
+fSim.release_projectile(fSim.fS.state, nil, fSim.make_target("ai/models/ship[0]"));
