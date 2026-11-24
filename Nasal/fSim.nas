@@ -27,6 +27,17 @@
 
 
 #CLAUDE+ Change log (newest first):
+#CLAUDE+   0.7.2.1 series runner returns the aircraft to its starting position, altitude, heading and speed when the series ends (option home, default 1;
+#CLAUDE+          run_series_stop(1) does the same); profiler also keeps osum so the report shows omean, the mean cost of the samples over 1 ms
+#CLAUDE+   0.7.2  profiler keeps the maximum over ALL samples and a separate outlier maximum (omax); the dive pull-out starts when the altitude is
+#CLAUDE+          expected to cross the pull-out height within half a tick (was: the first tick below it, so on average half a tick late);
+#CLAUDE+          series runner (run_series, series_cases, hook series_step in run_flight_physics) for repeatable batches of any manoeuvre:
+#CLAUDE+          test code, idle unless started. Target and release code is unchanged and is not being extended
+#CLAUDE+   0.7.1  start_dive takes an optional target (hash or AI property path): check_target gate (speed limit), an approach phase that
+#CLAUDE+          flies level until the predicted impact point reaches the target, then push-over; bomb released at the start of the pull-out
+#CLAUDE+          if the predicted miss is within release_tol_m, otherwise a no-release pull-out. predict_dive also returns the ground distance and
+#CLAUDE+          time to the pull-out point. New: dive_aim_prediction, dive_aim_error, dive_approach, dive_release, option preview and monitor_rows.
+#CLAUDE+          Heading is held (no steering onto the target yet); dives without a target are unchanged
 #CLAUDE+   0.7.0  target record and tracker (hash or AI property path, dead reckoning, validity check), local east/north helpers,
 #CLAUDE+          ballistic projectile with drag (500 kg bomb), predicted impact point and miss, release_projectile/update_projectiles;
 #CLAUDE+          start_dive n_push default -1. No change to the control laws: aiming itself comes in 0.7.1 and later
@@ -46,7 +57,7 @@
 #CLAUDE+          auto_throttle, speed hold) runs after every manoeuvre and restores the pre-manoeuvre throttle mode; set_targets gains spd
 #CLAUDE+   0.2.0  cleanup of start_loop defaults, speed floors, monitor nil guard, unknown-model message, optional perf keys, version number
 #CLAUDE+   0.1.0  baseline as uploaded
-var FSIM_VERSION = "0.7.0";
+var FSIM_VERSION = "0.7.2.1";
 # Explicitly define fS
 var fS = {
     version: FSIM_VERSION,
@@ -90,6 +101,13 @@ var fS = {
     # Set prof.enable = 1, run for a while, then call prof.report() from the Nasal console.
     # systime() is wall-clock seconds with sub-microsecond fraction; max >> mean means GC or
     # a frame hitch landed inside the timed section.
+    # What the profile terms measure:
+    # All timings come from run_flight_physics and the animation manager:
+    # anim is the animation manager's per-frame update. It runs about five times per physics tick, reads the model's position and attitude nodes, advances them by the last rates, and writes them back.
+    # control is the controller part of a physics tick: the manoeuvre's update (or cruise()) plus update_orientation. All of the approach re-prediction lands here.
+    # force is update_force_physics, the four-force physics: lift, drag, thrust and weight, the velocity update, and the position state.
+    # push is everything after the physics step: copying the rates and attitude into the animation manager and writing the model's nodes.
+    # tick is the whole run_flight_physics call. It also includes the projectile update and the series hook, which is why it is slightly more than the sum of the other three.
 
     prof: {
         enable: 0,
@@ -99,9 +117,12 @@ var fS = {
         add: func(name, sec) {
             var st = me.stats[name];
             if (st == nil) {
-                st = { n: 0, sum: 0.0, max: 0.0, over1: 0, over5: 0 };
+                st = { n: 0, sum: 0.0, max: 0.0, omax: 0.0, osum: 0.0, over1: 0, over5: 0 };   #CLAUDE~ 0.7.2: omax = largest outlier (over 1 ms); 0.7.2.1: osum = their total
                 me.stats[name] = st;
             }
+            if (sec > st.max) st.max = sec;                         #CLAUDE+ 0.7.2: max over ALL samples, outliers included
+            if (sec > 0.001 and sec > st.omax) st.omax = sec;       #CLAUDE+ 0.7.2: largest outlier
+            if (sec > 0.001) st.osum += sec;                        #CLAUDE+ 0.7.2.1: total time of the outliers
             if (sec > 0.005) {
                 st.over5 += 1;
                 append(me.timestamps_5, systime());
@@ -114,7 +135,6 @@ var fS = {
             {
                 st.n += 1;
                 st.sum += sec;
-                if (sec > st.max) st.max = sec;
             }
             # st.n += 1;
             # st.sum += sec;
@@ -136,8 +156,9 @@ var fS = {
         report: func() {
             foreach (var k; keys(me.stats)) {
                 var st = me.stats[k];
-                print(sprintf("%-9s n=%6d  mean=%7.1f us  max=%8.1f us  >1ms: %d  >5ms: %d",
-                            k, st.n, 1.0e6 * st.sum / math.max(st.n, 1), 1.0e6 * st.max, st.over1, st.over5));
+                print(sprintf("%-9s n=%6d  mean=%7.1f us  max=%8.1f us  omax=%8.1f us  omean=%8.1f us  >1ms: %d  >5ms: %d",
+                            k, st.n, 1.0e6 * st.sum / math.max(st.n, 1), 1.0e6 * st.max, 1.0e6 * st.omax,
+                            1.0e6 * st.osum / math.max(st.over1 + st.over5, 1), st.over1, st.over5));   #CLAUDE~ 0.7.2: n and mean cover the samples under 1 ms only; max covers all; omax is the largest sample over 1 ms
             }
             print("--- Timestamps of outliers (>5ms) ---");
             foreach (var val; me.timestamps_5) print(sprintf("%.5f", val));
@@ -1436,10 +1457,11 @@ var predict_dive = func(self, m) {
     var h_pull = m.h_pull_ft * 0.3048;
     var brake = 0.0;  var pulling = 0;  var t = 0.0;  var done = 0;
     var v_trig = v;  var g_trig = gm;  var h_trig = h;
+    var x = 0.0;  var x_trig = 0.0;  var t_trig = 0.0;  var z_trig = z;   #CLAUDE+ 0.7.1: ground distance flown, and its value at the pull-out point
     while (t < 240.0 and !done) {
         var rho = air_density(z);
         var qS  = 0.5 * rho * v * v * S;
-        if (!pulling and h <= h_pull) { pulling = 1; v_trig = v; g_trig = gm; h_trig = h; }
+        if (!pulling and h <= h_pull) { pulling = 1; v_trig = v; g_trig = gm; h_trig = h; x_trig = x; t_trig = t; z_trig = z; }   #CLAUDE~ 0.7.1: also x_trig, t_trig, z_trig
         brake = math.clamp(pulling ? 0.0 : 1.0, brake - dt / DIVE_BRAKE_TIME, brake + dt / DIVE_BRAKE_TIME);
         var T = 0.0;  var gdot = 0.0;
         if (pulling) {
@@ -1458,10 +1480,12 @@ var predict_dive = func(self, m) {
         v   = math.max(v + ((T - D) / mass - g * math.sin(gm)) * dt, floor_v);
         z  += v * math.sin(gm) * dt;
         h  += v * math.sin(gm) * dt;
+        x  += v * math.cos(gm) * dt;   #CLAUDE+ 0.7.1
         t  += dt;
         if (pulling and gm > -0.035) done = 1;
     }
-    var r = { ok: 1, why: "", v_trig: v_trig, g_trig_deg: g_trig * R2D, loss: h_trig - h, base_agl: h, v_base: v, t: t };
+    var r = { ok: 1, why: "", v_trig: v_trig, g_trig_deg: g_trig * R2D, loss: h_trig - h, base_agl: h, v_base: v, t: t,
+              trig: pulling, x_trig: x_trig, t_trig: t_trig, z_trig: z_trig };   #CLAUDE~ 0.7.1: trig = 1 if the pull-out point was reached; x_trig (m) and t_trig (s) from now to it, z_trig its height MSL (m)
     if (!pulling) {
         r.ok = 0;  r.why = "never reaches the pull-out height";
     } else if (math.abs(g_trig + m.theta) > 5.0 * D2R) {
@@ -1470,6 +1494,95 @@ var predict_dive = func(self, m) {
         r.ok = 0;  r.why = sprintf("base only %.0f ft AGL with a 20%% margin (need %.0f ft)", (h_trig - 1.2 * (h_trig - h)) / 0.3048, m.clearance_ft);
     }
     return r;
+};
+
+#CLAUDE+ 0.7.1: aiming a dive at a target. The bomb is released where the pull-out starts, so a dive begun now lands the bomb
+#CLAUDE+   X = (ground distance to the pull-out point) + (range of the bomb) along the ground track, T seconds from now (T = dive time + fall time).
+#CLAUDE+ The target is dead-reckoned T seconds ahead, which gives the along-track and cross-track error of a dive begun now (same signs as
+#CLAUDE+ impact_miss: along > 0 means beyond the target, cross > 0 means to the right of it). The approach flies level and starts the push-over
+#CLAUDE+ when the along-track error reaches zero. Heading is held: the cross-track error is not corrected (no steering is planned).
+var DIVE_AIM_DT      = 0.5;     # s   how often the approach re-predicts the dive (X and T change slowly; each prediction takes a few ms)
+var DIVE_RELEASE_TOL = 100.0;   # m   default release_tol_m: the bomb is not released if the predicted miss is larger. A first guess, not a requirement
+var DIVE_LOG_DT      = 5.0;     # s   spacing of the approach log lines
+var DIVE_APPROACH_MAX = 900.0;  # s   an approach that has not reached the push-over point by then is cancelled
+
+# Where a dive begun now would land: { ok, why, X (m along the ground track), T (s), pred, bomb }. p = predict_dive result if already known.
+var dive_aim_prediction = func(self, m, p = nil) {
+    if (p == nil) p = predict_dive(self, m);
+    if (!p.trig) return { ok: 0, why: "never reaches the pull-out height" };
+    if (!p.ok and !m.force) return { ok: 0, why: p.why };
+    var vh = p.v_trig * math.cos(p.g_trig_deg * D2R);
+    var vz = p.v_trig * math.sin(p.g_trig_deg * D2R);
+    var rb = predict_projectile(0.0, 0.0, p.z_trig, vh, 0.0, vz, m.ground_ft * 0.3048, m.spec);
+    return { ok: 1, why: "", X: p.x_trig + rb.x, T: p.t_trig + rb.t, pred: p, bomb: rb };
+};
+
+# Error of a dive begun now (ap from dive_aim_prediction, tl from target_local, centred on the aircraft): { along, cross, closing }.
+# closing (m/s) is how fast the along-track error grows: the aircraft ground speed less the target speed along the track.
+var dive_aim_error = func(self, ap, tl) {
+    var trk = math.atan2(self.v_east, self.v_north);
+    var s = math.sin(trk);  var c = math.cos(trk);
+    var dx = ap.X * s - (tl.e + tl.vE * ap.T);
+    var dy = ap.X * c - (tl.n + tl.vN * ap.T);
+    var vh = math.sqrt(self.v_east * self.v_east + self.v_north * self.v_north);
+    return { along: dx * s + dy * c, cross: dx * c - dy * s, closing: vh - (tl.vE * s + tl.vN * c) };
+};
+
+# Approach phase. Returns 1 = start the push-over now, 0 = keep flying, -1 = cancel the dive.
+var dive_approach = func(self, m, dt) {
+    var pos = own_position(self);
+    var tl  = target_local(m.target, sim_time(), pos.lat, pos.lon);
+    if (tl == nil) {
+        print("Dive cancelled: target lost");
+        return -1;
+    }
+    if (m.t > DIVE_APPROACH_MAX) {
+        print("Dive cancelled: approach took longer than " ~ DIVE_APPROACH_MAX ~ " s");
+        return -1;
+    }
+    if (m.aim == nil or m.t - m.aim_t >= DIVE_AIM_DT) {
+        var ap = dive_aim_prediction(self, m);
+        if (!ap.ok) {
+            print("Dive cancelled: " ~ ap.why);
+            return -1;
+        }
+        m.aim = ap;  m.aim_t = m.t;
+    }
+    var e = dive_aim_error(self, m.aim, tl);
+    if (e.closing < 1.0) {
+        print(sprintf("Dive cancelled: not closing on the target (closing speed %.1f m/s)", e.closing));
+        return -1;
+    }
+    if (m.t - m.log_t >= DIVE_LOG_DT) {
+        m.log_t = m.t;
+        print(sprintf("Dive approach: range %.0f m, impact would be %+.0f m along, %+.0f m cross; push-over in about %.0f s",
+                      math.sqrt(tl.e * tl.e + tl.n * tl.n), e.along, e.cross, math.max(-e.along, 0.0) / e.closing));
+    }
+    if (e.along + 0.5 * e.closing * dt < 0.0) return 0;      # half a tick of lead: the error is zero on average at the push-over
+    m.aim_start = { range: math.sqrt(tl.e * tl.e + tl.n * tl.n), along: e.along, cross: e.cross, X: m.aim.X, T: m.aim.T };
+    m.phase = "pushover";  m.t = 0.0;
+    m.entry_speed = self.speed * kts_to_mps;                  # the zoom energy is measured from the speed the dive really starts at
+    self.aerobatic = 1;
+    print(sprintf("Dive: push-over at %.0f m from the target, predicted impact %+.0f m along, %+.0f m cross, in %.1f s",
+                  m.aim_start.range, e.along, e.cross, m.aim.T));
+    return 1;
+};
+
+# Decision gate at the start of the pull-out: release if the predicted miss is within release_tol_m, otherwise pull out without releasing.
+var dive_release = func(self, m) {
+    var ms = impact_miss(self, m.target, m.spec, m.ground_ft);
+    if (ms == nil) {
+        print("Dive: no release, target lost");
+        return;
+    }
+    m.release = { released: 0, miss: ms.miss, along: ms.along, cross: ms.cross, alt_ft: self.alt_ft, v: self.speed * kts_to_mps };
+    if (ms.miss > m.release_tol_m) {
+        print(sprintf("Dive: NO RELEASE, predicted miss %.0f m (along %+.0f, cross %+.0f) is above the %.0f m limit", ms.miss, ms.along, ms.cross, m.release_tol_m));
+        return;
+    }
+    m.release.released = 1;
+    print(sprintf("Dive: release, predicted miss %.1f m (along %+.1f, cross %+.1f)", ms.miss, ms.along, ms.cross));
+    release_projectile(self, m.spec, m.target, m.ground_ft);
 };
 
 var start_dive = func(self, opts = nil) {
@@ -1487,15 +1600,62 @@ var start_dive = func(self, opts = nil) {
         n_push: (opts["n_push"] != nil) ? opts["n_push"] : -1.0,   #CLAUDE~ 0.7.0: default -1 g (was 0)
         n_pull: opts["n_pull"] or 99.0,
         eta: opts["eta"] or 0.7,
+        target: nil, spec: nil, release_tol_m: 0.0, force: opts["force"] or 0,   #CLAUDE+ 0.7.1: target fields (see below), release: result of dive_release
+        aim: nil, aim_t: 0.0, log_t: 0.0, aim_start: nil, release: nil,
         entry_speed: self.speed * kts_to_mps,
         zoom_alt_ft: self.alt_ft, v_end: 0.0,
         update: update_dive_target
     };
+    #CLAUDE+ 0.7.1: optional target { target: hash or "/ai/models/ship[0]", bomb: spec (default BOMB_500), release_tol_m, target_max_kt, stationary_kt, ground_ft }
+    #CLAUDE+ The ground height defaults to the target altitude. check_target is the phase 0 gate: a target above target_max_kt is refused (force does not override it).
+    if (opts["target"] != nil) {
+        var tgt = make_target(opts["target"]);
+        var ck  = check_target(tgt, opts);
+        if (!ck.ok) {
+            print("Dive refused: " ~ ck.why);
+            return nil;
+        }
+        m.target = tgt;
+        m.spec   = opts["bomb"] or BOMB_500;
+        m.release_tol_m = (opts["release_tol_m"] != nil) ? opts["release_tol_m"] : DIVE_RELEASE_TOL;
+        if (opts["ground_ft"] == nil) m.ground_ft = ck.state.alt_ft;
+        m.phase = "approach";
+    }
+
     var p = predict_dive(self, m);
     print(sprintf("Dive prediction: pull-out at %.0f m/s on a %.0f deg path, loses %.0f m, base %.0f m AGL at %.0f m/s (%.1f s) %s",
                   p.v_trig, -p.g_trig_deg, p.loss, p.base_agl, p.v_base, p.t, p.ok ? "OK" : "REFUSED: " ~ p.why));
     if (!p.ok and !opts["force"]) return nil;
-    self.aerobatic = 1;
+
+    #CLAUDE+ 0.7.1: where a dive begun now would land, and how far the aircraft still has to fly before the push-over
+    if (m.target != nil) {
+        var ap = dive_aim_prediction(self, m, p);
+        if (!ap.ok) {
+            print("Dive refused: " ~ ap.why);
+            return nil;
+        }
+        var pos = own_position(self);
+        var tl  = target_local(m.target, sim_time(), pos.lat, pos.lon);
+        var e   = dive_aim_error(self, ap, tl);
+        print(sprintf("Dive aim: target %.0f m away; a dive begun now would land %.0f m %s the target and %.0f m to the %s of it; push-over in about %.0f s",
+                      math.sqrt(tl.e * tl.e + tl.n * tl.n), math.abs(e.along), (e.along < 0) ? "short of" : "beyond", math.abs(e.cross),
+                      (e.cross < 0) ? "left" : "right", math.max(-e.along, 0.0) / math.max(e.closing, 1.0)));
+        if (!opts["force"] and e.closing < 1.0) {
+            print("Dive refused: not closing on the target");
+            return nil;
+        }
+        if (!opts["force"] and e.along > m.release_tol_m) {
+            print(sprintf("Dive refused: a dive begun now would land %.0f m beyond the target (the target is too close for this dive)", e.along));
+            return nil;
+        }
+        if (!opts["force"] and math.abs(e.cross) > m.release_tol_m) {
+            print(sprintf("Dive refused: the target is %.0f m off the track (limit %.0f m): turn onto it first (there is no steering)", math.abs(e.cross), m.release_tol_m));
+            return nil;
+        }
+    }
+    if (opts["preview"]) return nil;   #CLAUDE+ 0.7.1: preview = 1 prints the predictions above and starts nothing
+
+    self.aerobatic = (m.target == nil) ? 1 : 0;   #CLAUDE~ 0.7.1: was 1; with a target the approach flies normally and sets it at the push-over
     self.manoeuvre = m;
     return m;
 };
@@ -1509,15 +1669,31 @@ var update_dive_target = func(self, dt) {
     m.t += dt;
     update_roll_target(self, dt);
 
+    #CLAUDE+ 0.7.1: approach (only with a target): altitude and heading hold until dive_approach starts the push-over (this same tick)
+    if (m.phase == "approach") {
+        update_pitch_target(self, dt);
+        if (self.auto_throttle) hold_speed(self, self.tgt_speed * kts_to_mps);
+        var ra = dive_approach(self, m, dt);
+        if (ra < 0) {
+            self.manoeuvre = nil;
+            self.aerobatic = 0;
+            return;
+        }
+        if (ra == 0) return;
+    }
+
     if (m.phase == "pushover" or m.phase == "dive") {
         self.brake_cmd = 1;
         self.throttle  = 0.0;
-        if (self.alt_ft - m.ground_ft <= m.h_pull_ft) {
+        if (self.alt_ft - m.ground_ft + 0.5 * (self.v_up or 0.0) * 3.28084 * dt <= m.h_pull_ft) {
+    #CLAUDE~ 0.7.2: was alt <= h_pull, which is up to a tick late. With half a tick of lead (v_up is m/s and negative in a dive, 
+    # altitude is in ft) the pull-out starts within half a tick either side of the crossing
             m.phase = "pullout";  m.t = 0.0;
+            if (m.target != nil) dive_release(self, m);   #CLAUDE+ 0.7.1: the decision gate, then the bomb leaves at the start of the pull-out
         } else {
             var gdot = math.clamp(0.8 * (-m.theta - gam), -0.35, 0.35);
             gdot = math.max(gdot, g * (m.n_push - math.cos(gam)) / v);        # no more than n_push g while pushing over
-            command_path(self, v, gdot, 0, dt, 0);
+            command_path(self, v, gdot, 0, dt, 1);   #CLAUDE~ 0.7.1: was use_lead 0. tgt_pitch is built from last tick's path angle, so without the lead the pitch lags by gdot*dt
             if (m.phase == "pushover" and math.abs(gam + m.theta) < 3.0 * D2R) m.phase = "dive";
             return;
         }
@@ -1666,6 +1842,7 @@ var run_flight_physics = func(mName) {
 
 
     if (size(state.projectiles) > 0) update_projectiles(state, dt_real);   #CLAUDE+ 0.7.0
+    if (series.running) series_step(state, dt_real);   #CLAUDE+ 0.7.2: series runner (test code, see the end of the file); one flag test per tick when idle
 
     var throttleFactor = (contains(state.perf, "max_rpm")) ? state.perf.max_rpm : 0.0; 
 
@@ -2193,8 +2370,8 @@ if (apt != nil and size(apt.runways) > 0) {
 }
 
 # Initial flight parameters for level flight northwards (Heading 0°, Speed 250 kts)
-var init_hdg = 0.0;
-var init_speed = 200.0; # knots
+var init_hdg = 180.0;
+var init_speed = 175.0; # knots
 var init_throttle = 0.7;
 var init_rpm = 2000;
 
@@ -2327,9 +2504,9 @@ var setup_fSim_chase_view = func(slot_idx, mName) {
 
     setprop(raw_slot_prop, mName);
 
-    setprop("/sim/view[" ~ slot_idx ~ "]/config/x-offset-m", 4);
-    setprop("/sim/view[" ~ slot_idx ~ "]/config/y-offset-m", -2);
-    setprop("/sim/view[" ~ slot_idx ~ "]/config/z-offset-m", 0);
+    setprop("/sim/view[" ~ slot_idx ~ "]/config/x-offset-m", 0);
+    setprop("/sim/view[" ~ slot_idx ~ "]/config/y-offset-m", -3);
+    setprop("/sim/view[" ~ slot_idx ~ "]/config/z-offset-m", 2);
 
     setprop("/sim/view[" ~ slot_idx ~ "]/config/eye-lat-deg", 0);
     setprop("/sim/view[" ~ slot_idx ~ "]/config/eye-lon-deg", 0);
@@ -2419,8 +2596,180 @@ var start_manoeuvre = func(mname, self, name, opts = nil) {
     print("Dumping aircraft performance parameters ...");
     debug.dump(self.perf);
     print("Monitoring flight parameters ...");
-    monitorValues(0, 500, MONITOR_INTERVAL);   #CLAUDE~ 0.6.1: was monitorValues(0, 300, 1); 1000 rows at 0.2 s cover a whole dive and the hand-over
+    monitorValues(0, (opts != nil and opts["monitor_rows"] != nil) ? opts["monitor_rows"] : 500, MONITOR_INTERVAL);   #CLAUDE~ 0.7.1: option monitor_rows, default 500 (rows at 0.2 s: an approach plus a dive can need more); was monitorValues(0, 300, 1) in 0.6.0
     return self.manoeuvre;
+};
+
+########################## series runner (0.7.2) ###########################
+#CLAUDE+ TEST CODE, not part of the flight model. run_series(name, cases, sopts) runs ONE kind of manoeuvre again and again from a repeatable start
+#CLAUDE+ and prints one row per case, so a batch can run unattended (speed-up works: it runs on simulated physics ticks, no timer).
+#CLAUDE+   name  : any manoeuvre start_manoeuvre knows: dive, loop, immelmann, aileron_roll, split_s, climb
+#CLAUDE+   cases : vector of { label, opts, start }. opts = the manoeuvre's own options. start = { alt_ft, speed_kt, hdg, throttle }; 
+#CLAUDE+   a missing value is the value the aircraft had when run_series was called (the position is always that one)
+#CLAUDE+   sopts : { settle (time in sec of level flight before each manoeuvre, default 3), max_s (time limit per case, default 180) }
+#CLAUDE+ series_cases(key, values, base_opts, base_start, where) builds the cases for a one-parameter sweep of an option (where "opts", the default)
+#CLAUDE+ or of a start value (where "start"), e.g. series_cases("dive_angle_deg", [50, 60, 70], { pullout_agl_ft: 2000 }).
+#CLAUDE+ Each case puts the aircraft back at the start, settles, starts the manoeuvre and waits for it to end. The row gives the outcome, the
+#CLAUDE+ duration, altitudes, speeds, peak load and, for each phase, the altitude, speed and time of the tick on which the phase began
+#CLAUDE+ (the state the controller saw when it changed phase). run_series_stop() abandons a series (a manoeuvre already running carries on).
+#CLAUDE+ Results are also kept in series.results. Throttle mode (manual or auto) is the one in force when run_series was called.
+var series = {
+    running: 0, name: "", cases: [], i: 0, settle: 3.0, max_s: 180.0, home: 1, results: [],
+    base: nil, start: nil, phase: "idle", t: 0.0, t_run: 0.0, last_phase: nil, phases: "",
+    alt0: 0.0, prev_alt: 0.0, prev_v: 0.0, min_alt: 0.0, max_v: 0.0, max_n: 0.0
+};
+
+var series_cases = func(key, values, base_opts = nil, base_start = nil, where = "opts") {
+    var out = [];
+    foreach (var val; values) {
+        var o = {};  var st = {};
+        if (base_opts != nil)  foreach (var k; keys(base_opts))  o[k]  = base_opts[k];
+        if (base_start != nil) foreach (var k; keys(base_start)) st[k] = base_start[k];
+        if (where == "start") st[key] = val; else o[key] = val;
+        append(out, { label: key ~ "=" ~ val, opts: o, start: st });
+    }
+    return out;
+};
+
+# Put the aircraft back at the start of a case, in place (the listeners and the monitor keep their reference to the state hash).
+var series_reset_state = func(base, start) {
+    var st = fS.state;
+    var fresh = create_aircraft_state(modelName, base.lat, base.lon, start.alt_ft, start.hdg, start.speed_kt, start.throttle);
+    foreach (var k; keys(fresh)) {
+        if (k == "perf" or k == "tNode" or k == "monitor" or k == "callsign") continue;
+        st[k] = fresh[k];
+    }
+    st.auto_throttle = base.auto_throttle;
+    latNode.setDoubleValue(base.lat);
+    lonNode.setDoubleValue(base.lon);
+    altNode.setDoubleValue(start.alt_ft);
+    hdgNode.setDoubleValue(start.hdg);
+    pitchNode.setDoubleValue(0.0);
+    rollNode.setDoubleValue(0.0);
+    spdNode.setDoubleValue(start.speed_kt);
+    var anim = attributes[modelName].controls["animation"];
+    if (anim != nil) {
+        anim.dLat = 0.0;  anim.dLon = 0.0;  anim.dAlt = 0.0;
+        anim.dHdg = 0.0;  anim.dPitch = 0.0;  anim.dRoll = 0.0;
+    }
+    return st;
+};
+
+var series_next = func(self) {
+    var s = series;
+    var c = s.cases[s.i];
+    var b = s.base;
+    var st = c["start"] or {};
+    s.start = { alt_ft:   (st["alt_ft"]   != nil) ? st["alt_ft"]   : b.alt_ft,
+                speed_kt: (st["speed_kt"] != nil) ? st["speed_kt"] : b.speed_kt,
+                hdg:      (st["hdg"]      != nil) ? st["hdg"]      : b.hdg,
+                throttle: (st["throttle"] != nil) ? st["throttle"] : b.throttle };
+    series_reset_state(b, s.start);
+    s.phase = "settle";  s.t = 0.0;
+};
+
+var series_row = func(self, outcome) {
+    var s = series;
+    var c = s.cases[s.i];
+    var v = self.speed * kts_to_mps;
+    print(sprintf("SERIES %2d/%d %-18s %-8s %6.1f s | alt %6.0f > min %6.0f > end %6.0f ft | speed max %5.1f end %5.1f m/s | load max %4.1f | %s",
+                  s.i + 1, size(s.cases), c["label"] or "", outcome, s.t_run, s.alt0, s.min_alt, self.alt_ft, s.max_v, v, s.max_n, s.phases));
+    append(s.results, { label: c["label"], outcome: outcome, t: s.t_run, alt0: s.alt0, min_alt: s.min_alt, end_alt: self.alt_ft,
+                        max_v: s.max_v, end_v: v, max_n: s.max_n, phases: s.phases });
+    s.i += 1;
+    if (s.i >= size(s.cases)) {
+        s.running = 0;  s.phase = "idle";
+        print("SERIES done: " ~ size(s.cases) ~ " cases");
+        if (s.home) {
+            series_reset_state(s.base, s.base);   # base has the same keys as a case start
+            print("SERIES: aircraft back at the start position");
+        }
+    } else {
+        series_next(self);
+    }
+};
+
+var series_launch = func(self) {
+    var s = series;
+    var c = s.cases[s.i];
+    s.t_run = 0.0;  s.last_phase = nil;  s.phases = "";
+    s.alt0 = self.alt_ft;  s.prev_alt = self.alt_ft;  s.prev_v = self.speed * kts_to_mps;
+    s.min_alt = self.alt_ft;  s.max_v = s.prev_v;  s.max_n = 0.0;
+    var m = start_manoeuvre(modelName, self, s.name, c["opts"]);
+    if (m == nil) {
+        series_row(self, "REFUSED");
+        return;
+    }
+    s.phase = "run";
+};
+
+# Called by run_flight_physics after every physics tick while a series is running.
+var series_step = func(self, dt) {
+    var s = series;
+    if (s.phase == "settle") {
+        s.t += dt;
+        if (s.t >= s.settle) series_launch(self);
+        return;
+    }
+    if (s.phase != "run") return;
+    s.t_run += dt;
+    var m = self.manoeuvre;
+    if (m != nil) {
+        var ph = (m["phase"] == nil) ? "-" : m["phase"];
+        if (ph != s.last_phase) {
+            s.phases = s.phases ~ (s.phases == "" ? "" : " > ") ~ sprintf("%s %.0f ft %.0f m/s %.1f s", ph, s.prev_alt, s.prev_v, s.t_run - dt);
+            s.last_phase = ph;
+        }
+    }
+    var v = self.speed * kts_to_mps;
+    if (self.alt_ft < s.min_alt) s.min_alt = self.alt_ft;
+    if (v > s.max_v) s.max_v = v;
+    if ((self.n_load or 0.0) > s.max_n) s.max_n = self.n_load;
+    s.prev_alt = self.alt_ft;  s.prev_v = v;
+    if (m == nil) {
+        series_row(self, "ended");
+    } else if (s.t_run > s.max_s) {
+        self.manoeuvre = nil;  self.aerobatic = 0;  self.brake_cmd = 0;
+        series_row(self, "TIMEOUT");
+    }
+};
+
+var run_series = func(name, cases, sopts = nil) {
+    var s = series;
+    sopts = sopts or {};
+    var st = fS.state;
+    if (s.running) {
+        print("A series is already running (run_series_stop() abandons it)");
+        return nil;
+    }
+    if (st.manoeuvre != nil) {
+        print("Series not started: manoeuvre " ~ st.manoeuvre.name ~ " is running");
+        return nil;
+    }
+    if (cases == nil or size(cases) == 0) {
+        print("Series not started: no cases");
+        return nil;
+    }
+    var pos = own_position(st);
+    s.base = { lat: pos.lat, lon: pos.lon, alt_ft: st.alt_ft, speed_kt: st.speed, hdg: st.hdg, throttle: st.throttle, auto_throttle: st.auto_throttle };
+    s.name = name;  s.cases = cases;  s.i = 0;  s.results = [];
+    s.settle = (sopts["settle"] != nil) ? sopts["settle"] : 3.0;
+    s.max_s  = (sopts["max_s"]  != nil) ? sopts["max_s"]  : 180.0;
+    s.home   = (sopts["home"]   != nil) ? sopts["home"]   : 1;
+    print(sprintf("SERIES start: %d cases of %s from %.5f, %.5f at %.0f ft, %.0f kt, heading %.0f, settle %.1f s", size(cases), name,
+                  pos.lat, pos.lon, st.alt_ft, st.speed, st.hdg, s.settle));
+    series_next(st);
+    s.running = 1;
+    return size(cases);
+};
+
+var run_series_stop = func(home = 0) {
+    series.running = 0;  series.phase = "idle";
+    print("SERIES stopped");
+    if (home and series.base != nil) {
+        series_reset_state(series.base, series.base);   # also ends any manoeuvre: the state is rebuilt
+        print("SERIES: aircraft back at the start position");
+    }
 };
 
 register_manoeuvre_listeners(modelName, fS.state);

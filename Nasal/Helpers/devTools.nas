@@ -1608,3 +1608,32 @@ spd_kt: 0,
 
 fSim.release_projectile(fSim.fS.state, nil, fSim.make_target(targetHash));
 fSim.release_projectile(fSim.fS.state, nil, fSim.make_target("ai/models/ship[0]"));
+
+
+# Testing in the simulator (proposal)
+
+# Setup: fly over the sea or flat ground and use ground_ft. Set the options from the Nasal console with fS.state.manoeuvre_opts = {pullout_agl_ft: 4000, ground_ft: 0};, then trigger with setprop("/ju87/controls/manoeuvres/dive", 1);.
+# Step 1, refusals: try a dive that should be refused, such as pullout_agl_ft: 1000. You should get a "Dive prediction … REFUSED" line and no dive.
+# Step 2, high pull-out: dive from 10,000 ft AGL with the pull-out at 4,000 ft. The expected figures are in dive_v0.6.txt: 148–150 m/s at pull-out, a 6.3 g peak and a base near 3,000 ft.
+# Step 3, default dive: repeat with the default 2,000 ft pull-out. A base within about 100 ft of the bench's 915 ft is a pass; a larger difference points at timing or animation.
+# Step 4, tick length: divetest_v0.6_dt016.nas repeats the tests with 0.16 s ticks. That run gives a base of 979 ft and 6.4 g.
+# Step 5, the log: use the monitor log to check phase changes, the brake value 0 to 1 and back over 1 s, and the load. The brake value is state.brake, but nothing animates the brakes on the model yet.
+# Step 6, other aircraft: confirm the other three refuse with the "no terminal_speed_mps" message.
+
+# 2)
+var t = fSim.make_target("/ai/models/ship[0]");
+debug.dump(fSim.target_state(t));
+debug.dump(fSim.check_target(t));
+# 3)
+fSim.start_dive(fSim.fS.state, {target: "/ai/models/ship[0]", preview: 1});
+# 4)
+var p = fSim.own_position(fSim.fS.state);
+var ll = fSim.lat_lon_at(p.lat, p.lon, 0, 5000);
+fSim.start_manoeuvre("/ju87", fSim.fS.state, "dive", {target: {lat: ll.lat, lon: ll.lon, alt_ft: 0, hdg: 0, spd_kt: 0}});
+
+
+fSim.start_dive(fSim.fS.state, {target: "/ai/models/ship[0]"});
+
+fSim.run_series("dive", fSim.series_cases("dive_angle_deg", [50, 60, 70], {pullout_agl_ft: 2000}));
+fSim.run_series("dive", fSim.series_cases("pullout_agl_ft", [2000, 2200, 2400], {dive_angle_deg: 70}));
+fSim.run_series("dive", fSim.series_cases("pullout_agl_ft", [2000, 2200, 2400, 2800], {dive_angle_deg: 70, target: "/ai/models/ship[0]"}));
