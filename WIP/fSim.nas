@@ -47,19 +47,19 @@
 #CLAUDE+          expected to cross the pull-out height within half a tick (was: the first tick below it, so on average half a tick late);
 #CLAUDE+          series runner (run_series, series_cases, hook series_step in run_flight_physics) for repeatable batches of any manoeuvre:
 #CLAUDE+          test code, idle unless started. Target and release code is unchanged and is not being extended
-#CLAUDE+   0.7.1  start_dive takes an optional target (hash or AI property path): check_target gate (speed limit), an approach phase that
-#CLAUDE+          flies level until the predicted impact point reaches the target, then push-over; bomb released at the start of the pull-out
+#CLAUDE+   0.7.1  start_dive takes an optional target (hash or AI property path): check_reference gate (speed limit), an approach phase that
+#CLAUDE+          flies level until the predicted landing point reaches the reference, then push-over; projectile released at the start of the pull-out
 #CLAUDE+          if the predicted miss is within release_tol_m, otherwise a no-release pull-out. predict_dive also returns the ground distance and
 #CLAUDE+          time to the pull-out point. New: dive_aim_prediction, dive_aim_error, dive_approach, dive_release, option preview and monitor_rows.
-#CLAUDE+          Heading is held (no steering onto the target yet); dives without a target are unchanged
-#CLAUDE+   0.7.0  target record and tracker (hash or AI property path, dead reckoning, validity check), local east/north helpers,
-#CLAUDE+          ballistic projectile with drag (500 kg bomb), predicted impact point and miss, release_projectile/update_projectiles;
+#CLAUDE+          Heading is held (no steering onto the reference yet); dives without a reference are unchanged
+#CLAUDE+   0.7.0  reference record and tracker (hash or AI property path, dead reckoning, validity check), local east/north helpers,
+#CLAUDE+          ballistic projectile with drag, predicted landing point and miss, release_projectile/update_projectiles;
 #CLAUDE+          start_dive n_push default -1. No change to the control laws: aiming itself comes in 0.7.1 and later
 #CLAUDE+   0.6.1  monitorValues runs on a maketimer (created next to the physics timer) instead of a chain of settimer calls: one sample
 #CLAUDE+          per interval, no duplicate rows, restarting it cannot create a second chain
 #CLAUDE+   0.6.0  new dive manoeuvre (start_dive) for profiles with terminal_speed_mps (Ju87 only so far): air brakes raise CD0 (value from the terminal
 #CLAUDE+          speed, 1 s ramp each way), straight dive at dive_angle_deg, pull-out started at pullout_agl_ft at the load limit, zoom to an
-#CLAUDE+          altitude set by the excess speed at the base, then cruise. predict_dive refuses unsafe dives. No aiming or targeting yet.
+#CLAUDE+          altitude set by the excess speed at the base, then cruise. predict_dive refuses unsafe dives.
 #CLAUDE+   0.5.0  set_targets starts a climb (start_climb) when the new altitude needs one, optional fifth argument sched
 #CLAUDE+          (max_rate default, max_angle, economy); start_climb stays quiet for descents
 #CLAUDE+   0.4.0  new climb mode: start_climb(opts) with schedule max_rate (Vy), max_angle (Vx) or economy (max (T-D)/T); it reverts
@@ -1259,15 +1259,15 @@ var canonical_euler = func(s) {
 var MAX_SUBSTEP = 0.25;
 var MAX_DT      = 0.25;
 
-########################## target tracking and projectile (0.7.0) ###########################
+########################## reference tracking and projectile (0.7.0) ###########################
 #CLAUDE+ Target: a hash { lat, lon, alt_ft, hdg, spd_kt } (a snapshot, moved at constant velocity by dead reckoning) or the property path of an
-#CLAUDE+ AI object, e.g. "/ai/models/ship[0]" (read each call). make_target turns either into a record; target_state(t) gives the present state.
+#CLAUDE+ AI object, e.g. "/ai/models/ship[0]" (read each call). make_reference turns either into a record; reference_state(t) gives the present state.
 #CLAUDE+ All distances below are metres east (e) / north (n) in a flat local frame, using m_per_deg_lat / m_per_deg_lon.
 #CLAUDE+ Projectile: point mass with quadratic drag (spec = { mass_kg, diameter_m, cd }), x east, y north, z up (MSL, m).
-var TARGET_MAX_KT        = 40.0;     # targets faster than this are refused by check_target (option target_max_kt)
-var TARGET_STATIONARY_KT = 2.0;      # at or below this the target counts as stationary (option stationary_kt)
+var REFERENCE_MAX_KT        = 40.0;     # references faster than this are refused by check_reference (option target_max_kt)
+var REFERENCE_STATIONARY_KT = 2.0;      # at or below this the target counts as stationary (option stationary_kt)
 var PROJECTILE_DT        = 0.05;     # s, integration step
-var BOMB_500 = { mass_kg: 500.0, diameter_m: 0.47, cd: 0.3 };   # approximate SC 500 class bomb, Cd on frontal area: not from a source
+var FUEL_TANK_500 = { mass_kg: 500.0, diameter_m: 0.47, cd: 0.3 };   # approximate Cd on frontal area: not from a source
 
 var sim_time = func { return getprop("/sim/time/elapsed-sec") or 0.0; };
 
@@ -1283,7 +1283,7 @@ var own_position = func(self) {
     return { lat: latNode.getValue() or self.lat, lon: lonNode.getValue() or self.lon, alt_ft: self.alt_ft };
 };
 
-var make_target = func(spec) {
+var make_reference = func(spec) {
     if (spec == nil) return nil;
     if (typeof(spec) == "hash") {
         if (spec["lat"] == nil or spec["lon"] == nil) {
@@ -1296,8 +1296,8 @@ var make_target = func(spec) {
     return { path: spec, t0: sim_time() };
 };
 
-# Present target state { lat, lon, alt_ft, hdg, spd_kt }, or nil when an AI object is missing or not valid.
-var target_state = func(t, now = nil) {
+# Present reference state { lat, lon, alt_ft, hdg, spd_kt }, or nil when an AI object is missing or not valid.
+var reference_state = func(t, now = nil) {
     if (t == nil) return nil;
     if (t.path != nil) {
         var p = t.path;
@@ -1318,8 +1318,8 @@ var target_state = func(t, now = nil) {
 };
 
 # Target in the local frame centred on (ref_lat, ref_lon): position, velocity (m/s), altitude.
-var target_local = func(t, now, ref_lat, ref_lon) {
-    var s = target_state(t, now);
+var reference_local = func(t, now, ref_lat, ref_lon) {
+    var s = reference_state(t, now);
     if (s == nil) return nil;
     var en = local_en(ref_lat, ref_lon, s.lat, s.lon);
     var v  = s.spd_kt * kts_to_mps;
@@ -1327,15 +1327,15 @@ var target_local = func(t, now, ref_lat, ref_lon) {
              alt_ft: s.alt_ft, hdg: s.hdg, spd_kt: s.spd_kt };
 };
 
-# Phase 0 check: { ok, why, stationary, state }. opts: target_max_kt, stationary_kt.
-var check_target = func(t, opts = nil) {
+# Phase 0 check: { ok, why, stationary, state }. opts: reference_max_kt, stationary_kt.
+var check_reference = func(t, opts = nil) {
     opts = opts or {};
-    var s = target_state(t);
-    if (s == nil) return { ok: 0, why: "target missing or not valid", stationary: 0, state: nil };
-    var vmax  = (opts["target_max_kt"] != nil) ? opts["target_max_kt"] : TARGET_MAX_KT;
-    var vstat = (opts["stationary_kt"] != nil) ? opts["stationary_kt"] : TARGET_STATIONARY_KT;
+    var s = reference_state(t);
+    if (s == nil) return { ok: 0, why: "reference missing or not valid", stationary: 0, state: nil };
+    var vmax  = (opts["reference_max_kt"] != nil) ? opts["reference_max_kt"] : REFERENCE_MAX_KT;
+    var vstat = (opts["stationary_kt"] != nil) ? opts["stationary_kt"] : REFERENCE_STATIONARY_KT;
     if (s.spd_kt > vmax)
-        return { ok: 0, why: sprintf("target speed %.0f kt is above the %.0f kt limit", s.spd_kt, vmax), stationary: 0, state: s };
+        return { ok: 0, why: sprintf("reference speed %.0f kt is above the %.0f kt limit", s.spd_kt, vmax), stationary: 0, state: s };
     return { ok: 1, why: "", stationary: (s.spd_kt <= vstat), state: s };
 };
 
@@ -1357,7 +1357,7 @@ var step_projectile = func(p, spec, dt) {
     p.t += dt;
 };
 
-# Step, and if the ground was crossed put the projectile on it (linear interpolation within the step). Returns 1 on impact.
+# Step, and if the ground was crossed put the projectile on it (linear interpolation within the step). Returns 1 on landing.
 var advance_projectile = func(p, spec, dt, ground_m) {
     var x0 = p.x;  var y0 = p.y;  var z0 = p.z;  var t0 = p.t;
     step_projectile(p, spec, dt);
@@ -1369,7 +1369,7 @@ var advance_projectile = func(p, spec, dt, ground_m) {
 
 # Where a projectile released now (position x,y,z in m, velocity vx,vy,vz in m/s) lands: { x, y, t, speed, hit }.
 var predict_projectile = func(x, y, z, vx, vy, vz, ground_m, spec = nil, dt = nil) {
-    spec = spec or BOMB_500;
+    spec = spec or FUEL_TANK_500;
     if (dt == nil) dt = PROJECTILE_DT;
     var p = { x: x, y: y, z: z, vx: vx, vy: vy, vz: vz, t: 0.0 };
     var hit = (z <= ground_m);
@@ -1377,41 +1377,41 @@ var predict_projectile = func(x, y, z, vx, vy, vz, ground_m, spec = nil, dt = ni
     return { x: p.x, y: p.y, t: p.t, speed: math.sqrt(p.vx * p.vx + p.vy * p.vy + p.vz * p.vz), hit: hit };
 };
 
-# Impact point if released now from the aircraft: e, n are metres from the aircraft, plus lat/lon and fall time.
-var impact_point = func(self, spec, ground_ft) {
+# Landing point if released now from the aircraft: e, n are metres from the aircraft, plus lat/lon and fall time.
+var landing_point = func(self, spec, ground_ft) {
     var pos = own_position(self);
     var r  = predict_projectile(0.0, 0.0, pos.alt_ft * 0.3048, self.v_east, self.v_north, self.v_up, ground_ft * 0.3048, spec);
     var ll = lat_lon_at(pos.lat, pos.lon, r.x, r.y);
     return { e: r.x, n: r.y, lat: ll.lat, lon: ll.lon, t: r.t, speed: r.speed, hit: r.hit };
 };
 
-# Miss if released now: impact point against the target position at the impact time (target moved at constant velocity).
-# along is positive when the impact is beyond the target along the aircraft ground track, cross positive to the right of it.
-var impact_miss = func(self, tgt, spec = nil, ground_ft = nil) {
+# Miss if released now: landing point against the reference position at the landing time (reference moved at constant velocity).
+# along is positive when the landing is beyond the reference along the aircraft ground track, cross positive to the right of it.
+var landing_miss = func(self, tgt, spec = nil, ground_ft = nil) {
     var pos = own_position(self);
-    var tl  = target_local(tgt, sim_time(), pos.lat, pos.lon);
+    var tl  = reference_local(tgt, sim_time(), pos.lat, pos.lon);
     if (tl == nil) return nil;
     if (ground_ft == nil) ground_ft = tl.alt_ft;
-    var ip  = impact_point(self, spec, ground_ft);
+    var ip  = landing_point(self, spec, ground_ft);
     var dx  = ip.e - (tl.e + tl.vE * ip.t);
     var dy  = ip.n - (tl.n + tl.vN * ip.t);
     var trk = math.atan2(self.v_east, self.v_north);
     return { miss: math.sqrt(dx * dx + dy * dy), along: dx * math.sin(trk) + dy * math.cos(trk),
-             cross: dx * math.cos(trk) - dy * math.sin(trk), t: ip.t, impact: ip, target: tl };
+             cross: dx * math.cos(trk) - dy * math.sin(trk), t: ip.t, landing: ip, reference: tl };
 };
 
 # Release a projectile from the aircraft's present position and velocity. update_projectiles flies it to the ground.
 var release_projectile = func(self, spec = nil, tgt = nil, ground_ft = nil) {
     var pos = own_position(self);
     if (ground_ft == nil) {
-        var ts = target_state(tgt);
+        var ts = reference_state(tgt);
         ground_ft = (ts != nil) ? ts.alt_ft : 0.0;
     }
     var pr = { x: 0.0, y: 0.0, z: pos.alt_ft * 0.3048, vx: self.v_east, vy: self.v_north, vz: self.v_up, t: 0.0,
-               lat0: pos.lat, lon0: pos.lon, spec: spec or BOMB_500, tgt: tgt, ground_m: ground_ft * 0.3048,
+               lat0: pos.lat, lon0: pos.lon, spec: spec or FUEL_TANK_500, tgt: tgt, ground_m: ground_ft * 0.3048,
                trk: math.atan2(self.v_east, self.v_north) };
     append(self.projectiles, pr);
-    print(sprintf("Bomb released at %.0f ft, %.0f ft AGL, %.0f m/s", pos.alt_ft, pos.alt_ft - ground_ft, math.sqrt(pr.vx * pr.vx + pr.vy * pr.vy + pr.vz * pr.vz)));
+    print(sprintf("Projectile released at %.0f ft, %.0f ft AGL, %.0f m/s", pos.alt_ft, pos.alt_ft - ground_ft, math.sqrt(pr.vx * pr.vx + pr.vy * pr.vy + pr.vz * pr.vz)));
     return pr;
 };
 
@@ -1428,18 +1428,18 @@ var update_projectiles = func(self, dt) {
         }
         var ll = lat_lon_at(pr.lat0, pr.lon0, pr.x, pr.y);
         var res = { lat: ll.lat, lon: ll.lon, fall_s: pr.t, miss: nil, along: nil, cross: nil };
-        var tl = target_local(pr.tgt, sim_time(), pr.lat0, pr.lon0);
+        var tl = reference_local(pr.tgt, sim_time(), pr.lat0, pr.lon0);
         if (tl != nil) {
             var dx = pr.x - tl.e;
             var dy = pr.y - tl.n;
             res.miss  = math.sqrt(dx * dx + dy * dy);
             res.along = dx * math.sin(pr.trk) + dy * math.cos(pr.trk);
             res.cross = dx * math.cos(pr.trk) - dy * math.sin(pr.trk);
-            print(sprintf("Impact after %.1f s at %.5f, %.5f: miss %.1f m (along %+.1f, cross %+.1f)", pr.t, ll.lat, ll.lon, res.miss, res.along, res.cross));
+            print(sprintf("Landing after %.1f s at %.5f, %.5f: miss %.1f m (along %+.1f, cross %+.1f)", pr.t, ll.lat, ll.lon, res.miss, res.along, res.cross));
         } else {
-            print(sprintf("Impact after %.1f s at %.5f, %.5f (no target)", pr.t, ll.lat, ll.lon));
+            print(sprintf("Landing after %.1f s at %.5f, %.5f (no reference)", pr.t, ll.lat, ll.lon));
         }
-        self.last_impact = res;
+        self.last_landing = res;
     }
     self.projectiles = keep;
 };
@@ -1452,7 +1452,6 @@ var update_projectiles = func(self, dt) {
 #CLAUDE+         force (1 = skip the predictor)
 #CLAUDE+ Phases: pushover (brakes out, idle, path rotates down) -> dive (hold the angle) -> pullout (brakes in, full throttle, load limit, level off)
 #CLAUDE+         -> zoom (spend the excess speed on height; the cruise target altitude is set from it) -> cruise.
-#CLAUDE+ Later versions: aiming at a target (target_lat/target_lon/target_hdg), dive angle from the line of sight, a delay before the dive.
 
 var DIVE_ZOOM_A_MAX = 5.0;      # m/s^2 deceleration the zoom may use to trade speed for height
 
@@ -1511,17 +1510,17 @@ var predict_dive = func(self, m) {
     return r;
 };
 
-#CLAUDE+ 0.7.1: aiming a dive at a target. The bomb is released where the pull-out starts, so a dive begun now lands the bomb
-#CLAUDE+   X = (ground distance to the pull-out point) + (range of the bomb) along the ground track, T seconds from now (T = dive time + fall time).
-#CLAUDE+ The target is dead-reckoned T seconds ahead, which gives the along-track and cross-track error of a dive begun now (same signs as
-#CLAUDE+ impact_miss: along > 0 means beyond the target, cross > 0 means to the right of it). The approach flies level and starts the push-over
+#CLAUDE+ 0.7.1: aiming a dive at a reference. The projectile is released where the pull-out starts, so a dive begun now lands the projectile
+#CLAUDE+   X = (ground distance to the pull-out point) + (range of the projectile) along the ground track, T seconds from now (T = dive time + fall time).
+#CLAUDE+ The reference is dead-reckoned T seconds ahead, which gives the along-track and cross-track error of a dive begun now (same signs as
+#CLAUDE+ landing_miss: along > 0 means beyond the reference, cross > 0 means to the right of it). The approach flies level and starts the push-over
 #CLAUDE+ when the along-track error reaches zero. Heading is held: the cross-track error is not corrected (no steering is planned).
 var DIVE_AIM_DT      = 0.5;     # s   how often the approach re-predicts the dive (X and T change slowly; each prediction takes a few ms)
-var DIVE_RELEASE_TOL = 100.0;   # m   default release_tol_m: the bomb is not released if the predicted miss is larger. A first guess, not a requirement
+var DIVE_RELEASE_TOL = 100.0;   # m   default release_tol_m: the projectile is not released if the predicted miss is larger. A first guess, not a requirement
 var DIVE_LOG_DT      = 5.0;     # s   spacing of the approach log lines
 var DIVE_APPROACH_MAX = 900.0;  # s   an approach that has not reached the push-over point by then is cancelled
 
-# Where a dive begun now would land: { ok, why, X (m along the ground track), T (s), pred, bomb }. p = predict_dive result if already known.
+# Where a dive begun now would land: { ok, why, X (m along the ground track), T (s), pred, projectile }. p = predict_dive result if already known.
 var dive_aim_prediction = func(self, m, p = nil) {
     if (p == nil) p = predict_dive(self, m);
     if (!p.trig) return { ok: 0, why: "never reaches the pull-out height" };
@@ -1529,11 +1528,11 @@ var dive_aim_prediction = func(self, m, p = nil) {
     var vh = p.v_trig * math.cos(p.g_trig_deg * D2R);
     var vz = p.v_trig * math.sin(p.g_trig_deg * D2R);
     var rb = predict_projectile(0.0, 0.0, p.z_trig, vh, 0.0, vz, m.ground_ft * 0.3048, m.spec);
-    return { ok: 1, why: "", X: p.x_trig + rb.x, T: p.t_trig + rb.t, pred: p, bomb: rb };
+    return { ok: 1, why: "", X: p.x_trig + rb.x, T: p.t_trig + rb.t, pred: p, projectile: rb };
 };
 
-# Error of a dive begun now (ap from dive_aim_prediction, tl from target_local, centred on the aircraft): { along, cross, closing }.
-# closing (m/s) is how fast the along-track error grows: the aircraft ground speed less the target speed along the track.
+# Error of a dive begun now (ap from dive_aim_prediction, tl from reference_local, centred on the aircraft): { along, cross, closing }.
+# closing (m/s) is how fast the along-track error grows: the aircraft ground speed less the reference speed along the track.
 var dive_aim_error = func(self, ap, tl) {
     var trk = math.atan2(self.v_east, self.v_north);
     var s = math.sin(trk);  var c = math.cos(trk);
@@ -1546,9 +1545,9 @@ var dive_aim_error = func(self, ap, tl) {
 # Approach phase. Returns 1 = start the push-over now, 0 = keep flying, -1 = cancel the dive.
 var dive_approach = func(self, m, dt) {
     var pos = own_position(self);
-    var tl  = target_local(m.target, sim_time(), pos.lat, pos.lon);
+    var tl  = reference_local(m.reference, sim_time(), pos.lat, pos.lon);
     if (tl == nil) {
-        print("Dive cancelled: target lost");
+        print("Dive cancelled: reference lost");
         return -1;
     }
     if (m.t > DIVE_APPROACH_MAX) {
@@ -1565,12 +1564,12 @@ var dive_approach = func(self, m, dt) {
     }
     var e = dive_aim_error(self, m.aim, tl);
     if (e.closing < 1.0) {
-        print(sprintf("Dive cancelled: not closing on the target (closing speed %.1f m/s)", e.closing));
+        print(sprintf("Dive cancelled: not closing on the reference (closing speed %.1f m/s)", e.closing));
         return -1;
     }
     if (m.t - m.log_t >= DIVE_LOG_DT) {
         m.log_t = m.t;
-        print(sprintf("Dive approach: range %.0f m, impact would be %+.0f m along, %+.0f m cross; push-over in about %.0f s",
+        print(sprintf("Dive approach: range %.0f m, landing would be %+.0f m along, %+.0f m cross; push-over in about %.0f s",
                       math.sqrt(tl.e * tl.e + tl.n * tl.n), e.along, e.cross, math.max(-e.along, 0.0) / e.closing));
     }
     if (e.along + 0.5 * e.closing * dt < 0.0) return 0;      # half a tick of lead: the error is zero on average at the push-over
@@ -1578,16 +1577,16 @@ var dive_approach = func(self, m, dt) {
     m.phase = "pushover";  m.t = 0.0;
     m.entry_speed = self.speed * kts_to_mps;                  # the zoom energy is measured from the speed the dive really starts at
     self.aerobatic = 1;
-    print(sprintf("Dive: push-over at %.0f m from the target, predicted impact %+.0f m along, %+.0f m cross, in %.1f s",
+    print(sprintf("Dive: push-over at %.0f m from the reference, predicted landing %+.0f m along, %+.0f m cross, in %.1f s",
                   m.aim_start.range, e.along, e.cross, m.aim.T));
     return 1;
 };
 
 # Decision gate at the start of the pull-out: release if the predicted miss is within release_tol_m, otherwise pull out without releasing.
 var dive_release = func(self, m) {
-    var ms = impact_miss(self, m.target, m.spec, m.ground_ft);
+    var ms = landing_miss(self, m.reference, m.spec, m.ground_ft);
     if (ms == nil) {
-        print("Dive: no release, target lost");
+        print("Dive: no release, reference lost");
         return;
     }
     m.release = { released: 0, miss: ms.miss, along: ms.along, cross: ms.cross, alt_ft: self.alt_ft, v: self.speed * kts_to_mps };
@@ -1597,7 +1596,7 @@ var dive_release = func(self, m) {
     }
     m.release.released = 1;
     print(sprintf("Dive: release, predicted miss %.1f m (along %+.1f, cross %+.1f)", ms.miss, ms.along, ms.cross));
-    release_projectile(self, m.spec, m.target, m.ground_ft);
+    release_projectile(self, m.spec, m.reference, m.ground_ft);
 };
 
 var start_dive = func(self, opts = nil) {
@@ -1615,23 +1614,23 @@ var start_dive = func(self, opts = nil) {
         n_push: (opts["n_push"] != nil) ? opts["n_push"] : -1.0,   #CLAUDE~ 0.7.0: default -1 g (was 0)
         n_pull: opts["n_pull"] or 99.0,
         eta: opts["eta"] or 0.7,
-        target: nil, spec: nil, release_tol_m: 0.0, force: opts["force"] or 0,   #CLAUDE+ 0.7.1: target fields (see below), release: result of dive_release
+        reference: nil, spec: nil, release_tol_m: 0.0, force: opts["force"] or 0,   #CLAUDE+ 0.7.1: reference fields (see below), release: result of dive_release
         aim: nil, aim_t: 0.0, log_t: 0.0, aim_start: nil, release: nil,
         entry_speed: self.speed * kts_to_mps,
         zoom_alt_ft: self.alt_ft, v_end: 0.0,
-        update: update_dive_target
+        update: update_dive_reference
     };
-    #CLAUDE+ 0.7.1: optional target { target: hash or "/ai/models/ship[0]", bomb: spec (default BOMB_500), release_tol_m, target_max_kt, stationary_kt, ground_ft }
-    #CLAUDE+ The ground height defaults to the target altitude. check_target is the phase 0 gate: a target above target_max_kt is refused (force does not override it).
-    if (opts["target"] != nil) {
-        var tgt = make_target(opts["target"]);
-        var ck  = check_target(tgt, opts);
+    #CLAUDE+ 0.7.1: optional reference { reference: hash or "/ai/models/ship[0]", projectile: spec (default FUEL_TANK_500), release_tol_m, reference_max_kt, stationary_kt, ground_ft }
+    #CLAUDE+ The ground height defaults to the reference altitude. check_reference is the phase 0 gate: a reference above reference_max_kt is refused (force does not override it).
+    if (opts["reference"] != nil) {
+        var tgt = make_reference(opts["reference"]);
+        var ck  = check_reference(tgt, opts);
         if (!ck.ok) {
             print("Dive refused: " ~ ck.why);
             return nil;
         }
-        m.target = tgt;
-        m.spec   = opts["bomb"] or BOMB_500;
+        m.reference = tgt;
+        m.spec   = opts["projectile"] or FUEL_TANK_500;
         m.release_tol_m = (opts["release_tol_m"] != nil) ? opts["release_tol_m"] : DIVE_RELEASE_TOL;
         if (opts["ground_ft"] == nil) m.ground_ft = ck.state.alt_ft;
         m.phase = "approach";
@@ -1643,39 +1642,39 @@ var start_dive = func(self, opts = nil) {
     if (!p.ok and !opts["force"]) return nil;
 
     #CLAUDE+ 0.7.1: where a dive begun now would land, and how far the aircraft still has to fly before the push-over
-    if (m.target != nil) {
+    if (m.reference != nil) {
         var ap = dive_aim_prediction(self, m, p);
         if (!ap.ok) {
             print("Dive refused: " ~ ap.why);
             return nil;
         }
         var pos = own_position(self);
-        var tl  = target_local(m.target, sim_time(), pos.lat, pos.lon);
+        var tl  = reference_local(m.reference, sim_time(), pos.lat, pos.lon);
         var e   = dive_aim_error(self, ap, tl);
-        print(sprintf("Dive aim: target %.0f m away; a dive begun now would land %.0f m %s the target and %.0f m to the %s of it; push-over in about %.0f s",
+        print(sprintf("Dive aim: reference %.0f m away; a dive begun now would land %.0f m %s the reference and %.0f m to the %s of it; push-over in about %.0f s",
                       math.sqrt(tl.e * tl.e + tl.n * tl.n), math.abs(e.along), (e.along < 0) ? "short of" : "beyond", math.abs(e.cross),
                       (e.cross < 0) ? "left" : "right", math.max(-e.along, 0.0) / math.max(e.closing, 1.0)));
         if (!opts["force"] and e.closing < 1.0) {
-            print("Dive refused: not closing on the target");
+            print("Dive refused: not closing on the reference");
             return nil;
         }
         if (!opts["force"] and e.along > m.release_tol_m) {
-            print(sprintf("Dive refused: a dive begun now would land %.0f m beyond the target (the target is too close for this dive)", e.along));
+            print(sprintf("Dive refused: a dive begun now would land %.0f m beyond the reference (the reference is too close for this dive)", e.along));
             return nil;
         }
         if (!opts["force"] and math.abs(e.cross) > m.release_tol_m) {
-            print(sprintf("Dive refused: the target is %.0f m off the track (limit %.0f m): turn onto it first (there is no steering)", math.abs(e.cross), m.release_tol_m));
+            print(sprintf("Dive refused: the reference is %.0f m off the track (limit %.0f m): turn onto it first (there is no steering)", math.abs(e.cross), m.release_tol_m));
             return nil;
         }
     }
     if (opts["preview"]) return nil;   #CLAUDE+ 0.7.1: preview = 1 prints the predictions above and starts nothing
 
-    self.aerobatic = (m.target == nil) ? 1 : 0;   #CLAUDE~ 0.7.1: was 1; with a target the approach flies normally and sets it at the push-over
+    self.aerobatic = (m.reference == nil) ? 1 : 0;   #CLAUDE~ 0.7.1: was 1; with a reference the approach flies normally and sets it at the push-over
     self.manoeuvre = m;
     return m;
 };
 
-var update_dive_target = func(self, dt) {
+var update_dive_reference = func(self, dt) {
     var m   = self.manoeuvre;
     var vs1 = v_stall_1g(self);
     var v   = math.max(self.speed * kts_to_mps, 0.5 * vs1);
@@ -1684,7 +1683,7 @@ var update_dive_target = func(self, dt) {
     m.t += dt;
     update_roll_target(self, dt);
 
-    #CLAUDE+ 0.7.1: approach (only with a target): altitude and heading hold until dive_approach starts the push-over (this same tick)
+    #CLAUDE+ 0.7.1: approach (only with a reference): altitude and heading hold until dive_approach starts the push-over (this same tick)
     if (m.phase == "approach") {
         update_pitch_target(self, dt);
         if (self.auto_throttle) hold_speed(self, self.tgt_speed * kts_to_mps);
@@ -1704,7 +1703,7 @@ var update_dive_target = func(self, dt) {
     #CLAUDE~ 0.7.2: was alt <= h_pull, which is up to a tick late. With half a tick of lead (v_up is m/s and negative in a dive, 
     # altitude is in ft) the pull-out starts within half a tick either side of the crossing
             m.phase = "pullout";  m.t = 0.0;
-            if (m.target != nil) dive_release(self, m);   #CLAUDE+ 0.7.1: the decision gate, then the bomb leaves at the start of the pull-out
+            if (m.reference != nil) dive_release(self, m);   #CLAUDE+ 0.7.1: the decision gate, then the projectile leaves at the start of the pull-out
         } else {
             var gdot = math.clamp(0.8 * (-m.theta - gam), -0.35, 0.35);
             gdot = math.max(gdot, g * (m.n_push - math.cos(gam)) / v);        # no more than n_push g while pushing over
@@ -1915,7 +1914,7 @@ var nav_steer = func(self, hdg, alt_ft, dt, v_ref = nil) {
 # { x, xt, dtg, xdot (closing speed along the course), xdot_cmd (the same on the commanded heading), xtdot, course, us, uc, gate_alt_ft, path_alt_ft, psi_deg, alt_cmd_ft, xt_tol, v_tol_ft, ref_alt_ft, w_al, tl }
 var nav_geometry = func(self, m, dt = 0.0) {
     var pos = own_position(self);
-    var tl  = target_local(m.ref, sim_time(), pos.lat, pos.lon);
+    var tl  = reference_local(m.ref, sim_time(), pos.lat, pos.lon);
     if (tl == nil) return nil;
     var rh = tl.hdg;
     if (m.course_rel) {                                 #CLAUDE+ 0.7.3.4: smoothed heading of the reference
@@ -1993,13 +1992,13 @@ var nav_check = func(self, m, nl) {
 
 var start_approach = func(self, opts = nil) {
     opts = opts or {};
-    var ref = make_target(opts["ref"]);
+    var ref = make_reference(opts["ref"]);
     if (ref == nil) {
         print("Approach refused: needs a reference (opts.ref)");
         return nil;
     }
     var pos = own_position(self);
-    var tl0 = target_local(ref, sim_time(), pos.lat, pos.lon);
+    var tl0 = reference_local(ref, sim_time(), pos.lat, pos.lon);
     if (tl0 == nil) {
         print("Approach refused: the reference is missing or not valid");
         return nil;
@@ -2024,7 +2023,7 @@ var start_approach = func(self, opts = nil) {
         attempt: 1, max_attempts: 1,
         out_t: 0.0, log_t: 0.0, last_geo: nil, gate: nil, reint: 0, ref_hdg_f: nil, ref_alt_prev: nil, ref_vs: 0.0,
         ga_alt_ft: 0.0, ga_hdg: 0.0,
-        update: update_approach_target
+        update: update_approach_reference
     };
     if (m.gate_alt_ft == nil) {
         m.gate_dh_ft = (opts["gate_dh_ft"] != nil) ? opts["gate_dh_ft"]
@@ -2124,7 +2123,7 @@ var nav_gate_check = func(self, m, nl) {
     return "";
 };
 
-var update_approach_target = func(self, dt) {
+var update_approach_reference = func(self, dt) {
     var m = self.manoeuvre;
     m.t += dt;
     if (m.phase == "goaround") {
@@ -2275,7 +2274,7 @@ var run_flight_physics = func(mName) {
 
 
 ########################## animationManager ###########################
-# Custom Animation Manager integrated into Bombable
+# Custom Animation Manager integrated into Flightgear
 
 var animationManager = {
     register: func(myNodeName) {
@@ -2397,7 +2396,6 @@ var animationManager = {
 
 # Loop manoeuvre. Relies on globals defined earlier: rho0, weight_N, C_D, C_L_vmax, CL_ALPHA,
 # CL_MAX, g, D2R, R2D, kts_to_mps, m_per_deg_lat, m_per_deg_lon,
-# update_roll_target, update_pitch_target (from targetsOrientation_corrected.nas).
 #
 # state.hdg is the heading of the PLANE of flight
 # (kept continuous through a loop). 
@@ -2585,7 +2583,7 @@ elsif (modelName == "/ju87") {
         max_pitch_rate: 18.0,         # deg/sec (Responsive elevator at low/medium speeds, stiffening in high-speed dives)
         
         # Force-Vector Parameters
-        mass_kg: 4320.0,              # kg (Normal combat loaded weight for Ju 87B-2 with a 250 kg/500 kg bomb load)
+        mass_kg: 4320.0,              # kg (Normal combat loaded weight for Ju 87B-2)
         wing_area_m2: 31.90,          # m^2 (Large inverted gull wing providing low wing loading and stable low-speed handling)
         max_thrust_N: 5200.0,         # N (Static thrust from the Junkers Jumo 211D liquid-cooled V12 engine, ~1,200 PS)
         max_speed_mps: 108.3,         # m/s (390 km/h / 210 kts max level speed at rated altitude of 4,400 m / 14,400 ft)
@@ -2726,8 +2724,8 @@ var create_aircraft_state = func(callsign, initial_lat, initial_lon, initial_alt
         brake_cmd: 0,      #CLAUDE+ 0.6.0: 1 = brakes commanded out; cruise() resets it to 0
         aerobatic: 0, # flag to enable aerobgatic performance
         manoeuvre: nil,
-        projectiles: [],   #CLAUDE+ 0.7.0: bombs in flight (release_projectile)
-        last_impact: nil,  #CLAUDE+ 0.7.0: result of the last impact (position, miss)
+        projectiles: [],   #CLAUDE+ 0.7.0: projectiles in flight (release_projectile)
+        last_landing: nil,  #CLAUDE+ 0.7.0: result of the last landing (position, miss)
         last_approach: nil,   #CLAUDE+ 0.7.3: result of the last approach (outcome, reason and the errors at the gate or at the abort)
         monitor: nil,
         n_load: ,        
@@ -2795,7 +2793,7 @@ rollNode.setDoubleValue(0.0);
 spdNode.setDoubleValue(init_speed);
 engineNode.setDoubleValue(1000);
 
-# 4. Load model via fgcommand (allocates next model index under target_weapon_path)
+# 4. Load model via fgcommand
 var spawn_config = props.Node.new({
     "path": modelPath,
     "latitude-deg-prop":   modelName ~ "/position/latitude-deg",
