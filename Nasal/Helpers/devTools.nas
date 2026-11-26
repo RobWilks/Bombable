@@ -1637,3 +1637,47 @@ fSim.start_dive(fSim.fS.state, {target: "/ai/models/ship[0]"});
 fSim.run_series("dive", fSim.series_cases("dive_angle_deg", [50, 60, 70], {pullout_agl_ft: 2000}));
 fSim.run_series("dive", fSim.series_cases("pullout_agl_ft", [2000, 2200, 2400], {dive_angle_deg: 70}));
 fSim.run_series("dive", fSim.series_cases("pullout_agl_ft", [2000, 2200, 2400, 2800], {dive_angle_deg: 70, target: "/ai/models/ship[0]"}));
+
+
+#CLAUDE+ The line: a reference (hash { lat, lon, alt_ft, hdg, spd_kt } or an AI property path such as "/ai/models/carrier[0]": fixed if its
+#CLAUDE+ speed is 0, otherwise dead-reckoned), an inbound course, a glide angle and a gate. Everything is worked in the frame of the
+#CLAUDE+ reference, so a moving reference only changes the closing speed and adds a crab angle.
+#CLAUDE+   x   distance along the course from the reference (negative before it); the gate is at x = -gate_m
+#CLAUDE+   xt  cross-track error, positive to the right of the course;  dtg = distance to the gate along the course
+#CLAUDE+
+#CLAUDE+ Phases: 0 check (start_approach: is the line reachable in time?) -> 1 intercept (turn onto the line, capture the height) ->
+#CLAUDE+         2 track (inside the funnel, which narrows towards the gate) -> gate (entry conditions checked) -> hand-over to then, or cruise.
+#CLAUDE+ Abort (reference lost, not closing, no longer reachable, left the funnel, too slow, gate conditions not met, timeout): on_abort =
+#CLAUDE+ "goaround" (default: full power, climb on the course to the safe height, then cruise), "cruise" (hand back now) or a function(self, m, reason).
+#CLAUDE+ What follows an abort (reposition, a second attempt) is left to later versions: m.attempt and m.max_attempts are already there.
+#CLAUDE+ The result is left in state.last_approach { outcome ("gate" | "abort"), reason, phase, t, dtg, xt, dh_ft, dv, dpsi, gamma, roll, attempt }.
+#CLAUDE+
+#CLAUDE+ start_approach(self, opts). opts:
+#CLAUDE+   ref (required), course_deg (default: the bearing to the reference, i.e. straight in), course_rel (1: course relative to the reference heading),
+#CLAUDE+   glide_deg (0 = level; positive: the path descends towards the reference), gate_m (distance before the reference where the approach ends, 0),
+#CLAUDE+   gate_dh_ft (gate height above the reference; default: the glide path height, or for a level line the present height above it) or gate_alt_ft (MSL),
+#CLAUDE+   speed_mps / speed_kt (default perf approach_speed_mps, else the present speed; never below 1.25 x the 1 g stall speed),
+#CLAUDE+   then (name of the manoeuvre to start at the gate) with then_opts, on_abort, ga_margin_ft (default perf goaround_margin_ft, else 1000),
+#CLAUDE+   gate_xt_m, gate_dh_tol_ft, gate_hdg_deg (override the gate tolerances), force (1 = skip the phase 0 check), preview (1 = print it and stop).
+
+
+var approach_ref = "/ai/models/ship[0]";
+
+var approach_opts = {
+    ref: approach_ref, 
+    course_deg: 180,
+    course_rel: 1, # relative to the reference heading
+    glide_deg: 3.0,
+    gate_m: 1000,
+    gate_dh_ft: 500,
+    speed_mps: 200,
+    then: "climb",
+    then_opts: {alt_ft: 2000, schedule: "max_rate"},
+    on_abort: "goaround",
+    ga_margin_ft: 1000,
+    # gate_xt_m: 10,
+    # gate_dh_tol_ft: 20,
+    # gate_hdg_deg: 5,
+};
+
+fSim.start_approach(fSim.fS.state, approach_opts);

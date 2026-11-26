@@ -5,10 +5,10 @@ $Id$
 
 <PropertyList>
 
-	<path>spitfireIIa.ac</path>
+	<path>spitfireIIa4.ac</path>
 
 	<!-- ***** Navigation Lights ****** -->
-	<model>
+	<!-- <model>
 		<path>light-green.xml</path>
 		<name>Stbd-Light</name>
 		<offsets>
@@ -36,7 +36,77 @@ $Id$
 			<y-m>0.0</y-m>
 			<z-m>0.837072</z-m>
 		</offsets>
-	</model>
+	</model> -->
+
+	<!-- ***** Canopy ***** -->
+	<effect>
+		<inherits-from>AI/Aircraft/spitfireIIa-Bombable/Models/Effects/exterior-glass-reflection</inherits-from>
+		<object-name>Canopy-F-Port</object-name>
+		<object-name>Canopy-F-Stbd</object-name>
+		<object-name>Canopy-FP</object-name>
+		<object-name>Canopy-Main</object-name>
+		<object-name>Armour-Panel</object-name>
+	</effect>
+
+	<!-- <effect>
+		<inherits-from>AI/Aircraft/spitfireIIa-Bombable/Models/Effects/dirt-fuselage</inherits-from>
+		<object-name>Fuselage</object-name>
+		<object-name>Elevator-L</object-name>
+		<object-name>Elevator-R</object-name>
+		<object-name>Filet</object-name>
+		<object-name>Tailplane-T.001</object-name>
+		<object-name>Tailplane-B.001</object-name>
+		<object-name>Fillet</object-name>
+		<object-name>Tailplane-T.mesh</object-name>
+		<object-name>Tailplane-B.mesh</object-name>
+		<object-name>Tail.001</object-name>
+		<object-name>Rudder-O</object-name>
+		<object-name>Hull-Aft.001</object-name>
+		<object-name>Stub-Wing-L</object-name>
+		<object-name>Stub-Wing-R</object-name>
+		<object-name>Wing-L</object-name>
+		<object-name>Wing-R</object-name>
+		<object-name>Aileron-R</object-name>
+	</effect> -->
+
+
+	<!-- Specularity fix -->
+	<animation>
+		<type>material</type>
+		<object-name>Canopy-F-Port</object-name>
+		<object-name>Canopy-F-Stbd</object-name>
+		<object-name>Canopy-FP</object-name>
+		<object-name>Canopy-Main</object-name>
+		<object-name>Armour-Panel</object-name>
+		<object-name>Fuselage</object-name>
+		<object-name>Elevator-L</object-name>
+		<object-name>Elevator-R</object-name>
+		<object-name>Filet</object-name>
+		<object-name>Tailplane-T.001</object-name>
+		<object-name>Tailplane-B.001</object-name>
+		<object-name>Fillet</object-name>
+		<object-name>Tailplane-T.mesh</object-name>
+		<object-name>Tailplane-B.mesh</object-name>
+		<object-name>Tail.001</object-name>
+		<object-name>Rudder-O</object-name>
+		<object-name>Hull-Aft.001</object-name>
+		<object-name>Stub-Wing-L</object-name>
+		<object-name>Stub-Wing-R</object-name>
+		<object-name>Wing-L</object-name>
+		<object-name>Wing-R</object-name>
+		<shininess>116</shininess>
+		<specular>
+			<r>1</r>
+			<g>1</g>
+			<b>1</b>
+		</specular>
+		<ambient>
+			<r>1</r>
+			<g>1</g>
+			<b>1</b>
+		</ambient>
+	</animation>
+
 
 	<!-- ***** Propeller ***** -->
 	<animation>

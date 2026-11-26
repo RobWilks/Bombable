@@ -27,6 +27,20 @@
 
 
 #CLAUDE+ Change log (newest first):
+#CLAUDE+   0.7.3.4 approach: leaving the funnel is no longer an abort while the closed form check says the gate can still be reached, the aircraft drops back to the intercept phase;
+#CLAUDE+          the heading of a turning reference is smoothed before it turns the line; the climb rate of the reference is fed forward into the height command
+#CLAUDE+   0.7.3.3 approach: an error far outside the funnel aborts at once, and the go-around holds the present heading 
+#          unless the aircraft is already close to the course
+#CLAUDE+   0.7.3.2 approach: the refusal for an aircraft already past the gate says when reversing the course would fit; 
+#          the course_deg and course_rel comment states the directions explicitly
+#CLAUDE+   0.7.3.1 phase 0 takes the closing speed from the speed flown now when that is below the approach speed; the approach local variable geo (a FlightGear namespace) is now nl; an on_abort function is called with no manoeuvre running so that it can start one (it was refused before)
+#CLAUDE+   0.7.3  approach: a guidance layer above cruise() that flies the aircraft onto a line (reference point or moving object, course, glide angle,
+#CLAUDE+          gate), phase 0 feasibility check, phase 1 intercept, phase 2 tracking inside a funnel, the gate check against the entry conditions of
+#CLAUDE+          an optional successor manoeuvre (then), abort with a reason and a default go-around, result in state.last_approach. Geometry (turn
+#CLAUDE+          radius, intercept and settle times) comes from the aircraft profile. New optional perf keys max_turn_rate_dps (also read by
+#CLAUDE+          update_roll_target, default 3), approach_speed_mps, goaround_margin_ft.
+#CLAUDE+          Series runner: start accepts lat and lon, rows show the approach result.
+#CLAUDE+          No change to the other manoeuvres
 #CLAUDE+   0.7.2.1 series runner returns the aircraft to its starting position, altitude, heading and speed when the series ends (option home, default 1;
 #CLAUDE+          run_series_stop(1) does the same); profiler also keeps osum so the report shows omean, the mean cost of the samples over 1 ms
 #CLAUDE+   0.7.2  profiler keeps the maximum over ALL samples and a separate outlier maximum (omax); the dive pull-out starts when the altitude is
@@ -57,7 +71,7 @@
 #CLAUDE+          auto_throttle, speed hold) runs after every manoeuvre and restores the pre-manoeuvre throttle mode; set_targets gains spd
 #CLAUDE+   0.2.0  cleanup of start_loop defaults, speed floors, monitor nil guard, unknown-model message, optional perf keys, version number
 #CLAUDE+   0.1.0  baseline as uploaded
-var FSIM_VERSION = "0.7.2.1";
+var FSIM_VERSION = "0.7.3.4";
 # Explicitly define fS
 var fS = {
     version: FSIM_VERSION,
@@ -104,7 +118,8 @@ var fS = {
     # What the profile terms measure:
     # All timings come from run_flight_physics and the animation manager:
     # anim is the animation manager's per-frame update. It runs about five times per physics tick, reads the model's position and attitude nodes, advances them by the last rates, and writes them back.
-    # control is the controller part of a physics tick: the manoeuvre's update (or cruise()) plus update_orientation. All of the approach re-prediction lands here.
+    # control is the controller part of a physics tick: the manoeuvre's update (or cruise()) plus update_orientation. 
+    # All of the approach re-prediction lands here.
     # force is update_force_physics, the four-force physics: lift, drag, thrust and weight, the velocity update, and the position state.
     # push is everything after the physics step: copying the rates and attitude into the animation manager and writing the model's nodes.
     # tick is the whole run_flight_physics call. It also includes the projectile update and the series hook, which is why it is slightly more than the sum of the other three.
@@ -274,7 +289,7 @@ var update_roll_target = func(self, dt) {
     while (diff < -180.0) diff += 360.0;
 
     var K_HDG         = 0.3;   # 1/s, heading-error gain
-    var MAX_TURN_RATE = 3.0;   # deg/s (standard rate)
+    var MAX_TURN_RATE = self.perf["max_turn_rate_dps"] or 3.0;   # deg/s (standard rate)   #CLAUDE~ 0.7.3: optional perf key, default unchanged
 
     var rate_cmd = diff * K_HDG;
     if (rate_cmd >  MAX_TURN_RATE) rate_cmd =  MAX_TURN_RATE;
@@ -1805,6 +1820,386 @@ var cruise = func(self, dt) {
     if (self.auto_throttle) hold_speed(self, self.tgt_speed * kts_to_mps);
 };
 
+########################## approach (0.7.3) ###########################
+#CLAUDE+ Approach: guidance above cruise(). Guidance only produces a heading, an altitude and a speed; the existing laws fly them
+#CLAUDE+ (update_roll_target, update_pitch_target, hold_speed), so the user targets tgt_heading and tgt_altitude_ft are not touched until the
+#CLAUDE+ documented hand-back (the same rule as every other manoeuvre). Nothing here is specific to one aircraft or one use: the line, the
+#CLAUDE+ funnel and the gate are plain geometry, and what happens at the gate is another manoeuvre (then).
+#CLAUDE+
+#CLAUDE+ The line: a reference (hash { lat, lon, alt_ft, hdg, spd_kt } or an AI property path such as "/ai/models/carrier[0]": fixed if its
+#CLAUDE+ speed is 0, otherwise dead-reckoned), an inbound course, a glide angle and a gate. Everything is worked in the frame of the
+#CLAUDE+ reference, so a moving reference only changes the closing speed and adds a crab angle.
+#CLAUDE+   x   distance along the course from the reference (negative before it); the gate is at x = -gate_m
+#CLAUDE+   xt  cross-track error, positive to the right of the course;  dtg = distance to the gate along the course
+#CLAUDE+
+#CLAUDE+ Phases: 0 check (start_approach: is the line reachable in time?) -> 1 intercept (turn onto the line, capture the height) ->
+#CLAUDE+         2 track (inside the funnel, which narrows towards the gate) -> gate (entry conditions checked) -> hand-over to then, or cruise.
+#CLAUDE+ Abort (reference lost, not closing, no longer reachable, left the funnel, too slow, gate conditions not met, timeout): on_abort =
+#CLAUDE+ "goaround" (default: full power, climb to the safe height on the course, 
+#CLAUDE+ or on the present heading if that is more than NAV_GA_COURSE_DEG from the course, 
+#CLAUDE+ then cruise), "cruise" (hand back now) or a function(self, m, reason)
+#CLAUDE+ The on_abort function is called with no manoeuvre running, so it can start one with start_manoeuvre. If it starts none, the aircraft is handed back to cruise.
+#CLAUDE+ Leaving the funnel is not an abort in itself. A line that has moved from under the aircraft, for example when the reference turns, is flown again from the
+#CLAUDE+ intercept phase for as long as the phase 0 check on the present state says that the gate can still be reached with a margin, up to NAV_MAX_REINT times.
+#CLAUDE+ The heading of a turning reference is smoothed before it turns the line, so that the far end of the line does not sweep sideways faster than the aircraft can follow.
+#CLAUDE+ What follows an abort (reposition, a second attempt) is left to later versions: m.attempt and m.max_attempts are already there.
+#CLAUDE+ The result is left in state.last_approach { outcome ("gate" | "abort"), reason, phase, t, dtg, xt, dh_ft, dv, dpsi, gamma, roll, attempt }.
+#CLAUDE+
+#CLAUDE+ start_approach(self, opts). opts:
+#CLAUDE+   ref (required), course_deg (the direction of flight along the line, default: the bearing to the reference, i.e. straight in), course_rel,
+#CLAUDE+   course_rel = 1 measures course_deg from the heading of the reference: 0 is the same direction as the reference, a landing from astern, and
+#CLAUDE+   180 is the opposite direction, a head-on pass from ahead of it. The gate lies gate_m before the reference along the course, so the aircraft
+#CLAUDE+   must start on the side of the reference that the course comes from. Phase 0 says when the course looks reversed.
+#CLAUDE+   glide_deg (0 = level; positive: the path descends towards the reference), gate_m (distance before the reference where the approach ends, 0),
+#CLAUDE+   gate_dh_ft (gate height above the reference; default: the glide path height, or for a level line the present height above it) or gate_alt_ft (MSL),
+#CLAUDE+   speed_mps / speed_kt (default perf approach_speed_mps, else the present speed; never below 1.25 x the 1 g stall speed),
+#CLAUDE+   then (name of the manoeuvre to start at the gate) with then_opts, on_abort, ga_margin_ft (default perf goaround_margin_ft, else 1000),
+#CLAUDE+   gate_xt_m, gate_dh_tol_ft, gate_hdg_deg (override the gate tolerances), force (1 = skip the phase 0 check), preview (1 = print it and stop).
+#CLAUDE+ Gate tolerances: the entry conditions of the successor if it has any (NAV_ENTRY), otherwise the NAV_GATE_* defaults.
+var NAV_LOOKAHEAD_S  = 8.0;     # s    intercept look-ahead: the track angle is atan(cross-track / (speed x this)), a damped (zeta about 0.8) capture
+var NAV_MAX_INTERCEPT = 45.0;   # deg  steepest intercept angle to the line
+var NAV_SETTLE_S     = 10.0;    # s    time the aircraft needs on the line before the gate (also the margin in the phase 0 check)
+var NAV_FUNNEL_DEG   = 3.0;     # deg  half-angle of the cross-track funnel (width = gate width + distance to the gate x tan of this)
+var NAV_FUNNEL_V_DEG = 1.5;     # deg  the same for height
+var NAV_GATE_XT_M    = 25.0;    # m    gate: largest cross-track error
+var NAV_GATE_DH_FT   = 80.0;    # ft   gate: largest height error
+var NAV_GATE_HDG_DEG = 5.0;     # deg  gate: largest heading error against the commanded heading
+var NAV_GATE_V_FRAC  = 0.10;    #      gate: speed within this fraction of the approach speed
+var NAV_GATE_GAMMA_DEG = 3.0;   # deg  gate: path angle within this of the glide path
+var NAV_GATE_ROLL_DEG  = 8.0;   # deg  gate: largest roll angle
+var NAV_OUT_S        = 1.0;     # s    outside the funnel for this long aborts
+var NAV_MAX_REINT    = 5;       #      how many times the aircraft may drop back to the intercept phase
+var NAV_REINT_MARGIN = 1.0;     #      a re-intercept needs the time required to be below this fraction of the time to the gate, which already includes the settle time
+var NAV_REF_HDG_TAU_S = 6.0;    # s    smoothing of a turning reference heading, shortened to a quarter of the time to the gate
+var NAV_REF_VS_TAU_S = 3.0;     # s    smoothing of the estimated climb rate of the reference
+var NAV_GROSS        = 4.0;     #      a cross-track or height error beyond this many funnel widths aborts at once
+var NAV_GA_COURSE_DEG = 20.0;   # deg  go-around: fly the course only if the heading is within this of it, otherwise hold the present heading
+var NAV_TIMEOUT_S    = 900.0;   # s    an approach not at the gate by then aborts
+var NAV_LOG_DT       = 5.0;     # s    spacing of the log lines
+var NAV_GA_MARGIN_FT = 1000.0;  # ft   go-around: climb this far above the abort height (or the gate height)
+var NAV_GA_TIMEOUT_S = 300.0;   # s    go-around: hand back to cruise after this whatever the height
+
+var nav_tan = func(deg) { var r = deg * D2R; return math.sin(r) / math.cos(r); };
+
+# The entry conditions a successor needs at the gate: name -> func(self, opts, spec) that adjusts spec (see nav_entry_spec for its keys).
+var NAV_ENTRY = {
+    dive: func(self, opts, spec) { spec.v_min = 1.3 * v_stall_1g(self); },   # the push-over needs speed in hand
+};
+
+# Gate tolerances for a successor: { xt_m, dh_ft, hdg_deg, gamma_deg, roll_deg, v_min, v_max } (v_min and v_max nil = no requirement of its own).
+var nav_entry_spec = func(self, name, opts) {
+    var spec = { xt_m: NAV_GATE_XT_M, dh_ft: NAV_GATE_DH_FT, hdg_deg: NAV_GATE_HDG_DEG, gamma_deg: NAV_GATE_GAMMA_DEG,
+                 roll_deg: NAV_GATE_ROLL_DEG, v_min: nil, v_max: nil };
+    var f = (name == nil) ? nil : NAV_ENTRY[name];
+    if (f != nil) f(self, opts, spec);
+    return spec;
+};
+
+# Highest turn rate (rad/s) the heading law can command at speed v: its rate limit or the bank limit, whichever is lower.
+var turn_rate_max = func(self, v) {
+    var rate = (self.perf["max_turn_rate_dps"] or 3.0) * D2R;
+    var bank = g * nav_tan(math.min(self.perf.max_bank_angle, 89.0)) / math.max(v, 1.0);
+    return math.min(rate, bank);
+};
+
+# Fly the commanded heading and altitude with the existing laws without overwriting the user targets.
+var nav_steer = func(self, hdg, alt_ft, dt, v_ref = nil) {
+    var h0 = self.tgt_heading;  var a0 = self.tgt_altitude_ft;
+    self.tgt_heading = hdg;  self.tgt_altitude_ft = alt_ft;
+    update_roll_target(self, dt);
+    update_pitch_target(self, dt, v_ref);
+    self.tgt_heading = h0;  self.tgt_altitude_ft = a0;
+};
+
+# The line at this instant, from the aircraft's position and the reference's present state (closed form, a few microseconds):
+# { x, xt, dtg, xdot (closing speed along the course), xdot_cmd (the same on the commanded heading), xtdot, course, us, uc, gate_alt_ft, path_alt_ft, psi_deg, alt_cmd_ft, xt_tol, v_tol_ft, ref_alt_ft, w_al, tl }
+var nav_geometry = func(self, m, dt = 0.0) {
+    var pos = own_position(self);
+    var tl  = target_local(m.ref, sim_time(), pos.lat, pos.lon);
+    if (tl == nil) return nil;
+    var rh = tl.hdg;
+    if (m.course_rel) {                                 #CLAUDE+ 0.7.3.4: smoothed heading of the reference
+        if (m.ref_hdg_f == nil) m.ref_hdg_f = tl.hdg;
+        else if (dt > 0.0) {
+            var tau = NAV_REF_HDG_TAU_S;
+            var lg = m.last_geo;
+            if (lg != nil and lg.xdot > 1.0) tau = math.min(tau, 0.25 * math.max(lg.dtg, 0.0) / lg.xdot);
+            m.ref_hdg_f = wrap360(m.ref_hdg_f + wrap180(tl.hdg - m.ref_hdg_f) * dt / (tau + dt));
+        }
+        rh = m.ref_hdg_f;
+    }
+    if (dt > 0.0 and m.ref_alt_prev != nil) {           #CLAUDE+ 0.7.3.4: climb rate of the reference in ft/s
+        var vs = math.clamp((tl.alt_ft - m.ref_alt_prev) / dt, -60.0, 60.0);
+        m.ref_vs += (vs - m.ref_vs) * dt / (NAV_REF_VS_TAU_S + dt);
+    }
+    m.ref_alt_prev = tl.alt_ft;
+    var course = wrap360((m.course_rel ? rh : 0.0) + m.course_deg);
+    var us = math.sin(course * D2R);  var uc = math.cos(course * D2R);
+    var px = -tl.e;  var py = -tl.n;                    # the aircraft relative to the reference
+    var x  = px * us + py * uc;
+    var xt = px * uc - py * us;
+    var rvx = self.v_east - tl.vE;  var rvy = self.v_north - tl.vN;   # velocity relative to the reference
+    var xdot  = rvx * us + rvy * uc;
+    var xtdot = rvx * uc - rvy * us;
+    var dtg = -m.gate_m - x;
+    var gate_alt = (m.gate_alt_ft != nil) ? m.gate_alt_ft : tl.alt_ft + m.gate_dh_ft;
+    var tg = nav_tan(m.glide);
+    var dpos = math.max(dtg, 0.0);
+    var path_alt = gate_alt + dpos * tg * 3.28084;
+    var xt_tol = m.gate.xt_m + dpos * nav_tan(NAV_FUNNEL_DEG);
+    var v_tol  = m.gate.dh_ft + dpos * nav_tan(NAV_FUNNEL_V_DEG) * 3.28084;
+    # heading: track angle from the cross-track error (clamped), then the crab that cancels the reference's own motion
+    var vh  = math.max(math.sqrt(self.v_east * self.v_east + self.v_north * self.v_north), 10.0);
+    var ang = math.clamp(math.atan2(xt, vh * NAV_LOOKAHEAD_S), -NAV_MAX_INTERCEPT * D2R, NAV_MAX_INTERCEPT * D2R);
+    var theta = course * D2R - ang;
+    var sc = math.clamp((tl.vE * math.cos(theta) - tl.vN * math.sin(theta)) / vh, -0.9, 0.9);
+    var psi = theta + math.atan2(sc, math.sqrt(1.0 - sc * sc));
+    # height: the path height plus 10 s of its rate, which is what update_pitch_target's 0.1/s law needs for no steady lag
+    var alt_cmd = path_alt + 32.8084 * (-xdot * tg) + 10.0 * m.ref_vs;     #CLAUDE~ 0.7.3.4: plus 10 s of the climb rate of the reference, the same lag removal
+    if (m.glide > 0.0 and self.alt_ft < path_alt - v_tol) alt_cmd = self.alt_ft;   # below the glide path: hold until it comes down to us
+    var xdot_cmd = vh * math.cos(psi - course * D2R) - (tl.vE * us + tl.vN * uc);      # closing speed once the aircraft is on the commanded heading
+    return { x: x, xt: xt, dtg: dtg, xdot: xdot, xdot_cmd: xdot_cmd, xtdot: xtdot, course: course, us: us, uc: uc, gate_alt_ft: gate_alt, path_alt_ft: path_alt,
+             psi_deg: wrap360(psi * R2D), alt_cmd_ft: alt_cmd, xt_tol: xt_tol, v_tol_ft: v_tol, ref_alt_ft: tl.alt_ft,
+             w_al: tl.vE * us + tl.vN * uc, tl: tl };
+};
+
+# Phase 0: can the line be reached in time? Returns { ok, why, t_req, t_avail }. All times from the aircraft profile.
+var nav_check = func(self, m, nl) {
+    var v = math.max(m.v_app, 1.0);
+    if (nl.dtg < 0.0) {
+        var why = sprintf("the aircraft is already %.0f m past the gate", -nl.dtg);
+        if (-nl.dtg > 2.0 * m.gate_m)       #CLAUDE+ 0.7.3.2: reversing the course would put the aircraft before the gate
+            why = why ~ sprintf("; the course may be reversed, try course_deg %.0f", wrap360(m.course_deg + 180.0));
+        return { ok: 0, why: why, t_req: 0.0, t_avail: 0.0 };
+    }
+    var vn = math.sqrt(self.v_east * self.v_east + self.v_north * self.v_north);   #CLAUDE~ 0.7.3.1: closing speed from the speed flown now if that is lower than the approach speed (it was the approach speed: a slow aircraft was accepted, then aborted "not closing" at once)
+    var closure = math.min(v, vn) - nl.w_al;
+    if (closure < 5.0) return { ok: 0, why: sprintf("cannot close on the reference at the present speed (closing speed %.1f m/s at %.0f m/s; speed up first)", closure, math.min(v, vn)), t_req: 0.0, t_avail: 0.0 };
+    var om  = turn_rate_max(self, v);
+    var th  = math.clamp(math.atan2(math.abs(nl.xt), v * NAV_LOOKAHEAD_S), 10.0 * D2R, NAV_MAX_INTERCEPT * D2R);
+    var dps = math.abs(wrap180(nl.psi_deg - self.hdg)) * D2R;
+    var t_lat = (dps + th) / om + math.abs(nl.xt) / (v * math.sin(th)) + NAV_SETTLE_S;      # turn onto the intercept, fly it, turn back, settle
+    var dh = math.abs(nl.path_alt_ft - self.alt_ft) / 3.28084;
+    var tg = nav_tan(m.glide);
+    var t_vert = NAV_SETTLE_S;
+    if (m.glide > 0.0 and self.alt_ft < nl.path_alt_ft) t_vert += dh / math.max(closure * tg, 0.1);        # level until the glide path comes down
+    else t_vert += dh / math.max(0.5 * math.min(self.perf.climb_rate, self.perf.descent_rate) * 0.00508, 0.5);
+    var t_req = math.max(t_lat, t_vert);
+    var t_av  = nl.dtg / closure;
+    if (t_req > t_av)
+        return { ok: 0, why: sprintf("the line cannot be reached in time: needs %.0f s (turn and intercept %.0f s, height %.0f s), %.0f s to the gate", t_req, t_lat, t_vert, t_av), t_req: t_req, t_avail: t_av };
+    return { ok: 1, why: "", t_req: t_req, t_avail: t_av };
+};
+
+var start_approach = func(self, opts = nil) {
+    opts = opts or {};
+    var ref = make_target(opts["ref"]);
+    if (ref == nil) {
+        print("Approach refused: needs a reference (opts.ref)");
+        return nil;
+    }
+    var pos = own_position(self);
+    var tl0 = target_local(ref, sim_time(), pos.lat, pos.lon);
+    if (tl0 == nil) {
+        print("Approach refused: the reference is missing or not valid");
+        return nil;
+    }
+    var vs1 = v_stall_1g(self);
+    var v_app = opts["speed_mps"];
+    if (v_app == nil and opts["speed_kt"] != nil) v_app = opts["speed_kt"] * kts_to_mps;
+    if (v_app == nil) v_app = self.perf["approach_speed_mps"];
+    if (v_app == nil) v_app = self.speed * kts_to_mps;
+    v_app = math.max(v_app, 1.25 * vs1);
+    var rel = opts["course_rel"] or 0;
+    var m = {
+        name: "approach", phase: "intercept", t: 0.0,
+        ref: ref, course_rel: rel,
+        course_deg: (opts["course_deg"] != nil) ? opts["course_deg"] : (rel ? 0.0 : wrap360(math.atan2(tl0.e, tl0.n) * R2D)),
+        glide: opts["glide_deg"] or 0.0,
+        gate_m: opts["gate_m"] or 0.0,
+        gate_alt_ft: opts["gate_alt_ft"], gate_dh_ft: 0.0,
+        v_app: v_app, then: opts["then"], then_opts: opts["then_opts"],
+        on_abort: opts["on_abort"] or "goaround",
+        ga_margin_ft: opts["ga_margin_ft"] or self.perf["goaround_margin_ft"] or NAV_GA_MARGIN_FT,
+        attempt: 1, max_attempts: 1,
+        out_t: 0.0, log_t: 0.0, last_geo: nil, gate: nil, reint: 0, ref_hdg_f: nil, ref_alt_prev: nil, ref_vs: 0.0,
+        ga_alt_ft: 0.0, ga_hdg: 0.0,
+        update: update_approach_target
+    };
+    if (m.gate_alt_ft == nil) {
+        m.gate_dh_ft = (opts["gate_dh_ft"] != nil) ? opts["gate_dh_ft"]
+                     : ((m.glide > 0.0) ? m.gate_m * nav_tan(m.glide) * 3.28084 : self.alt_ft - tl0.alt_ft);
+    }
+    var gt = nav_entry_spec(self, m.then, m.then_opts);
+    if (opts["gate_xt_m"] != nil)     gt.xt_m = opts["gate_xt_m"];
+    if (opts["gate_dh_tol_ft"] != nil) gt.dh_ft = opts["gate_dh_tol_ft"];
+    if (opts["gate_hdg_deg"] != nil)  gt.hdg_deg = opts["gate_hdg_deg"];
+    gt.v_min = math.max((1.0 - NAV_GATE_V_FRAC) * v_app, gt.v_min or 0.0);
+    gt.v_max = math.min((1.0 + NAV_GATE_V_FRAC) * v_app, gt.v_max or 1.0e9);
+    m.gate = gt;
+
+    var nl = nav_geometry(self, m);
+    var ck  = nav_check(self, m, nl);
+    print(sprintf("Approach phase 0: gate %.0f m from the reference on course %.0f, %.0f m to go, cross-track %+.0f m, height error %+.0f ft, speed %.0f m/s; %s",
+                  m.gate_m, nl.course, nl.dtg, nl.xt, self.alt_ft - nl.path_alt_ft, m.v_app,
+                  ck.ok ? sprintf("reachable (needs %.0f s, %.0f s available)", ck.t_req, ck.t_avail) : "REFUSED: " ~ ck.why));
+    if (!ck.ok and !opts["force"]) {
+        self.last_approach = { outcome: "refused", reason: ck.why, phase: "check", t: 0.0, dtg: nl.dtg, xt: nl.xt, dh_ft: self.alt_ft - nl.path_alt_ft,
+                               dv: 0.0, dpsi: 0.0, gamma: self.gamma_deg or 0.0, roll: self.roll, attempt: 1 };
+        return nil;
+    }
+    if (opts["preview"]) return nil;
+    self.last_approach = nil;
+    self.manoeuvre = m;
+    return m;
+};
+
+# Record the errors at the gate or at the abort in state.last_approach.
+var nav_record = func(self, m, nl, outcome, reason) {
+    var r = { outcome: outcome, reason: reason, phase: m.phase, t: m.t, attempt: m.attempt, reint: m.reint,
+              dtg: 0.0, xt: 0.0, dh_ft: 0.0, dv: self.speed * kts_to_mps - m.v_app, dpsi: 0.0,
+              gamma: self.gamma_deg or 0.0, roll: self.roll };
+    if (nl != nil) {
+        r.dtg = nl.dtg;  r.xt = nl.xt;  r.dh_ft = self.alt_ft - nl.path_alt_ft;  r.dpsi = wrap180(self.hdg - nl.psi_deg);
+    }
+    self.last_approach = r;
+    return r;
+};
+
+# Hand the aircraft back to cruise with a documented heading and altitude.
+var nav_handback = func(self, hdg, alt_ft, dt) {
+    self.tgt_heading = hdg;
+    self.tgt_altitude_ft = alt_ft;
+    self.manoeuvre = nil;
+    cruise(self, dt);
+};
+
+var nav_abort = func(self, m, nl, dt, reason) {
+    nav_record(self, m, nl, "abort", reason);
+    print(sprintf("Approach ABORT in phase %s after %.1f s: %s", m.phase, m.t, reason));
+    var g2 = (nl != nil) ? nl : m.last_geo;
+    m.ga_hdg    = self.hdg;                    #CLAUDE~ 0.7.3.3: the course only when the heading is already close to it
+    if (g2 != nil and math.abs(wrap180(g2.course - self.hdg)) < NAV_GA_COURSE_DEG) m.ga_hdg = g2.course;
+    m.ga_alt_ft = math.max(self.alt_ft, (g2 != nil) ? g2.gate_alt_ft : self.alt_ft) + m.ga_margin_ft;
+    var oa = m.on_abort;
+    if (typeof(oa) == "func") {
+        self.manoeuvre = nil;                              #CLAUDE~ 0.7.3.1: cleared first, so the handler can start a manoeuvre (start_manoeuvre refuses while one is running)
+        oa(self, m, reason);
+        if (self.manoeuvre != nil) return;                 # the handler started something else
+        nav_handback(self, self.hdg, self.alt_ft, dt);
+        return;
+    }
+    if (oa == "cruise") {
+        nav_handback(self, m.ga_hdg, self.alt_ft, dt);
+        return;
+    }
+    m.phase = "goaround";  m.t = 0.0;
+    print(sprintf("Approach go-around: full power, climb to %.0f ft on course %.0f", m.ga_alt_ft, m.ga_hdg));
+    nav_goaround(self, m, dt);
+};
+
+var nav_goaround = func(self, m, dt) {
+    self.throttle = 1.0;
+    nav_steer(self, m.ga_hdg, m.ga_alt_ft, dt, climb_speed(self, "rate"));
+    var err_m = (m.ga_alt_ft - self.alt_ft) / 3.28084;
+    if (err_m < math.max(CLIMB_CAPTURE_MIN_M, 10.0 * self.v_up) or m.t > NAV_GA_TIMEOUT_S) {
+        print(sprintf("Approach go-around complete at %.0f ft: back to cruise", self.alt_ft));
+        nav_handback(self, m.ga_hdg, m.ga_alt_ft, dt);
+    }
+};
+
+# Gate: compare the aircraft with the entry conditions. Returns "" when they are met, otherwise the reason.
+var nav_gate_check = func(self, m, nl) {
+    var gt = m.gate;
+    var v  = self.speed * kts_to_mps;
+    var dh = self.alt_ft - nl.path_alt_ft;
+    if (math.abs(nl.xt) > gt.xt_m) return sprintf("gate: cross-track %+.0f m (limit %.0f)", nl.xt, gt.xt_m);
+    if (math.abs(dh) > gt.dh_ft) return sprintf("gate: height %+.0f ft (limit %.0f)", dh, gt.dh_ft);
+    if (v < gt.v_min or v > gt.v_max) return sprintf("gate: speed %.0f m/s (allowed %.0f to %.0f)", v, gt.v_min, gt.v_max);
+    var dp = wrap180(self.hdg - nl.psi_deg);
+    if (math.abs(dp) > gt.hdg_deg) return sprintf("gate: heading %+.1f deg off (limit %.1f)", dp, gt.hdg_deg);
+    var ga = (self.gamma_deg or 0.0) + m.glide - math.atan2(m.ref_vs * 0.3048, math.max(v, 1.0)) * R2D;     #CLAUDE~ 0.7.3.4: the path angle expected over the ground includes the climb of the reference
+    if (math.abs(ga) > gt.gamma_deg) return sprintf("gate: path angle %+.1f deg off the path (limit %.1f)", ga, gt.gamma_deg);
+    if (math.abs(self.roll) > gt.roll_deg) return sprintf("gate: roll %.1f deg (limit %.1f)", self.roll, gt.roll_deg);
+    return "";
+};
+
+var update_approach_target = func(self, dt) {
+    var m = self.manoeuvre;
+    m.t += dt;
+    if (m.phase == "goaround") {
+        nav_goaround(self, m, dt);
+        return;
+    }
+    var nl = nav_geometry(self, m, dt);
+    if (nl == nil) {
+        nav_abort(self, m, nil, dt, "the reference was lost");
+        return;
+    }
+    m.last_geo = nl;
+    var v  = self.speed * kts_to_mps;
+    var dh = self.alt_ft - nl.path_alt_ft;
+    nav_steer(self, nl.psi_deg, nl.alt_cmd_ft, dt);
+    hold_speed(self, m.v_app);
+
+    if (m.t - m.log_t >= NAV_LOG_DT) {
+        m.log_t = m.t;
+        print(sprintf("Approach %s: %.0f m to the gate, cross-track %+.0f m (funnel %.0f), height %+.0f ft (funnel %.0f), %.0f m/s",
+                      m.phase, nl.dtg, nl.xt, nl.xt_tol, dh, nl.v_tol_ft, v));
+    }
+    if (v < 1.1 * v_stall_1g(self)) { nav_abort(self, m, nl, dt, sprintf("too slow (%.0f m/s)", v)); return; }
+    if (m.t > NAV_TIMEOUT_S)        { nav_abort(self, m, nl, dt, "timeout"); return; }
+    if (nl.xdot_cmd < 1.0)         { nav_abort(self, m, nl, dt, sprintf("not closing (%.1f m/s even on the commanded heading)", nl.xdot_cmd)); return; }
+
+    # the gate: crossed within half a tick (the same lead as the dive's pull-out start)
+    if (nl.dtg - 0.5 * nl.xdot * dt <= 0.0) {
+        var why = nav_gate_check(self, m, nl);
+        if (why != "") { nav_abort(self, m, nl, dt, why); return; }
+        var r = nav_record(self, m, nl, "gate", "");
+        print(sprintf("Approach: at the gate after %.1f s: cross-track %+.1f m, height %+.1f ft, speed %+.1f m/s, heading %+.1f deg%s",
+                      m.t, r.xt, r.dh_ft, r.dv, r.dpsi, (m.then != nil) ? ", starting " ~ m.then : ""));
+        var pre = self.pre_manoeuvre;
+        nav_handback(self, nl.psi_deg, nl.path_alt_ft, dt);          # documented hand-back values, whether or not a successor follows
+        if (m.then != nil) {
+            var ok = start_manoeuvre(modelName, self, m.then, m.then_opts);
+            if (ok == nil) {
+                print("Approach: the successor " ~ m.then ~ " did not start (refused, or cruise can already do it); flying on in cruise");   #CLAUDE~ 0.7.3.1: wording (start_climb returns nil when cruise handles the climb)
+                self.last_approach.then_started = 0;
+            } else {
+                self.last_approach.then_started = 1;
+            }
+            if (pre != nil) self.pre_manoeuvre = pre;                   # the throttle mode from before the approach, not the approach's
+        }
+        return;
+    }
+
+    var xo = math.abs(nl.xt) > nl.xt_tol or math.abs(dh) > nl.v_tol_ft;
+    if (m.phase == "intercept") {
+        var inside = math.abs(nl.xt) < 0.8 * nl.xt_tol and math.abs(dh) < 0.8 * nl.v_tol_ft and math.abs(wrap180(self.hdg - nl.psi_deg)) < 10.0;
+        if (inside) {
+            m.phase = "track";  m.out_t = 0.0;
+            print(sprintf("Approach established (phase 2): %.0f m to the gate, cross-track %+.0f m, height %+.0f ft", nl.dtg, nl.xt, dh));
+        } else if (nl.dtg < nl.xdot_cmd * NAV_SETTLE_S) {
+            nav_abort(self, m, nl, dt, sprintf("not established %.0f m from the gate (cross-track %+.0f m, height %+.0f ft)", nl.dtg, nl.xt, dh));
+        }
+        return;
+    }
+    if (xo) m.out_t += dt; else m.out_t = 0.0;
+    var gross = math.abs(nl.xt) > NAV_GROSS * nl.xt_tol or math.abs(dh) > NAV_GROSS * nl.v_tol_ft;
+    if (gross or m.out_t > NAV_OUT_S) {                 #CLAUDE~ 0.7.3.4: re-intercept when the gate can still be reached, abort when it cannot
+        var ck = nav_check(self, m, nl);
+        if (ck.ok and ck.t_req < NAV_REINT_MARGIN * ck.t_avail and m.reint < NAV_MAX_REINT) {
+            m.reint += 1;  m.phase = "intercept";  m.out_t = 0.0;
+            print(sprintf("Approach left the funnel (cross-track %+.0f m of %.0f, height %+.0f ft of %.0f): intercepting again, %d of %d, needs %.0f s, %.0f s to the gate",
+                          nl.xt, nl.xt_tol, dh, nl.v_tol_ft, m.reint, NAV_MAX_REINT, ck.t_req, ck.t_avail));
+            return;
+        }
+        nav_abort(self, m, nl, dt, sprintf("%s (cross-track %+.0f m of %.0f, height %+.0f ft of %.0f), %s",
+                  gross ? "far outside the funnel" : "left the funnel", nl.xt, nl.xt_tol, dh, nl.v_tol_ft,
+                  ck.ok ? "intercepted again too often or too little time in hand" : "cannot recover: " ~ ck.why));
+    }
+};
+
 var run_flight_physics = func(mName) {
     var prof = fS.prof;
     var state = fS.state;
@@ -2012,7 +2407,7 @@ var animationManager = {
 
 
 # 1. Performance Profile & Force Coefficients
-var modelName = "/ju87";
+var modelName = "/spitfireXVI";
 
 
 ###########################################################
@@ -2333,6 +2728,7 @@ var create_aircraft_state = func(callsign, initial_lat, initial_lon, initial_alt
         manoeuvre: nil,
         projectiles: [],   #CLAUDE+ 0.7.0: bombs in flight (release_projectile)
         last_impact: nil,  #CLAUDE+ 0.7.0: result of the last impact (position, miss)
+        last_approach: nil,   #CLAUDE+ 0.7.3: result of the last approach (outcome, reason and the errors at the gate or at the abort)
         monitor: nil,
         n_load: ,        
 
@@ -2353,7 +2749,7 @@ var apt = airportinfo(airport_id);
 
 var init_lat = 37.61899; # Fallback latitude
 var init_lon = -122.3749; # Fallback longitude
-var init_alt_ft = 5013.0; # Fallback altitude (+5000ft over sea level)
+var init_alt_ft = 2013.0; # Fallback altitude (+5000ft over sea level)
 
 if (apt != nil and size(apt.runways) > 0) {
     var runways_list = values(apt.runways);
@@ -2363,17 +2759,17 @@ if (apt != nil and size(apt.runways) > 0) {
     init_lon = first_rwy.lon;
 
     var apt_elev_ft = apt.elevation * 3.28084 or 0.0;
-    init_alt_ft = apt_elev_ft + 10000.0;
+    init_alt_ft = apt_elev_ft + 2000.0;
     print("fSim.nas: Initialized position from " ~ airport_id ~ " Runway threshold at Lat: " ~ init_lat ~ ", Lon: " ~ init_lon);
 } else {
     print("fSim.nas: Warning - Could not load airport " ~ airport_id ~ ", using default fallback coordinates.");
 }
 
 # Initial flight parameters for level flight northwards (Heading 0°, Speed 250 kts)
-var init_hdg = 180.0;
-var init_speed = 175.0; # knots
-var init_throttle = 0.7;
-var init_rpm = 2000;
+var init_hdg = 200.0;
+var init_speed = 300.0; # knots
+var init_throttle = 1.0;
+var init_rpm = 3500;
 
 ########################## Initialize model ###########################
 
@@ -2553,7 +2949,7 @@ foreach (var path; paths) {
 # Example listener registration (adapt the node path to your controls node):
 
   var register_manoeuvre_listeners = func(mName, self) {
-      foreach (var name; ["loop", "immelmann", "aileron_roll", "split_s", "climb", "dive"]) {
+      foreach (var name; ["loop", "immelmann", "aileron_roll", "split_s", "climb", "dive", "approach"]) {
           (func(name) {
               var node = props.globals.getNode(mName ~ "/controls/manoeuvres/" ~ name, 1);
               node.setBoolValue(0);
@@ -2585,6 +2981,7 @@ var start_manoeuvre = func(mname, self, name, opts = nil) {
     else if (name == "split_s")      ret = start_split_s(self, opts);
     else if (name == "climb")        ret = start_climb(self, opts);   #CLAUDE+ 0.4.0
     else if (name == "dive")         ret = start_dive(self, opts);    #CLAUDE+ 0.6.0
+    else if (name == "approach")     ret = start_approach(self, opts);   #CLAUDE+ 0.7.3
     else {
         print("Unknown manoeuvre: " ~ name);
         return nil;
@@ -2604,8 +3001,8 @@ var start_manoeuvre = func(mname, self, name, opts = nil) {
 #CLAUDE+ TEST CODE, not part of the flight model. run_series(name, cases, sopts) runs ONE kind of manoeuvre again and again from a repeatable start
 #CLAUDE+ and prints one row per case, so a batch can run unattended (speed-up works: it runs on simulated physics ticks, no timer).
 #CLAUDE+   name  : any manoeuvre start_manoeuvre knows: dive, loop, immelmann, aileron_roll, split_s, climb
-#CLAUDE+   cases : vector of { label, opts, start }. opts = the manoeuvre's own options. start = { alt_ft, speed_kt, hdg, throttle }; 
-#CLAUDE+   a missing value is the value the aircraft had when run_series was called (the position is always that one)
+#CLAUDE+   cases : vector of { label, opts, start }. opts = the manoeuvre's own options. start = { lat, lon, alt_ft, speed_kt, hdg, throttle }; 
+#CLAUDE+   a missing value is the value the aircraft had when run_series was called
 #CLAUDE+   sopts : { settle (time in sec of level flight before each manoeuvre, default 3), max_s (time limit per case, default 180) }
 #CLAUDE+ series_cases(key, values, base_opts, base_start, where) builds the cases for a one-parameter sweep of an option (where "opts", the default)
 #CLAUDE+ or of a start value (where "start"), e.g. series_cases("dive_angle_deg", [50, 60, 70], { pullout_agl_ft: 2000 }).
@@ -2634,14 +3031,14 @@ var series_cases = func(key, values, base_opts = nil, base_start = nil, where = 
 # Put the aircraft back at the start of a case, in place (the listeners and the monitor keep their reference to the state hash).
 var series_reset_state = func(base, start) {
     var st = fS.state;
-    var fresh = create_aircraft_state(modelName, base.lat, base.lon, start.alt_ft, start.hdg, start.speed_kt, start.throttle);
+    var fresh = create_aircraft_state(modelName, start.lat, start.lon, start.alt_ft, start.hdg, start.speed_kt, start.throttle);   #CLAUDE~ 0.7.3: start.lat and lon (were base.lat, base.lon)
     foreach (var k; keys(fresh)) {
         if (k == "perf" or k == "tNode" or k == "monitor" or k == "callsign") continue;
         st[k] = fresh[k];
     }
     st.auto_throttle = base.auto_throttle;
-    latNode.setDoubleValue(base.lat);
-    lonNode.setDoubleValue(base.lon);
+    latNode.setDoubleValue(start.lat);
+    lonNode.setDoubleValue(start.lon);
     altNode.setDoubleValue(start.alt_ft);
     hdgNode.setDoubleValue(start.hdg);
     pitchNode.setDoubleValue(0.0);
@@ -2660,7 +3057,9 @@ var series_next = func(self) {
     var c = s.cases[s.i];
     var b = s.base;
     var st = c["start"] or {};
-    s.start = { alt_ft:   (st["alt_ft"]   != nil) ? st["alt_ft"]   : b.alt_ft,
+    s.start = { lat:      (st["lat"]      != nil) ? st["lat"]      : b.lat,    #CLAUDE+ 0.7.3: start lat and lon (default: where run_series was called)
+                lon:      (st["lon"]      != nil) ? st["lon"]      : b.lon,
+                alt_ft:   (st["alt_ft"]   != nil) ? st["alt_ft"]   : b.alt_ft,
                 speed_kt: (st["speed_kt"] != nil) ? st["speed_kt"] : b.speed_kt,
                 hdg:      (st["hdg"]      != nil) ? st["hdg"]      : b.hdg,
                 throttle: (st["throttle"] != nil) ? st["throttle"] : b.throttle };
@@ -2672,10 +3071,12 @@ var series_row = func(self, outcome) {
     var s = series;
     var c = s.cases[s.i];
     var v = self.speed * kts_to_mps;
-    print(sprintf("SERIES %2d/%d %-18s %-8s %6.1f s | alt %6.0f > min %6.0f > end %6.0f ft | speed max %5.1f end %5.1f m/s | load max %4.1f | %s",
-                  s.i + 1, size(s.cases), c["label"] or "", outcome, s.t_run, s.alt0, s.min_alt, self.alt_ft, s.max_v, v, s.max_n, s.phases));
+    var la = self["last_approach"];
+    var ap = (la == nil) ? "" : sprintf(" | approach %s%s: xt %+.0f m, dh %+.0f ft, dv %+.1f m/s, dpsi %+.1f deg", la.outcome, (la.reason == "") ? "" : " (" ~ la.reason ~ ")", la.xt, la.dh_ft, la.dv, la.dpsi);   #CLAUDE+ 0.7.3
+    print(sprintf("SERIES %2d/%d %-18s %-8s %6.1f s | alt %6.0f > min %6.0f > end %6.0f ft | speed max %5.1f end %5.1f m/s | load max %4.1f | %s%s",
+                  s.i + 1, size(s.cases), c["label"] or "", outcome, s.t_run, s.alt0, s.min_alt, self.alt_ft, s.max_v, v, s.max_n, s.phases, ap));
     append(s.results, { label: c["label"], outcome: outcome, t: s.t_run, alt0: s.alt0, min_alt: s.min_alt, end_alt: self.alt_ft,
-                        max_v: s.max_v, end_v: v, max_n: s.max_n, phases: s.phases });
+                        max_v: s.max_v, end_v: v, max_n: s.max_n, phases: s.phases, approach: la });
     s.i += 1;
     if (s.i >= size(s.cases)) {
         s.running = 0;  s.phase = "idle";
