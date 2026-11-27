@@ -1656,15 +1656,15 @@ fSim.run_series("dive", fSim.series_cases("pullout_agl_ft", [2000, 2200, 2400, 2
 #CLAUDE+   ref (required), course_deg (default: the bearing to the reference, i.e. straight in), course_rel (1: course relative to the reference heading),
 #CLAUDE+   glide_deg (0 = level; positive: the path descends towards the reference), gate_m (distance before the reference where the approach ends, 0),
 #CLAUDE+   gate_dh_ft (gate height above the reference; default: the glide path height, or for a level line the present height above it) or gate_alt_ft (MSL),
-#CLAUDE+   speed_mps / speed_kt (default perf approach_speed_mps, else the present speed; never below 1.25 x the 1 g stall speed),
+#CLAUDE+   speed_mps / speed_kt (default perf lineup_speed_mps, else the present speed; never below 1.25 x the 1 g stall speed),
 #CLAUDE+   then (name of the manoeuvre to start at the gate) with then_opts, on_abort, ga_margin_ft (default perf goaround_margin_ft, else 1000),
 #CLAUDE+   gate_xt_m, gate_dh_tol_ft, gate_hdg_deg (override the gate tolerances), force (1 = skip the phase 0 check), preview (1 = print it and stop).
 
 
-var approach_ref = "/ai/models/ship[0]";
+var lineup_ref = "/ai/models/ship[0]";
 
-var approach_opts = {
-    ref: approach_ref, 
+var lineup_opts = {
+    ref: lineup_ref, 
     course_deg: 180,
     course_rel: 1, # relative to the reference heading
     glide_deg: 3.0,
@@ -1680,4 +1680,59 @@ var approach_opts = {
     # gate_hdg_deg: 5,
 };
 
-fSim.start_approach(fSim.fS.state, approach_opts);
+fSim.start_lineup(fSim.fS.state, lineup_opts);
+
+
+var lineup_ref = "/ai/models/ship[0]";
+# lineup_tests.v1_gate_abort_ship();    #     the ship and your options, but a gate heading tolerance that can never be met: ABORT at the gate, default go-around
+# lineup_tests.v2_abort_cruise_ship();    #   the same, on_abort "cruise": handed back at once, no climb
+# lineup_tests.v3_abort_handler_ship();    #  the same, on_abort = a function that starts a max-rate climb itself
+# lineup_tests.v4_reference_lost();    #      the reference is switched off 20 s into the lineup: ABORT "reference was lost", go-around
+# lineup_tests.v5_ship_turns();    #          a moving reference turns 25 deg, the line turns with it (course_rel): the aircraft intercepts again, and aborts when too little time is left, then go-around
+# lineup_tests.v5b_small_turn();    #         the same reference turns 10 deg: the aircraft intercepts again and reaches the gate
+# lineup_tests.v6_not_established();    #     forced start from a bad position (offset line, little distance): ABORT "not established", go-around
+# lineup_tests.v7_entry_speed();    #         a successor dive needs 1.3 x stall speed, the lineup flies 1.25 x: ABORT at the gate on speed
+# lineup_tests.v8_refused_preview();    #     phase 0 only (preview): reference behind, reference outrunning the aircraft, a line that is too close
+# lineup_tests.v9_fast_ref_join(lineup_ref);   # join astern of a faster moving object (path = an AI aircraft such as "/ai/models/aircraft[0]"; default: a test reference at 250 kt)
+
+fSim.run_series("dive", fSim.series_cases("pullout_agl_ft", [2000, 2200, 2400, 2800], {dive_angle_deg: 70, reference: "/ai/models/ship[0]"}));
+fSim.start_climb(fSim.fS.state, 
+    { 
+        schedule: "max_rate",
+        alt_ft: 10050.0,
+    });
+fSim.release_projectile(fSim.fS.state, nil, fSim.make_target("ai/models/ship[0]"));
+fSim.fS.prof.stop();
+fSim.fS.prof.start();
+fSim.fS.state.manoeuvre = nil;
+fSim.fS.state.manoeuvre_opts = {
+    # loop
+        entry_speed: 145.0,           # m/s
+        n_bottom:    4.5,             # design load factor at the bottom
+        exit_deg:    3.0,             # hand back to normal control this far from 360
+        floor_ft:    ,
+    # immelmann
+        roll_lead_deg: 20.0,
+        direction: "right",            # "right"/"left", default = the shorter way to inverted
+        roll_rate: 90.0,
+    # aileron_roll
+        immediate: 0,                 # 1 skip entry phase, start the roll at once from any attitude, e.g. a banked turn
+    # split_s
+        n_pull: 4.0,                  # g, default 4
+        ground_ft: 0,                 # default 0
+        clearance_ft: 1000.0,         # default 1000
+        onset: 6,                     # g/s, default 6
+        force: 0,                     # 1 to force manoeuvre even when too close to ground
+};
+debug.dump(fSim.fS.state.manoeuvre_opts);
+
+# --- Example Console Commands You Can Run Anytime ---
+# 1. Turn to heading 25 deg and climb to 4,000 ft with full military power:
+ fSim.fS.set_targets(025.0, 2000.0, 1);
+#  hdg = nil, alt = nil, thr = nil
+
+# 2. Check current targets vs actual state:
+fSim.fS.get_state();
+
+fSim.test_reposition();          # all nine cases
+fSim.test_reposition([3, 5]);    # only the cases you list

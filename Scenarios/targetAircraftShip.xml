@@ -15,7 +15,7 @@
       <longitude type="double">5.202022</longitude>
       <altitude>-3</altitude>
       <speed>25.0</speed>
-      <heading type="double">200</heading>
+      <heading type="double">180</heading>
     </entry>
     <entry>
       <search-order>PREFER_AI</search-order>

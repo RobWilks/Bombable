@@ -27,6 +27,22 @@
 
 
 #CLAUDE+ Change log (newest first):
+#CLAUDE+   0.7.4.3 test code only: test_lineup_mc, a Monte Carlo bench of the line-up errors at the gate from randomly dispersed starts, run through the series
+#CLAUDE+          runner with a seeded generator, so a seed repeats its cases; prints one MC line per case and the statistics. No change to the flight model
+#CLAUDE+   0.7.4.2.2 reposition: the aircraft now reaches the start point outbound along the offset line before turning back; it flew direct to the point
+#CLAUDE+          before, so it could arrive from the side and end the turn far off the line. New NAV_REPO_ON_LINE_R and NAV_REPO_OUT_DEG.
+#CLAUDE+          Test case 6 now uses a negative gate heading tolerance, which can never be met
+#CLAUDE+   0.7.4.2.1 test code only: test_reposition runs nine line-up cases with synthetic references through the series runner and prints PASS or FAIL
+#CLAUDE+          for each; the series runner takes an on_done function, called with series.results when a series ends. No change to the flight model
+#CLAUDE+   0.7.4.2 lineup: reposition, only with on_abort "reposition" and only once: after an abort that the geometry can cure, or at a bad start
+#CLAUDE+          because the aircraft is past the gate or cannot reach the line in time, the aircraft flies to a start point on the extended line, turns onto
+#CLAUDE+          the course and, if a fresh phase 0 check passes, flies attempt 2 from the intercept phase; otherwise it goes around. New: nav_crab, the crab
+#CLAUDE+          formula from nav_geometry now shared; nav_wants_reposition, nav_can_reposition, nav_start_reposition, nav_reposition, NAV_REPO_* constants;
+#CLAUDE+          nav_check returns fix; nav_abort takes can_repo; last_lineup gains repos and first_reason; series rows show a reposition.
+#CLAUDE+          The perf key approach_speed_mps is now cruise_speed_mps, added blank to the profiles. Comments updated for the lineup name
+#CLAUDE+   0.7.4.1 the 0.7.3 approach manoeuvre is renamed lineup, because the dive already has an approach phase: start_lineup, update_lineup_reference,
+#CLAUDE+          manoeuvre and listener name lineup, state.last_lineup, field m.v_lineup, log lines begin Lineup, series rows say lineup.
+#CLAUDE+          The dive's approach phase, dive_approach and DIVE_APPROACH_MAX keep their names; so does the perf key approach_speed_mps. No change in behaviour
 #CLAUDE+   0.7.3.4 approach: leaving the funnel is no longer an abort while the closed form check says the gate can still be reached, the aircraft drops back to the intercept phase;
 #CLAUDE+          the heading of a turning reference is smoothed before it turns the line; the climb rate of the reference is fed forward into the height command
 #CLAUDE+   0.7.3.3 approach: an error far outside the funnel aborts at once, and the go-around holds the present heading 
@@ -71,7 +87,7 @@
 #CLAUDE+          auto_throttle, speed hold) runs after every manoeuvre and restores the pre-manoeuvre throttle mode; set_targets gains spd
 #CLAUDE+   0.2.0  cleanup of start_loop defaults, speed floors, monitor nil guard, unknown-model message, optional perf keys, version number
 #CLAUDE+   0.1.0  baseline as uploaded
-var FSIM_VERSION = "0.7.3.4";
+var FSIM_VERSION = "0.7.4.3";
 # Explicitly define fS
 var fS = {
     version: FSIM_VERSION,
@@ -1819,8 +1835,8 @@ var cruise = func(self, dt) {
     if (self.auto_throttle) hold_speed(self, self.tgt_speed * kts_to_mps);
 };
 
-########################## approach (0.7.3) ###########################
-#CLAUDE+ Approach: guidance above cruise(). Guidance only produces a heading, an altitude and a speed; the existing laws fly them
+########################## lineup (0.7.3, renamed from approach in 0.7.4.1) ###########################
+#CLAUDE+ Lineup: guidance above cruise(). Guidance only produces a heading, an altitude and a speed; the existing laws fly them
 #CLAUDE+ (update_roll_target, update_pitch_target, hold_speed), so the user targets tgt_heading and tgt_altitude_ft are not touched until the
 #CLAUDE+ documented hand-back (the same rule as every other manoeuvre). Nothing here is specific to one aircraft or one use: the line, the
 #CLAUDE+ funnel and the gate are plain geometry, and what happens at the gate is another manoeuvre (then).
@@ -1831,27 +1847,36 @@ var cruise = func(self, dt) {
 #CLAUDE+   x   distance along the course from the reference (negative before it); the gate is at x = -gate_m
 #CLAUDE+   xt  cross-track error, positive to the right of the course;  dtg = distance to the gate along the course
 #CLAUDE+
-#CLAUDE+ Phases: 0 check (start_approach: is the line reachable in time?) -> 1 intercept (turn onto the line, capture the height) ->
+#CLAUDE+ Phases: 0 check (start_lineup: is the line reachable in time?) -> 1 intercept (turn onto the line, capture the height) ->
 #CLAUDE+         2 track (inside the funnel, which narrows towards the gate) -> gate (entry conditions checked) -> hand-over to then, or cruise.
 #CLAUDE+ Abort (reference lost, not closing, no longer reachable, left the funnel, too slow, gate conditions not met, timeout): on_abort =
 #CLAUDE+ "goaround" (default: full power, climb to the safe height on the course, 
 #CLAUDE+ or on the present heading if that is more than NAV_GA_COURSE_DEG from the course, 
-#CLAUDE+ then cruise), "cruise" (hand back now) or a function(self, m, reason)
+#CLAUDE+ then cruise), "cruise" (hand back now), "reposition", described below, or a function(self, m, reason)
 #CLAUDE+ The on_abort function is called with no manoeuvre running, so it can start one with start_manoeuvre. If it starts none, the aircraft is handed back to cruise.
 #CLAUDE+ Leaving the funnel is not an abort in itself. A line that has moved from under the aircraft, for example when the reference turns, is flown again from the
 #CLAUDE+ intercept phase for as long as the phase 0 check on the present state says that the gate can still be reached with a margin, up to NAV_MAX_REINT times.
 #CLAUDE+ The heading of a turning reference is smoothed before it turns the line, so that the far end of the line does not sweep sideways faster than the aircraft can follow.
-#CLAUDE+ What follows an abort (reposition, a second attempt) is left to later versions: m.attempt and m.max_attempts are already there.
-#CLAUDE+ The result is left in state.last_approach { outcome ("gate" | "abort"), reason, phase, t, dtg, xt, dh_ft, dv, dpsi, gamma, roll, attempt }.
+#CLAUDE+ Reposition, 0.7.4.2: only with on_abort = "reposition", and only once per line-up. It is used after an abort the geometry can cure, and at a bad
+#CLAUDE+ start, that is a phase 0 refusal because the aircraft is past the gate or cannot reach the line in time. It is not used when the reference is lost,
+#CLAUDE+ the aircraft is too slow, the line-up timed out, or the line-up speed cannot close on the reference; those go around as before.
+#CLAUDE+ The aircraft flies to a start point on the extended line NAV_REPO_LEAD_S of closing time before the gate, at least 3 turn radii, offset
+#CLAUDE+ NAV_REPO_OFFSET_R turn radii to the side it is on, at the glide path height there; phase reposition_out. It intercepts the offset line through
+#CLAUDE+ the point flying outbound, and once past the point, on that line and heading outbound, it turns back onto the course, phase reposition_turn, and a fresh phase 0 check decides: reachable means attempt 2 from the intercept phase, otherwise an abort and the go-around.
+#CLAUDE+ The start point moves with the reference and turns with the line. An abort after the reposition always goes around.
+#CLAUDE+ The result is left in state.last_lineup { outcome, reason, phase, t, dtg, xt, dh_ft, dv, dpsi, gamma, roll, attempt, repos, first_reason }.
+#CLAUDE+ outcome is "gate", "abort", or "reposition" while a reposition is being flown; repos is the number of repositions flown; first_reason is the abort
+#CLAUDE+ or refusal that caused the reposition.
 #CLAUDE+
-#CLAUDE+ start_approach(self, opts). opts:
+#CLAUDE+ start_lineup(self, opts). opts:
 #CLAUDE+   ref (required), course_deg (the direction of flight along the line, default: the bearing to the reference, i.e. straight in), course_rel,
 #CLAUDE+   course_rel = 1 measures course_deg from the heading of the reference: 0 is the same direction as the reference, a landing from astern, and
 #CLAUDE+   180 is the opposite direction, a head-on pass from ahead of it. The gate lies gate_m before the reference along the course, so the aircraft
 #CLAUDE+   must start on the side of the reference that the course comes from. Phase 0 says when the course looks reversed.
-#CLAUDE+   glide_deg (0 = level; positive: the path descends towards the reference), gate_m (distance before the reference where the approach ends, 0),
+#CLAUDE+   glide_deg (0 = level; positive: the path descends towards the reference), gate_m (distance before the reference where the line-up ends, 0),
 #CLAUDE+   gate_dh_ft (gate height above the reference; default: the glide path height, or for a level line the present height above it) or gate_alt_ft (MSL),
-#CLAUDE+   speed_mps / speed_kt (default perf approach_speed_mps, else the present speed; never below 1.25 x the 1 g stall speed),
+#CLAUDE+   speed_mps / speed_kt: the line-up speed. Default perf cruise_speed_mps, the published cruise speed; without it, the speed flown when start_lineup is called.
+#CLAUDE+   Never below 1.25 x the 1 g stall speed.
 #CLAUDE+   then (name of the manoeuvre to start at the gate) with then_opts, on_abort, ga_margin_ft (default perf goaround_margin_ft, else 1000),
 #CLAUDE+   gate_xt_m, gate_dh_tol_ft, gate_hdg_deg (override the gate tolerances), force (1 = skip the phase 0 check), preview (1 = print it and stop).
 #CLAUDE+ Gate tolerances: the entry conditions of the successor if it has any (NAV_ENTRY), otherwise the NAV_GATE_* defaults.
@@ -1863,7 +1888,7 @@ var NAV_FUNNEL_V_DEG = 1.5;     # deg  the same for height
 var NAV_GATE_XT_M    = 25.0;    # m    gate: largest cross-track error
 var NAV_GATE_DH_FT   = 80.0;    # ft   gate: largest height error
 var NAV_GATE_HDG_DEG = 5.0;     # deg  gate: largest heading error against the commanded heading
-var NAV_GATE_V_FRAC  = 0.10;    #      gate: speed within this fraction of the approach speed
+var NAV_GATE_V_FRAC  = 0.10;    #      gate: speed within this fraction of the line-up speed m.v_lineup
 var NAV_GATE_GAMMA_DEG = 3.0;   # deg  gate: path angle within this of the glide path
 var NAV_GATE_ROLL_DEG  = 8.0;   # deg  gate: largest roll angle
 var NAV_OUT_S        = 1.0;     # s    outside the funnel for this long aborts
@@ -1873,10 +1898,16 @@ var NAV_REF_HDG_TAU_S = 6.0;    # s    smoothing of a turning reference heading,
 var NAV_REF_VS_TAU_S = 3.0;     # s    smoothing of the estimated climb rate of the reference
 var NAV_GROSS        = 4.0;     #      a cross-track or height error beyond this many funnel widths aborts at once
 var NAV_GA_COURSE_DEG = 20.0;   # deg  go-around: fly the course only if the heading is within this of it, otherwise hold the present heading
-var NAV_TIMEOUT_S    = 900.0;   # s    an approach not at the gate by then aborts
+var NAV_TIMEOUT_S    = 900.0;   # s    a line-up not at the gate by then aborts
 var NAV_LOG_DT       = 5.0;     # s    spacing of the log lines
 var NAV_GA_MARGIN_FT = 1000.0;  # ft   go-around: climb this far above the abort height (or the gate height)
 var NAV_GA_TIMEOUT_S = 300.0;   # s    go-around: hand back to cruise after this whatever the height
+var NAV_REPO_LEAD_S  = 30.0;    # s    reposition: closing time from the start point to the gate   #CLAUDE+ 0.7.4.2
+var NAV_REPO_OFFSET_R = 2.0;    #      reposition: start point offset from the line, in turn radii: a 180 degree turn there ends on the line   #CLAUDE+ 0.7.4.2
+var NAV_REPO_INBOUND_DEG = 20.0; # deg reposition: the turn onto the course ends, and phase 0 is checked, within this of the course   #CLAUDE+ 0.7.4.2
+var NAV_REPO_ON_LINE_R = 0.5;   #      reposition: the turn back starts only within this many turn radii of the offset line   #CLAUDE+ 0.7.4.2.2
+var NAV_REPO_OUT_DEG = 30.0;    # deg  reposition: and only within this of the outbound direction   #CLAUDE+ 0.7.4.2.2
+var NAV_REPO_TIMEOUT_S = 600.0; # s    reposition: abort and go around if the line has not been reached by then   #CLAUDE+ 0.7.4.2
 
 var nav_tan = func(deg) { var r = deg * D2R; return math.sin(r) / math.cos(r); };
 
@@ -1908,6 +1939,13 @@ var nav_steer = func(self, hdg, alt_ft, dt, v_ref = nil) {
     update_roll_target(self, dt);
     update_pitch_target(self, dt, v_ref);
     self.tgt_heading = h0;  self.tgt_altitude_ft = a0;
+};
+
+#CLAUDE+ 0.7.4.2: heading in rad that makes the track RELATIVE TO THE REFERENCE point along theta in rad, at horizontal speed vh in m/s:
+#CLAUDE+ theta plus the crab angle that cancels the reference's own velocity across theta. tl from reference_local.
+var nav_crab = func(theta, tl, vh) {
+    var sc = math.clamp((tl.vE * math.cos(theta) - tl.vN * math.sin(theta)) / math.max(vh, 1.0), -0.9, 0.9);
+    return theta + math.atan2(sc, math.sqrt(1.0 - sc * sc));
 };
 
 # The line at this instant, from the aircraft's position and the reference's present state (closed form, a few microseconds):
@@ -1951,8 +1989,7 @@ var nav_geometry = func(self, m, dt = 0.0) {
     var vh  = math.max(math.sqrt(self.v_east * self.v_east + self.v_north * self.v_north), 10.0);
     var ang = math.clamp(math.atan2(xt, vh * NAV_LOOKAHEAD_S), -NAV_MAX_INTERCEPT * D2R, NAV_MAX_INTERCEPT * D2R);
     var theta = course * D2R - ang;
-    var sc = math.clamp((tl.vE * math.cos(theta) - tl.vN * math.sin(theta)) / vh, -0.9, 0.9);
-    var psi = theta + math.atan2(sc, math.sqrt(1.0 - sc * sc));
+    var psi = nav_crab(theta, tl, vh);   #CLAUDE~ 0.7.4.2: the crab is now nav_crab, shared with the reposition; same formula
     # height: the path height plus 10 s of its rate, which is what update_pitch_target's 0.1/s law needs for no steady lag
     var alt_cmd = path_alt + 32.8084 * (-xdot * tg) + 10.0 * m.ref_vs;     #CLAUDE~ 0.7.3.4: plus 10 s of the climb rate of the reference, the same lag removal
     if (m.glide > 0.0 and self.alt_ft < path_alt - v_tol) alt_cmd = self.alt_ft;   # below the glide path: hold until it comes down to us
@@ -1962,18 +1999,18 @@ var nav_geometry = func(self, m, dt = 0.0) {
              w_al: tl.vE * us + tl.vN * uc, tl: tl };
 };
 
-# Phase 0: can the line be reached in time? Returns { ok, why, t_req, t_avail }. All times from the aircraft profile.
+# Phase 0: can the line be reached in time? Returns { ok, why, t_req, t_avail, fix }. All times from the aircraft profile.
 var nav_check = func(self, m, nl) {
-    var v = math.max(m.v_app, 1.0);
+    var v = math.max(m.v_lineup, 1.0);
     if (nl.dtg < 0.0) {
         var why = sprintf("the aircraft is already %.0f m past the gate", -nl.dtg);
         if (-nl.dtg > 2.0 * m.gate_m)       #CLAUDE+ 0.7.3.2: reversing the course would put the aircraft before the gate
             why = why ~ sprintf("; the course may be reversed, try course_deg %.0f", wrap360(m.course_deg + 180.0));
-        return { ok: 0, why: why, t_req: 0.0, t_avail: 0.0 };
+        return { ok: 0, why: why, t_req: 0.0, t_avail: 0.0, fix: 1 };   #CLAUDE~ 0.7.4.2: fix = 1 when a reposition can cure the refusal
     }
-    var vn = math.sqrt(self.v_east * self.v_east + self.v_north * self.v_north);   #CLAUDE~ 0.7.3.1: closing speed from the speed flown now if that is lower than the approach speed (it was the approach speed: a slow aircraft was accepted, then aborted "not closing" at once)
+    var vn = math.sqrt(self.v_east * self.v_east + self.v_north * self.v_north);   #CLAUDE~ 0.7.3.1: closing speed from the speed flown now if that is lower than the line-up speed (it was the line-up speed: a slow aircraft was accepted, then aborted "not closing" at once)
     var closure = math.min(v, vn) - nl.w_al;
-    if (closure < 5.0) return { ok: 0, why: sprintf("cannot close on the reference at the present speed (closing speed %.1f m/s at %.0f m/s; speed up first)", closure, math.min(v, vn)), t_req: 0.0, t_avail: 0.0 };
+    if (closure < 5.0) return { ok: 0, why: sprintf("cannot close on the reference at the present speed (closing speed %.1f m/s at %.0f m/s; speed up first)", closure, math.min(v, vn)), t_req: 0.0, t_avail: 0.0, fix: 0 };   #CLAUDE~ 0.7.4.2: fix 0
     var om  = turn_rate_max(self, v);
     var th  = math.clamp(math.atan2(math.abs(nl.xt), v * NAV_LOOKAHEAD_S), 10.0 * D2R, NAV_MAX_INTERCEPT * D2R);
     var dps = math.abs(wrap180(nl.psi_deg - self.hdg)) * D2R;
@@ -1986,44 +2023,45 @@ var nav_check = func(self, m, nl) {
     var t_req = math.max(t_lat, t_vert);
     var t_av  = nl.dtg / closure;
     if (t_req > t_av)
-        return { ok: 0, why: sprintf("the line cannot be reached in time: needs %.0f s (turn and intercept %.0f s, height %.0f s), %.0f s to the gate", t_req, t_lat, t_vert, t_av), t_req: t_req, t_avail: t_av };
-    return { ok: 1, why: "", t_req: t_req, t_avail: t_av };
+        return { ok: 0, why: sprintf("the line cannot be reached in time: needs %.0f s (turn and intercept %.0f s, height %.0f s), %.0f s to the gate", t_req, t_lat, t_vert, t_av), t_req: t_req, t_avail: t_av, fix: 1 };   #CLAUDE~ 0.7.4.2: fix 1
+    return { ok: 1, why: "", t_req: t_req, t_avail: t_av, fix: 0 };   #CLAUDE~ 0.7.4.2: fix 0
 };
 
-var start_approach = func(self, opts = nil) {
+var start_lineup = func(self, opts = nil) {   #CLAUDE~ 0.7.4.1: renamed from approach
     opts = opts or {};
     var ref = make_reference(opts["ref"]);
     if (ref == nil) {
-        print("Approach refused: needs a reference (opts.ref)");
+        print("Lineup refused: needs a reference (opts.ref)");
         return nil;
     }
     var pos = own_position(self);
     var tl0 = reference_local(ref, sim_time(), pos.lat, pos.lon);
     if (tl0 == nil) {
-        print("Approach refused: the reference is missing or not valid");
+        print("Lineup refused: the reference is missing or not valid");
         return nil;
     }
     var vs1 = v_stall_1g(self);
-    var v_app = opts["speed_mps"];
-    if (v_app == nil and opts["speed_kt"] != nil) v_app = opts["speed_kt"] * kts_to_mps;
-    if (v_app == nil) v_app = self.perf["approach_speed_mps"];
-    if (v_app == nil) v_app = self.speed * kts_to_mps;
-    v_app = math.max(v_app, 1.25 * vs1);
+    var v_lineup = opts["speed_mps"];
+    if (v_lineup == nil and opts["speed_kt"] != nil) v_lineup = opts["speed_kt"] * kts_to_mps;
+    if (v_lineup == nil) v_lineup = self.perf["cruise_speed_mps"];   #CLAUDE~ 0.7.4.2: perf key was approach_speed_mps
+    if (v_lineup == nil) v_lineup = self.speed * kts_to_mps;
+    v_lineup = math.max(v_lineup, 1.25 * vs1);
     var rel = opts["course_rel"] or 0;
     var m = {
-        name: "approach", phase: "intercept", t: 0.0,
+        name: "lineup", phase: "intercept", t: 0.0,   #CLAUDE~ 0.7.4.1: renamed from approach
         ref: ref, course_rel: rel,
         course_deg: (opts["course_deg"] != nil) ? opts["course_deg"] : (rel ? 0.0 : wrap360(math.atan2(tl0.e, tl0.n) * R2D)),
         glide: opts["glide_deg"] or 0.0,
         gate_m: opts["gate_m"] or 0.0,
         gate_alt_ft: opts["gate_alt_ft"], gate_dh_ft: 0.0,
-        v_app: v_app, then: opts["then"], then_opts: opts["then_opts"],
+        v_lineup: v_lineup, then: opts["then"], then_opts: opts["then_opts"],
         on_abort: opts["on_abort"] or "goaround",
         ga_margin_ft: opts["ga_margin_ft"] or self.perf["goaround_margin_ft"] or NAV_GA_MARGIN_FT,
         attempt: 1, max_attempts: 1,
+        repos_left: 0, repos_used: 0, repos_reason: "", repo: nil,   #CLAUDE+ 0.7.4.2: reposition bookkeeping, see nav_start_reposition
         out_t: 0.0, log_t: 0.0, last_geo: nil, gate: nil, reint: 0, ref_hdg_f: nil, ref_alt_prev: nil, ref_vs: 0.0,
         ga_alt_ft: 0.0, ga_hdg: 0.0,
-        update: update_approach_reference
+        update: update_lineup_reference
     };
     if (m.gate_alt_ft == nil) {
         m.gate_dh_ft = (opts["gate_dh_ft"] != nil) ? opts["gate_dh_ft"]
@@ -2033,35 +2071,49 @@ var start_approach = func(self, opts = nil) {
     if (opts["gate_xt_m"] != nil)     gt.xt_m = opts["gate_xt_m"];
     if (opts["gate_dh_tol_ft"] != nil) gt.dh_ft = opts["gate_dh_tol_ft"];
     if (opts["gate_hdg_deg"] != nil)  gt.hdg_deg = opts["gate_hdg_deg"];
-    gt.v_min = math.max((1.0 - NAV_GATE_V_FRAC) * v_app, gt.v_min or 0.0);
-    gt.v_max = math.min((1.0 + NAV_GATE_V_FRAC) * v_app, gt.v_max or 1.0e9);
+    gt.v_min = math.max((1.0 - NAV_GATE_V_FRAC) * v_lineup, gt.v_min or 0.0);
+    gt.v_max = math.min((1.0 + NAV_GATE_V_FRAC) * v_lineup, gt.v_max or 1.0e9);
     m.gate = gt;
+    if (nav_wants_reposition(m)) {   #CLAUDE+ 0.7.4.2: one reposition, so a second attempt is possible
+        m.repos_left = 1;  m.max_attempts = 2;
+    }
 
     var nl = nav_geometry(self, m);
     var ck  = nav_check(self, m, nl);
-    print(sprintf("Approach phase 0: gate %.0f m from the reference on course %.0f, %.0f m to go, cross-track %+.0f m, height error %+.0f ft, speed %.0f m/s; %s",
-                  m.gate_m, nl.course, nl.dtg, nl.xt, self.alt_ft - nl.path_alt_ft, m.v_app,
+    print(sprintf("Lineup phase 0: gate %.0f m from the reference on course %.0f, %.0f m to go, cross-track %+.0f m, height error %+.0f ft, speed %.0f m/s; %s",
+                  m.gate_m, nl.course, nl.dtg, nl.xt, self.alt_ft - nl.path_alt_ft, m.v_lineup,
                   ck.ok ? sprintf("reachable (needs %.0f s, %.0f s available)", ck.t_req, ck.t_avail) : "REFUSED: " ~ ck.why));
+    #CLAUDE+ 0.7.4.2: a bad start that a reposition can cure starts the line-up with the reposition instead of refusing
+    if (!ck.ok and !opts["force"] and ck.fix and nav_can_reposition(m, nl)) {
+        print("Lineup: bad start, repositioning first: " ~ ck.why);
+        if (opts["preview"]) return nil;
+        m.phase = "check";
+        nav_record(self, m, nl, "reposition", ck.why);
+        nav_start_reposition(self, m, nl, ck.why);
+        self.manoeuvre = m;
+        return m;
+    }
     if (!ck.ok and !opts["force"]) {
-        self.last_approach = { outcome: "refused", reason: ck.why, phase: "check", t: 0.0, dtg: nl.dtg, xt: nl.xt, dh_ft: self.alt_ft - nl.path_alt_ft,
+        self.last_lineup = { outcome: "refused", reason: ck.why, phase: "check", t: 0.0, dtg: nl.dtg, xt: nl.xt, dh_ft: self.alt_ft - nl.path_alt_ft,
                                dv: 0.0, dpsi: 0.0, gamma: self.gamma_deg or 0.0, roll: self.roll, attempt: 1 };
         return nil;
     }
     if (opts["preview"]) return nil;
-    self.last_approach = nil;
+    self.last_lineup = nil;
     self.manoeuvre = m;
     return m;
 };
 
-# Record the errors at the gate or at the abort in state.last_approach.
+# Record the errors at the gate or at the abort in state.last_lineup.
 var nav_record = func(self, m, nl, outcome, reason) {
     var r = { outcome: outcome, reason: reason, phase: m.phase, t: m.t, attempt: m.attempt, reint: m.reint,
-              dtg: 0.0, xt: 0.0, dh_ft: 0.0, dv: self.speed * kts_to_mps - m.v_app, dpsi: 0.0,
-              gamma: self.gamma_deg or 0.0, roll: self.roll };
+              dtg: 0.0, xt: 0.0, dh_ft: 0.0, dv: self.speed * kts_to_mps - m.v_lineup, dpsi: 0.0,
+              gamma: self.gamma_deg or 0.0, roll: self.roll,
+              repos: m.repos_used, first_reason: m.repos_reason };   #CLAUDE~ 0.7.4.2: repos and first_reason added
     if (nl != nil) {
         r.dtg = nl.dtg;  r.xt = nl.xt;  r.dh_ft = self.alt_ft - nl.path_alt_ft;  r.dpsi = wrap180(self.hdg - nl.psi_deg);
     }
-    self.last_approach = r;
+    self.last_lineup = r;
     return r;
 };
 
@@ -2073,10 +2125,19 @@ var nav_handback = func(self, hdg, alt_ft, dt) {
     cruise(self, dt);
 };
 
-var nav_abort = func(self, m, nl, dt, reason) {
-    nav_record(self, m, nl, "abort", reason);
-    print(sprintf("Approach ABORT in phase %s after %.1f s: %s", m.phase, m.t, reason));
+var nav_abort = func(self, m, nl, dt, reason, can_repo = 1) {   #CLAUDE~ 0.7.4.2: can_repo = 0 for an abort that a reposition cannot cure
     var g2 = (nl != nil) ? nl : m.last_geo;
+    if (can_repo and nav_wants_reposition(m) and nav_can_reposition(m, g2)) {   #CLAUDE+ 0.7.4.2
+        print(sprintf("Lineup ABORT in phase %s after %.1f s: %s; repositioning", m.phase, m.t, reason));
+        nav_record(self, m, g2, "reposition", reason);
+        nav_start_reposition(self, m, g2, reason);
+        nav_reposition(self, m, g2, dt);
+        return;
+    }
+    nav_record(self, m, nl, "abort", reason);
+    print(sprintf("Lineup ABORT in phase %s after %.1f s: %s", m.phase, m.t, reason));
+    if (nav_wants_reposition(m))                                                 #CLAUDE+ 0.7.4.2
+        print((m.repos_used > 0) ? "Lineup: the one reposition has been used: go-around" : "Lineup: a reposition cannot cure this: go-around");
     m.ga_hdg    = self.hdg;                    #CLAUDE~ 0.7.3.3: the course only when the heading is already close to it
     if (g2 != nil and math.abs(wrap180(g2.course - self.hdg)) < NAV_GA_COURSE_DEG) m.ga_hdg = g2.course;
     m.ga_alt_ft = math.max(self.alt_ft, (g2 != nil) ? g2.gate_alt_ft : self.alt_ft) + m.ga_margin_ft;
@@ -2093,8 +2154,88 @@ var nav_abort = func(self, m, nl, dt, reason) {
         return;
     }
     m.phase = "goaround";  m.t = 0.0;
-    print(sprintf("Approach go-around: full power, climb to %.0f ft on course %.0f", m.ga_alt_ft, m.ga_hdg));
+    print(sprintf("Lineup go-around: full power, climb to %.0f ft on course %.0f", m.ga_alt_ft, m.ga_hdg));
     nav_goaround(self, m, dt);
+};
+
+#CLAUDE+ 0.7.4.2: reposition. on_abort may be a function, so its type is tested before it is compared with a string.
+var nav_wants_reposition = func(m) {
+    return (typeof(m.on_abort) == "scalar" and m.on_abort == "reposition");
+};
+
+#CLAUDE+ 0.7.4.2: a reposition is possible if one is left, the line is known, and the line-up speed closes on the reference by at least 5 m/s, the minimum nav_check uses.
+var nav_can_reposition = func(m, nl) {
+    return (m.repos_left > 0 and nl != nil and m.v_lineup - nl.w_al >= 5.0);
+};
+
+#CLAUDE+ 0.7.4.2: the start point, in the frame of the line: x before the gate by d, and xt offset to the side the aircraft is on.
+#CLAUDE+ d = NAV_REPO_LEAD_S of closing time at the line-up speed, at least 3 turn radii. The point keeps its place relative to the line, so it moves
+#CLAUDE+ with the reference and turns with a course_rel line. Its height is the glide path height there, kept as dh_ft above the gate height.
+var nav_start_reposition = func(self, m, nl, reason) {
+    var v    = m.v_lineup;
+    var R    = v / math.max(turn_rate_max(self, v), 0.001);
+    var side = (nl.xt >= 0.0) ? 1.0 : -1.0;
+    var d    = math.max(NAV_REPO_LEAD_S * (v - nl.w_al), 3.0 * R);
+    m.repo = { x: -m.gate_m - d, xt: side * NAV_REPO_OFFSET_R * R, side: side, R: R, d: d,
+               dh_ft: d * nav_tan(m.glide) * 3.28084, t: 0.0, dir: side };
+    m.repos_left -= 1;  m.repos_used += 1;  m.repos_reason = reason;
+    m.phase = "reposition_out";  m.log_t = m.t;
+    self.aerobatic = 0;  self.brake_cmd = 0;
+    print(sprintf("Lineup reposition: to a start point %.0f m before the gate and %.0f m %s of the course, at %.0f ft; turn radius %.0f m",
+                  d, math.abs(m.repo.xt), (side > 0.0) ? "right" : "left", nl.gate_alt_ft + m.repo.dh_ft, R));
+};
+
+#CLAUDE+ 0.7.4.2: one tick of the reposition. reposition_out flies outbound along the offset line to the start point, crabbing for the reference's
+#CLAUDE+ motion. reposition_turn turns back onto the course, towards the line. Within NAV_REPO_INBOUND_DEG of the
+#CLAUDE+ course a fresh phase 0 check decides: reachable means attempt 2 from the intercept phase, otherwise an abort, which then goes around.
+var nav_reposition = func(self, m, nl, dt) {
+    var rp  = m.repo;
+    rp.t += dt;
+    var v   = self.speed * kts_to_mps;
+    var vh  = math.max(math.sqrt(self.v_east * self.v_east + self.v_north * self.v_north), 10.0);
+    var alt = nl.gate_alt_ft + rp.dh_ft;
+    if (rp.t > NAV_REPO_TIMEOUT_S) { nav_abort(self, m, nl, dt, sprintf("reposition not finished in %.0f s", NAV_REPO_TIMEOUT_S), 0); return; }
+    if (v < 1.1 * v_stall_1g(self)) { nav_abort(self, m, nl, dt, sprintf("too slow in the reposition (%.0f m/s)", v), 0); return; }
+
+    #CLAUDE~ 0.7.4.2.2: reposition_out was a direct flight to the start point, so the aircraft could arrive from any direction, and the turn back,
+    #CLAUDE+ built for an aircraft flying outbound, then ended well off the line: test case 4 of 0.7.4.2.1 ended 1688 m off and 25 deg off the course.
+    #CLAUDE+ Now the aircraft intercepts the offset line through the start point flying outbound, with the same look-ahead law as the line itself,
+    #CLAUDE+ and the turn back starts only once it is past the start point, on the offset line and heading outbound.
+    if (m.phase == "reposition_out") {
+        var d    = nl.xt - rp.xt;                                 # m right of the offset line, measured in the course frame
+        var out  = wrap360(nl.course + 180.0);                    # outbound direction
+        var ang  = math.clamp(math.atan2(-d, vh * NAV_LOOKAHEAD_S), -NAV_MAX_INTERCEPT * D2R, NAV_MAX_INTERCEPT * D2R);   # -d: right of the outbound track
+        var togo = nl.x - rp.x;                                   # m still to fly outbound to the start point; negative once past it
+        var back = math.abs(wrap180(self.hdg - out));
+        if (togo > 0.0 or math.abs(d) > NAV_REPO_ON_LINE_R * rp.R or back > NAV_REPO_OUT_DEG) {
+            nav_steer(self, wrap360(nav_crab(out * D2R - ang, nl.tl, vh) * R2D), alt, dt);
+            hold_speed(self, m.v_lineup);
+            if (m.t - m.log_t >= NAV_LOG_DT) {
+                m.log_t = m.t;
+                print(sprintf("Lineup reposition: %.0f m to go outbound to the start point, %+.0f m from its line, height %+.0f ft from it, %.0f m/s",
+                              togo, d, self.alt_ft - alt, v));
+            }
+            return;
+        }
+        rp.dir = rp.side;                                         # outbound on the offset line: the turn back is towards the line
+        m.phase = "reposition_turn";
+        print(sprintf("Lineup reposition: at the start point after %.0f s, turning %s onto course %.0f", rp.t, (rp.dir > 0.0) ? "right" : "left", nl.course));
+    }
+
+    var rem = wrap360(rp.dir * (nl.course - self.hdg));        # turn still to go, in the chosen direction
+    if (rem > 330.0) rem = 0.0;                                 # just past the course
+    if (rem > NAV_REPO_INBOUND_DEG) {
+        nav_steer(self, wrap360(self.hdg + rp.dir * math.min(90.0, rem)), alt, dt);
+        hold_speed(self, m.v_lineup);
+        return;
+    }
+    var ck = nav_check(self, m, nl);
+    if (!ck.ok) { nav_abort(self, m, nl, dt, "after the reposition: " ~ ck.why, 0); return; }
+    m.attempt += 1;  m.phase = "intercept";  m.t = 0.0;  m.log_t = 0.0;  m.reint = 0;  m.out_t = 0.0;
+    print(sprintf("Lineup reposition complete after %.0f s: attempt %d from the intercept phase, needs %.0f s, %.0f s to the gate",
+                  rp.t, m.attempt, ck.t_req, ck.t_avail));
+    nav_steer(self, nl.psi_deg, nl.alt_cmd_ft, dt);
+    hold_speed(self, m.v_lineup);
 };
 
 var nav_goaround = func(self, m, dt) {
@@ -2102,7 +2243,7 @@ var nav_goaround = func(self, m, dt) {
     nav_steer(self, m.ga_hdg, m.ga_alt_ft, dt, climb_speed(self, "rate"));
     var err_m = (m.ga_alt_ft - self.alt_ft) / 3.28084;
     if (err_m < math.max(CLIMB_CAPTURE_MIN_M, 10.0 * self.v_up) or m.t > NAV_GA_TIMEOUT_S) {
-        print(sprintf("Approach go-around complete at %.0f ft: back to cruise", self.alt_ft));
+        print(sprintf("Lineup go-around complete at %.0f ft: back to cruise", self.alt_ft));
         nav_handback(self, m.ga_hdg, m.ga_alt_ft, dt);
     }
 };
@@ -2123,7 +2264,7 @@ var nav_gate_check = func(self, m, nl) {
     return "";
 };
 
-var update_approach_reference = func(self, dt) {
+var update_lineup_reference = func(self, dt) {   #CLAUDE~ 0.7.4.1: renamed from approach
     var m = self.manoeuvre;
     m.t += dt;
     if (m.phase == "goaround") {
@@ -2132,22 +2273,26 @@ var update_approach_reference = func(self, dt) {
     }
     var nl = nav_geometry(self, m, dt);
     if (nl == nil) {
-        nav_abort(self, m, nil, dt, "the reference was lost");
+        nav_abort(self, m, nil, dt, "the reference was lost", 0);   #CLAUDE~ 0.7.4.2: 0 = no reposition
         return;
     }
     m.last_geo = nl;
+    if (m.phase == "reposition_out" or m.phase == "reposition_turn") {   #CLAUDE+ 0.7.4.2
+        nav_reposition(self, m, nl, dt);
+        return;
+    }
     var v  = self.speed * kts_to_mps;
     var dh = self.alt_ft - nl.path_alt_ft;
     nav_steer(self, nl.psi_deg, nl.alt_cmd_ft, dt);
-    hold_speed(self, m.v_app);
+    hold_speed(self, m.v_lineup);
 
     if (m.t - m.log_t >= NAV_LOG_DT) {
         m.log_t = m.t;
-        print(sprintf("Approach %s: %.0f m to the gate, cross-track %+.0f m (funnel %.0f), height %+.0f ft (funnel %.0f), %.0f m/s",
+        print(sprintf("Lineup %s: %.0f m to the gate, cross-track %+.0f m (funnel %.0f), height %+.0f ft (funnel %.0f), %.0f m/s",
                       m.phase, nl.dtg, nl.xt, nl.xt_tol, dh, nl.v_tol_ft, v));
     }
-    if (v < 1.1 * v_stall_1g(self)) { nav_abort(self, m, nl, dt, sprintf("too slow (%.0f m/s)", v)); return; }
-    if (m.t > NAV_TIMEOUT_S)        { nav_abort(self, m, nl, dt, "timeout"); return; }
+    if (v < 1.1 * v_stall_1g(self)) { nav_abort(self, m, nl, dt, sprintf("too slow (%.0f m/s)", v), 0); return; }   #CLAUDE~ 0.7.4.2: 0 = no reposition
+    if (m.t > NAV_TIMEOUT_S)        { nav_abort(self, m, nl, dt, "timeout", 0); return; }   #CLAUDE~ 0.7.4.2: 0 = no reposition
     if (nl.xdot_cmd < 1.0)         { nav_abort(self, m, nl, dt, sprintf("not closing (%.1f m/s even on the commanded heading)", nl.xdot_cmd)); return; }
 
     # the gate: crossed within half a tick (the same lead as the dive's pull-out start)
@@ -2155,19 +2300,19 @@ var update_approach_reference = func(self, dt) {
         var why = nav_gate_check(self, m, nl);
         if (why != "") { nav_abort(self, m, nl, dt, why); return; }
         var r = nav_record(self, m, nl, "gate", "");
-        print(sprintf("Approach: at the gate after %.1f s: cross-track %+.1f m, height %+.1f ft, speed %+.1f m/s, heading %+.1f deg%s",
+        print(sprintf("Lineup: at the gate after %.1f s: cross-track %+.1f m, height %+.1f ft, speed %+.1f m/s, heading %+.1f deg%s",
                       m.t, r.xt, r.dh_ft, r.dv, r.dpsi, (m.then != nil) ? ", starting " ~ m.then : ""));
         var pre = self.pre_manoeuvre;
         nav_handback(self, nl.psi_deg, nl.path_alt_ft, dt);          # documented hand-back values, whether or not a successor follows
         if (m.then != nil) {
             var ok = start_manoeuvre(modelName, self, m.then, m.then_opts);
             if (ok == nil) {
-                print("Approach: the successor " ~ m.then ~ " did not start (refused, or cruise can already do it); flying on in cruise");   #CLAUDE~ 0.7.3.1: wording (start_climb returns nil when cruise handles the climb)
-                self.last_approach.then_started = 0;
+                print("Lineup: the successor " ~ m.then ~ " did not start (refused, or cruise can already do it); flying on in cruise");   #CLAUDE~ 0.7.3.1: wording (start_climb returns nil when cruise handles the climb)
+                self.last_lineup.then_started = 0;
             } else {
-                self.last_approach.then_started = 1;
+                self.last_lineup.then_started = 1;
             }
-            if (pre != nil) self.pre_manoeuvre = pre;                   # the throttle mode from before the approach, not the approach's
+            if (pre != nil) self.pre_manoeuvre = pre;                   # the throttle mode from before the line-up, not the line-up's
         }
         return;
     }
@@ -2177,7 +2322,7 @@ var update_approach_reference = func(self, dt) {
         var inside = math.abs(nl.xt) < 0.8 * nl.xt_tol and math.abs(dh) < 0.8 * nl.v_tol_ft and math.abs(wrap180(self.hdg - nl.psi_deg)) < 10.0;
         if (inside) {
             m.phase = "track";  m.out_t = 0.0;
-            print(sprintf("Approach established (phase 2): %.0f m to the gate, cross-track %+.0f m, height %+.0f ft", nl.dtg, nl.xt, dh));
+            print(sprintf("Lineup established (phase 2): %.0f m to the gate, cross-track %+.0f m, height %+.0f ft", nl.dtg, nl.xt, dh));
         } else if (nl.dtg < nl.xdot_cmd * NAV_SETTLE_S) {
             nav_abort(self, m, nl, dt, sprintf("not established %.0f m from the gate (cross-track %+.0f m, height %+.0f ft)", nl.dtg, nl.xt, dh));
         }
@@ -2189,7 +2334,7 @@ var update_approach_reference = func(self, dt) {
         var ck = nav_check(self, m, nl);
         if (ck.ok and ck.t_req < NAV_REINT_MARGIN * ck.t_avail and m.reint < NAV_MAX_REINT) {
             m.reint += 1;  m.phase = "intercept";  m.out_t = 0.0;
-            print(sprintf("Approach left the funnel (cross-track %+.0f m of %.0f, height %+.0f ft of %.0f): intercepting again, %d of %d, needs %.0f s, %.0f s to the gate",
+            print(sprintf("Lineup left the funnel (cross-track %+.0f m of %.0f, height %+.0f ft of %.0f): intercepting again, %d of %d, needs %.0f s, %.0f s to the gate",
                           nl.xt, nl.xt_tol, dh, nl.v_tol_ft, m.reint, NAV_MAX_REINT, ck.t_req, ck.t_avail));
             return;
         }
@@ -2436,6 +2581,7 @@ if (modelName == "/F15") {
         loop_entry_speed_mps: 220.0,   # m/s  entry speed for a loop (blank = 0.97 x max_speed_mps)   #CLAUDE~ 0.3.0: keeps the F-15 default it had before
         loop_n_bottom: 4.0,            # g    design load factor at the bottom of a loop (blank = min(5, 0.9 x n_max_pos))
         loop_min_top_ratio: ,         #      predicted loop top speed / 1 g stall speed below which a loop is refused (blank = 0.7)   #CLAUDE+ new optional key
+        cruise_speed_mps: ,           # m/s  published cruise speed; default line-up speed (blank = the speed flown at the start)   #CLAUDE+ 0.7.4.2 new optional key
 
     };
 }
@@ -2468,6 +2614,7 @@ elsif (modelName == "/spitfire") {
         loop_entry_speed_mps: ,        # m/s  entry speed for a loop (blank = 0.97 x max_speed_mps)   #CLAUDE+ new optional key
         loop_n_bottom: ,               # g    design load factor at the bottom of a loop (blank = min(5, 0.9 x n_max_pos))
         loop_min_top_ratio: ,         #      predicted loop top speed / 1 g stall speed below which a loop is refused (blank = 0.7)   #CLAUDE+ new optional key
+        cruise_speed_mps: ,           # m/s  published cruise speed; default line-up speed (blank = the speed flown at the start)   #CLAUDE+ 0.7.4.2 new optional key
         max_rpm: 3500,              # Merlin engine            
 
     };
@@ -2500,6 +2647,7 @@ elsif (modelName == "/spitfireXVI") {
         loop_entry_speed_mps: ,        # m/s  entry speed for a loop (blank = 0.97 x max_speed_mps)   #CLAUDE+ new optional key
         loop_n_bottom: ,               # g    design load factor at the bottom of a loop (blank = min(5, 0.9 x n_max_pos))
         loop_min_top_ratio: ,         #      predicted loop top speed / 1 g stall speed below which a loop is refused (blank = 0.7)   #CLAUDE+ new optional key
+        cruise_speed_mps: ,           # m/s  published cruise speed; default line-up speed (blank = the speed flown at the start)   #CLAUDE+ 0.7.4.2 new optional key
         max_rpm: 3500,              # Merlin engine            
                 
     };
@@ -2530,6 +2678,7 @@ elsif (modelName == "/fkdr1") {
         loop_entry_speed_mps: ,        # m/s  entry speed for a loop (blank = 0.97 x max_speed_mps)   #CLAUDE+ new optional key
         loop_n_bottom: ,               # g    design load factor at the bottom of a loop (blank = min(5, 0.9 x n_max_pos))
         loop_min_top_ratio: ,         #      predicted loop top speed / 1 g stall speed below which a loop is refused (blank = 0.7)   #CLAUDE+ new optional key
+        cruise_speed_mps: ,           # m/s  published cruise speed; default line-up speed (blank = the speed flown at the start)   #CLAUDE+ 0.7.4.2 new optional key
         max_rpm: 1200,                 # engine (Typical maximum RPM for the Oberursel Ur.II rotary engine)
                     
     };
@@ -2567,6 +2716,7 @@ elsif (modelName == "/a6m5") {
         loop_entry_speed_mps: ,        # m/s  entry speed for a loop (blank = 0.97 x max_speed_mps)   #CLAUDE+ new optional key
         loop_n_bottom: ,               # g    design load factor at the bottom of a loop (blank = min(5, 0.9 x n_max_pos))
         loop_min_top_ratio: ,         #      predicted loop top speed / 1 g stall speed below which a loop is refused (blank = 0.7)   #CLAUDE+ new optional key
+        cruise_speed_mps: ,           # m/s  published cruise speed; default line-up speed (blank = the speed flown at the start)   #CLAUDE+ 0.7.4.2 new optional key
         max_rpm: 2750,                # RPM (Redline for the Sakae 21 two-stage supercharged radial engine)
     };
 }
@@ -2596,6 +2746,7 @@ elsif (modelName == "/ju87") {
         loop_entry_speed_mps: ,       # m/s  entry speed for a loop (blank = 0.97 x max_speed_mps)   #CLAUDE+ new optional key
         loop_n_bottom: ,              # g    design load factor at the bottom of a loop (blank = min(5, 0.9 x n_max_pos))
         loop_min_top_ratio: 0.5,      # predicted loop top speed / 1 g stall speed below which a loop is refused (blank = 0.7)   #CLAUDE+ new optional key
+        cruise_speed_mps: ,           # m/s  published cruise speed; default line-up speed (blank = the speed flown at the start)   #CLAUDE+ 0.7.4.2 new optional key
         terminal_speed_mps: 159.7,    # m/s  575 km/h terminal dive speed with dive brakes out, sea level, vertical   #CLAUDE+ 0.6.0 new optional key: enables start_dive
         max_rpm: 2400,                # RPM (Rated combat redline for the Jumo 211 inverted V12 engine)
     };
@@ -2626,6 +2777,7 @@ elsif (modelName == "/bf109g14") {
         loop_entry_speed_mps: ,        # m/s  entry speed for a loop (blank = 0.97 x max_speed_mps)   #CLAUDE+ new optional key
         loop_n_bottom: ,               # g    design load factor at the bottom of a loop (blank = min(5, 0.9 x n_max_pos))
         loop_min_top_ratio: ,         #      predicted loop top speed / 1 g stall speed below which a loop is refused (blank = 0.7)   #CLAUDE+ new optional key
+        cruise_speed_mps: ,           # m/s  published cruise speed; default line-up speed (blank = the speed flown at the start)   #CLAUDE+ 0.7.4.2 new optional key
         max_rpm: 2800,                 # RPM (Redline for the DB 605AM engine under 1.7 ata emergency MW-50 boost)
     };
 }
@@ -2726,7 +2878,7 @@ var create_aircraft_state = func(callsign, initial_lat, initial_lon, initial_alt
         manoeuvre: nil,
         projectiles: [],   #CLAUDE+ 0.7.0: projectiles in flight (release_projectile)
         last_landing: nil,  #CLAUDE+ 0.7.0: result of the last landing (position, miss)
-        last_approach: nil,   #CLAUDE+ 0.7.3: result of the last approach (outcome, reason and the errors at the gate or at the abort)
+        last_lineup: nil,   #CLAUDE+ 0.7.3: result of the last line-up (outcome, reason and the errors at the gate or at the abort); #CLAUDE~ 0.7.4.1: was last_approach
         monitor: nil,
         n_load: ,        
 
@@ -2947,7 +3099,7 @@ foreach (var path; paths) {
 # Example listener registration (adapt the node path to your controls node):
 
   var register_manoeuvre_listeners = func(mName, self) {
-      foreach (var name; ["loop", "immelmann", "aileron_roll", "split_s", "climb", "dive", "approach"]) {
+      foreach (var name; ["loop", "immelmann", "aileron_roll", "split_s", "climb", "dive", "lineup"]) {   #CLAUDE~ 0.7.4.1: the node is now controls/manoeuvres/lineup
           (func(name) {
               var node = props.globals.getNode(mName ~ "/controls/manoeuvres/" ~ name, 1);
               node.setBoolValue(0);
@@ -2979,7 +3131,7 @@ var start_manoeuvre = func(mname, self, name, opts = nil) {
     else if (name == "split_s")      ret = start_split_s(self, opts);
     else if (name == "climb")        ret = start_climb(self, opts);   #CLAUDE+ 0.4.0
     else if (name == "dive")         ret = start_dive(self, opts);    #CLAUDE+ 0.6.0
-    else if (name == "approach")     ret = start_approach(self, opts);   #CLAUDE+ 0.7.3
+    else if (name == "lineup")       ret = start_lineup(self, opts);   #CLAUDE+ 0.7.3   #CLAUDE~ 0.7.4.1: renamed from approach
     else {
         print("Unknown manoeuvre: " ~ name);
         return nil;
@@ -2998,10 +3150,11 @@ var start_manoeuvre = func(mname, self, name, opts = nil) {
 ########################## series runner (0.7.2) ###########################
 #CLAUDE+ TEST CODE, not part of the flight model. run_series(name, cases, sopts) runs ONE kind of manoeuvre again and again from a repeatable start
 #CLAUDE+ and prints one row per case, so a batch can run unattended (speed-up works: it runs on simulated physics ticks, no timer).
-#CLAUDE+   name  : any manoeuvre start_manoeuvre knows: dive, loop, immelmann, aileron_roll, split_s, climb
+#CLAUDE+   name  : any manoeuvre start_manoeuvre knows: dive, loop, immelmann, aileron_roll, split_s, climb, lineup
 #CLAUDE+   cases : vector of { label, opts, start }. opts = the manoeuvre's own options. start = { lat, lon, alt_ft, speed_kt, hdg, throttle }; 
 #CLAUDE+   a missing value is the value the aircraft had when run_series was called
-#CLAUDE+   sopts : { settle (time in sec of level flight before each manoeuvre, default 3), max_s (time limit per case, default 180) }
+#CLAUDE+   sopts : { settle (time in sec of level flight before each manoeuvre, default 3), max_s (time limit per case, default 180),
+#CLAUDE+           on_done: a function called with series.results when the series ends, 0.7.4.2.1 }
 #CLAUDE+ series_cases(key, values, base_opts, base_start, where) builds the cases for a one-parameter sweep of an option (where "opts", the default)
 #CLAUDE+ or of a start value (where "start"), e.g. series_cases("dive_angle_deg", [50, 60, 70], { pullout_agl_ft: 2000 }).
 #CLAUDE+ Each case puts the aircraft back at the start, settles, starts the manoeuvre and waits for it to end. The row gives the outcome, the
@@ -3010,6 +3163,7 @@ var start_manoeuvre = func(mname, self, name, opts = nil) {
 #CLAUDE+ Results are also kept in series.results. Throttle mode (manual or auto) is the one in force when run_series was called.
 var series = {
     running: 0, name: "", cases: [], i: 0, settle: 3.0, max_s: 180.0, home: 1, results: [],
+    on_done: nil,   #CLAUDE+ 0.7.4.2.1
     base: nil, start: nil, phase: "idle", t: 0.0, t_run: 0.0, last_phase: nil, phases: "",
     alt0: 0.0, prev_alt: 0.0, prev_v: 0.0, min_alt: 0.0, max_v: 0.0, max_n: 0.0
 };
@@ -3069,12 +3223,13 @@ var series_row = func(self, outcome) {
     var s = series;
     var c = s.cases[s.i];
     var v = self.speed * kts_to_mps;
-    var la = self["last_approach"];
-    var ap = (la == nil) ? "" : sprintf(" | approach %s%s: xt %+.0f m, dh %+.0f ft, dv %+.1f m/s, dpsi %+.1f deg", la.outcome, (la.reason == "") ? "" : " (" ~ la.reason ~ ")", la.xt, la.dh_ft, la.dv, la.dpsi);   #CLAUDE+ 0.7.3
+    var la = self["last_lineup"];
+    var ap = (la == nil) ? "" : sprintf(" | lineup %s%s: xt %+.0f m, dh %+.0f ft, dv %+.1f m/s, dpsi %+.1f deg", la.outcome, (la.reason == "") ? "" : " (" ~ la.reason ~ ")", la.xt, la.dh_ft, la.dv, la.dpsi);   #CLAUDE+ 0.7.3; #CLAUDE~ 0.7.4.1: lineup
+    if (la != nil and (la["repos"] or 0) > 0) ap = ap ~ " | after a reposition (" ~ la.first_reason ~ ")";   #CLAUDE+ 0.7.4.2
     print(sprintf("SERIES %2d/%d %-18s %-8s %6.1f s | alt %6.0f > min %6.0f > end %6.0f ft | speed max %5.1f end %5.1f m/s | load max %4.1f | %s%s",
                   s.i + 1, size(s.cases), c["label"] or "", outcome, s.t_run, s.alt0, s.min_alt, self.alt_ft, s.max_v, v, s.max_n, s.phases, ap));
     append(s.results, { label: c["label"], outcome: outcome, t: s.t_run, alt0: s.alt0, min_alt: s.min_alt, end_alt: self.alt_ft,
-                        max_v: s.max_v, end_v: v, max_n: s.max_n, phases: s.phases, approach: la });
+                        max_v: s.max_v, end_v: v, max_n: s.max_n, phases: s.phases, lineup: la });   #CLAUDE~ 0.7.4.1: key was approach
     s.i += 1;
     if (s.i >= size(s.cases)) {
         s.running = 0;  s.phase = "idle";
@@ -3083,6 +3238,7 @@ var series_row = func(self, outcome) {
             series_reset_state(s.base, s.base);   # base has the same keys as a case start
             print("SERIES: aircraft back at the start position");
         }
+        if (s.on_done != nil) s.on_done(s.results);   #CLAUDE+ 0.7.4.2.1
     } else {
         series_next(self);
     }
@@ -3155,6 +3311,7 @@ var run_series = func(name, cases, sopts = nil) {
     s.settle = (sopts["settle"] != nil) ? sopts["settle"] : 3.0;
     s.max_s  = (sopts["max_s"]  != nil) ? sopts["max_s"]  : 180.0;
     s.home   = (sopts["home"]   != nil) ? sopts["home"]   : 1;
+    s.on_done = sopts["on_done"];   #CLAUDE+ 0.7.4.2.1
     print(sprintf("SERIES start: %d cases of %s from %.5f, %.5f at %.0f ft, %.0f kt, heading %.0f, settle %.1f s", size(cases), name,
                   pos.lat, pos.lon, st.alt_ft, st.speed, st.hdg, s.settle));
     series_next(st);
@@ -3169,6 +3326,231 @@ var run_series_stop = func(home = 0) {
         series_reset_state(series.base, series.base);   # also ends any manoeuvre: the state is rebuilt
         print("SERIES: aircraft back at the start position");
     }
+};
+
+########################## reposition tests (0.7.4.2.1) ###########################
+#CLAUDE+ TEST CODE, not part of the flight model. From the console: fSim.test_reposition() runs all nine cases, fSim.test_reposition([3, 7]) only those numbers.
+#CLAUDE+ Each case is one line-up through the series runner, so speed-up works; the report prints by itself when the series ends.
+#CLAUDE+ The references are synthetic hashes placed relative to where the aircraft is when test_reposition is called, measured along its heading.
+#CLAUDE+ Lengths scale with the turn radius R at the test speed, so any profile can run the cases. The test speed v is cruise_speed_mps if the profile has
+#CLAUDE+ it, else 0.75 x the max speed, and at least 1.4 x the 1 g stall speed; every case starts at v on the present heading and altitude.
+#CLAUDE+ A case passes when its outcome matches: REFUSED, or the outcome left in state.last_lineup, gate or abort, with the expected number of
+#CLAUDE+ repositions; when a reposition is expected the phase list must also show reposition_out.
+#CLAUDE+ Not covered: reference lost cannot happen with a synthetic reference; too slow and timeout are not induced. All three skip the reposition by design.
+#CLAUDE+   1 default_ok             reposition not asked for, good geometry             -> gate, 0 repositions
+#CLAUDE+   2 default_past_gate      reposition not asked for, aircraft past the gate    -> REFUSED: reposition is off by default
+#CLAUDE+   3 bad_start_past_gate    as 2 with on_abort reposition                       -> gate after 1 reposition
+#CLAUDE+   4 bad_start_late         gate 10 s ahead, 1.5 R off the line                 -> gate after 1 reposition
+#CLAUDE+   5 abort_not_established  as 4 but 15 s ahead and force = 1, so phase 0 is skipped and the intercept phase aborts in flight -> gate after 1 reposition
+#CLAUDE+   6 one_reposition_only    gate heading tolerance negative, so never met       -> abort after 1 reposition, then the go-around
+#CLAUDE~ 0.7.4.2.2: case 6 used tolerances of 0.1 m, 0.5 ft and 0.05 deg, which a synthetic straight line flown from the line itself met exactly
+#CLAUDE+   7 moving_bad_start       reference moving at 20 kt on the heading, line from astern, aircraft past the gate -> gate after 1 reposition
+#CLAUDE+   8 moving_too_fast        reference moving 15 m/s faster than v               -> REFUSED: a reposition cannot close on it
+#CLAUDE+   9 glide_bad_start        3 degree glide line, aircraft past the gate         -> gate after 1 reposition, start point at the glide path height
+var test_reposition_run = { cases: [] };
+
+var test_reposition_cases = func(st) {
+    var v   = math.max(st.perf["cruise_speed_mps"] or 0.75 * st.perf.max_speed_mps, 1.4 * v_stall_1g(st));
+    var R   = v / math.max(turn_rate_max(st, v), 0.001);
+    var pos = own_position(st);
+    var H   = st.hdg;
+    var sH  = math.sin(H * D2R);  var cH = math.cos(H * D2R);
+    var alt = st.alt_ft;
+    var G   = R;                                                 # gate distance before the reference
+    # synthetic reference D m ahead along the heading and Y m to the right, at alt_ft, moving at spd_mps on heading H
+    var mkref = func(D, Y, alt_ft, spd_mps = 0.0) {
+        var ll = lat_lon_at(pos.lat, pos.lon, D * sH + Y * cH, D * cH - Y * sH);
+        return { lat: ll.lat, lon: ll.lon, alt_ft: alt_ft, hdg: H, spd_kt: spd_mps / kts_to_mps };
+    };
+    # common options: level line on the present heading, gate at the start altitude, line-up speed v; o adds or overrides
+    var mkopts = func(o) {
+        var r = { course_deg: H, gate_m: G, gate_alt_ft: alt, speed_mps: v, monitor_rows: 1 };
+        foreach (var k; keys(o)) r[k] = o[k];
+        return r;
+    };
+    var start = { speed_kt: v / kts_to_mps, hdg: H, alt_ft: alt };
+    var low = alt - 2000.0;                                      # reference height below the start altitude
+    var c = [
+        { label: "1 default_ok",            expect: { outcome: "gate", repos: 0 },
+          opts: mkopts({ ref: mkref(G + 60.0 * v, 0.2 * R, low) }) },
+        { label: "2 default_past_gate",     expect: { outcome: "REFUSED", repos: 0 },
+          opts: mkopts({ ref: mkref(-R, 0.0, low) }) },
+        { label: "3 bad_start_past_gate",   expect: { outcome: "gate", repos: 1 },
+          opts: mkopts({ ref: mkref(-R, 0.0, low), on_abort: "reposition" }) },
+        { label: "4 bad_start_late",        expect: { outcome: "gate", repos: 1 },
+          opts: mkopts({ ref: mkref(G + 10.0 * v, 1.5 * R, low), on_abort: "reposition" }) },
+        { label: "5 abort_not_established", expect: { outcome: "gate", repos: 1 },
+          opts: mkopts({ ref: mkref(G + 15.0 * v, 2.0 * R, low), on_abort: "reposition", force: 1 }) },
+        { label: "6 one_reposition_only",   expect: { outcome: "abort", repos: 1 },
+          opts: mkopts({ ref: mkref(G + 60.0 * v, 0.0, low), on_abort: "reposition", gate_hdg_deg: -1.0 }) },   #CLAUDE~ 0.7.4.2.2: a negative heading tolerance can never be met
+        { label: "7 moving_bad_start",      expect: { outcome: "gate", repos: 1 },
+          opts: mkopts({ ref: mkref(-R, 0.0, low, 20.0 * kts_to_mps), course_rel: 1, course_deg: 0.0, on_abort: "reposition" }) },
+        { label: "8 moving_too_fast",       expect: { outcome: "REFUSED", repos: 0 },
+          opts: mkopts({ ref: mkref(G + 60.0 * v, 0.0, low, v + 15.0), on_abort: "reposition" }) },
+        { label: "9 glide_bad_start",       expect: { outcome: "gate", repos: 1 },
+          opts: mkopts({ ref: mkref(-R, 0.0, low), glide_deg: 3.0, gate_alt_ft: nil, on_abort: "reposition" }) }
+    ];
+    foreach (var x; c) x.start = start;
+    print(sprintf("REPOSITION TESTS: v %.0f m/s, turn radius %.0f m, gate %.0f m before the reference, heading %.0f, %.0f ft", v, R, G, H, alt));
+    return c;
+};
+
+var test_reposition_report = func(results) {
+    var cases = test_reposition_run.cases;
+    var npass = 0;
+    print("REPOSITION TEST RESULTS");
+    forindex (var i; results) {
+        var r  = results[i];
+        var e  = cases[i].expect;
+        var la = r.lineup;
+        var got  = (r.outcome == "REFUSED") ? "REFUSED" : ((la == nil) ? r.outcome : la.outcome);
+        var nrep = (la == nil) ? 0 : (la["repos"] or 0);
+        var ok = (got == e.outcome) and (e.outcome == "REFUSED" or nrep == e.repos);
+        if (ok and e.repos > 0 and find("reposition_out", r.phases) < 0) ok = 0;   # the reposition must show in the phase list
+        if (ok) npass += 1;
+        var why = (la == nil) ? "" : (la.reason or "");
+        var first = (la == nil) ? "" : (la["first_reason"] or "");
+        print(sprintf("%s %-24s expected %s, %d repos; got %s, %d repos%s%s",
+                      ok ? "PASS" : "FAIL", r.label, e.outcome, e.repos, got, nrep,
+                      (why == "") ? "" : "; reason: " ~ why, (first == "") ? "" : "; reposition after: " ~ first));
+    }
+    print(sprintf("REPOSITION TESTS: %d of %d passed", npass, size(results)));
+};
+
+var test_reposition = func(which = nil) {
+    var st  = fS.state;
+    var all = test_reposition_cases(st);
+    var cases = [];
+    if (which == nil) cases = all;
+    else foreach (var n; which) if (n >= 1 and n <= size(all)) append(cases, all[n - 1]);
+    test_reposition_run.cases = cases;
+    return run_series("lineup", cases, { max_s: 900, on_done: test_reposition_report });
+};
+
+########################## line-up Monte Carlo bench (0.7.4.3) ###########################
+#CLAUDE+ TEST CODE, not part of the flight model. fSim.test_lineup_mc(n, seed, mopts) flies n line-ups from randomly dispersed starts through the series
+#CLAUDE+ runner and prints the statistics of the errors at the gate when the series ends. The same seed gives the same cases on the same profile, heading
+#CLAUDE+ and position, so a change to the line-up can be compared case by case. Example: fSim.test_lineup_mc(30, 1).
+#CLAUDE+ Geometry, all relative to where the aircraft is when the bench is called: the line runs along the present heading H; a synthetic reference
+#CLAUDE+ lies ahead with the gate T seconds of flight away, T uniform between t_min_s and t_max_s, and the reference is moved across the heading by
+#CLAUDE+ a normal draw with standard deviation sd_xt_R turn radii. Each start has its heading, height and speed moved by normal draws.
+#CLAUDE+ The line-up speed is the test speed v, chosen as in test_reposition. The gate is at the start altitude, or on the glide path if glide_deg is set.
+#CLAUDE+ mopts, every key optional: sd_xt_R 0.5, sd_hdg_deg 15, sd_dh_ft 300, sd_v_frac 0.05, t_min_s 60, t_max_s 120, ref_kt_max 0, glide_deg 0,
+#CLAUDE+   gate_R 1 = gate distance in turn radii, on_abort "goaround".
+#CLAUDE+ With ref_kt_max above 0 the reference moves on heading H at a speed uniform between 0 and ref_kt_max, and the line is flown from astern.
+#CLAUDE+ Output: the series rows; one MC line per case, comma separated for a spreadsheet; the count of each outcome; and, over the cases that
+#CLAUDE+ reached the gate, the mean, standard deviation, 95th percentile of the magnitude and largest magnitude of each gate error.
+var mc_rng = { s: 1.0 };
+var mc_seed = func(seed) { mc_rng.s = math.fmod(math.abs(int(seed)), 2147483646.0) + 1.0; };
+var mc_uniform = func { mc_rng.s = math.fmod(16807.0 * mc_rng.s, 2147483647.0); return mc_rng.s / 2147483647.0; };   # Park and Miller minimal standard generator
+var mc_normal = func {
+    var u1 = math.max(mc_uniform(), 1.0e-12);
+    var u2 = mc_uniform();
+    return math.sqrt(-2.0 * math.ln(u1)) * math.cos(2.0 * PI * u2);       # Box and Muller
+};
+
+# { n, mean, sd, p95, max } of a vector of numbers; p95 and max are of the magnitudes.
+var mc_stats = func(vals) {
+    var n = size(vals);
+    if (n == 0) return { n: 0, mean: 0.0, sd: 0.0, p95: 0.0, max: 0.0 };
+    var sum = 0.0;  var sq = 0.0;  var mags = [];
+    foreach (var x; vals) { sum += x;  sq += x * x;  append(mags, math.abs(x)); }
+    var mean = sum / n;
+    var sd = (n > 1) ? math.sqrt(math.max(sq - n * mean * mean, 0.0) / (n - 1)) : 0.0;
+    mags = sort(mags, func(a, b) { return (a < b) ? -1 : ((a > b) ? 1 : 0); });
+    return { n: n, mean: mean, sd: sd, p95: mags[math.max(math.ceil(0.95 * n) - 1, 0)], max: mags[n - 1] };
+};
+
+var test_lineup_mc_run = { cases: [], glide: 0.0, seed: 1 };
+
+var test_lineup_mc_cases = func(st, n, mo) {
+    var vs1 = v_stall_1g(st);
+    var v   = math.max(st.perf["cruise_speed_mps"] or 0.75 * st.perf.max_speed_mps, 1.4 * vs1);
+    var R   = v / math.max(turn_rate_max(st, v), 0.001);
+    var pos = own_position(st);
+    var H   = st.hdg;
+    var sH  = math.sin(H * D2R);  var cH = math.cos(H * D2R);
+    var alt = st.alt_ft;
+    var get = func(k, d) { return (mo[k] != nil) ? mo[k] : d; };
+    var sd_xt  = get("sd_xt_R", 0.5) * R;
+    var sd_hdg = get("sd_hdg_deg", 15.0);
+    var sd_dh  = get("sd_dh_ft", 300.0);
+    var sd_v   = get("sd_v_frac", 0.05);
+    var t_min  = get("t_min_s", 60.0);
+    var t_max  = get("t_max_s", 120.0);
+    var kt_max = get("ref_kt_max", 0.0);
+    var glide  = get("glide_deg", 0.0);
+    var G      = get("gate_R", 1.0) * R;
+    var oa     = get("on_abort", "goaround");
+    var low    = alt - 2000.0;
+    var out = [];
+    for (var i = 0; i < n; i += 1) {
+        var T   = t_min + (t_max - t_min) * mc_uniform();
+        var Y   = sd_xt * mc_normal();
+        var dps = sd_hdg * mc_normal();
+        var dh  = sd_dh * mc_normal();
+        var dvf = math.max(sd_v * mc_normal(), -0.15);                   # never more than 15 % slow at the start
+        var kt  = kt_max * mc_uniform();
+        var D   = G + T * v;
+        var ll  = lat_lon_at(pos.lat, pos.lon, D * sH + Y * cH, D * cH - Y * sH);
+        var o = { ref: { lat: ll.lat, lon: ll.lon, alt_ft: low, hdg: H, spd_kt: kt },
+                  gate_m: G, speed_mps: v, on_abort: oa, monitor_rows: 1 };
+        if (kt > 0.0) { o.course_rel = 1;  o.course_deg = 0.0; } else o.course_deg = H;
+        if (glide > 0.0) o.glide_deg = glide; else o.gate_alt_ft = alt;
+        append(out, { label: sprintf("MC %d", i + 1), opts: o,
+                      start: { hdg: wrap360(H + dps), alt_ft: alt + dh, speed_kt: v * (1.0 + dvf) / kts_to_mps },
+                      mc: { T: T, Y: Y, dpsi: dps, dh: dh, dvf: dvf, kt: kt } });
+    }
+    print(sprintf("LINEUP MC: %d cases, seed %d, v %.0f m/s, turn radius %.0f m, gate %.0f m before the reference, heading %.0f, %.0f ft",
+                  n, test_lineup_mc_run.seed, v, R, G, H, alt));
+    print(sprintf("LINEUP MC: dispersions sd cross %.0f m, heading %.1f deg, height %.0f ft, speed %.1f %%; gate %.0f to %.0f s ahead; reference 0 to %.0f kt; glide %.1f deg; on_abort %s",
+                  sd_xt, sd_hdg, sd_dh, 100.0 * sd_v, t_min, t_max, kt_max, glide, oa));
+    return out;
+};
+
+var test_lineup_mc_report = func(results) {
+    var cases = test_lineup_mc_run.cases;
+    var glide = test_lineup_mc_run.glide;
+    var count = {};
+    var e = { xt: [], dh: [], dv: [], dpsi: [], gam: [], roll: [], t: [] };
+    var nrep = 0;
+    print("MC,case,outcome,xt_m,dh_ft,dv_mps,dpsi_deg,gamma_err_deg,roll_deg,t_s,repos,start_cross_m,start_dhdg_deg,start_dh_ft,start_dv_frac,ref_kt,gate_ahead_s,reason");
+    forindex (var i; results) {
+        var r  = results[i];
+        var la = r.lineup;
+        var mc = cases[i].mc;
+        var oc = (r.outcome == "REFUSED" or r.outcome == "TIMEOUT") ? r.outcome : ((la == nil) ? r.outcome : la.outcome);
+        count[oc] = (count[oc] or 0) + 1;
+        var rp = (la == nil) ? 0 : (la["repos"] or 0);
+        if (rp > 0) nrep += 1;
+        var xt = 0.0;  var dh = 0.0;  var dv = 0.0;  var dp = 0.0;  var ga = 0.0;  var ro = 0.0;  var why = "";
+        if (la != nil) {
+            xt = la.xt;  dh = la.dh_ft;  dv = la.dv;  dp = la.dpsi;  ga = la.gamma + glide;  ro = la.roll;  why = la.reason or "";
+        }
+        if (oc == "gate") {
+            append(e.xt, xt);  append(e.dh, dh);  append(e.dv, dv);  append(e.dpsi, dp);  append(e.gam, ga);  append(e.roll, ro);  append(e.t, r.t);
+        }
+        print(sprintf("MC,%d,%s,%.2f,%.2f,%.3f,%.3f,%.3f,%.2f,%.1f,%d,%.0f,%.1f,%.0f,%.3f,%.1f,%.1f,%s",
+                      i + 1, oc, xt, dh, dv, dp, ga, ro, r.t, rp, mc.Y, mc.dpsi, mc.dh, mc.dvf, mc.kt, mc.T, why));
+    }
+    var line = "LINEUP MC outcomes:";
+    foreach (var k; sort(keys(count), cmp)) line = line ~ sprintf(" %s %d", k, count[k]);
+    print(line ~ sprintf("; cases with a reposition %d of %d", nrep, size(results)));
+    var names = [["xt", "cross-track m"], ["dh", "height ft"], ["dv", "speed m/s"], ["dpsi", "heading deg"], ["gam", "path angle deg"], ["roll", "roll deg"], ["t", "time to gate s"]];
+    foreach (var nm; names) {
+        var st = mc_stats(e[nm[0]]);
+        print(sprintf("LINEUP MC gate %-15s n %3d  mean %+9.3f  sd %8.3f  p95 |x| %8.3f  max |x| %8.3f", nm[1], st.n, st.mean, st.sd, st.p95, st.max));
+    }
+};
+
+var test_lineup_mc = func(n = 30, seed = 1, mopts = nil) {
+    mopts = mopts or {};
+    mc_seed(seed);
+    test_lineup_mc_run.seed = seed;
+    test_lineup_mc_run.glide = (mopts["glide_deg"] != nil) ? mopts["glide_deg"] : 0.0;
+    var cases = test_lineup_mc_cases(fS.state, n, mopts);
+    test_lineup_mc_run.cases = cases;
+    return run_series("lineup", cases, { max_s: 900, on_done: test_lineup_mc_report });
 };
 
 register_manoeuvre_listeners(modelName, fS.state);
