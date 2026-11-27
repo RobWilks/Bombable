@@ -1746,3 +1746,11 @@ fSim.DIVE_PRED_ADAPTIVE = 1;
 fSim.fS.prof.start();
 fSim.run_series("dive", fSim.series_cases("dive_angle_deg", [50, 60, 70, 80], {pullout_agl_ft: 2000, reference: "/ai/models/ship[0]"}));
 fSim.fS.prof.stop();
+
+
+=======================================
+
+# fSim.runway_info("LFML");                    # runways, landing scores from here, speeds for this profile
+# fSim.test_accel_stop({ icao: "LFML" });      # full throttle to Vr, then brake to a stop
+# fSim.test_touchdown({ icao: "LFML" });       # 2 m/s descent with no flare, touchdown, roll-out
+# fSim.test_touchdown({ icao: "LFML", sink_mps: 4 });   # should report a hard landing

@@ -27,6 +27,16 @@
 
 
 #CLAUDE+ Change log (newest first):
+#CLAUDE+   0.8.0.1 runway_record reads rwy.threshold and rwy.width by member access: FGRunway is a ghost, and rwy["threshold"] threw
+#CLAUDE+          extract from non-container in runway_info. Spitfire XVI flap values and model offset as set by Rob
+#CLAUDE+   0.8.0  physics layer for take-off and landing, no new manoeuvres yet. Flaps: deployment fraction moving towards flaps_cmd over FLAP_TIME_S,
+#CLAUDE+          driven up above the flap limit speed, multiplying the lift coefficient and the zero-lift drag; stall speed, alpha_for_load and
+#CLAUDE+          command_load allow for them. Ground contact when state.ground_ft is set: normal force, rolling and braking friction, wings level and
+#CLAUDE+          pitch not below 0 on the ground, touchdown record with a hard-landing report. Cruise holds an aircraft on the ground; climb and the
+#CLAUDE+          other manoeuvres refuse to start there. Runway helpers from airportinfo and geodinfo: runway_record, runway_best_aligned,
+#CLAUDE+          runway_best_for_landing, landing_distance_m, place_on_runway, flight_speeds, runway_info. Optional profile keys flap_cl_mult,
+#CLAUDE+          flap_cd0_mult, flap_max_speed_mps, model_ground_offset_ft. Test code test_accel_stop and test_touchdown. Ignored: propwash, ground effect,
+#CLAUDE+          tail-dragger pitch, wind. Nothing changes in flight while ground_ft is nil and the flaps are up
 #CLAUDE+   0.7.4.4 predict_dive takes adaptive steps: 0.05 s while the path, the brakes or the pull-out are changing, up to 0.5 s in the steady dive
 #CLAUDE+          with at most a 2 % speed change per step, and the step that reaches the pull-out height lands on it; DIVE_PRED_ADAPTIVE = 0 restores the
 #CLAUDE+          fixed steps; result gains steps. Test code fSim.test_predict_dive compares both. Reposition: a heading change over NAV_REPO_TURN_DEG
@@ -91,7 +101,7 @@
 #CLAUDE+          auto_throttle, speed hold) runs after every manoeuvre and restores the pre-manoeuvre throttle mode; set_targets gains spd
 #CLAUDE+   0.2.0  cleanup of start_loop defaults, speed floors, monitor nil guard, unknown-model message, optional perf keys, version number
 #CLAUDE+   0.1.0  baseline as uploaded
-var FSIM_VERSION = "0.7.4.4";
+var FSIM_VERSION = "0.8.0.1";
 # Explicitly define fS
 var fS = {
     version: FSIM_VERSION,
@@ -473,6 +483,10 @@ var update_pitch_target = func(self, dt, v_ref = nil) {
 # Wrap-aware, rate-limited approach to tgt_pitch / tgt_roll over the full +/-180 range.
 
 var update_orientation = func(self, dt) {
+    if (self["on_ground"]) {                          #CLAUDE+ 0.8.0: on the ground the wings stay level and the nose does not go below the ground attitude, pitch 0
+        self.tgt_roll  = 0.0;
+        self.tgt_pitch = math.max(self.tgt_pitch, 0.0);
+    }
     if (self.aerobatic) {
         var pr = (!contains(self.perf, "max_pitch_rate_aero")) ? 30.0 : self.perf.max_pitch_rate_aero;
         var rr = (!contains(self.perf, "max_roll_rate_aero")) ? 90.0 : self.perf.max_roll_rate_aero;
@@ -503,6 +517,10 @@ var update_force_physics = func(self, dt) {
     #CLAUDE+ 0.6.0: air brakes move towards brake_cmd (0 or 1) at 1/DIVE_BRAKE_TIME per second
     var db = dt / DIVE_BRAKE_TIME;
     self.brake = math.clamp(self.brake_cmd, self.brake - db, self.brake + db);
+    #CLAUDE+ 0.8.0: flaps move towards flaps_cmd at 1/FLAP_TIME_S per second; above the flap limit speed they are driven up
+    var fcmd = (self.speed * kts_to_mps > flap_max_speed(self)) ? 0.0 : (self.flaps_cmd or 0.0);
+    var dfl  = dt / FLAP_TIME_S;
+    self.flaps = math.clamp(fcmd, self.flaps - dfl, self.flaps + dfl);
 
     var ve = self.v_east;  var vn = self.v_north;  var vu = self.v_up;
     var v_h   = math.sqrt(ve*ve + vn*vn);
@@ -551,7 +569,7 @@ var update_force_physics = func(self, dt) {
     }
 
 
-    var CL = lift_curve(alpha);
+    var CL = lift_curve(alpha) * cl_mult_now(self);   #CLAUDE~ 0.8.0: times the flap lift multiplier
     var CD = cd0_now(self) + K_IND * CL * CL;   #CLAUDE~ 0.6.0: was C_D0
 
     var lift_mag   = qS * CL;
@@ -571,6 +589,27 @@ var update_force_physics = func(self, dt) {
     var ay = (axial * f_n + lift_mag * lp_n) / m;
     var az = (axial * f_u + lift_mag * lp_u - weight_N) / m;
 
+    #CLAUDE+ 0.8.0: ground contact. A downward net force on the wheels becomes the normal force, which sets the friction against the horizontal velocity.
+    var floor_ft = ground_floor_ft(self);
+    var gnd = (floor_ft != nil and self.alt_ft <= floor_ft + GROUND_CONTACT_FT);
+    self.wheel_load_N = 0.0;
+    if (gnd and az <= 0.0) {
+        var Nf = -az * m;
+        az = 0.0;
+        self.wheel_load_N = Nf;
+        var mu = GROUND_MU_ROLL + (self.wheel_brake or 0.0) * (GROUND_MU_BRAKE - GROUND_MU_ROLL);
+        var fr = mu * Nf / m;                                     # friction deceleration, m/s^2
+        var ah = math.sqrt(ax * ax + ay * ay);
+        if (v_h > GROUND_STOP_MPS) {
+            ax -= fr * ve / v_h;  ay -= fr * vn / v_h;
+        } else if (ah <= fr) {
+            ax = 0.0;  ay = 0.0;                                  # stopped, and friction holds it
+        } else {
+            ax -= fr * ax / ah;  ay -= fr * ay / ah;              # breaking away from rest
+        }
+        if (vu < 0.0) vu = 0.0;
+    }
+
     # Velocity update. A plain Euler step adds speed whenever the force has a component
     # perpendicular to the velocity (a = 4 g of lift: +5 kt at 0.1 s, +16 kt at 0.25 s at the top
     # of an Immelmann). Keep the direction from the Euler step but take the speed from the
@@ -581,9 +620,10 @@ var update_force_physics = func(self, dt) {
     if (speed > 1.0) {
         var a_track = (ax * ve + ay * vn + az * vu) / speed;
         var sp1 = math.sqrt(ve1*ve1 + vn1*vn1 + vu1*vu1);
-        var kc  = (speed + a_track * dt) / math.max(sp1, 0.001);
+        var kc  = math.max(speed + a_track * dt, 0.0) / math.max(sp1, 0.001);   #CLAUDE~ 0.8.0: max(..., 0): friction may not reverse the motion
         ve1 *= kc;  vn1 *= kc;  vu1 *= kc;
     }
+    if (gnd and ve1 * ve + vn1 * vn < 0.0) { ve1 = 0.0;  vn1 = 0.0; }   #CLAUDE+ 0.8.0: friction stops the aircraft, it does not reverse it
     self.v_east  = ve1;
     self.v_north = vn1;
     self.v_up    = vu1;
@@ -608,6 +648,26 @@ var update_force_physics = func(self, dt) {
     self.dLon = self.v_east / m_per_deg_lon;
     self.dAlt = v_up_fps;
     self.alt_ft += v_up_fps * dt;
+
+    #CLAUDE+ 0.8.0: the ground stops a descent; the first contact after flight is recorded as a touchdown in self.touchdown
+    if (floor_ft != nil) {
+        if (self.alt_ft < floor_ft) {
+            if (!self.on_ground) {
+                var sink = -self.v_up;
+                self.touchdown = { sink_mps: sink, speed_mps: spd2, pitch: self.pitch, roll: self.roll, t: self.time or 0.0,
+                                   hard: (sink > TOUCHDOWN_HARD_MPS) };
+                print(sprintf("fSim: touchdown at %.1f m/s, sinking %.2f m/s, pitch %.1f, roll %.1f%s",
+                              spd2, sink, self.pitch, self.roll, (sink > TOUCHDOWN_HARD_MPS) ? ": HARD LANDING" : ""));
+            }
+            self.alt_ft = floor_ft;
+            if (self.v_up < 0.0) self.v_up = 0.0;
+            self.dAlt = 0.0;
+            self.speed = math.sqrt(self.v_east * self.v_east + self.v_north * self.v_north + self.v_up * self.v_up) / kts_to_mps;
+        }
+        self.on_ground = (self.alt_ft <= floor_ft + GROUND_CONTACT_FT and self.v_up <= 0.01) ? 1 : 0;
+    } else {
+        self.on_ground = 0;
+    }
 };
 
 ########################## acrobatic manoeuvres ###########################
@@ -646,7 +706,7 @@ var finish_reversal = func(self, hdg_target) {
 ########################## v_stall_1g ###########################
 var v_stall_1g = func(self) {
     var rho = air_density(self.alt_ft * 0.3048);
-    return math.sqrt(2.0 * weight_N / (rho * self.perf.wing_area_m2 * CL_MAX)); # in mps
+    return math.sqrt(2.0 * weight_N / (rho * self.perf.wing_area_m2 * CL_MAX * cl_mult_now(self))); # in mps   #CLAUDE~ 0.8.0: times the flap lift multiplier
 };
 
 # Angle of attack (rad) giving load factor n_cmd along body-up, allowing for the thrust and
@@ -655,7 +715,7 @@ var alpha_for_load = func(self, n_cmd, qS) {
     var a_prev = (self.alpha_deg or 0.0) * D2R;
     var axial  = self.throttle * thrust_available(self) - (self.drag_N or 0.0);
     var CL_req = (n_cmd * weight_N - axial * math.sin(a_prev)) / math.max(qS, 1.0);
-    return math.clamp((CL_req - C_L_vmax) / CL_ALPHA, 0.9 * A_STALL_NEG, 0.9 * A_STALL_POS);
+    return math.clamp((CL_req / cl_mult_now(self) - C_L_vmax) / CL_ALPHA, 0.9 * A_STALL_NEG, 0.9 * A_STALL_POS);   #CLAUDE~ 0.8.0: CL_req divided by the flap lift multiplier
 };
 
 # The aircraft-frame alpha is about (pitch - path angle)*cos(roll). Invert that for the
@@ -670,7 +730,7 @@ var delta_for_alpha = func(a, phi) {
 var command_load = func(self, v, n_cmd, lead_deg) {
     var rho = air_density(self.alt_ft * 0.3048);
     var qS  = 0.5 * rho * v * v * self.perf.wing_area_m2;
-    var n_stall = 0.85 * qS * CL_MAX / weight_N;
+    var n_stall = 0.85 * qS * CL_MAX * cl_mult_now(self) / weight_N;   #CLAUDE~ 0.8.0: times the flap lift multiplier
     var n_pos = math.min(0.9 * (self.perf["n_max_pos"] or 6.0), n_stall);
     var n_neg = math.min(0.9 * math.abs(self.perf["n_max_neg"] or 3.0), n_stall);
     n_cmd = math.clamp(n_cmd, -n_neg, n_pos);
@@ -1824,6 +1884,10 @@ var cruise_can_climb = func(self, dh_m) {
 
 var start_climb = func(self, opts = nil) {
     opts = opts or {};
+    if (self["on_ground"]) {   #CLAUDE+ 0.8.0
+        print("climb refused: the aircraft is on the ground; take off first");
+        return nil;
+    }
     var sched = opts["schedule"] or "max_rate";
     var mode  = CLIMB_SCHEDULES[sched];
     if (mode == nil) {
@@ -1864,9 +1928,154 @@ var cruise = func(self, dt) {
         self.pre_manoeuvre = nil;
     }
     self.brake_cmd = 0;   #CLAUDE+ 0.6.0: brakes are in whenever no manoeuvre is running
+    if (self["on_ground"]) {   #CLAUDE+ 0.8.0: on the ground cruise holds the aircraft: wheel brakes on, idle, wings level; take-off is a manoeuvre
+        self.wheel_brake = 1.0;
+        self.throttle = 0.0;
+        self.tgt_roll = 0.0;  self.tgt_pitch = 0.0;
+        return;
+    }
     update_roll_target(self, dt);
     update_pitch_target(self, dt);
     if (self.auto_throttle) hold_speed(self, self.tgt_speed * kts_to_mps);
+};
+
+########################## runways (0.8.0) ###########################
+#CLAUDE+ Runway data from FlightGear's airportinfo: airportinfo(icao), or airportinfo(lat, lon) for the airport nearest the fSim aircraft. airportinfo()
+#CLAUDE+ with no arguments would use the main FlightGear aircraft, not this one, so it is not used. Both ends of a runway are listed, each with its own id.
+#CLAUDE+ runway_record(apt, rwy) turns one end into { icao, id, heading, length_m, width_m, displaced_m, avail_m, lat, lon, land_lat, land_lon, elev_ft }:
+#CLAUDE+ lat and lon are the runway end, land_lat and land_lon the landing threshold after any displacement, elev_ft the terrain height from
+#CLAUDE+ geodinfo at the runway end, or the airport elevation when the scenery there is not loaded. The runway is taken as flat at that height.
+#CLAUDE+ Take-off uses the end best aligned with a heading, runway_best_aligned. Landing scores every end long enough by the estimated time to reach a
+#CLAUDE+ point on its extended centreline before the gate, the turn to that point, the flight to it and the turn onto the runway heading, runway_best_for_landing.
+#CLAUDE+ Console: fSim.runway_info("LFML") lists the runways, the landing scores and the take-off and landing speeds.
+#CLAUDE+ 0.8.0.1: airportinfo returns ghosts, FGAirport and FGRunway: read their fields as apt.elevation or rwy.threshold, never rwy["threshold"],
+#CLAUDE+ which fails with extract from non-container. apt.runways itself is an ordinary hash keyed by runway id.
+var RUNWAY_GLIDE_DEG     = 3.0;     # deg  approach path angle
+var RUNWAY_GATE_AGL_FT   = 500.0;   # ft   approach gate height above the runway, on the glide path
+var RUNWAY_AIM_M         = 300.0;   # m    aim point beyond the landing threshold
+var RUNWAY_LENGTH_FACTOR = 1.3;     #      the runway available must exceed the estimated landing distance by this factor
+
+var airport_of = func(self, icao = nil) {
+    var apt = nil;
+    if (icao != nil and icao != "") apt = airportinfo(icao);
+    else {
+        var pos = own_position(self);
+        apt = airportinfo(pos.lat, pos.lon);
+    }
+    if (apt == nil) print("fSim: airport " ~ ((icao != nil and icao != "") ? icao : "near the aircraft") ~ " not found");
+    return apt;
+};
+
+var runway_record = func(apt, rwy) {
+    var disp = rwy.threshold or 0.0;   #CLAUDE~ 0.8.0.1: was rwy["threshold"]; a runway is an FGRunway ghost, which allows member access but not indexing
+    var h  = rwy.heading * D2R;
+    var ld = lat_lon_at(rwy.lat, rwy.lon, disp * math.sin(h), disp * math.cos(h));
+    var elev_ft = (apt.elevation or 0.0) * 3.28084;
+    var gi = geodinfo(rwy.lat, rwy.lon);
+    if (gi != nil and gi[0] != nil) elev_ft = gi[0] * 3.28084;
+    return { icao: apt.id, id: rwy.id, heading: rwy.heading, length_m: rwy.length, width_m: rwy.width or 0.0,   #CLAUDE~ 0.8.0.1: was rwy["width"]
+             displaced_m: disp, avail_m: rwy.length - disp, lat: rwy.lat, lon: rwy.lon, land_lat: ld.lat, land_lon: ld.lon, elev_ft: elev_ft };
+};
+
+# The runway end with this id, as a record, or nil.
+var runway_by_id = func(apt, id) {
+    var r = apt.runways[id];
+    if (r == nil) {
+        print("fSim: runway " ~ id ~ " not found at " ~ apt.id ~ "; runways: " ~ string.join(" ", keys(apt.runways)));
+        return nil;
+    }
+    return runway_record(apt, r);
+};
+
+# The runway end whose heading is closest to hdg, as a record.
+var runway_best_aligned = func(apt, hdg) {
+    var best = nil;  var dmin = 999.0;
+    foreach (var k; keys(apt.runways)) {
+        var r = apt.runways[k];
+        var d = math.abs(wrap180(r.heading - hdg));
+        if (d < dmin) { dmin = d;  best = r; }
+    }
+    return (best == nil) ? nil : runway_record(apt, best);
+};
+
+# Landing distance needed, m: aim point plus a braked ground roll from 1.15 x the landing-flap stall speed, times RUNWAY_LENGTH_FACTOR.
+# Aerodynamic drag in the roll is left out, which errs long.
+var landing_distance_m = func(self, elev_ft) {
+    var v_td = 1.15 * v_stall_flaps(self, FLAPS_LANDING, elev_ft);
+    return RUNWAY_LENGTH_FACTOR * (RUNWAY_AIM_M + v_td * v_td / (2.0 * g * GROUND_MU_BRAKE));
+};
+
+# Distance from the aim point back to the gate along the glide path, m.
+var runway_gate_m = func() { return RUNWAY_GATE_AGL_FT * 0.3048 / nav_tan(RUNWAY_GLIDE_DEG); };
+
+# Scores every runway end for a landing from the present position and heading. Returns { rwy, t, list } with rwy the best record, or nil when none
+# is long enough; list holds { id, t, why } for every end, t the estimated seconds to the entry point and onto the runway heading, why "" or the reason it was skipped.
+var runway_best_for_landing = func(self, apt) {
+    var sp   = flight_speeds(self, (apt.elevation or 0.0) * 3.28084);
+    var v    = math.max(self.speed * kts_to_mps, sp.vref);
+    var om   = turn_rate_max(self, v);
+    var R    = v / om;
+    var pos  = own_position(self);
+    var gate = runway_gate_m();
+    var best = nil;  var tbest = 1.0e9;  var list = [];
+    foreach (var k; keys(apt.runways)) {
+        var rec  = runway_record(apt, apt.runways[k]);
+        var need = landing_distance_m(self, rec.elev_ft);
+        if (rec.avail_m < need) {
+            append(list, { id: rec.id, t: -1.0, why: sprintf("too short: %.0f m available, %.0f m needed", rec.avail_m, need) });
+            continue;
+        }
+        var h  = rec.heading * D2R;
+        var E  = RUNWAY_AIM_M - gate - 2.0 * v * NAV_SETTLE_S - 2.0 * R;      # entry point, m along the runway heading from the landing threshold
+        var pe = local_en(pos.lat, pos.lon, rec.land_lat, rec.land_lon);
+        var de = pe.e + E * math.sin(h);  var dn = pe.n + E * math.cos(h);
+        var dist = math.sqrt(de * de + dn * dn);
+        var brg  = math.atan2(de, dn) * R2D;
+        var t = math.abs(wrap180(brg - self.hdg)) * D2R / om + dist / v + math.abs(wrap180(rec.heading - brg)) * D2R / om;
+        if (dist < 2.0 * R) t += PI / om;                                      # too close to turn onto it directly
+        append(list, { id: rec.id, t: t, why: "" });
+        if (t < tbest) { tbest = t;  best = rec; }
+    }
+    return { rwy: best, t: tbest, list: list };
+};
+
+# Puts the aircraft on the runway, offset_m along it from the runway end, on its heading, height_ft above it at speed_mps, with the ground set.
+# Uses series_reset_state, so the state hash is kept and everything else is reset. Returns the state.
+var place_on_runway = func(self, rec, offset_m = 0.0, height_ft = 0.0, speed_mps = 0.0) {
+    var h  = rec.heading * D2R;
+    var ll = lat_lon_at(rec.lat, rec.lon, offset_m * math.sin(h), offset_m * math.cos(h));
+    var fl = rec.elev_ft + (self.perf["model_ground_offset_ft"] or 0.0);
+    var st = series_reset_state({ auto_throttle: 0 }, { lat: ll.lat, lon: ll.lon, alt_ft: fl + height_ft, hdg: rec.heading,
+                                                        speed_kt: speed_mps / kts_to_mps, throttle: 0.0 });
+    st.ground_ft = rec.elev_ft;
+    st.runway = rec;
+    st.on_ground = (height_ft <= GROUND_CONTACT_FT) ? 1 : 0;
+    st.wheel_brake = st.on_ground ? 1.0 : 0.0;
+    st.tgt_altitude_ft = fl + height_ft;
+    print(sprintf("fSim: placed on runway %s %s, heading %.1f, %.0f m from its end, %.0f ft above it (%.0f ft MSL), %.0f m/s",
+                  rec.icao, rec.id, rec.heading, offset_m, height_ft, fl + height_ft, speed_mps));
+    return st;
+};
+
+# Console: lists the runways of an airport, their landing scores from the present position, and the speeds for this profile there.
+var runway_info = func(icao = nil) {
+    var st  = fS.state;
+    var apt = airport_of(st, icao);
+    if (apt == nil) return nil;
+    var elev = (apt.elevation or 0.0) * 3.28084;
+    print(sprintf("RUNWAYS %s %s, elevation %.0f ft", apt.id, apt.name or "", elev));
+    foreach (var k; sort(keys(apt.runways), cmp)) {
+        var r = runway_record(apt, apt.runways[k]);
+        print(sprintf("  %-4s heading %5.1f  length %5.0f m  width %3.0f m  displaced %4.0f m  ground %6.0f ft", r.id, r.heading, r.length_m, r.width_m, r.displaced_m, r.elev_ft));
+    }
+    var sp = flight_speeds(st, elev);
+    print(sprintf("  speeds: Vs clean %.1f, Vs take-off flap %.1f, Vs landing flap %.1f, Vr %.1f, V2 %.1f, Vref %.1f, Vfe %.1f m/s; landing distance needed %.0f m",
+                  sp.vs0, sp.vs_to, sp.vs_land, sp.vr, sp.v2, sp.vref, sp.vfe, landing_distance_m(st, elev)));
+    var b = runway_best_for_landing(st, apt);
+    foreach (var e; b.list)
+        print(sprintf("  landing %-4s %s", e.id, (e.why != "") ? e.why : sprintf("about %.0f s to the approach", e.t)));
+    if (b.rwy != nil) print("  best for landing from here: " ~ b.rwy.id);
+    return b;
 };
 
 ########################## lineup (0.7.3, renamed from approach in 0.7.4.1) ###########################
@@ -2630,6 +2839,10 @@ if (modelName == "/F15") {
         loop_n_bottom: 4.0,            # g    design load factor at the bottom of a loop (blank = min(5, 0.9 x n_max_pos))
         loop_min_top_ratio: ,         #      predicted loop top speed / 1 g stall speed below which a loop is refused (blank = 0.7)   #CLAUDE+ new optional key
         cruise_speed_mps: ,           # m/s  published cruise speed; default line-up speed (blank = the speed flown at the start)   #CLAUDE+ 0.7.4.2 new optional key
+        flap_cl_mult: ,               #      lift multiplier with landing flap (blank = FLAP_CL_MULT, 1.35)   #CLAUDE+ 0.8.0 new optional key
+        flap_cd0_mult: ,              #      zero-lift drag multiplier with landing flap and gear (blank = FLAP_CD0_MULT, 2.0)   #CLAUDE+ 0.8.0 new optional key
+        flap_max_speed_mps: ,         # m/s  published flap limit speed (blank = 0.6 x max_speed_mps)   #CLAUDE+ 0.8.0 new optional key
+        model_ground_offset_ft: ,     # ft   height of the 3D model origin above the wheels (blank = 0)   #CLAUDE+ 0.8.0 new optional key
 
     };
 }
@@ -2663,6 +2876,10 @@ elsif (modelName == "/spitfire") {
         loop_n_bottom: ,               # g    design load factor at the bottom of a loop (blank = min(5, 0.9 x n_max_pos))
         loop_min_top_ratio: ,         #      predicted loop top speed / 1 g stall speed below which a loop is refused (blank = 0.7)   #CLAUDE+ new optional key
         cruise_speed_mps: ,           # m/s  published cruise speed; default line-up speed (blank = the speed flown at the start)   #CLAUDE+ 0.7.4.2 new optional key
+        flap_cl_mult: ,               #      lift multiplier with landing flap (blank = FLAP_CL_MULT, 1.35)   #CLAUDE+ 0.8.0 new optional key
+        flap_cd0_mult: ,              #      zero-lift drag multiplier with landing flap and gear (blank = FLAP_CD0_MULT, 2.0)   #CLAUDE+ 0.8.0 new optional key
+        flap_max_speed_mps: ,         # m/s  published flap limit speed (blank = 0.6 x max_speed_mps)   #CLAUDE+ 0.8.0 new optional key
+        model_ground_offset_ft: ,     # ft   height of the 3D model origin above the wheels (blank = 0)   #CLAUDE+ 0.8.0 new optional key
         max_rpm: 3500,              # Merlin engine            
 
     };
@@ -2696,6 +2913,10 @@ elsif (modelName == "/spitfireXVI") {
         loop_n_bottom: ,               # g    design load factor at the bottom of a loop (blank = min(5, 0.9 x n_max_pos))
         loop_min_top_ratio: ,         #      predicted loop top speed / 1 g stall speed below which a loop is refused (blank = 0.7)   #CLAUDE+ new optional key
         cruise_speed_mps: ,           # m/s  published cruise speed; default line-up speed (blank = the speed flown at the start)   #CLAUDE+ 0.7.4.2 new optional key
+        flap_cl_mult: 1.24,               #      lift multiplier with landing flap (blank = FLAP_CL_MULT, 1.35)   #CLAUDE+ 0.8.0 new optional key
+        flap_cd0_mult: 2.5,              #      zero-lift drag multiplier with landing flap and gear (blank = FLAP_CD0_MULT, 2.0)   #CLAUDE+ 0.8.0 new optional key
+        flap_max_speed_mps: 72,         # m/s  published flap limit speed (blank = 0.6 x max_speed_mps)   #CLAUDE+ 0.8.0 new optional key
+        model_ground_offset_ft: 5.0,     # ft   height of the 3D model origin above the wheels (blank = 0)   #CLAUDE+ 0.8.0 new optional key
         max_rpm: 3500,              # Merlin engine            
                 
     };
@@ -2727,6 +2948,10 @@ elsif (modelName == "/fkdr1") {
         loop_n_bottom: ,               # g    design load factor at the bottom of a loop (blank = min(5, 0.9 x n_max_pos))
         loop_min_top_ratio: ,         #      predicted loop top speed / 1 g stall speed below which a loop is refused (blank = 0.7)   #CLAUDE+ new optional key
         cruise_speed_mps: ,           # m/s  published cruise speed; default line-up speed (blank = the speed flown at the start)   #CLAUDE+ 0.7.4.2 new optional key
+        flap_cl_mult: ,               #      lift multiplier with landing flap (blank = FLAP_CL_MULT, 1.35)   #CLAUDE+ 0.8.0 new optional key
+        flap_cd0_mult: ,              #      zero-lift drag multiplier with landing flap and gear (blank = FLAP_CD0_MULT, 2.0)   #CLAUDE+ 0.8.0 new optional key
+        flap_max_speed_mps: ,         # m/s  published flap limit speed (blank = 0.6 x max_speed_mps)   #CLAUDE+ 0.8.0 new optional key
+        model_ground_offset_ft: ,     # ft   height of the 3D model origin above the wheels (blank = 0)   #CLAUDE+ 0.8.0 new optional key
         max_rpm: 1200,                 # engine (Typical maximum RPM for the Oberursel Ur.II rotary engine)
                     
     };
@@ -2765,6 +2990,10 @@ elsif (modelName == "/a6m5") {
         loop_n_bottom: ,               # g    design load factor at the bottom of a loop (blank = min(5, 0.9 x n_max_pos))
         loop_min_top_ratio: ,         #      predicted loop top speed / 1 g stall speed below which a loop is refused (blank = 0.7)   #CLAUDE+ new optional key
         cruise_speed_mps: ,           # m/s  published cruise speed; default line-up speed (blank = the speed flown at the start)   #CLAUDE+ 0.7.4.2 new optional key
+        flap_cl_mult: ,               #      lift multiplier with landing flap (blank = FLAP_CL_MULT, 1.35)   #CLAUDE+ 0.8.0 new optional key
+        flap_cd0_mult: ,              #      zero-lift drag multiplier with landing flap and gear (blank = FLAP_CD0_MULT, 2.0)   #CLAUDE+ 0.8.0 new optional key
+        flap_max_speed_mps: ,         # m/s  published flap limit speed (blank = 0.6 x max_speed_mps)   #CLAUDE+ 0.8.0 new optional key
+        model_ground_offset_ft: ,     # ft   height of the 3D model origin above the wheels (blank = 0)   #CLAUDE+ 0.8.0 new optional key
         max_rpm: 2750,                # RPM (Redline for the Sakae 21 two-stage supercharged radial engine)
     };
 }
@@ -2795,6 +3024,10 @@ elsif (modelName == "/ju87") {
         loop_n_bottom: ,              # g    design load factor at the bottom of a loop (blank = min(5, 0.9 x n_max_pos))
         loop_min_top_ratio: 0.5,      # predicted loop top speed / 1 g stall speed below which a loop is refused (blank = 0.7)   #CLAUDE+ new optional key
         cruise_speed_mps: ,           # m/s  published cruise speed; default line-up speed (blank = the speed flown at the start)   #CLAUDE+ 0.7.4.2 new optional key
+        flap_cl_mult: ,               #      lift multiplier with landing flap (blank = FLAP_CL_MULT, 1.35)   #CLAUDE+ 0.8.0 new optional key
+        flap_cd0_mult: ,              #      zero-lift drag multiplier with landing flap and gear (blank = FLAP_CD0_MULT, 2.0)   #CLAUDE+ 0.8.0 new optional key
+        flap_max_speed_mps: ,         # m/s  published flap limit speed (blank = 0.6 x max_speed_mps)   #CLAUDE+ 0.8.0 new optional key
+        model_ground_offset_ft: ,     # ft   height of the 3D model origin above the wheels (blank = 0)   #CLAUDE+ 0.8.0 new optional key
         terminal_speed_mps: 159.7,    # m/s  575 km/h terminal dive speed with dive brakes out, sea level, vertical   #CLAUDE+ 0.6.0 new optional key: enables start_dive
         max_rpm: 2400,                # RPM (Rated combat redline for the Jumo 211 inverted V12 engine)
     };
@@ -2826,6 +3059,10 @@ elsif (modelName == "/bf109g14") {
         loop_n_bottom: ,               # g    design load factor at the bottom of a loop (blank = min(5, 0.9 x n_max_pos))
         loop_min_top_ratio: ,         #      predicted loop top speed / 1 g stall speed below which a loop is refused (blank = 0.7)   #CLAUDE+ new optional key
         cruise_speed_mps: ,           # m/s  published cruise speed; default line-up speed (blank = the speed flown at the start)   #CLAUDE+ 0.7.4.2 new optional key
+        flap_cl_mult: ,               #      lift multiplier with landing flap (blank = FLAP_CL_MULT, 1.35)   #CLAUDE+ 0.8.0 new optional key
+        flap_cd0_mult: ,              #      zero-lift drag multiplier with landing flap and gear (blank = FLAP_CD0_MULT, 2.0)   #CLAUDE+ 0.8.0 new optional key
+        flap_max_speed_mps: ,         # m/s  published flap limit speed (blank = 0.6 x max_speed_mps)   #CLAUDE+ 0.8.0 new optional key
+        model_ground_offset_ft: ,     # ft   height of the 3D model origin above the wheels (blank = 0)   #CLAUDE+ 0.8.0 new optional key
         max_rpm: 2800,                 # RPM (Redline for the DB 605AM engine under 1.7 ata emergency MW-50 boost)
     };
 }
@@ -2861,10 +3098,55 @@ var C_D0_BRAKE = (perf_profile["terminal_speed_mps"] != nil)
     : nil;
 var DIVE_BRAKE_TIME = 1.0;     # s  brakes take this long to extend and to retract
 
+#CLAUDE+ 0.8.0: flaps and ground contact. Flaps are a deployment fraction self.flaps, 0..1, moving towards self.flaps_cmd at 1/FLAP_TIME_S per second
+#CLAUDE+ and driven up above the flap limit speed. They multiply the lift coefficient at every angle of attack by 1 + flaps x (flap_cl_mult - 1),
+#CLAUDE+ so the stall angle is unchanged and CL_MAX grows by the same factor, and the zero-lift drag by 1 + flaps x (flap_cd0_mult - 1).
+#CLAUDE+ Ground: self.ground_ft is the ground height under the aircraft, set by the runway code; nil means no ground, the behaviour before 0.8.0.
+#CLAUDE+ The wheels touch when alt_ft is within GROUND_CONTACT_FT of ground_ft + perf model_ground_offset_ft. On the ground a downward net force is
+#CLAUDE+ taken by the wheels, the normal force, and rolling and braking friction act against the horizontal velocity. Ignored: propwash, ground effect,
+#CLAUDE+ the change in pitch of tail-draggers, so the ground attitude is pitch 0, and wind.
+var FLAP_CL_MULT       = 1.35;   #      lift multiplier with landing flap, fraction 1; profile key flap_cl_mult overrides
+var FLAP_CD0_MULT      = 2.0;    #      zero-lift drag multiplier with landing flap, gear drag included; profile key flap_cd0_mult overrides
+var FLAPS_TAKEOFF      = 0.5;    #      take-off flap fraction
+var FLAPS_LANDING      = 1.0;    #      landing flap fraction
+var FLAP_TIME_S        = 6.0;    # s    full flap travel
+var FLAP_VFE_FRAC      = 0.6;    #      flap limit speed as a fraction of max speed when the profile has no flap_max_speed_mps
+var GROUND_MU_ROLL     = 0.03;   #      rolling friction coefficient
+var GROUND_MU_BRAKE    = 0.35;   #      friction coefficient with full wheel brakes
+var GROUND_CONTACT_FT  = 0.1;    # ft   the wheels are in contact within this of the ground
+var GROUND_STOP_MPS    = 0.1;    # m/s  below this on the ground the aircraft counts as stopped
+var TOUCHDOWN_HARD_MPS = 3.0;    # m/s  a touchdown sinking faster than this is reported as hard
+var VR_FACTOR          = 1.1;    #      rotation speed / stall speed with take-off flap
+var V2_FACTOR          = 1.2;    #      take-off safety speed / stall speed with take-off flap
+var VREF_FACTOR        = 1.3;    #      approach speed / stall speed with landing flap
+
+var flap_cl_mult   = func(self) { return self.perf["flap_cl_mult"] or FLAP_CL_MULT; };
+var flap_cd0_mult  = func(self) { return self.perf["flap_cd0_mult"] or FLAP_CD0_MULT; };
+var flap_max_speed = func(self) { return self.perf["flap_max_speed_mps"] or FLAP_VFE_FRAC * self.perf.max_speed_mps; };
+# Lift multiplier for the present flap fraction. self may be a probe hash { alt_ft, perf, flaps }.
+var cl_mult_now    = func(self) { return 1.0 + (self["flaps"] or 0.0) * (flap_cl_mult(self) - 1.0); };
+# Height of the aircraft reference point when the wheels touch, ft MSL; nil when no ground is set.
+var ground_floor_ft = func(self) {
+    var gf = self["ground_ft"];
+    return (gf == nil) ? nil : gf + (self.perf["model_ground_offset_ft"] or 0.0);
+};
+# 1 g stall speed in m/s with flap fraction f at altitude alt_ft, default the present altitude.
+var v_stall_flaps = func(self, f, alt_ft = nil) {
+    return v_stall_1g({ alt_ft: (alt_ft == nil) ? self.alt_ft : alt_ft, perf: self.perf, flaps: f });
+};
+# Take-off and landing speeds in m/s at alt_ft: vs0 clean, vs_to with take-off flap, vs_land with landing flap, vr, v2, vref, vfe.
+var flight_speeds = func(self, alt_ft = nil) {
+    var vs_to = v_stall_flaps(self, FLAPS_TAKEOFF, alt_ft);
+    var vs_l  = v_stall_flaps(self, FLAPS_LANDING, alt_ft);
+    return { vs0: v_stall_flaps(self, 0.0, alt_ft), vs_to: vs_to, vs_land: vs_l,
+             vr: VR_FACTOR * vs_to, v2: V2_FACTOR * vs_to, vref: VREF_FACTOR * vs_l, vfe: flap_max_speed(self) };
+};
+
 # Zero-lift drag now: clean, or blended towards the brake value by the deployment fraction self.brake (0..1).
 var cd0_now = func(self) {
-    if (C_D0_BRAKE == nil) return C_D0;
-    return C_D0 + (self.brake or 0.0) * (C_D0_BRAKE - C_D0);
+    var cd0 = C_D0 * (1.0 + (self["flaps"] or 0.0) * (flap_cd0_mult(self) - 1.0));   #CLAUDE~ 0.8.0: flaps multiply the clean value
+    if (C_D0_BRAKE == nil) return cd0;                                                 #CLAUDE~ 0.8.0: was return C_D0
+    return cd0 + (self.brake or 0.0) * (C_D0_BRAKE - C_D0);                           #CLAUDE~ 0.8.0: was C_D0 + ...
 };
 var A_STALL_POS = (CL_MAX - C_L_vmax) / CL_ALPHA;   # rad
 var A_STALL_NEG = -(CL_MAX + C_L_vmax) / CL_ALPHA;  # rad
@@ -2922,6 +3204,14 @@ var create_aircraft_state = func(callsign, initial_lat, initial_lon, initial_alt
 
         brake: 0.0,        #CLAUDE+ 0.6.0: air-brake deployment 0..1 (moves towards brake_cmd)
         brake_cmd: 0,      #CLAUDE+ 0.6.0: 1 = brakes commanded out; cruise() resets it to 0
+        flaps: 0.0,        #CLAUDE+ 0.8.0: flap deployment 0..1, moves towards flaps_cmd
+        flaps_cmd: 0.0,    #CLAUDE+ 0.8.0: commanded flap fraction: 0, FLAPS_TAKEOFF or FLAPS_LANDING
+        wheel_brake: 0.0,  #CLAUDE+ 0.8.0: wheel brakes 0..1, acting only on the ground
+        ground_ft: nil,    #CLAUDE+ 0.8.0: ground height under the aircraft, ft MSL; nil = no ground, the behaviour before 0.8.0
+        on_ground: 0,      #CLAUDE+ 0.8.0: 1 while the wheels are on the ground
+        wheel_load_N: 0.0, #CLAUDE+ 0.8.0: normal force on the wheels
+        touchdown: nil,    #CLAUDE+ 0.8.0: the last touchdown: sink_mps, speed_mps, pitch, roll, t, hard
+        runway: nil,       #CLAUDE+ 0.8.0: the runway record the aircraft was placed on or is landing on
         aerobatic: 0, # flag to enable aerobgatic performance
         manoeuvre: nil,
         projectiles: [],   #CLAUDE+ 0.7.0: projectiles in flight (release_projectile)
@@ -2947,7 +3237,7 @@ var apt = airportinfo(airport_id);
 
 var init_lat = 37.61899; # Fallback latitude
 var init_lon = -122.3749; # Fallback longitude
-var init_alt_ft = 2013.0; # Fallback altitude (+5000ft over sea level)
+var init_alt_ft = 5000.0; # Fallback altitude (+5000ft over sea level)
 
 if (apt != nil and size(apt.runways) > 0) {
     var runways_list = values(apt.runways);
@@ -2963,7 +3253,7 @@ if (apt != nil and size(apt.runways) > 0) {
     print("fSim.nas: Warning - Could not load airport " ~ airport_id ~ ", using default fallback coordinates.");
 }
 
-# Initial flight parameters for level flight northwards (Heading 0°, Speed 250 kts)
+# Initial flight parameters for level flight
 var init_hdg = 200.0;
 var init_speed = 300.0; # knots
 var init_throttle = 1.0;
@@ -3167,9 +3457,14 @@ foreach (var path; paths) {
 # Call from the listeners on the model's controls node. One manoeuvre at a time.
 # Returns the manoeuvre hash, or nil if it was refused or one is already running.
 
+var GROUND_MANOEUVRES = { takeoff: 1 };   #CLAUDE+ 0.8.0: manoeuvres that may start on the ground; takeoff comes in 0.8.1
 var start_manoeuvre = func(mname, self, name, opts = nil) {
     if (self.manoeuvre != nil) {
         print("Manoeuvre " ~ self.manoeuvre.name ~ " is already running");
+        return nil;
+    }
+    if (self["on_ground"] and !contains(GROUND_MANOEUVRES, name)) {   #CLAUDE+ 0.8.0
+        print("Manoeuvre " ~ name ~ " refused: the aircraft is on the ground");
         return nil;
     }
     var ret = nil;
@@ -3628,6 +3923,140 @@ var test_predict_dive = func(opts = nil) {
         }
         print(sprintf("  %2.0f deg difference: x_trig %+.1f m, t_trig %+.2f s, base %+.1f m, v_trig %+.2f m/s; steps %.0f %% of fixed",
                       a, ad.x_trig - f.x_trig, ad.t_trig - f.t_trig, ad.base_agl - f.base_agl, ad.v_trig - f.v_trig, 100.0 * ad.steps / math.max(f.steps, 1)));
+    }
+};
+
+########################## ground physics tests (0.8.0) ###########################
+#CLAUDE+ TEST CODE, not part of the flight model. Both tests put the aircraft on a runway of the chosen airport and drive it with a small test manoeuvre.
+#CLAUDE+ fSim.test_accel_stop(opts): accelerate at full throttle with the flaps set, wheels on the ground and pitch 0, to v_stop, then idle and full
+#CLAUDE+   wheel brakes to a stop. Prints the time and distance of each part against an independent integration of the same force model.
+#CLAUDE+   opts: icao, default the airport nearest the aircraft; runway, an id, default the end best aligned with the present heading;
+#CLAUDE+   flaps, a fraction, default FLAPS_TAKEOFF; v_stop in m/s, default Vr.
+#CLAUDE+ fSim.test_touchdown(opts): start height_ft above the runway at Vref with landing flap, descend on a constant path angle that gives sink_mps,
+#CLAUDE+   with no flare, then brake to a stop. Prints the touchdown record and the roll-out distance. opts: icao, runway, height_ft 50, sink_mps 2,
+#CLAUDE+   offset_m 300. Try sink_mps 4 to see the hard-landing report.
+var test_ground_runway = func(st, opts) {
+    var apt = airport_of(st, opts["icao"]);
+    if (apt == nil) return nil;
+    return (opts["runway"] != nil) ? runway_by_id(apt, opts["runway"]) : runway_best_aligned(apt, st.hdg);
+};
+
+# Distance along the runway heading from (lat0, lon0) to the aircraft, m.
+var test_along = func(st, lat0, lon0, hdg) {
+    var pos = own_position(st);
+    var en  = local_en(lat0, lon0, pos.lat, pos.lon);
+    return en.e * math.sin(hdg * D2R) + en.n * math.cos(hdg * D2R);
+};
+
+# Independent ground-roll integration at 0.05 s steps: pitch 0, so alpha 0 and CL = C_L_vmax x flap multiplier. Returns { t, s }.
+var test_roll_expected = func(st, f, v0, v1, thr, mu, elev_ft) {
+    var rho = air_density(elev_ft * 0.3048);
+    var S = st.perf.wing_area_m2;  var m = st.perf.mass_kg;
+    var probe = { alt_ft: elev_ft, perf: st.perf, flaps: f, brake: 0.0 };
+    var CL = C_L_vmax * cl_mult_now(probe);
+    var cd = cd0_now(probe) + K_IND * CL * CL;
+    var v = v0;  var t = 0.0;  var x = 0.0;  var dt = 0.05;
+    while (t < 600.0) {
+        var qS = 0.5 * rho * v * v * S;
+        var a  = (thr * thrust_at(st, v, rho) - qS * cd - mu * math.max(weight_N - qS * CL, 0.0)) / m;
+        var vn = v + a * dt;
+        if ((v1 > v0 and vn >= v1) or (v1 < v0 and vn <= v1)) {
+            var fr = (v1 - v) / (vn - v);
+            return { t: t + fr * dt, s: x + fr * dt * 0.5 * (v + v1) };
+        }
+        if (a == 0.0) break;
+        x += 0.5 * (v + vn) * dt;  v = vn;  t += dt;
+    }
+    return { t: t, s: x };
+};
+
+var test_accel_stop = func(opts = nil) {
+    opts = opts or {};
+    var st = fS.state;
+    if (st.manoeuvre != nil) { print("test_accel_stop: manoeuvre " ~ st.manoeuvre.name ~ " is running"); return nil; }
+    var rec = test_ground_runway(st, opts);
+    if (rec == nil) return nil;
+    var f  = (opts["flaps"] != nil) ? opts["flaps"] : FLAPS_TAKEOFF;
+    st = place_on_runway(st, rec, 0.0, 0.0, 0.0);
+    st.flaps = f;  st.flaps_cmd = f;
+    var sp = flight_speeds(st, rec.elev_ft);
+    var v_stop = opts["v_stop"] or sp.vr;
+    st.manoeuvre = { name: "accel_stop", phase: "accel", t: 0.0, v_stop: v_stop, f: f, rec: rec, t_acc: 0.0, s_acc: 0.0, v_max: 0.0, n_max: 0.0,
+                     update: update_test_accel_stop };
+    print(sprintf("TEST accel_stop on %s %s, ground %.0f ft: flaps %.2f, accelerate to %.1f m/s (Vr %.1f), then brake", rec.icao, rec.id, rec.elev_ft, f, v_stop, sp.vr));
+    return st.manoeuvre;
+};
+
+var update_test_accel_stop = func(self, dt) {
+    var m = self.manoeuvre;
+    m.t += dt;
+    self.tgt_roll = 0.0;  self.tgt_pitch = 0.0;
+    var v = self.speed * kts_to_mps;
+    var s = test_along(self, m.rec.lat, m.rec.lon, m.rec.heading);
+    if (!self.on_ground) { print(sprintf("TEST accel_stop: left the ground at %.1f m/s, %.0f m: stopped", v, s));  self.manoeuvre = nil;  return; }
+    if (m.t > 600.0)     { print("TEST accel_stop: timeout");  self.manoeuvre = nil;  return; }
+    if (m.phase == "accel") {
+        self.throttle = 1.0;  self.wheel_brake = 0.0;
+        if (v >= m.v_stop) {
+            m.phase = "brake";  m.t_acc = m.t;  m.s_acc = s;  m.v_max = v;  m.t = 0.0;
+            print(sprintf("TEST accel_stop: %.1f m/s after %.1f s and %.0f m; braking", v, m.t_acc, s));
+        }
+        return;
+    }
+    self.throttle = 0.0;  self.wheel_brake = 1.0;
+    if (v < GROUND_STOP_MPS) {
+        var ea = test_roll_expected(self, m.f, 0.0, m.v_stop, 1.0, GROUND_MU_ROLL, m.rec.elev_ft);
+        var eb = test_roll_expected(self, m.f, m.v_max, 0.0, 0.0, GROUND_MU_BRAKE, m.rec.elev_ft);
+        print(sprintf("TEST accel_stop results: accelerate %.1f s, %.0f m (expected %.1f s, %.0f m); brake from %.1f m/s %.1f s, %.0f m (expected %.1f s, %.0f m); total %.0f m of %.0f m",
+                      m.t_acc, m.s_acc, ea.t, ea.s, m.v_max, m.t, s - m.s_acc, eb.t, eb.s, s, m.rec.length_m));
+        self.manoeuvre = nil;
+    }
+};
+
+var test_touchdown = func(opts = nil) {
+    opts = opts or {};
+    var st = fS.state;
+    if (st.manoeuvre != nil) { print("test_touchdown: manoeuvre " ~ st.manoeuvre.name ~ " is running"); return nil; }
+    var rec = test_ground_runway(st, opts);
+    if (rec == nil) return nil;
+    var sp   = flight_speeds(st, rec.elev_ft);
+    var hgt  = opts["height_ft"] or 50.0;
+    var sink = opts["sink_mps"] or 2.0;
+    var off  = (opts["offset_m"] != nil) ? opts["offset_m"] : 300.0;
+    st = place_on_runway(st, rec, off, hgt, sp.vref);
+    st.flaps = FLAPS_LANDING;  st.flaps_cmd = FLAPS_LANDING;
+    st.v_up = -sink;
+    st.manoeuvre = { name: "touchdown_test", phase: "descend", t: 0.0, sink: sink, v: sp.vref, rec: rec, s_td: 0.0, update: update_test_touchdown };
+    print(sprintf("TEST touchdown on %s %s: from %.0f ft at Vref %.1f m/s, sinking %.1f m/s, no flare", rec.icao, rec.id, hgt, sp.vref, sink));
+    return st.manoeuvre;
+};
+
+var update_test_touchdown = func(self, dt) {
+    var m = self.manoeuvre;
+    m.t += dt;
+    self.tgt_roll = 0.0;
+    var v = self.speed * kts_to_mps;
+    if (m.t > 300.0) { print("TEST touchdown: timeout");  self.manoeuvre = nil;  return; }
+    if (m.phase == "descend") {
+        if (self.on_ground) {
+            m.phase = "rollout";  m.t = 0.0;
+            m.s_td = test_along(self, m.rec.lat, m.rec.lon, m.rec.heading);
+        } else {
+            hold_speed(self, m.v);
+            var v_h  = math.sqrt(self.v_east * self.v_east + self.v_north * self.v_north);
+            var gcmd = math.atan2(-m.sink, math.max(v_h, 1.0));
+            var gdot = math.clamp(0.8 * (gcmd - (self.gamma_deg or 0.0) * D2R), -0.5, 0.5);
+            command_path(self, math.max(v, 1.0), gdot, 0, dt, 0);
+            return;
+        }
+    }
+    self.throttle = 0.0;  self.wheel_brake = 1.0;  self.tgt_pitch = 0.0;  self.flaps_cmd = 0.0;
+    if (v < GROUND_STOP_MPS) {
+        var s = test_along(self, m.rec.lat, m.rec.lon, m.rec.heading);
+        var td = self.touchdown;
+        print(sprintf("TEST touchdown results: touchdown %.0f m from the runway end at %.1f m/s sinking %.2f m/s%s; stopped %.0f m later after %.1f s, %.0f m from the end",
+                      m.s_td, (td == nil) ? 0.0 : td.speed_mps, (td == nil) ? 0.0 : td.sink_mps, (td != nil and td.hard) ? " HARD" : "", s - m.s_td, m.t, s));
+        self.manoeuvre = nil;
     }
 };
 
