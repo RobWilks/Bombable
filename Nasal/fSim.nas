@@ -27,6 +27,10 @@
 
 
 #CLAUDE+ Change log (newest first):
+#CLAUDE+   0.7.4.4 predict_dive takes adaptive steps: 0.05 s while the path, the brakes or the pull-out are changing, up to 0.5 s in the steady dive
+#CLAUDE+          with at most a 2 % speed change per step, and the step that reaches the pull-out height lands on it; DIVE_PRED_ADAPTIVE = 0 restores the
+#CLAUDE+          fixed steps; result gains steps. Test code fSim.test_predict_dive compares both. Reposition: a heading change over NAV_REPO_TURN_DEG
+#CLAUDE+          in reposition_out is turned towards the offset line, no longer the shorter way
 #CLAUDE+   0.7.4.3 test code only: test_lineup_mc, a Monte Carlo bench of the line-up errors at the gate from randomly dispersed starts, run through the series
 #CLAUDE+          runner with a seeded generator, so a seed repeats its cases; prints one MC line per case and the statistics. No change to the flight model
 #CLAUDE+   0.7.4.2.2 reposition: the aircraft now reaches the start point outbound along the offset line before turning back; it flew direct to the point
@@ -87,7 +91,7 @@
 #CLAUDE+          auto_throttle, speed hold) runs after every manoeuvre and restores the pre-manoeuvre throttle mode; set_targets gains spd
 #CLAUDE+   0.2.0  cleanup of start_loop defaults, speed floors, monitor nil guard, unknown-model message, optional perf keys, version number
 #CLAUDE+   0.1.0  baseline as uploaded
-var FSIM_VERSION = "0.7.4.3";
+var FSIM_VERSION = "0.7.4.4";
 # Explicitly define fS
 var fS = {
     version: FSIM_VERSION,
@@ -1471,15 +1475,30 @@ var update_projectiles = func(self, dt) {
 
 var DIVE_ZOOM_A_MAX = 5.0;      # m/s^2 deceleration the zoom may use to trade speed for height
 
+#CLAUDE+ 0.7.4.4: adaptive steps. The dive approach repeats this prediction every DIVE_AIM_DT, and with fixed 0.05 s steps a long dive took
+#CLAUDE+ thousands of steps in one tick, the source of the control-time outliers in the profiler. Steps stay at DIVE_PRED_DT_MIN while the path
+#CLAUDE+ angle or the brakes are moving and in the pull-out; in this version that is the fixed step, so it can be raised separately. In the steady dive a step may grow to DIVE_PRED_DT_MAX, limited so the speed changes by
+#CLAUDE+ at most DIVE_PRED_DV_FRAC, and the step that reaches the pull-out height is cut to land on it. DIVE_PRED_ADAPTIVE = 0, or the
+#CLAUDE+ argument adaptive = 0, restores the fixed steps for comparison; fSim.test_predict_dive() prints both.
+var DIVE_PRED_DT_FIXED = 0.05;    # s   the fixed step of 0.7.3 and earlier, used when adaptive = 0
+var DIVE_PRED_DT_MIN   = 0.05;    # s   adaptive: step while anything is changing quickly; 0.1 halves the steps again for about 7 m on x_trig
+var DIVE_PRED_DT_MAX   = 0.5;     # s   longest step in the steady dive
+var DIVE_PRED_DV_FRAC  = 0.02;    #     a long step changes the speed by at most this fraction
+var DIVE_PRED_GDOT_MAX = 0.002;   # rad/s  the path counts as steady below this rotation rate
+var DIVE_PRED_ADAPTIVE = 1;       #     0 = fixed DIVE_PRED_DT_FIXED steps everywhere
+
 # Point-mass prediction of the whole dive from the present state: pushover, dive to the pull-out height, pull-out.
 # Returns { ok, why, v_trig, g_trig_deg, loss (m), base_agl (m), v_base, t }.
-var predict_dive = func(self, m) {
+var predict_dive = func(self, m, adaptive = nil) {   #CLAUDE~ 0.7.4.4: argument adaptive, default DIVE_PRED_ADAPTIVE
+    if (adaptive == nil) adaptive = DIVE_PRED_ADAPTIVE;
     var S = self.perf.wing_area_m2;
     var mass = self.perf.mass_kg;
     var n_cap = math.min(m.n_pull, 0.9 * (self.perf["n_max_pos"] or 6.0));
     var rate  = (self.perf["max_pitch_rate_aero"] or 30.0) * D2R;
     var floor_v = 0.5 * v_stall_1g(self);
-    var dt = 0.05;
+    var dt = DIVE_PRED_DT_FIXED;   #CLAUDE~ 0.7.4.4: was 0.05; now varies, see below
+    var steps = 0;               #CLAUDE+ 0.7.4.4
+    var h_tol = adaptive ? 0.5 : 0.0;   #CLAUDE+ 0.7.4.4: m; the step cut to the pull-out height can land a fraction of a metre short of it
     var v  = math.max(self.speed * kts_to_mps, floor_v);
     var gm = (self.gamma_deg or 0.0) * D2R;
     var z  = self.alt_ft * 0.3048;
@@ -1491,9 +1510,9 @@ var predict_dive = func(self, m) {
     while (t < 240.0 and !done) {
         var rho = air_density(z);
         var qS  = 0.5 * rho * v * v * S;
-        if (!pulling and h <= h_pull) { pulling = 1; v_trig = v; g_trig = gm; h_trig = h; x_trig = x; t_trig = t; z_trig = z; }   #CLAUDE~ 0.7.1: also x_trig, t_trig, z_trig
-        brake = math.clamp(pulling ? 0.0 : 1.0, brake - dt / DIVE_BRAKE_TIME, brake + dt / DIVE_BRAKE_TIME);
-        var T = 0.0;  var gdot = 0.0;
+        if (!pulling and h <= h_pull + h_tol) { pulling = 1; v_trig = v; g_trig = gm; h_trig = h; x_trig = x; t_trig = t; z_trig = z; }   #CLAUDE~ 0.7.1: also x_trig, t_trig, z_trig
+        var bt = pulling ? 0.0 : 1.0;   #CLAUDE+ 0.7.4.4: brake target, so that a steady brake can be recognised before the step is chosen
+        var T = 0.0;  var gdot = 0.0;   #CLAUDE~ 0.7.4.4: the brake update moved below the choice of step
         if (pulling) {
             var n_t = math.min(n_cap, 0.85 * qS * CL_MAX / weight_N);
             gdot = math.min(g * (n_t - math.cos(gm)) / v, rate);
@@ -1503,6 +1522,21 @@ var predict_dive = func(self, m) {
             gdot = math.clamp(0.8 * (-m.theta - gm), -0.35, 0.35);
             gdot = math.max(gdot, g * (m.n_push - math.cos(gm)) / v);
         }
+        #CLAUDE+ 0.7.4.4: the step. Long only in the steady dive: path not rotating, brakes at their target, pull-out not started.
+        dt = adaptive ? DIVE_PRED_DT_MIN : DIVE_PRED_DT_FIXED;
+        if (adaptive and !pulling and math.abs(gdot) < DIVE_PRED_GDOT_MAX and math.abs(brake - bt) < 1.0e-6) {
+            var n0  = math.cos(gm);
+            var CL0 = n0 * weight_N / math.max(qS, 1.0);
+            var D0  = qS * (C_D0 + brake * (C_D0_BRAKE - C_D0) + K_IND * CL0 * CL0);
+            var acc = (T - D0) / mass - g * math.sin(gm);
+            dt = DIVE_PRED_DT_MAX;
+            if (math.abs(acc) > 1.0e-6) dt = math.min(dt, DIVE_PRED_DV_FRAC * v / math.abs(acc));
+            dt = math.max(dt, DIVE_PRED_DT_MIN);
+            var vz = v * math.sin(gm);
+            if (vz < -0.1) dt = math.min(dt, math.max((h - h_pull) / -vz, 0.001));   # land on the pull-out height
+        }
+        brake = math.clamp(bt, brake - dt / DIVE_BRAKE_TIME, brake + dt / DIVE_BRAKE_TIME);
+        steps += 1;
         var n  = v * gdot / g + math.cos(gm);
         var CL = n * weight_N / math.max(qS, 1.0);
         var D  = qS * (C_D0 + brake * (C_D0_BRAKE - C_D0) + K_IND * CL * CL);
@@ -1515,7 +1549,7 @@ var predict_dive = func(self, m) {
         if (pulling and gm > -0.035) done = 1;
     }
     var r = { ok: 1, why: "", v_trig: v_trig, g_trig_deg: g_trig * R2D, loss: h_trig - h, base_agl: h, v_base: v, t: t,
-              trig: pulling, x_trig: x_trig, t_trig: t_trig, z_trig: z_trig };   #CLAUDE~ 0.7.1: trig = 1 if the pull-out point was reached; x_trig (m) and t_trig (s) from now to it, z_trig its height MSL (m)
+              trig: pulling, x_trig: x_trig, t_trig: t_trig, z_trig: z_trig, steps: steps };   #CLAUDE~ 0.7.4.4: steps added; 0.7.1: trig = 1 if the pull-out point was reached; x_trig (m) and t_trig (s) from now to it, z_trig its height MSL (m)
     if (!pulling) {
         r.ok = 0;  r.why = "never reaches the pull-out height";
     } else if (math.abs(g_trig + m.theta) > 5.0 * D2R) {
@@ -1907,6 +1941,7 @@ var NAV_REPO_OFFSET_R = 2.0;    #      reposition: start point offset from the l
 var NAV_REPO_INBOUND_DEG = 20.0; # deg reposition: the turn onto the course ends, and phase 0 is checked, within this of the course   #CLAUDE+ 0.7.4.2
 var NAV_REPO_ON_LINE_R = 0.5;   #      reposition: the turn back starts only within this many turn radii of the offset line   #CLAUDE+ 0.7.4.2.2
 var NAV_REPO_OUT_DEG = 30.0;    # deg  reposition: and only within this of the outbound direction   #CLAUDE+ 0.7.4.2.2
+var NAV_REPO_TURN_DEG = 90.0;   # deg  reposition: a heading change larger than this is turned towards the offset line   #CLAUDE+ 0.7.4.4
 var NAV_REPO_TIMEOUT_S = 600.0; # s    reposition: abort and go around if the line has not been reached by then   #CLAUDE+ 0.7.4.2
 
 var nav_tan = func(deg) { var r = deg * D2R; return math.sin(r) / math.cos(r); };
@@ -2177,7 +2212,7 @@ var nav_start_reposition = func(self, m, nl, reason) {
     var side = (nl.xt >= 0.0) ? 1.0 : -1.0;
     var d    = math.max(NAV_REPO_LEAD_S * (v - nl.w_al), 3.0 * R);
     m.repo = { x: -m.gate_m - d, xt: side * NAV_REPO_OFFSET_R * R, side: side, R: R, d: d,
-               dh_ft: d * nav_tan(m.glide) * 3.28084, t: 0.0, dir: side };
+               dh_ft: d * nav_tan(m.glide) * 3.28084, t: 0.0, dir: side, turn_dir: 0 };   #CLAUDE~ 0.7.4.4: turn_dir, the direction of a large turn in reposition_out
     m.repos_left -= 1;  m.repos_used += 1;  m.repos_reason = reason;
     m.phase = "reposition_out";  m.log_t = m.t;
     self.aerobatic = 0;  self.brake_cmd = 0;
@@ -2208,7 +2243,20 @@ var nav_reposition = func(self, m, nl, dt) {
         var togo = nl.x - rp.x;                                   # m still to fly outbound to the start point; negative once past it
         var back = math.abs(wrap180(self.hdg - out));
         if (togo > 0.0 or math.abs(d) > NAV_REPO_ON_LINE_R * rp.R or back > NAV_REPO_OUT_DEG) {
-            nav_steer(self, wrap360(nav_crab(out * D2R - ang, nl.tl, vh) * R2D), alt, dt);
+            var hcmd = wrap360(nav_crab(out * D2R - ang, nl.tl, vh) * R2D);
+            #CLAUDE+ 0.7.4.4: a large heading change is turned towards the offset line, not the shorter way: the turn moves the aircraft about
+            #CLAUDE+ 2 turn radii sideways, and the shorter way could carry it across the line and off the far side, as in test cases 4 and 5.
+            #CLAUDE+ A right turn moves the aircraft right of the course while it heads inbound and left while it heads outbound, so the side it
+            #CLAUDE+ moves to has the sign of cos of the heading from the course. The direction is kept until the turn still to go is below the threshold.
+            var err = wrap180(hcmd - self.hdg);
+            if (rp.turn_dir == 0 and math.abs(err) > NAV_REPO_TURN_DEG)
+                rp.turn_dir = (math.cos((self.hdg - nl.course) * D2R) * (-d) >= 0.0) ? 1.0 : -1.0;
+            if (rp.turn_dir != 0) {
+                var left = wrap360(rp.turn_dir * (hcmd - self.hdg));      # turn still to go in the chosen direction
+                if (left < NAV_REPO_TURN_DEG or left > 350.0) rp.turn_dir = 0;
+                else hcmd = wrap360(self.hdg + rp.turn_dir * math.min(90.0, left));
+            }
+            nav_steer(self, hcmd, alt, dt);
             hold_speed(self, m.v_lineup);
             if (m.t - m.log_t >= NAV_LOG_DT) {
                 m.log_t = m.t;
@@ -2550,7 +2598,7 @@ var animationManager = {
 
 
 # 1. Performance Profile & Force Coefficients
-var modelName = "/spitfireXVI";
+var modelName = "/ju87";
 
 
 ###########################################################
@@ -2899,7 +2947,7 @@ var apt = airportinfo(airport_id);
 
 var init_lat = 37.61899; # Fallback latitude
 var init_lon = -122.3749; # Fallback longitude
-var init_alt_ft = 2013.0; # Fallback altitude (+5000ft over sea level)
+var init_alt_ft = 5000.0; # Fallback altitude (+5000ft over sea level)
 
 if (apt != nil and size(apt.runways) > 0) {
     var runways_list = values(apt.runways);
@@ -2909,17 +2957,17 @@ if (apt != nil and size(apt.runways) > 0) {
     init_lon = first_rwy.lon;
 
     var apt_elev_ft = apt.elevation * 3.28084 or 0.0;
-    init_alt_ft = apt_elev_ft + 2000.0;
+    init_alt_ft = apt_elev_ft + 5000.0;
     print("fSim.nas: Initialized position from " ~ airport_id ~ " Runway threshold at Lat: " ~ init_lat ~ ", Lon: " ~ init_lon);
 } else {
     print("fSim.nas: Warning - Could not load airport " ~ airport_id ~ ", using default fallback coordinates.");
 }
 
-# Initial flight parameters for level flight northwards (Heading 0°, Speed 250 kts)
-var init_hdg = 200.0;
-var init_speed = 300.0; # knots
+# Initial flight parameters for level flight
+var init_hdg = 180.0;
+var init_speed = 175.0; # knots
 var init_throttle = 1.0;
-var init_rpm = 3500;
+var init_rpm = 2800;
 
 ########################## Initialize model ###########################
 
@@ -3551,6 +3599,36 @@ var test_lineup_mc = func(n = 30, seed = 1, mopts = nil) {
     var cases = test_lineup_mc_cases(fS.state, n, mopts);
     test_lineup_mc_run.cases = cases;
     return run_series("lineup", cases, { max_s: 900, on_done: test_lineup_mc_report });
+};
+
+########################## predict_dive comparison (0.7.4.4) ###########################
+#CLAUDE+ TEST CODE, not part of the flight model. fSim.test_predict_dive(opts) runs predict_dive from the present state with fixed steps and with adaptive
+#CLAUDE+ steps, for dive angles 50, 60, 70 and 80 degrees, and prints both results, the number of steps and the time each took.
+#CLAUDE+ opts: pullout_agl_ft 2000, ground_ft 0, clearance_ft 300, n_push -1, n_pull 99, angles: a vector of dive angles. Profiles without
+#CLAUDE+ terminal_speed_mps cannot dive. Fly level and well above the pull-out height first, as the dive approach does.
+var test_predict_dive = func(opts = nil) {
+    opts = opts or {};
+    var st = fS.state;
+    if (C_D0_BRAKE == nil) {
+        print("test_predict_dive: this profile has no terminal_speed_mps");
+        return nil;
+    }
+    var angles = opts["angles"] or [50.0, 60.0, 70.0, 80.0];
+    print(sprintf("PREDICT_DIVE TEST at %.0f ft, %.0f m/s, path %.1f deg; adaptive steps %.2f to %.2f s, speed change %.0f %% per step",
+                  st.alt_ft, st.speed * kts_to_mps, st.gamma_deg or 0.0, DIVE_PRED_DT_MIN, DIVE_PRED_DT_MAX, 100.0 * DIVE_PRED_DV_FRAC));
+    foreach (var a; angles) {
+        var m = { theta: a * D2R, ground_ft: opts["ground_ft"] or 0.0, h_pull_ft: opts["pullout_agl_ft"] or 2000.0,
+                  clearance_ft: opts["clearance_ft"] or 300.0, n_push: (opts["n_push"] != nil) ? opts["n_push"] : -1.0, n_pull: opts["n_pull"] or 99.0 };
+        var t0 = systime();  var f  = predict_dive(st, m, 0);  var t1 = systime();
+        var ad = predict_dive(st, m, 1);                        var t2 = systime();
+        foreach (var r; [["fixed", f, t1 - t0], ["adaptive", ad, t2 - t1]]) {
+            var p = r[1];
+            print(sprintf("  %2.0f deg %-8s v_trig %6.2f  path %6.2f  x_trig %7.1f  t_trig %6.2f  z_trig %7.1f  loss %6.1f  base %6.1f m  v_base %6.2f  t %6.2f  steps %5d  %7.2f ms  %s",
+                          a, r[0], p.v_trig, p.g_trig_deg, p.x_trig, p.t_trig, p.z_trig, p.loss, p.base_agl, p.v_base, p.t, p.steps, 1000.0 * r[2], p.ok ? "OK" : p.why));
+        }
+        print(sprintf("  %2.0f deg difference: x_trig %+.1f m, t_trig %+.2f s, base %+.1f m, v_trig %+.2f m/s; steps %.0f %% of fixed",
+                      a, ad.x_trig - f.x_trig, ad.t_trig - f.t_trig, ad.base_agl - f.base_agl, ad.v_trig - f.v_trig, 100.0 * ad.steps / math.max(f.steps, 1)));
+    }
 };
 
 register_manoeuvre_listeners(modelName, fS.state);

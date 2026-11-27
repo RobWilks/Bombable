@@ -1736,3 +1736,13 @@ fSim.fS.get_state();
 
 fSim.test_reposition();          # all nine cases
 fSim.test_reposition([3, 5]);    # only the cases you list
+
+
+fSim.DIVE_PRED_DT_MIN = 0.05;
+fSim.DIVE_PRED_ADAPTIVE = 1;
+fSim.test_predict_dive();
+
+fSim.DIVE_PRED_ADAPTIVE = 1;
+fSim.fS.prof.start();
+fSim.run_series("dive", fSim.series_cases("dive_angle_deg", [50, 60, 70, 80], {pullout_agl_ft: 2000, reference: "/ai/models/ship[0]"}));
+fSim.fS.prof.stop();

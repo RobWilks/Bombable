@@ -14,7 +14,7 @@
       <latitude type="double">43.328660</latitude>
       <longitude type="double">5.202022</longitude>
       <altitude>-3</altitude>
-      <speed>25.0</speed>
+      <speed>0.1</speed>
       <heading type="double">180</heading>
     </entry>
     <entry>
