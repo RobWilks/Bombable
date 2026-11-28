@@ -1775,4 +1775,14 @@ fSim.takeoff({ icao: "LFLJ", runway: "31R", alt_ft: 3000 });
 
 =======================================
 
-fSim.perf_check(opts);
+fSim.perf_check();
+
+=======================================
+
+fSim.fS.state.monitor = 1;
+# fSim.test_landing({ icao: "LFML", runway: "31R" });
+# fSim.takeoff({ place: 0 });
+
+
+=======================================
+fSim.camera_track("full");

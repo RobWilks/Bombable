@@ -27,6 +27,32 @@
 
 
 #CLAUDE+ Change log (newest first):
+#CLAUDE+   0.8.2.5 chase camera: the root is set CAMERA_ROOT_FRAMES frames after view 101 is selected, was 0.1 s, which showed the UFO briefly, and is
+#CLAUDE+          checked for CAMERA_ROOT_CHECK_FRAMES frames in case the view initialises later. The on_frame hook is also called by the physics tick
+#CLAUDE+          when it writes the model's orientation: in a hard bank the camera kept the extrapolated values for that frame while the model showed
+#CLAUDE+          the physics values, a jitter at 6 Hz that grew with the turn rate
+#CLAUDE+   0.8.2.4 chase camera: FlightGear re-initialises view 101 whenever it is selected, and the re-initialised root no longer finds the proxy, so
+#CLAUDE+          after cycling views the AI view showed the UFO. A listener on the current view sets config/root again, after the same 0.1 s delay, each
+#CLAUDE+          time view 101 is selected. The proxy is filled by the animation manager, through a new optional per-object hook on_frame, in step with
+#CLAUDE+          the model and without a timer of its own
+#CLAUDE+   0.8.2.3 chase camera, second attempt: 0.8.2.2 left the camera on the UFO, because selecting the view again reset its config/root. The view
+#CLAUDE+          root is now a proxy node, as in gui_ai_views.nas, which a frame timer fills from the model: position and heading always, pitch and roll
+#CLAUDE+          only with fSim.camera_track("full"). The eye pitch and roll paths are no longer touched and the view is not selected again
+#CLAUDE+   0.8.2.2 chase camera follows the heading only, not pitch and roll: setup_fSim_chase_view points the view's eye pitch and roll paths at a
+#CLAUDE+          property held at 0; console helper fSim.camera_track("heading" or "full") switches between that and the original tracking
+#CLAUDE+   0.8.2.1 from the first landing log. The touchdown is recorded whenever the wheels make contact, also when a step ends inside the
+#CLAUDE+          GROUND_CONTACT_FT band above the ground: the second landing had no touchdown record and reported a sink of 0. The line-up gate starts
+#CLAUDE+          its successor without the cruise tick, which flew one tick at full throttle towards the old speed target, a 0.90 g dip. The
+#CLAUDE+          flare commands its sink rate relative to the sloping runway, smoothly, sqrt((h/tau)^2 + td^2), and land_flare_shift_m allows for
+#CLAUDE+          the slope; on LFML 31R, falling 2 percent, the flare floated 330 m. update_pitch_target restarts its smoothed path angle from the path
+#CLAUDE+          flown and limits a steepening descent like a steepening climb, the 0.33 g push at the start of the line-up. Spitfire XVI
+#CLAUDE+          thrust_speed_exp 0.82; the monitor shows the flap position
+#CLAUDE+   0.8.2  landing on a runway: start_landing chooses the runway, sets landing flap and flies a line-up to the gate at RUNWAY_GATE_AGL_FT on the
+#CLAUDE+          RUNWAY_GLIDE_DEG glide path, then the new land manoeuvre: final approach with stabilised-approach checks, exponential flare to
+#CLAUDE+          LAND_TD_SINK_MPS, the glide path aimed land_flare_shift_m short of the aim point so the touchdown is at it, touchdown, braked roll-out, stop held on the runway; go-around from final, from a float, or on timeout. Result in
+#CLAUDE+          last_land. start_lineup takes opts.flaps. nav_goaround sets go-around flap and raises it at the end. Take-off: the climb law's
+#CLAUDE+          smoothed path angle starts from the actual path at lift-off, the 1.58 g after lift-off; clean-up starts before the flap limit speed.
+#CLAUDE+          Shared helpers climb_out_steer and airborne_handback. Console fSim.landing(opts) and test code test_landing(opts)
 #CLAUDE+   0.8.1.3 takeoff_handback resets the climb law's smoothed path angle to the actual path angle, which removes the 1.31 g pull at the hand-over.
 #CLAUDE+          New console helper perf_check(opts) prints static thrust, T/W, C_D0, the model's best climb and Vy against the published climb_rate,
 #CLAUDE+          for the profile as loaded, for a static thrust or engine power given in opts, and for the max_thrust_N that matches the climb_rate
@@ -116,7 +142,7 @@
 #CLAUDE+          auto_throttle, speed hold) runs after every manoeuvre and restores the pre-manoeuvre throttle mode; set_targets gains spd
 #CLAUDE+   0.2.0  cleanup of start_loop defaults, speed floors, monitor nil guard, unknown-model message, optional perf keys, version number
 #CLAUDE+   0.1.0  baseline as uploaded
-var FSIM_VERSION = "0.8.1.3";
+var FSIM_VERSION = "0.8.2.5";
 # Explicitly define fS
 var fS = {
     version: FSIM_VERSION,
@@ -549,7 +575,10 @@ var update_pitch_target = func(self, dt, v_ref = nil) {
     # manoeuvre has been running instead of this law.
     var now = self.time or 0.0;
     if (self.gamma_cmd_f == nil or now - (self.gamma_cmd_t or 0.0) > 1.0) {
-        self.gamma_cmd_f = gamma_cmd;
+#CLAUDE-        self.gamma_cmd_f = gamma_cmd;
+        #CLAUDE~ 0.8.2.1: restart from the path flown, not from the command: at the start of the landing line-up the command jumped to a 4.8 deg descent
+        #CLAUDE+ and the push was 0.33 g. The filter and the rate limits below then take it to the command.
+        self.gamma_cmd_f = (self.gamma_deg or 0.0) * D2R;
     } else {
         var kf = 1.0 - math.exp(-dt / CLIMB_TAU);
         #CLAUDE~ 0.8.1.2: was self.gamma_cmd_f += kf * (gamma_cmd - self.gamma_cmd_f). While the speed is below v_ref the climb limit of step 2
@@ -558,6 +587,8 @@ var update_pitch_target = func(self, dt, v_ref = nil) {
         #CLAUDE+ Only above level: a recovery from a descent towards level is not slowed, so an altitude capture from below is not delayed.
         var step = kf * (gamma_cmd - self.gamma_cmd_f);
         if (step > 0.0 and self.gamma_cmd_f >= 0.0) step = math.min(step, CLIMB_DN_RISE * g / math.max(v, 1.0) * dt);
+        #CLAUDE+ 0.8.2.1: a steepening descent is limited the same way, a push of CLIMB_DN_RISE g; a recovery from a climb towards level is not
+        if (step < 0.0 and self.gamma_cmd_f <= 0.0) step = math.max(step, -CLIMB_DN_RISE * g / math.max(v, 1.0) * dt);
         self.gamma_cmd_f += step;
     }
     self.gamma_cmd_t = now;
@@ -746,20 +777,32 @@ var update_force_physics = func(self, dt) {
 
     #CLAUDE+ 0.8.0: the ground stops a descent; the first contact after flight is recorded as a touchdown in self.touchdown
     if (floor_ft != nil) {
+        var vu_td = self.v_up;                                            #CLAUDE+ 0.8.2.1: the sink rate before the ground stops it
         if (self.alt_ft < floor_ft) {
-            if (!self.on_ground) {
-                var sink = -self.v_up;
-                self.touchdown = { sink_mps: sink, speed_mps: spd2, pitch: self.pitch, roll: self.roll, t: self.time or 0.0,
-                                   hard: (sink > TOUCHDOWN_HARD_MPS) };
-                print(sprintf("fSim: touchdown at %.1f m/s, sinking %.2f m/s, pitch %.1f, roll %.1f%s",
-                              spd2, sink, self.pitch, self.roll, (sink > TOUCHDOWN_HARD_MPS) ? ": HARD LANDING" : ""));
-            }
+#CLAUDE-            if (!self.on_ground) {
+#CLAUDE-                var sink = -self.v_up;
+#CLAUDE-                self.touchdown = { sink_mps: sink, speed_mps: spd2, pitch: self.pitch, roll: self.roll, t: self.time or 0.0,
+#CLAUDE-                                   hard: (sink > TOUCHDOWN_HARD_MPS) };
+#CLAUDE-                print(sprintf("fSim: touchdown at %.1f m/s, sinking %.2f m/s, pitch %.1f, roll %.1f%s",
+#CLAUDE-                              spd2, sink, self.pitch, self.roll, (sink > TOUCHDOWN_HARD_MPS) ? ": HARD LANDING" : ""));
+#CLAUDE-            }
             self.alt_ft = floor_ft;
             if (self.v_up < 0.0) self.v_up = 0.0;
             self.dAlt = 0.0;
             self.speed = math.sqrt(self.v_east * self.v_east + self.v_north * self.v_north + self.v_up * self.v_up) / kts_to_mps;
         }
-        self.on_ground = (self.alt_ft <= floor_ft + GROUND_CONTACT_FT and self.v_up <= 0.01) ? 1 : 0;
+#CLAUDE-        self.on_ground = (self.alt_ft <= floor_ft + GROUND_CONTACT_FT and self.v_up <= 0.01) ? 1 : 0;
+        #CLAUDE~ 0.8.2.1: the touchdown is recorded when on_ground goes from 0 to 1. It was recorded only when a step ended below the ground, so a step
+        #CLAUDE+ ending inside the GROUND_CONTACT_FT band set on_ground with no record, and the ground block then zeroed the sink rate.
+        var og = (self.alt_ft <= floor_ft + GROUND_CONTACT_FT and self.v_up <= 0.01) ? 1 : 0;
+        if (og and !self.on_ground) {
+            var sink = math.max(-vu_td, 0.0);
+            self.touchdown = { sink_mps: sink, speed_mps: spd2, pitch: self.pitch, roll: self.roll, t: self.time or 0.0,
+                               hard: (sink > TOUCHDOWN_HARD_MPS) };
+            print(sprintf("fSim: touchdown at %.1f m/s, sinking %.2f m/s, pitch %.1f, roll %.1f%s",
+                          spd2, sink, self.pitch, self.roll, (sink > TOUCHDOWN_HARD_MPS) ? ": HARD LANDING" : ""));
+        }
+        self.on_ground = og;
     } else {
         self.on_ground = 0;
     }
@@ -2286,6 +2329,8 @@ var runway_info = func(icao = nil) {
 #CLAUDE+   force skips phase 0; preview prints phase 0 and starts nothing.
 #CLAUDE+ The result is left in state.last_takeoff { outcome: airborne, rejected or timeout, roll_m, t_roll, v_lof, lof_along_m, t, why }.
 #CLAUDE+ Console: fSim.takeoff({ icao: "LFML", runway: "31R", alt_ft: 3000 }).
+#CLAUDE+ 0.8.2: the clean-up also starts at TAKEOFF_VFE_FRAC of the flap limit speed, below TAKEOFF_ACCEL_AGL_FT if need be, and the hand-back waits for
+#CLAUDE+ TAKEOFF_ACCEL_AGL_FT. The climb-out and clean-up steps are climb_out_steer and the hand-back is airborne_handback, both shared with the landing go-around.
 var TAKEOFF_ROTATE_DPS     = 5.0;     # deg/s  rotation rate   #CLAUDE~ 0.8.1.1: was 3; with the ground attitude 0 the rotation took over 3 s and lift-off came at 1.2 x Vr
 var TAKEOFF_PITCH_MAX_DEG  = 15.0;    # deg    largest pitch attitude in the climb-out and the clean-up   #CLAUDE+ 0.8.1.1
 var TAKEOFF_LOF_LOAD       = 1.15;    #        load factor the rotation attitude is chosen for
@@ -2298,6 +2343,29 @@ var TAKEOFF_TIMEOUT_S      = 300.0;   # s      the take-off hands back after thi
 var TAKEOFF_TERRAIN_WAIT_S = 10.0;    # s      after placing the aircraft, wait up to this long, brakes on, for the runway terrain heights   #CLAUDE+ 0.8.1.2
 var FLAP_RETRACT_VS        = 1.3;     #        flaps come up at this multiple of the clean stall speed   #CLAUDE~ 0.8.1.1: was 1.2; alpha reached 12.3 deg as they came up
 var TAKEOFF_CLEAN_VS       = 1.4;     #        the clean-up accelerates towards this multiple of the clean stall speed   #CLAUDE+ 0.8.1.1
+var TAKEOFF_VFE_FRAC       = 0.95;    #        the clean-up starts at this fraction of the flap limit speed even below TAKEOFF_ACCEL_AGL_FT   #CLAUDE+ 0.8.2
+
+#CLAUDE+ 0.8.2: one tick of a climb-out on heading hdg towards alt_ft holding v_ref, with the pitch attitude capped at TAKEOFF_PITCH_MAX_DEG and rising no
+#CLAUDE+ faster than TAKEOFF_ROTATE_DPS. Shared by the take-off climb-out and clean-up and the landing go-around.
+var climb_out_steer = func(self, hdg, alt_ft, dt, v_ref) {
+    nav_steer(self, hdg, alt_ft, dt, v_ref);
+    self.tgt_pitch = math.min(self.tgt_pitch, TAKEOFF_PITCH_MAX_DEG);
+    self.tgt_pitch = math.min(self.tgt_pitch, self.pitch + TAKEOFF_ROTATE_DPS * dt);
+};
+
+#CLAUDE+ 0.8.2: hand-back to normal flight after a take-off or a landing go-around. The ground is cleared, so no runway is left under the aircraft away from
+#CLAUDE+ the airfield; flaps up; targets hdg and alt_ft; the speed hold on at spd_kt, and no pre-manoeuvre throttle to restore; the climb law's smoothed
+#CLAUDE+ path angle starts from the path flown, see 0.8.1.3; then start_climb with schedule sched, or cruise when cruise can fly the change.
+var airborne_handback = func(self, hdg, alt_ft, spd_kt, sched, dt) {
+    self.ground_ft = nil;  self.on_ground = 0;
+    self.flaps_cmd = 0.0;  self.wheel_brake = 0.0;
+    self.tgt_heading = hdg;  self.tgt_altitude_ft = alt_ft;
+    self.tgt_speed = spd_kt;  self.auto_throttle = 1;
+    self.pre_manoeuvre = nil;
+    self.manoeuvre = nil;
+    self.gamma_cmd_f = (self.gamma_deg or 0.0) * D2R;  self.gamma_cmd_t = self.time or 0.0;
+    if (start_climb(self, { schedule: sched or "max_rate" }) == nil) cruise(self, dt);
+};
 
 var start_takeoff = func(self, opts = nil) {
     opts = opts or {};
@@ -2370,16 +2438,17 @@ var takeoff_handback = func(self, m, dt, outcome) {
     var r = takeoff_record(self, m, outcome, "");
     print(sprintf("Takeoff %s after %.1f s: ground roll %.0f m in %.1f s, lift-off at %.1f m/s %.0f m along the runway, clean at %.0f ft; climbing to %.0f ft, heading %.0f, %.0f kt",
                   outcome, r.t, r.roll_m, r.t_roll, r.v_lof, r.lof_along_m, self.alt_ft, m.alt_after, m.hdg_after, m.spd_kt));
-    self.ground_ft = nil;  self.on_ground = 0;            # no runway left under the aircraft away from the airfield
-    self.flaps_cmd = 0.0;  self.wheel_brake = 0.0;
-    self.tgt_heading = m.hdg_after;  self.tgt_altitude_ft = m.alt_after;
-    self.tgt_speed = m.spd_kt;  self.auto_throttle = 1;
-    self.pre_manoeuvre = nil;                              # the throttle before the take-off was idle: do not restore it
-    self.manoeuvre = nil;
+#CLAUDE-    self.ground_ft = nil;  self.on_ground = 0;            # no runway left under the aircraft away from the airfield
+#CLAUDE-    self.flaps_cmd = 0.0;  self.wheel_brake = 0.0;
+#CLAUDE-    self.tgt_heading = m.hdg_after;  self.tgt_altitude_ft = m.alt_after;
+#CLAUDE-    self.tgt_speed = m.spd_kt;  self.auto_throttle = 1;
+#CLAUDE-    self.pre_manoeuvre = nil;                              # the throttle before the take-off was idle: do not restore it
+#CLAUDE-    self.manoeuvre = nil;
     #CLAUDE+ 0.8.1.3: during climb-out the take-off caps the pitch, but update_pitch_target's smoothed path angle gamma_cmd_f kept rising towards
     #CLAUDE+ its own target; released here, the climb law pulled 1.31 g to catch up. Start the filter from the path actually flown.
-    self.gamma_cmd_f = (self.gamma_deg or 0.0) * D2R;  self.gamma_cmd_t = self.time or 0.0;
-    if (start_climb(self, { schedule: m.sched }) == nil) cruise(self, dt);
+#CLAUDE-    self.gamma_cmd_f = (self.gamma_deg or 0.0) * D2R;  self.gamma_cmd_t = self.time or 0.0;
+#CLAUDE-    if (start_climb(self, { schedule: m.sched }) == nil) cruise(self, dt);
+    airborne_handback(self, m.hdg_after, m.alt_after, m.spd_kt, m.sched, dt);   #CLAUDE~ 0.8.2: the lines above moved to airborne_handback, shared with the landing go-around
 };
 
 var update_takeoff = func(self, dt) {
@@ -2447,6 +2516,9 @@ var update_takeoff = func(self, dt) {
         if (!self.on_ground) {
             m.lof = { along: along, v: v, t: m.t_all };
             m.phase = "climb_out";  m.t = 0.0;
+            #CLAUDE+ 0.8.2: update_pitch_target is not called in the rotation, so its smoothed path angle restarted after lift-off from its full climb
+            #CLAUDE+ target; the climb law then pulled 1.58 g. Start it from the path flown, so CLIMB_DN_RISE limits the steepening.
+            self.gamma_cmd_f = (self.gamma_deg or 0.0) * D2R;  self.gamma_cmd_t = self.time or 0.0;
             print(sprintf("Takeoff: lift-off at %.1f m/s, %.0f m along the runway, pitch %.1f", v, along, self.pitch));
         } else if (m.t > TAKEOFF_ROTATE_MAX_S or rec.length_m - along < 50.0) {
             takeoff_reject(self, m, sprintf("still on the ground %.0f s after rotation, %.0f m of runway left", m.t, rec.length_m - along));
@@ -2459,12 +2531,17 @@ var update_takeoff = func(self, dt) {
         self.throttle = 1.0;
         #CLAUDE~ 0.8.1.1: the speed held is the lift-off speed if that is above V2; with v_ref = V2 the pitch law turned the surplus speed into a 20 deg
         #CLAUDE+ zoom at 1.46 g and pitch 30 deg. The pitch attitude is capped at TAKEOFF_PITCH_MAX_DEG; the excess thrust then accelerates the aircraft.
-        nav_steer(self, rec.heading, math.max(m.alt_after, gnd + TAKEOFF_ACCEL_AGL_FT + 500.0), dt, math.max(m.v2, (m.lof != nil) ? m.lof.v : m.v2));
-        self.tgt_pitch = math.min(self.tgt_pitch, TAKEOFF_PITCH_MAX_DEG);
-        self.tgt_pitch = math.min(self.tgt_pitch, self.pitch + TAKEOFF_ROTATE_DPS * dt);   #CLAUDE+ 0.8.1.2: pitch rises no faster than the rotation; it jumped 10.8 to 14.1 deg in one tick after lift-off, 1.33 g
-        if (agl >= TAKEOFF_ACCEL_AGL_FT) {
+#CLAUDE-        nav_steer(self, rec.heading, math.max(m.alt_after, gnd + TAKEOFF_ACCEL_AGL_FT + 500.0), dt, math.max(m.v2, (m.lof != nil) ? m.lof.v : m.v2));
+#CLAUDE-        self.tgt_pitch = math.min(self.tgt_pitch, TAKEOFF_PITCH_MAX_DEG);
+#CLAUDE-        self.tgt_pitch = math.min(self.tgt_pitch, self.pitch + TAKEOFF_ROTATE_DPS * dt);   #CLAUDE+ 0.8.1.2: pitch rises no faster than the rotation; it jumped 10.8 to 14.1 deg in one tick after lift-off, 1.33 g
+        climb_out_steer(self, rec.heading, math.max(m.alt_after, gnd + TAKEOFF_ACCEL_AGL_FT + 500.0), dt, math.max(m.v2, (m.lof != nil) ? m.lof.v : m.v2));   #CLAUDE~ 0.8.2: the three lines above
+        #CLAUDE~ 0.8.2: was agl >= TAKEOFF_ACCEL_AGL_FT only. The Spitfire passed its flap limit speed at about 150 ft and the physics drove the flaps up
+        #CLAUDE+ while the take-off still held climb-out; the clean-up now starts first.
+        var vfe_near = (v >= TAKEOFF_VFE_FRAC * flap_max_speed(self));
+        if (agl >= TAKEOFF_ACCEL_AGL_FT or vfe_near) {
             m.phase = "accelerate";  m.t = 0.0;
-            print(sprintf("Takeoff: %.0f ft above the runway at %.1f m/s; accelerating to raise the flaps", agl, v));
+            print(sprintf("Takeoff: %.0f ft above the runway at %.1f m/s%s; accelerating to raise the flaps", agl, v,
+                          (agl < TAKEOFF_ACCEL_AGL_FT) ? sprintf(", near the flap limit speed %.1f m/s", flap_max_speed(self)) : ""));
         }
         return;
     }
@@ -2472,11 +2549,14 @@ var update_takeoff = func(self, dt) {
     if (m.phase == "accelerate") {
         self.throttle = 1.0;
         var vs0 = v_stall_flaps(self, 0.0);
-        nav_steer(self, rec.heading, math.max(m.alt_after, self.alt_ft), dt, TAKEOFF_CLEAN_VS * vs0);   #CLAUDE~ 0.8.1.1: was 1.3 * vs0
-        self.tgt_pitch = math.min(self.tgt_pitch, TAKEOFF_PITCH_MAX_DEG);                                #CLAUDE+ 0.8.1.1
-        self.tgt_pitch = math.min(self.tgt_pitch, self.pitch + TAKEOFF_ROTATE_DPS * dt);                 #CLAUDE+ 0.8.1.2: as in the climb-out
+#CLAUDE-        nav_steer(self, rec.heading, math.max(m.alt_after, self.alt_ft), dt, TAKEOFF_CLEAN_VS * vs0);   #CLAUDE~ 0.8.1.1: was 1.3 * vs0
+#CLAUDE-        self.tgt_pitch = math.min(self.tgt_pitch, TAKEOFF_PITCH_MAX_DEG);                                #CLAUDE+ 0.8.1.1
+#CLAUDE-        self.tgt_pitch = math.min(self.tgt_pitch, self.pitch + TAKEOFF_ROTATE_DPS * dt);                 #CLAUDE+ 0.8.1.2: as in the climb-out
+        climb_out_steer(self, rec.heading, math.max(m.alt_after, self.alt_ft), dt, TAKEOFF_CLEAN_VS * vs0);   #CLAUDE~ 0.8.2: the three lines above
         if (v >= FLAP_RETRACT_VS * vs0) self.flaps_cmd = 0.0;
-        if (self.flaps < 0.01 and v >= FLAP_RETRACT_VS * vs0) takeoff_handback(self, m, dt, "airborne");   #CLAUDE~ 0.8.1.1: was 1.25 * vs0
+#CLAUDE-        if (self.flaps < 0.01 and v >= FLAP_RETRACT_VS * vs0) takeoff_handback(self, m, dt, "airborne");   #CLAUDE~ 0.8.1.1: was 1.25 * vs0
+        #CLAUDE~ 0.8.2: the hand-back also waits for TAKEOFF_ACCEL_AGL_FT, now that the clean-up can start lower
+        if (self.flaps < 0.01 and v >= FLAP_RETRACT_VS * vs0 and agl >= TAKEOFF_ACCEL_AGL_FT) takeoff_handback(self, m, dt, "airborne");
         return;
     }
 };
@@ -2528,6 +2608,7 @@ var takeoff = func(opts = nil) { return start_manoeuvre(modelName, fS.state, "ta
 #CLAUDE+   Never below 1.25 x the 1 g stall speed.
 #CLAUDE+   then (name of the manoeuvre to start at the gate) with then_opts, on_abort, ga_margin_ft (default perf goaround_margin_ft, else 1000),
 #CLAUDE+   gate_xt_m, gate_dh_tol_ft, gate_hdg_deg (override the gate tolerances), force (1 = skip the phase 0 check), preview (1 = print it and stop).
+#CLAUDE+   flaps, 0.8.2: flap fraction commanded when the line-up starts; the physics keeps the flaps up above the flap limit speed.
 #CLAUDE+ Gate tolerances: the entry conditions of the successor if it has any (NAV_ENTRY), otherwise the NAV_GATE_* defaults.
 var NAV_LOOKAHEAD_S  = 8.0;     # s    intercept look-ahead: the track angle is atan(cross-track / (speed x this)), a damped (zeta about 0.8) capture
 var NAV_MAX_INTERCEPT = 45.0;   # deg  steepest intercept angle to the line
@@ -2690,7 +2771,10 @@ var start_lineup = func(self, opts = nil) {   #CLAUDE~ 0.7.4.1: renamed from app
         print("Lineup refused: the reference is missing or not valid");
         return nil;
     }
-    var vs1 = v_stall_1g(self);
+#CLAUDE-    var vs1 = v_stall_1g(self);
+    #CLAUDE+ 0.8.2: opts.flaps, a flap fraction commanded when the line-up starts; the speed floor uses its stall speed, so a landing line-up can fly Vref
+    var fl  = opts["flaps"];
+    var vs1 = (fl != nil) ? v_stall_flaps(self, fl) : v_stall_1g(self);   #CLAUDE~ 0.8.2: was v_stall_1g(self)
     var v_lineup = opts["speed_mps"];
     if (v_lineup == nil and opts["speed_kt"] != nil) v_lineup = opts["speed_kt"] * kts_to_mps;
     if (v_lineup == nil) v_lineup = self.perf["cruise_speed_mps"];   #CLAUDE~ 0.7.4.2: perf key was approach_speed_mps
@@ -2740,6 +2824,7 @@ var start_lineup = func(self, opts = nil) {   #CLAUDE~ 0.7.4.1: renamed from app
         m.phase = "check";
         nav_record(self, m, nl, "reposition", ck.why);
         nav_start_reposition(self, m, nl, ck.why);
+        if (fl != nil) self.flaps_cmd = fl;   #CLAUDE+ 0.8.2
         self.manoeuvre = m;
         return m;
     }
@@ -2750,6 +2835,7 @@ var start_lineup = func(self, opts = nil) {   #CLAUDE~ 0.7.4.1: renamed from app
     }
     if (opts["preview"]) return nil;
     self.last_lineup = nil;
+    if (fl != nil) self.flaps_cmd = fl;   #CLAUDE+ 0.8.2
     self.manoeuvre = m;
     return m;
 };
@@ -2903,10 +2989,12 @@ var nav_reposition = func(self, m, nl, dt) {
 
 var nav_goaround = func(self, m, dt) {
     self.throttle = 1.0;
+    if ((self.flaps_cmd or 0.0) > FLAPS_TAKEOFF) self.flaps_cmd = FLAPS_TAKEOFF;   #CLAUDE+ 0.8.2: a landing line-up has landing flap down: go-around flap
     nav_steer(self, m.ga_hdg, m.ga_alt_ft, dt, climb_speed(self, "rate"));
     var err_m = (m.ga_alt_ft - self.alt_ft) / 3.28084;
     if (err_m < math.max(CLIMB_CAPTURE_MIN_M, 10.0 * self.v_up) or m.t > NAV_GA_TIMEOUT_S) {
         print(sprintf("Lineup go-around complete at %.0f ft: back to cruise", self.alt_ft));
+        self.flaps_cmd = 0.0;   #CLAUDE+ 0.8.2: flaps up for cruise
         nav_handback(self, m.ga_hdg, m.ga_alt_ft, dt);
     }
 };
@@ -2966,11 +3054,16 @@ var update_lineup_reference = func(self, dt) {   #CLAUDE~ 0.7.4.1: renamed from 
         print(sprintf("Lineup: at the gate after %.1f s: cross-track %+.1f m, height %+.1f ft, speed %+.1f m/s, heading %+.1f deg%s",
                       m.t, r.xt, r.dh_ft, r.dv, r.dpsi, (m.then != nil) ? ", starting " ~ m.then : ""));
         var pre = self.pre_manoeuvre;
-        nav_handback(self, nl.psi_deg, nl.path_alt_ft, dt);          # documented hand-back values, whether or not a successor follows
+#CLAUDE-        nav_handback(self, nl.psi_deg, nl.path_alt_ft, dt);          # documented hand-back values, whether or not a successor follows
+        #CLAUDE~ 0.8.2.1: the documented hand-back values are set whether or not a successor follows, but cruise runs only when there is none or it
+        #CLAUDE+ does not start. A cruise tick before the successor flew the old speed target, 180 kt at full throttle, and the old height law: 0.90 g.
+        if (m.then == nil) nav_handback(self, nl.psi_deg, nl.path_alt_ft, dt);
+        else { self.tgt_heading = nl.psi_deg;  self.tgt_altitude_ft = nl.path_alt_ft;  self.manoeuvre = nil; }
         if (m.then != nil) {
             var ok = start_manoeuvre(modelName, self, m.then, m.then_opts);
             if (ok == nil) {
                 print("Lineup: the successor " ~ m.then ~ " did not start (refused, or cruise can already do it); flying on in cruise");   #CLAUDE~ 0.7.3.1: wording (start_climb returns nil when cruise handles the climb)
+                cruise(self, dt);                                        #CLAUDE+ 0.8.2.1
                 self.last_lineup.then_started = 0;
             } else {
                 self.last_lineup.then_started = 1;
@@ -3006,6 +3099,357 @@ var update_lineup_reference = func(self, dt) {   #CLAUDE~ 0.7.4.1: renamed from 
                   ck.ok ? "intercepted again too often or too little time in hand" : "cannot recover: " ~ ck.why));
     }
 };
+
+########################## landing (0.8.2) ###########################
+#CLAUDE+ A landing is a line-up followed by the land manoeuvre. Both work from a reference where the glide path meets the runway, land_flare_shift_m
+#CLAUDE+ short of the aim point RUNWAY_AIM_M beyond the landing threshold, with course_rel = 1 and course_deg 0: the course is the heading of the reference. A runway is a fixed reference on the runway
+#CLAUDE+ heading; a carrier will be a moving reference, the aim point on its deck, with no change here beyond the reference and the deck height.
+#CLAUDE+ start_landing(self, opts): picks the runway, runway_best_for_landing unless opts.runway names one, checks its length, and starts a line-up
+#CLAUDE+   on the glide path RUNWAY_GLIDE_DEG with the gate RUNWAY_GATE_AGL_FT above the runway, at the approach speed with landing flap commanded;
+#CLAUDE+   the flaps come down once the speed is below the flap limit speed. At the gate the line-up starts land.
+#CLAUDE+ start_land(self, opts): the land manoeuvre. It can also be started on its own from near the glide path. Phases:
+#CLAUDE+   final    track the centreline and the glide path to the aim point at the approach speed. Above LAND_COMMIT_AGL_FT, a cross-track, height or
+#CLAUDE+            speed error outside the final funnel for NAV_OUT_S is an unstable approach: go-around.
+#CLAUDE+   flare    0.8.2.1: sink rates are relative to the sloping runway, and the commanded sink rate is sqrt((h / LAND_FLARE_TAU_S)^2 + LAND_TD_SINK_MPS^2),
+#CLAUDE+            which starts at tau x sqrt(sink^2 - td^2). As first written in 0.8.2:
+#CLAUDE+            starts when the height of the wheels is LAND_FLARE_TAU_S times the sink rate: the throttle closes in step with the height, idle at
+#CLAUDE+            the touchdown, so the speed does not bleed away towards the stall, and the sink rate is commanded to
+#CLAUDE+            height / LAND_FLARE_TAU_S, an exponential flare, down to LAND_TD_SINK_MPS, held to the touchdown. Bank is limited to LAND_FLARE_BANK_DEG.
+#CLAUDE+            A float that leaves less than LAND_STOP_FACTOR times the braked stop distance of runway ahead: go-around.
+#CLAUDE+   rollout  from the touchdown, idle, pitch 0, wheel brakes after LAND_BRAKE_DELAY_S, to a stop. The aircraft is then held on the runway, brakes
+#CLAUDE+            on, flaps up, with state.runway set, so fSim.takeoff({ place: 0 }) can follow. There is no steering on the ground: the roll-out keeps the
+#CLAUDE+            track it touched down on.
+#CLAUDE+   goaround full throttle, go-around flap FLAPS_TAKEOFF, the take-off climb-out on the runway heading to LAND_GA_AGL_FT above the runway, then
+#CLAUDE+            the clean-up as in the take-off, and the hand-back to start_climb with the speed hold on. The landing is not retried.
+#CLAUDE+ The result is left in state.last_land { outcome: stopped, goaround or refused, why, rwy, td_m from the threshold, aim_err_m, td_xt_m, td_sink,
+#CLAUDE+   td_speed, hard, roll_m, t_roll, stop_m from the threshold, left_m of runway ahead at the stop, overrun, t }.
+#CLAUDE+ opts of start_landing: icao, default the airport nearest the aircraft; runway; aim_m; glide_deg; gate_agl_ft; speed_mps or speed_kt, the
+#CLAUDE+   approach speed, default Vref; flaps, default FLAPS_LANDING; on_abort for the line-up, default goaround; speed_after_kt, the speed hold after
+#CLAUDE+   a go-around, default cruise_speed_mps or 0.6 x max speed; force; preview. start_land takes rec, the runway record, or icao and runway, and
+#CLAUDE+   aim_m, glide_deg, speed_mps, flaps, speed_after_kt, force, preview.
+#CLAUDE+ Heights are of the model origin, so the reference height is the ground at the aim point plus perf model_ground_offset_ft.
+#CLAUDE+ Console: fSim.landing({ icao: "LFML", runway: "31R" }); test code fSim.test_landing(opts) places the aircraft on the approach first.
+var LAND_FLARE_TAU_S    = 3.0;     # s    flare time constant: commanded sink rate = height of the wheels / this
+var LAND_FLARE_MAX_FT   = 60.0;    # ft   the flare starts no higher than this above the runway
+var LAND_TD_SINK_MPS    = 1.0;     # m/s  sink rate the flare ends on and holds to the touchdown
+var LAND_K_GAMMA        = 1.5;     # 1/s  flare: path-angle error -> rate of change of the path angle
+var LAND_FLARE_BANK_DEG = 5.0;     # deg  largest bank in the flare
+var LAND_FUNNEL_XT_M    = 10.0;    # m    final: cross-track error allowed at the end of the glide path
+var LAND_FUNNEL_DEG     = 1.0;     # deg  final: the cross-track allowance widens at this half-angle back towards the gate, 61 m at 2.9 km
+var LAND_FUNNEL_DH_FT   = 20.0;    # ft   final: height error allowed at the end of the glide path
+var LAND_FUNNEL_V_DEG   = 0.5;     # deg  final: the height allowance widens at this angle back towards the gate, 103 ft at 2.9 km
+var LAND_V_LO_FRAC      = 0.93;    #      final: speed at least this fraction of the approach speed
+var LAND_V_HI_FRAC      = 1.15;    #      final: and at most this fraction
+var LAND_COMMIT_AGL_FT  = 100.0;   # ft   below this the final checks stop and the landing is committed, except for a float
+var LAND_STOP_FACTOR    = 1.3;     #      float: go around if the runway ahead is less than this times the braked stop distance
+var LAND_BRAKE_DELAY_S  = 1.0;     # s    wheel brakes this long after the touchdown
+var LAND_GA_AGL_FT      = 1500.0;  # ft   go-around: climb to this height above the runway
+var LAND_TIMEOUT_S      = 300.0;   # s    the land manoeuvre goes around if it is not on the ground by then
+var LAND_LOG_DT         = 5.0;     # s    spacing of the final-approach log lines
+
+# The aim point as a reference spec { lat, lon, alt_ft, hdg, spd_kt } for make_reference: aim_along m from the runway end, on its heading,
+# at the ground height there plus the model offset.
+var land_aim_spec = func(self, rec, aim_along) {
+    var h  = rec.heading * D2R;
+    var ll = lat_lon_at(rec.lat, rec.lon, aim_along * math.sin(h), aim_along * math.cos(h));
+    return { lat: ll.lat, lon: ll.lon, alt_ft: runway_ground_ft(rec, aim_along) + (self.perf["model_ground_offset_ft"] or 0.0),
+             hdg: rec.heading, spd_kt: 0.0 };
+};
+
+#CLAUDE+ How far beyond the point where the glide path meets the ground the flare carries the aircraft, m. The glide path is aimed this far short
+#CLAUDE+ of the aim point.
+#CLAUDE~ 0.8.2.1: for the smooth flare law and a sloping runway. Was v x tau x ln(s0 / td) for the exponential flare on a level runway.
+#CLAUDE+ s0 = v x (tan(glide) + slope) is the sink rate relative to the ground on the glide path, td = LAND_TD_SINK_MPS, tau = LAND_FLARE_TAU_S. The flare
+#CLAUDE+ commands a sink rate s = sqrt((h / tau)^2 + td^2) relative to the ground, so it starts at h_f = tau x r, r = sqrt(s0^2 - td^2), and flies
+#CLAUDE+ integral of v / s dh = v x tau x asinh(r / td) = v x tau x ln((r + s0) / td); the glide path would have flown h_f / (s0 / v) = v x tau x r / s0.
+#CLAUDE+ Shift = v x tau x (ln((r + s0) / td) - r / s0). About 87 m for the Spitfire at 46.5 m/s on a level runway, 31 m on LFML 31R which falls 2 percent;
+#CLAUDE+ a point-mass model of the flare, flare.py, touches down within 5 m of these.
+var land_flare_shift_m = func(v, glide_deg, slope = 0.0) {
+    var s0 = v * (nav_tan(glide_deg) + slope);
+    if (s0 <= LAND_TD_SINK_MPS) return 0.0;
+    var r = math.sqrt(s0 * s0 - LAND_TD_SINK_MPS * LAND_TD_SINK_MPS);
+    return v * LAND_FLARE_TAU_S * (math.ln((r + s0) / LAND_TD_SINK_MPS) - r / s0);
+};
+
+#CLAUDE+ 0.8.2.1: rise of the runway per metre along its heading, negative downhill, from the ground heights at its two ends.
+var runway_slope = func(rec) {
+    return ((rec["elev_far_ft"] or rec.elev_ft) - rec.elev_ft) / (math.max(rec.length_m, 1.0) * 3.28084);
+};
+
+# The final funnel at the present distance to the end of the glide path: { xt_m, dh_ft }.
+var land_funnel = func(nl) {
+    var d = math.max(nl.dtg, 0.0);
+    return { xt_m: LAND_FUNNEL_XT_M + d * nav_tan(LAND_FUNNEL_DEG), dh_ft: LAND_FUNNEL_DH_FT + d * nav_tan(LAND_FUNNEL_V_DEG) * 3.28084 };
+};
+
+var start_landing = func(self, opts = nil) {
+    opts = opts or {};
+    var apt = airport_of(self, opts["icao"]);
+    if (apt == nil) return nil;
+    var rec = nil;
+    if (opts["runway"] != nil) {
+        rec = runway_by_id(apt, opts["runway"]);
+        if (rec == nil) return nil;
+    } else {
+        var b = runway_best_for_landing(self, apt);
+        if (b.rwy == nil) {
+            print("Landing refused: no runway at " ~ apt.id ~ " is long enough");
+            self.last_land = { outcome: "refused", why: "no runway long enough at " ~ apt.id };
+            return nil;
+        }
+        rec = b.rwy;
+    }
+    var f     = (opts["flaps"] != nil) ? opts["flaps"] : FLAPS_LANDING;
+    var sp    = flight_speeds(self, rec.elev_ft);
+    var v_app = opts["speed_mps"];
+    if (v_app == nil and opts["speed_kt"] != nil) v_app = opts["speed_kt"] * kts_to_mps;
+    if (v_app == nil) v_app = (f == FLAPS_LANDING) ? sp.vref : VREF_FACTOR * v_stall_flaps(self, f, rec.elev_ft);
+    var aim    = (opts["aim_m"] != nil) ? opts["aim_m"] : RUNWAY_AIM_M;
+    var glide  = opts["glide_deg"] or RUNWAY_GLIDE_DEG;
+    var gate_h = opts["gate_agl_ft"] or RUNWAY_GATE_AGL_FT;
+    var gate_m = gate_h * 0.3048 / nav_tan(glide);
+    var need   = landing_distance_m(self, rec.elev_ft);
+    var ok     = (rec.avail_m >= need);
+    print(sprintf("Landing phase 0: %s %s heading %.0f, %.0f m available, %.0f m needed; flaps %.2f, approach %.1f m/s (Vref %.1f); aim %.0f m beyond the threshold, glide path aimed %.0f m short of it for the flare; gate %.0f m before that at %.0f ft above the runway; %s",
+                  rec.icao, rec.id, rec.heading, rec.avail_m, need, f, v_app, sp.vref, aim, land_flare_shift_m(v_app, glide, runway_slope(rec)), gate_m, gate_h, ok ? "OK" : "REFUSED: runway too short"));   #CLAUDE~ 0.8.2.1: slope
+    if (!runway_terrain_known(rec))
+        print("Landing: the runway heights are the airport elevation until the scenery loads; the land manoeuvre picks up the terrain when it can");
+    if (!ok and !opts["force"]) {
+        self.last_land = { outcome: "refused", why: sprintf("runway %s %s: %.0f m available, %.0f m needed", rec.icao, rec.id, rec.avail_m, need) };
+        return nil;
+    }
+    var shift  = land_flare_shift_m(v_app, glide, runway_slope(rec));   #CLAUDE~ 0.8.2.1: slope
+    var lo = { ref: land_aim_spec(self, rec, rec.displaced_m + aim - shift), course_rel: 1, course_deg: 0.0, glide_deg: glide, gate_m: gate_m,
+               speed_mps: v_app, flaps: f, on_abort: opts["on_abort"] or "goaround",
+               then: "land", then_opts: { rec: rec, aim_m: aim, glide_deg: glide, speed_mps: v_app, flaps: f, speed_after_kt: opts["speed_after_kt"] },
+               force: opts["force"], preview: opts["preview"] };
+    foreach (var k; ["ga_margin_ft", "gate_xt_m", "gate_dh_tol_ft", "gate_hdg_deg", "monitor_rows"])
+        if (opts[k] != nil) lo[k] = opts[k];
+    self.last_land = nil;
+    return start_lineup(self, lo);
+};
+
+var start_land = func(self, opts = nil) {
+    opts = opts or {};
+    var rec = opts["rec"];
+    if (rec == nil) {
+        var apt = airport_of(self, opts["icao"]);
+        if (apt == nil) return nil;
+        rec = (opts["runway"] != nil) ? runway_by_id(apt, opts["runway"]) : runway_best_aligned(apt, self.hdg);
+        if (rec == nil) return nil;
+    }
+    var f     = (opts["flaps"] != nil) ? opts["flaps"] : FLAPS_LANDING;
+    var sp    = flight_speeds(self, rec.elev_ft);
+    var aim   = (opts["aim_m"] != nil) ? opts["aim_m"] : RUNWAY_AIM_M;
+    var aim_along = rec.displaced_m + aim;
+    var v_app = opts["speed_mps"] or sp.vref;
+    var glide = opts["glide_deg"] or RUNWAY_GLIDE_DEG;
+    var glide_along = aim_along - land_flare_shift_m(v_app, glide, runway_slope(rec));   # where the glide path meets the ground   #CLAUDE~ 0.8.2.1: slope
+    var spd_after = opts["speed_after_kt"] or ((self.perf["cruise_speed_mps"] or 0.6 * self.perf.max_speed_mps) / kts_to_mps);
+    var m = {
+        name: "land", phase: "final", t: 0.0, t_all: 0.0, rec: rec, f: f, aim_m: aim, aim_along: aim_along,
+        v_app: v_app, vref: sp.vref, glide_along: glide_along,
+        # the line, in the form nav_geometry reads: it ends where the glide path meets the ground, gate_m 0
+        ref: make_reference(land_aim_spec(self, rec, glide_along)), course_rel: 1, course_deg: 0.0,
+        glide: glide, gate_m: 0.0, gate_alt_ft: nil, gate_dh_ft: 0.0,
+        gate: { xt_m: LAND_FUNNEL_XT_M, dh_ft: LAND_FUNNEL_DH_FT }, ref_hdg_f: nil, ref_alt_prev: nil, ref_vs: 0.0, last_geo: nil,
+        out_t: 0.0, log_t: -99.0, td: nil, td_along: 0.0, overrun: 0, thr_flare: 0.0, h_flare: 1.0,
+        ga_alt_ft: rec.elev_ft + LAND_GA_AGL_FT, ga_stage: "", ga_why: "", spd_after: spd_after,
+        update: update_land
+    };
+    var nl = nav_geometry(self, m);
+    if (nl == nil) { print("Land refused: the aim point reference is not valid");  return nil; }
+    var fu  = land_funnel(nl);
+    var dh  = self.alt_ft - nl.path_alt_ft;
+    var dps = wrap180(self.hdg - nl.course);
+    var why = "";
+    if (nl.dtg <= 0.0)                       why = sprintf("%.0f m past the aim point", -nl.dtg);
+    else if (math.abs(nl.xt) > 2.0 * fu.xt_m) why = sprintf("cross-track %+.0f m, more than twice the final funnel %.0f m", nl.xt, fu.xt_m);
+    else if (math.abs(dh) > 2.0 * fu.dh_ft)   why = sprintf("height %+.0f ft from the glide path, more than twice the final funnel %.0f ft", dh, fu.dh_ft);
+    else if (math.abs(dps) > 30.0)            why = sprintf("heading %+.0f deg from the runway heading", dps);
+    print(sprintf("Land phase 0: %s %s, %.0f m to where the glide path meets the runway, cross-track %+.0f m, height %+.0f ft from the glide path, approach %.1f m/s; %s",
+                  rec.icao, rec.id, nl.dtg, nl.xt, dh, m.v_app, (why == "") ? "OK" : "REFUSED: " ~ why ~ "; use landing for a full approach"));
+    if (why != "" and !opts["force"]) {
+        self.last_land = { outcome: "refused", why: why };
+        return nil;
+    }
+    if (opts["preview"]) return nil;
+    self.flaps_cmd = f;
+    self.runway = rec;
+    self.ground_ft = runway_ground_ft(rec, runway_along(self, rec));
+    self.brake_cmd = 0;
+    self.last_land = nil;
+    self.manoeuvre = m;
+    return m;
+};
+
+var land_record = func(self, m, outcome, why, along = nil) {
+    var rec = m.rec;  var td = m.td;
+    var r = { outcome: outcome, why: why, rwy: rec.icao ~ " " ~ rec.id, t: m.t_all, overrun: m.overrun,
+              td_m: 0.0, aim_err_m: 0.0, td_xt_m: 0.0, td_sink: 0.0, td_speed: 0.0, hard: 0, roll_m: 0.0, t_roll: 0.0, stop_m: 0.0, left_m: 0.0 };
+    if (td != nil) {
+        r.td_m = td.thr_m;  r.aim_err_m = td.aim_err_m;  r.td_xt_m = td.xt;  r.td_sink = td.sink;  r.td_speed = td.speed;  r.hard = td.hard;
+    }
+    if (along != nil and td != nil) {
+        r.roll_m = along - m.td_along;  r.t_roll = m.t;  r.stop_m = along - rec.displaced_m;  r.left_m = rec.length_m - along;
+    }
+    self.last_land = r;
+    return r;
+};
+
+# Roll towards heading hdg with the heading law, the user target untouched, bank limited to lim deg.
+var land_lateral = func(self, hdg, dt, lim) {
+    var h0 = self.tgt_heading;
+    self.tgt_heading = hdg;
+    update_roll_target(self, dt);
+    self.tgt_heading = h0;
+    self.tgt_roll = math.clamp(self.tgt_roll, -lim, lim);
+};
+
+var land_start_goaround = func(self, m, why) {
+    m.phase = "goaround";  m.ga_stage = "climb";  m.ga_why = why;  m.t = 0.0;
+    if ((self.flaps_cmd or 0.0) > FLAPS_TAKEOFF) self.flaps_cmd = FLAPS_TAKEOFF;
+    self.wheel_brake = 0.0;
+    self.gamma_cmd_f = (self.gamma_deg or 0.0) * D2R;  self.gamma_cmd_t = self.time or 0.0;   # the climb law starts from the path flown
+    print(sprintf("Land GO-AROUND: %s; full power, climb to %.0f ft on the runway heading %.0f", why, m.ga_alt_ft, m.rec.heading));
+};
+
+var land_goaround = func(self, m, dt, v, agl_ft) {
+    var rec = m.rec;
+    self.throttle = 1.0;
+    var vs0 = v_stall_flaps(self, 0.0);
+    if (m.ga_stage == "climb") {
+        climb_out_steer(self, rec.heading, m.ga_alt_ft, dt, math.max(V2_FACTOR * v_stall_flaps(self, FLAPS_TAKEOFF), m.v_app));
+        if (agl_ft >= TAKEOFF_ACCEL_AGL_FT or v >= TAKEOFF_VFE_FRAC * flap_max_speed(self)) {
+            m.ga_stage = "clean";
+            print(sprintf("Land go-around: %.0f ft above the runway at %.1f m/s; raising the flaps", agl_ft, v));
+        }
+        return;
+    }
+    climb_out_steer(self, rec.heading, m.ga_alt_ft, dt, TAKEOFF_CLEAN_VS * vs0);
+    if (v >= FLAP_RETRACT_VS * vs0) self.flaps_cmd = 0.0;
+    if ((self.flaps < 0.01 and v >= FLAP_RETRACT_VS * vs0 and agl_ft >= TAKEOFF_ACCEL_AGL_FT) or m.t > LAND_TIMEOUT_S) {
+        land_record(self, m, "goaround", m.ga_why);
+        print(sprintf("Land go-around complete at %.0f ft, clean, %.0f m/s: climbing to %.0f ft, heading %.0f, %.0f kt",
+                      self.alt_ft, v, m.ga_alt_ft, rec.heading, m.spd_after));
+        airborne_handback(self, rec.heading, m.ga_alt_ft, m.spd_after, "max_rate", dt);
+    }
+};
+
+var land_touchdown = func(self, m, nl, along) {
+    var td = self.touchdown;
+    m.td = { thr_m: along - m.rec.displaced_m, aim_err_m: along - m.aim_along, xt: (nl != nil) ? nl.xt : 0.0,
+             sink: (td == nil) ? 0.0 : td.sink_mps, speed: (td == nil) ? self.speed * kts_to_mps : td.speed_mps, hard: (td != nil and td.hard) ? 1 : 0 };
+    m.td_along = along;
+    m.phase = "rollout";  m.t = 0.0;
+    print(sprintf("Land: touchdown %.0f m beyond the threshold, %+.0f m from the aim point, cross-track %+.1f m, %.1f m/s, sinking %.2f m/s%s; braking",
+                  m.td.thr_m, m.td.aim_err_m, m.td.xt, m.td.speed, m.td.sink, m.td.hard ? ", HARD" : ""));
+};
+
+var land_rollout = func(self, m, v, along) {
+    var rec = m.rec;
+    self.throttle = 0.0;  self.tgt_pitch = 0.0;  self.tgt_roll = 0.0;
+    self.wheel_brake = (m.t >= LAND_BRAKE_DELAY_S) ? 1.0 : 0.0;
+    if (!m.overrun and along > rec.length_m) {
+        m.overrun = 1;
+        print(sprintf("Land: OVERRUN, past the end of %s %s at %.1f m/s", rec.icao, rec.id, v));
+    }
+    if (self.on_ground and v < GROUND_STOP_MPS) {
+        var r = land_record(self, m, "stopped", "", along);
+        print(sprintf("Land: stopped after a roll of %.0f m in %.1f s, %.0f m beyond the threshold, %.0f m of runway left%s",
+                      r.roll_m, r.t_roll, r.stop_m, r.left_m, m.overrun ? ", OVERRUN" : ""));
+        self.flaps_cmd = 0.0;  self.wheel_brake = 1.0;  self.throttle = 0.0;
+        self.auto_throttle = 0;  self.pre_manoeuvre = nil;          # stays at idle on the runway
+        self.tgt_heading = self.hdg;  self.tgt_altitude_ft = self.alt_ft;
+        self.runway = rec;
+        self.manoeuvre = nil;
+    }
+};
+
+var update_land = func(self, dt) {
+    var m   = self.manoeuvre;
+    var rec = m.rec;
+    m.t += dt;  m.t_all += dt;
+    var v   = self.speed * kts_to_mps;
+    var off = self.perf["model_ground_offset_ft"] or 0.0;
+    runway_follow_ground(self, rec);
+    m.ref.alt_ft = runway_ground_ft(rec, m.glide_along) + off;          # follows the terrain heights once the scenery has loaded
+    var along  = runway_along(self, rec);
+    var agl_ft = self.alt_ft - self.ground_ft - off;
+    if (m.phase == "goaround") { land_goaround(self, m, dt, v, agl_ft);  return; }
+    if (m.phase == "rollout")  { land_rollout(self, m, v, along);  return; }
+
+    var nl = nav_geometry(self, m, dt);
+    if (nl == nil) { land_start_goaround(self, m, "the aim point reference was lost");  return; }
+    m.last_geo = nl;
+    if (self.on_ground) {
+        land_touchdown(self, m, nl, along);
+        land_rollout(self, m, v, along);
+        return;
+    }
+    if (m.t_all > LAND_TIMEOUT_S) { land_start_goaround(self, m, sprintf("not on the ground after %.0f s", LAND_TIMEOUT_S));  return; }
+
+    if (m.phase == "final") {
+        nav_steer(self, nl.psi_deg, nl.alt_cmd_ft, dt);
+        hold_speed(self, m.v_app);
+        var fu = land_funnel(nl);
+        var dh = self.alt_ft - nl.path_alt_ft;
+        if (m.t - m.log_t >= LAND_LOG_DT) {
+            m.log_t = m.t;
+            print(sprintf("Land final: %.0f m to the glide path end, %.0f ft above the runway, cross-track %+.1f m (funnel %.0f), height %+.0f ft (funnel %.0f), %.1f m/s, flaps %.2f",
+                          nl.dtg, agl_ft, nl.xt, fu.xt_m, dh, fu.dh_ft, v, self.flaps));
+        }
+        if (agl_ft > LAND_COMMIT_AGL_FT) {
+            var why = "";
+            if (math.abs(nl.xt) > fu.xt_m)   why = sprintf("cross-track %+.0f m (funnel %.0f)", nl.xt, fu.xt_m);
+            else if (math.abs(dh) > fu.dh_ft) why = sprintf("height %+.0f ft from the glide path (funnel %.0f)", dh, fu.dh_ft);
+            else if (v < LAND_V_LO_FRAC * m.v_app or v > LAND_V_HI_FRAC * m.v_app)
+                why = sprintf("speed %.1f m/s (allowed %.1f to %.1f)", v, LAND_V_LO_FRAC * m.v_app, LAND_V_HI_FRAC * m.v_app);
+            if (why != "") m.out_t += dt; else m.out_t = 0.0;
+            if (m.out_t > NAV_OUT_S) { land_start_goaround(self, m, "unstable approach: " ~ why);  return; }
+        }
+#CLAUDE-        var sink = -self.v_up;
+#CLAUDE-        if (agl_ft <= LAND_FLARE_MAX_FT and agl_ft * 0.3048 <= LAND_FLARE_TAU_S * math.max(sink, LAND_TD_SINK_MPS)) {
+        #CLAUDE~ 0.8.2.1: the sink rate relative to the sloping runway, and the start height of the smooth flare law, tau x sqrt(sink^2 - td^2), not below 1 m
+        var v_hf = math.sqrt(self.v_east * self.v_east + self.v_north * self.v_north);
+        var sink = v_hf * runway_slope(rec) - self.v_up;
+        var h_f  = LAND_FLARE_TAU_S * math.sqrt(math.max(sink * sink - LAND_TD_SINK_MPS * LAND_TD_SINK_MPS, 0.0));
+        if (agl_ft <= LAND_FLARE_MAX_FT and agl_ft * 0.3048 <= math.max(h_f, 1.0)) {
+            m.phase = "flare";  m.t = 0.0;
+            m.thr_flare = self.throttle;  m.h_flare = math.max(agl_ft * 0.3048, 0.1);
+            print(sprintf("Land: flare at %.0f ft above the runway, sinking %.2f m/s, %.1f m/s, %.0f m beyond the threshold, cross-track %+.1f m",
+                          agl_ft, sink, v, along - rec.displaced_m, nl.xt));
+        }
+        return;
+    }
+
+    if (m.phase == "flare") {
+        var h    = math.max(agl_ft * 0.3048, 0.0);
+        self.throttle = m.thr_flare * math.clamp(h / m.h_flare, 0.0, 1.0);   # closed in step with the height, idle at the touchdown
+        land_lateral(self, nl.psi_deg, dt, LAND_FLARE_BANK_DEG);
+        var v_h  = math.max(math.sqrt(self.v_east * self.v_east + self.v_north * self.v_north), 1.0);
+#CLAUDE-        var expo = (h / LAND_FLARE_TAU_S > LAND_TD_SINK_MPS);
+#CLAUDE-        var s_cmd = expo ? h / LAND_FLARE_TAU_S : LAND_TD_SINK_MPS;
+#CLAUDE-        var gcmd = -math.atan2(s_cmd, v_h);
+#CLAUDE-        var ff   = expo ? s_cmd / (LAND_FLARE_TAU_S * v_h) : 0.0;         # rate at which the exponential flare flattens the path
+        #CLAUDE~ 0.8.2.1: the sink rate is relative to the runway, which falls at v_h x slope, and blends smoothly from h / tau to td: the switch from the
+        #CLAUDE+ exponential part to the constant sink dropped the feed-forward in one tick, a 0.98 g kink. On LFML 31R the runway fell 0.9 m/s under the aircraft,
+        #CLAUDE+ so a 1 m/s sink through the air closed on it at 0.1 m/s and the flare floated 330 m.
+        var s_cmd = math.sqrt(h * h / (LAND_FLARE_TAU_S * LAND_FLARE_TAU_S) + LAND_TD_SINK_MPS * LAND_TD_SINK_MPS);
+        var gcmd  = math.atan2(v_h * runway_slope(rec) - s_cmd, v_h);
+        var ff    = h / (LAND_FLARE_TAU_S * LAND_FLARE_TAU_S * v_h);         # rate at which the flare flattens the path
+        var gdot = math.clamp(ff + LAND_K_GAMMA * (gcmd - (self.gamma_deg or 0.0) * D2R), -0.5, 0.5);
+        command_path(self, math.max(v, 1.0), gdot, 0, dt, 0);
+        var ahead = rec.length_m - along;
+        var stop  = v * v / (2.0 * g * GROUND_MU_BRAKE);
+        if (ahead < LAND_STOP_FACTOR * stop)
+            land_start_goaround(self, m, sprintf("floated: %.0f m of runway ahead, %.0f m needed to stop from %.1f m/s", ahead, LAND_STOP_FACTOR * stop, v));
+        return;
+    }
+};
+
+# Console helper: starts a landing through the dispatcher, so the monitor and the listeners behave as for any manoeuvre.
+var landing = func(opts = nil) { return start_manoeuvre(modelName, fS.state, "landing", opts or {}); };
 
 var run_flight_physics = func(mName) {
     var prof = fS.prof;
@@ -3067,6 +3511,10 @@ var run_flight_physics = func(mName) {
         anim.speedNode.setDoubleValue(state.speed);
         anim.engineNode.setDoubleValue(state.throttle * throttleFactor);
         anim.tLast = now;                           # re-base the animation clock: frames integrate from this tick
+        #CLAUDE+ 0.8.2.5: the tick has just overwritten the orientation and height the animation manager extrapolated, so the hook gets the same values;
+        #CLAUDE+ otherwise, in a frame where the tick ran after the animation update, the camera and the model disagreed by the extrapolation error
+        if (anim["on_frame"] != nil)
+            anim.on_frame(anim.latNode.getValue() or 0.0, anim.lonNode.getValue() or 0.0, state.alt_ft, o.hdg, o.pitch, o.roll);
     }
 
     if (prof.enable) {
@@ -3108,6 +3556,7 @@ var animationManager = {
             dHdg: 0.0, dPitch: 0.0, dRoll: 0.0,
             tLast: nil,
             frames: 0, missed: 0, maxDt: 0.0,
+            on_frame: nil,   #CLAUDE+ 0.8.2.4: optional func(lat, lon, alt, hdg, pitch, roll), called each frame after the object has been moved
             timer: nil
         };
 
@@ -3167,6 +3616,9 @@ var animationManager = {
         anim.hdgNode.setDoubleValue(new_hdg);
         anim.pitchNode.setDoubleValue(pitch + anim.dPitch * dt);
         anim.rollNode.setDoubleValue(new_roll);        
+        #CLAUDE+ 0.8.2.4: hook with the values just written, e.g. the chase camera proxy; the same frame, so the camera and the model move together
+        if (anim.on_frame != nil)
+            anim.on_frame(lat + anim.dLat * dt, lon + anim.dLon * dt, alt + anim.dAlt * dt, new_hdg, pitch + anim.dPitch * dt, new_roll);
 
         if (prof.enable) prof.add("anim", systime() - t0);
     },
@@ -3309,7 +3761,7 @@ elsif (modelName == "/spitfireXVI") {
         wing_area_m2: 21.46,           # m^2 (231 sq ft due to the clipped wing tips, down from the standard 22.48 m²)
         max_thrust_N: 12000.0,         # N (Peak propeller thrust derived from the 1,720 hp Packard Merlin 266 engine)
         max_speed_mps: 154.2,          # m/s (Maximum level speed at sea level, equal to ~345 mph / 300 knots)
-        thrust_speed_exp: ,
+        thrust_speed_exp: 0.82,        #CLAUDE~ 0.8.2.1: was blank
 
         max_pitch_rate_aero: 35.0,     # deg/s (Maximum transient pitch rate before high-speed stall or G-lock limit)
         max_roll_rate_aero:  175.0,    # deg/s (Aerodynamic maximum roll rate achieved under optimal speed/airspeed pressures)
@@ -3619,6 +4071,7 @@ var create_aircraft_state = func(callsign, initial_lat, initial_lon, initial_alt
         touchdown: nil,    #CLAUDE+ 0.8.0: the last touchdown: sink_mps, speed_mps, pitch, roll, t, hard
         runway: nil,       #CLAUDE+ 0.8.0: the runway record the aircraft was placed on or is landing on
         last_takeoff: nil, #CLAUDE+ 0.8.1: result of the last take-off, see start_takeoff
+        last_land: nil,    #CLAUDE+ 0.8.2: result of the last runway landing, see start_landing; last_landing is the projectile impact
         aerobatic: 0, # flag to enable aerobgatic performance
         manoeuvre: nil,
         projectiles: [],   #CLAUDE+ 0.7.0: projectiles in flight (release_projectile)
@@ -3716,7 +4169,7 @@ var monitorTick = func {
     }
     if (fS.state["manoeuvre"] != nil) var mPhase = fS.state.manoeuvre["phase"] else var mPhase = "";
     # print(sprintf("Phase: %s Gamma: %.2f Pitch %.2f Alpha: %.2f Drag: %.2f Load: %.2f Stalled %d Speed_mps: %.1f Alt_ft: %.1f Heading %.1f Roll %.1f Throttle %.1f Tick_interval %.3f",
-    print(sprintf("Phase: %s Gamma: %.2f Pitch %.2f Alpha: %.2f Drag: %.2f Load: %.2f v_stall_1g %.1f Speed_mps: %.1f Alt_ft: %.1f v_up %.1f best_climb_speed %.1f Throttle %.1f Brake %.1f Tick_interval %.3f",
+    print(sprintf("Phase: %s Gamma: %.2f Pitch %.2f Alpha: %.2f Drag: %.2f Load: %.2f v_stall_1g %.1f Speed_mps: %.1f Alt_ft: %.1f v_up %.1f best_climb_speed %.1f Throttle %.1f Brake %.1f Flaps %.2f Tick_interval %.3f",   #CLAUDE~ 0.8.2.1: Flaps added
     mPhase,
     fS.state.gamma_deg,
     fS.state.pitch,
@@ -3733,6 +4186,7 @@ var monitorTick = func {
     (fS.state.climb_cache != nil) ? fS.state.climb_cache["v"] : 0.0,
     fS.state.throttle,
     fS.state.brake,
+    fS.state.flaps or 0.0,   #CLAUDE+ 0.8.2.1
     fS.state.dTime
     ));
     monitor_n += 1;
@@ -3788,6 +4242,113 @@ monitor_timer.simulatedTime = 1;
 
 
 ########################## Start camera ###########################
+#CLAUDE- 0.8.2.2: camera tracking. FlightGear orients a view from the properties named by its config paths eye-heading-deg-path, eye-pitch-deg-path
+#CLAUDE- and eye-roll-deg-path, and turns the eye offsets with them. Following the model's pitch and roll made the chase camera swing up behind the
+#CLAUDE- aircraft in the flare and rotate with it in a roll, which looked like a glitch. camera_track(mode, slot) sets the mode:
+#CLAUDE-   "heading"  the pitch and roll paths point at a property held at 0, so the camera stays level behind the aircraft and turns with its heading
+#CLAUDE-   "full"     the paths the view had before, saved on the first call, so the camera follows heading, pitch and roll as before 0.8.2.2
+#CLAUDE- The zero property is written both as an absolute path and under the model root, because the view may read its paths relative to
+#CLAUDE- config/root or not; either way it reads 0. The heading path is left as the view had it. The view is selected again so that FlightGear
+#CLAUDE- reads the new paths. Console: fSim.camera_track("full") and fSim.camera_track("heading").
+#CLAUDE- var CAMERA_TRACK      = "heading";            # default tracking mode set by setup_fSim_chase_view
+#CLAUDE- var CAMERA_SLOT       = 101;                  # view slot used by setup_fSim_chase_view
+#CLAUDE- var CAMERA_ZERO_PATH  = "/fsim-camera/zero-deg";
+#CLAUDE- var camera_saved = nil;                       # { pitch, roll }: the view's own paths, saved on the first call
+#CLAUDE- var camera_track = func(mode = "heading", slot_idx = nil) {
+#CLAUDE-     if (slot_idx == nil) slot_idx = CAMERA_SLOT;
+#CLAUDE-     var cfg = "/sim/view[" ~ slot_idx ~ "]/config/";
+#CLAUDE-     if (camera_saved == nil)
+#CLAUDE-         camera_saved = { pitch: getprop(cfg ~ "eye-pitch-deg-path") or "", roll: getprop(cfg ~ "eye-roll-deg-path") or "" };
+#CLAUDE-     setprop(CAMERA_ZERO_PATH, 0.0);
+#CLAUDE-     setprop(modelName ~ CAMERA_ZERO_PATH, 0.0);
+#CLAUDE-     if (mode == "full") {
+#CLAUDE-         setprop(cfg ~ "eye-pitch-deg-path", camera_saved.pitch);
+#CLAUDE-         setprop(cfg ~ "eye-roll-deg-path", camera_saved.roll);
+#CLAUDE-     } else {
+#CLAUDE-         mode = "heading";
+#CLAUDE-         setprop(cfg ~ "eye-pitch-deg-path", CAMERA_ZERO_PATH);
+#CLAUDE-         setprop(cfg ~ "eye-roll-deg-path", CAMERA_ZERO_PATH);
+#CLAUDE-     }
+#CLAUDE-     if (getprop("/sim/current-view/view-number-raw") == slot_idx) view.setViewByIndex(slot_idx);
+#CLAUDE-     print(sprintf("fSim: camera on view slot %d tracks %s (pitch path '%s', roll path '%s'; saved '%s', '%s')", slot_idx,
+#CLAUDE-                   (mode == "full") ? "heading, pitch and roll" : "heading only",
+#CLAUDE-                   getprop(cfg ~ "eye-pitch-deg-path") or "", getprop(cfg ~ "eye-roll-deg-path") or "", camera_saved.pitch, camera_saved.roll));
+#CLAUDE-     return mode;
+#CLAUDE- };
+
+
+#CLAUDE+ 0.8.2.3: camera tracking through a proxy node. A view slot whose config/root names a node takes the eye position from root/position and its
+#CLAUDE+ orientation from root/orientation, which is how 101 follows an AI model in gui_ai_views.nas. Pointed at the model, the camera turned with its pitch
+#CLAUDE+ and roll; the flare then looked like a glitch. The root is now CAMERA_PROXY, filled every frame by camera_timer from the model's own nodes:
+#CLAUDE+   position and heading always; pitch and roll copied in mode "full", held at 0 in mode "heading", the default.
+#CLAUDE+ The 0.8.2.2 attempt changed the eye pitch and roll paths and selected the view again, which reset config/root and left the camera on the UFO.
+#CLAUDE+ Nothing here selects the view; setup_fSim_chase_view still sets the root after the view has initialised.
+#CLAUDE+ Console: fSim.camera_track("full") or fSim.camera_track("heading"). The proxy could later smooth or delay the camera, as gui_ai_views.nas does.
+var CAMERA_TRACK = "heading";                          # tracking mode at start: "heading" or "full"
+var CAMERA_PROXY = "/sim/views/ai-targets/fsim-proxy"; # view root written by camera_copy
+var camera_mode  = CAMERA_TRACK;
+var camera_nodes = nil;                                # proxy output nodes, created on the first call
+var camera_copy = func {
+    if (camera_nodes == nil) {
+        var p = props.globals.getNode(CAMERA_PROXY, 1);
+        camera_nodes = { lat: p.getNode("position/latitude-deg", 1), lon: p.getNode("position/longitude-deg", 1),
+                         alt: p.getNode("position/altitude-ft", 1), hdg: p.getNode("orientation/heading-deg", 1),
+                         thdg: p.getNode("orientation/true-heading-deg", 1), pitch: p.getNode("orientation/pitch-deg", 1),
+                         roll: p.getNode("orientation/roll-deg", 1) };
+    }
+    var c = camera_nodes;
+    var h = hdgNode.getValue() or 0.0;
+    c.lat.setDoubleValue(latNode.getValue() or 0.0);
+    c.lon.setDoubleValue(lonNode.getValue() or 0.0);
+    c.alt.setDoubleValue(altNode.getValue() or 0.0);
+    c.hdg.setDoubleValue(h);
+    c.thdg.setDoubleValue(h);
+    c.pitch.setDoubleValue((camera_mode == "full") ? (pitchNode.getValue() or 0.0) : 0.0);
+    c.roll.setDoubleValue((camera_mode == "full") ? (rollNode.getValue() or 0.0) : 0.0);
+};
+#CLAUDE- var camera_timer = maketimer(0, camera_copy);          # every frame
+#CLAUDE+ 0.8.2.4: the per-frame update, called by the animation manager's on_frame hook with the values it has just written to the model
+var camera_frame = func(lat, lon, alt, hdg, pitch, roll) {
+    if (camera_nodes == nil) camera_copy();               # creates the nodes
+    var c = camera_nodes;
+    c.lat.setDoubleValue(lat);  c.lon.setDoubleValue(lon);  c.alt.setDoubleValue(alt);
+    c.hdg.setDoubleValue(hdg);  c.thdg.setDoubleValue(hdg);
+    c.pitch.setDoubleValue((camera_mode == "full") ? pitch : 0.0);
+    c.roll.setDoubleValue((camera_mode == "full") ? roll : 0.0);
+};
+
+#CLAUDE+ 0.8.2.4: FlightGear re-initialises a view each time it is selected, and the root it then finds is not the proxy: after cycling to the tower
+#CLAUDE+ view and back, "AI view" showed the UFO. This sets config/root to the proxy again, after the same delay setup_fSim_chase_view uses, whenever the
+#CLAUDE+ slot becomes the current view. The slot is recognised by view-number-raw, the n of /sim/view[n], or failing that by the view name.
+#CLAUDE- var CAMERA_ROOT_DELAY_S = 0.1;   # s  delay after a view change before config/root is set, past FGView::init()
+var CAMERA_ROOT_FRAMES       = 2;    # frames after a view change before config/root is first set   #CLAUDE+ 0.8.2.5: was CAMERA_ROOT_DELAY_S 0.1 s
+var CAMERA_ROOT_CHECK_FRAMES = 10;   # frames after the change during which the root is set again if the view has reset it   #CLAUDE+ 0.8.2.5
+var camera_is_current = func(slot_idx) {
+    var raw = getprop("/sim/current-view/view-number-raw");
+    if (raw != nil) return (raw == slot_idx);
+    var nm = getprop("/sim/view[" ~ slot_idx ~ "]/name");
+    return (nm != nil and getprop("/sim/current-view/name") == nm);
+};
+#CLAUDE~ 0.8.2.5: frame-counted. A settimer with delay 0 runs on the next frame. From frame CAMERA_ROOT_FRAMES to CAMERA_ROOT_CHECK_FRAMES the root is
+#CLAUDE+ set whenever it is not the proxy, so it is written once normally, and again only if the view initialises later and resets it.
+#CLAUDE- var camera_set_root = func(slot_idx) {
+#CLAUDE-     settimer(func {
+#CLAUDE-         if (camera_is_current(slot_idx)) setprop("/sim/view[" ~ slot_idx ~ "]/config/root", CAMERA_PROXY);
+#CLAUDE-     }, CAMERA_ROOT_DELAY_S);
+#CLAUDE- };
+var camera_set_root = func(slot_idx, frame = 0) {
+    if (frame > CAMERA_ROOT_CHECK_FRAMES or !camera_is_current(slot_idx)) return;
+    var p = "/sim/view[" ~ slot_idx ~ "]/config/root";
+    if (frame >= CAMERA_ROOT_FRAMES and getprop(p) != CAMERA_PROXY) setprop(p, CAMERA_PROXY);
+    settimer(func { camera_set_root(slot_idx, frame + 1); }, 0);
+};
+var camera_listener = nil;
+var camera_track = func(mode = "heading") {
+    camera_mode = (mode == "full") ? "full" : "heading";
+    print("fSim: chase camera tracks " ~ ((camera_mode == "full") ? "heading, pitch and roll" : "heading only"));
+    return camera_mode;
+};
+
 # Configure and activate a dynamic chase view slot for F15 matching Bombable's architecture
 var setup_fSim_chase_view = func(slot_idx, mName) {
     # 1. Ensure the view slot configuration path exists
@@ -3805,12 +4366,22 @@ var setup_fSim_chase_view = func(slot_idx, mName) {
     setprop("/sim/view[" ~ slot_idx ~ "]/config/target-y-offset-m", 0);
     setprop("/sim/view[" ~ slot_idx ~ "]/config/target-z-offset-m", 0);
 
+    #CLAUDE+ 0.8.2.3: fill the proxy before the view binds to it, then every frame
+    camera_copy();
+#CLAUDE-    camera_timer.start();
+    attributes[mName].controls.animation.on_frame = camera_frame;   #CLAUDE+ 0.8.2.4: every frame, from the animation manager
+    #CLAUDE+ 0.8.2.4: set the root again whenever this slot is selected
+    if (camera_listener == nil)
+        camera_listener = setlistener("/sim/current-view/view-number", func { camera_set_root(slot_idx); }, 0, 0);
+
     # 6. Switch active camera to this slot
     view.setViewByIndex(slot_idx);
 
     # Defer root path assignment past FGView::init() reset cycle
     settimer(func {
-        setprop("/sim/view[" ~ slot_idx ~ "]/config/root", mName);
+#CLAUDE-        setprop("/sim/view[" ~ slot_idx ~ "]/config/root", mName);
+#CLAUDE-        camera_track(CAMERA_TRACK, slot_idx);   #CLAUDE+ 0.8.2.2: after the root, so the view is not reset over it
+        setprop("/sim/view[" ~ slot_idx ~ "]/config/root", CAMERA_PROXY);   #CLAUDE~ 0.8.2.3: the proxy, was mName
     }, 0.1);
     print("fSim: Chase camera successfully bound to " ~ mName ~ " on View Slot " ~ slot_idx);
 };
@@ -3844,7 +4415,7 @@ foreach (var path; paths) {
 # Example listener registration (adapt the node path to your controls node):
 
   var register_manoeuvre_listeners = func(mName, self) {
-      foreach (var name; ["loop", "immelmann", "aileron_roll", "split_s", "climb", "dive", "lineup", "takeoff"]) {   #CLAUDE~ 0.7.4.1: the node is now controls/manoeuvres/lineup; 0.8.1: takeoff added
+      foreach (var name; ["loop", "immelmann", "aileron_roll", "split_s", "climb", "dive", "lineup", "takeoff", "landing"]) {   #CLAUDE~ 0.7.4.1: the node is now controls/manoeuvres/lineup; 0.8.1: takeoff added; 0.8.2: landing
           (func(name) {
               var node = props.globals.getNode(mName ~ "/controls/manoeuvres/" ~ name, 1);
               node.setBoolValue(0);
@@ -3883,6 +4454,8 @@ var start_manoeuvre = func(mname, self, name, opts = nil) {
     else if (name == "dive")         ret = start_dive(self, opts);    #CLAUDE+ 0.6.0
     else if (name == "lineup")       ret = start_lineup(self, opts);   #CLAUDE+ 0.7.3   #CLAUDE~ 0.7.4.1: renamed from approach
     else if (name == "takeoff")      ret = start_takeoff(self, opts);  #CLAUDE+ 0.8.1
+    else if (name == "landing")      ret = start_landing(self, opts);  #CLAUDE+ 0.8.2
+    else if (name == "land")         ret = start_land(self, opts);     #CLAUDE+ 0.8.2
     else {
         print("Unknown manoeuvre: " ~ name);
         return nil;
@@ -4451,6 +5024,38 @@ var update_test_touchdown = func(self, dt) {
                       m.s_td, (td == nil) ? 0.0 : td.speed_mps, (td == nil) ? 0.0 : td.sink_mps, (td != nil and td.hard) ? " HARD" : "", s - m.s_td, m.t, s));
         self.manoeuvre = nil;
     }
+};
+
+########################## landing test (0.8.2) ###########################
+#CLAUDE+ TEST CODE, not part of the flight model. fSim.test_landing(opts) puts the aircraft on the approach to a runway, level, and starts a landing
+#CLAUDE+   through the dispatcher. opts: icao, default the airport nearest the aircraft; runway, default the end best aligned with the present heading;
+#CLAUDE+   dist_m, distance before the landing threshold, default 8000; agl_ft, height above the runway, default 1500; xt_m, offset right of the extended
+#CLAUDE+   centreline, default 0; hdg_off_deg, heading relative to the runway heading, default 0; speed_kt, default cruise_speed_mps or 0.6 x max speed.
+#CLAUDE+   Options of start_landing are passed on: on_abort, speed_mps, aim_m, glide_deg, gate_agl_ft, flaps, force.
+#CLAUDE+   Example: fSim.test_landing({ icao: "LFML", runway: "31R" });  then fSim.takeoff({ place: 0 }) takes off again from where it stopped.
+var test_landing = func(opts = nil) {
+    opts = opts or {};
+    var st = fS.state;
+    if (st.manoeuvre != nil) { print("test_landing: manoeuvre " ~ st.manoeuvre.name ~ " is running");  return nil; }
+    var rec = test_ground_runway(st, opts);
+    if (rec == nil) return nil;
+    var dist = opts["dist_m"] or 8000.0;
+    var agl  = opts["agl_ft"] or 1500.0;
+    var xt   = opts["xt_m"] or 0.0;
+    var h    = rec.heading * D2R;
+    var a    = rec.displaced_m - dist;                                   # m along the runway heading from the runway end
+    var ll   = lat_lon_at(rec.lat, rec.lon, a * math.sin(h) + xt * math.cos(h), a * math.cos(h) - xt * math.sin(h));
+    var hdg  = wrap360(rec.heading + (opts["hdg_off_deg"] or 0.0));
+    var spd  = opts["speed_kt"] or ((st.perf["cruise_speed_mps"] or 0.6 * st.perf.max_speed_mps) / kts_to_mps);
+    var alt  = rec.elev_ft + (st.perf["model_ground_offset_ft"] or 0.0) + agl;
+    st = series_reset_state({ auto_throttle: 1 }, { lat: ll.lat, lon: ll.lon, alt_ft: alt, hdg: hdg, speed_kt: spd, throttle: 0.5 });
+    st.tgt_heading = hdg;  st.tgt_altitude_ft = alt;  st.tgt_speed = spd;
+    print(sprintf("TEST landing on %s %s: placed %.0f m before the threshold, %+.0f m from the centreline, %.0f ft above the runway, heading %.0f, %.0f kt",
+                  rec.icao, rec.id, dist, xt, agl, hdg, spd));
+    var lo = { icao: rec.icao, runway: rec.id };
+    foreach (var k; ["on_abort", "speed_mps", "aim_m", "glide_deg", "gate_agl_ft", "flaps", "force", "monitor_rows"])
+        if (opts[k] != nil) lo[k] = opts[k];
+    return start_manoeuvre(modelName, st, "landing", lo);
 };
 
 register_manoeuvre_listeners(modelName, fS.state);
