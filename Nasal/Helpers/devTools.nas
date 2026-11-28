@@ -1754,3 +1754,25 @@ fSim.fS.prof.stop();
 # fSim.test_accel_stop({ icao: "LFML" });      # full throttle to Vr, then brake to a stop
 # fSim.test_touchdown({ icao: "LFML" });       # 2 m/s descent with no flare, touchdown, roll-out
 # fSim.test_touchdown({ icao: "LFML", sink_mps: 4 });   # should report a hard landing
+
+=======================================
+
+
+fSim.fS.state.monitor = 1;
+fSim.takeoff({ icao: "LFML", runway: "31R", alt_ft: 3000 });
+# fSim.takeoff({ icao: "LFML", runway: "31R", preview: 1 });   # print the phase 0 check only
+# fSim.takeoff({ icao: "LFML", runway: "13R", flaps: 0 });     # shorter runway, no flap
+
+=======================================
+
+
+fSim.runway_info("LFLJ");                    # runways, landing scores from here, speeds for this profile
+fSim.fS.state.monitor = 1;
+fSim.takeoff({ icao: "LFLJ", runway: "31R", alt_ft: 3000 });
+# fSim.takeoff({ icao: "LFML", runway: "31R", preview: 1 });   # print the phase 0 check only
+# fSim.takeoff({ icao: "LFML", runway: "13R", flaps: 0 });     # shorter runway, no flap
+
+
+=======================================
+
+fSim.perf_check(opts);
